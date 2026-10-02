@@ -23,7 +23,7 @@ async function loadPuzzle(pub, id, from) {
   };
   if (!from || from === 'local') {
     const xd = await get(`xd/${id}.xd`, 'text').catch(() => null);
-    if (xd) return buildPuzzle(parseXd(xd, id), null);
+    if (xd) return {...buildPuzzle(parseXd(xd, id), null), fromXd: true};
   }
   const ocr = await get(`reviews/${id}/ocr.json`);
   const review = await get(`reviews/${id}/review.json`).catch(() => null);
@@ -45,7 +45,7 @@ function parseXd(text, id) {
     clues[m[1]] = {text: k >= 0 ? m[2].slice(0, k) : m[2]};
   }
   return {
-    xdid: id, source: head.Source, title: head.Title, author: head.Author, byline: head.Byline, captions: {},
+    xdid: id, source: head.Source, solutionSource: head['Solution-Source'], title: head.Title, author: head.Author, byline: head.Byline, captions: {},
     grid: rows.map(r => [...r].map(ch => (ch === '#' ? '#' : '.')).join('')),
     answers: rows.some(r => /[A-Za-z]/.test(r)) ? rows : null,
     clues, note: (parts[3] || '').trim(),
@@ -152,7 +152,7 @@ function buildPuzzle(ocr, review) {
   const sic = Object.entries(rv.sic || {}).map(([k, v]) => `${k.replace(/^\w+:/, '')}: ${v}`);
   const keyed = cells.flat().filter(Boolean);
   return {
-    id: ocr.xdid, date: puzzleDate(ocr.xdid), source: ocr.source, R, C, cells, words,
+    id: ocr.xdid, date: puzzleDate(ocr.xdid), source: ocr.source, solutionSource: ocr.solutionSource || '', R, C, cells, words,
     title: meta.title, author: meta.author, byline: meta.byline,
     captions: captions.filter(s => s && s.trim()),
     hasKey: keyed.length > 0 && keyed.every(x => x.sol),

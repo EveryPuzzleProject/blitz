@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Solve a Restored Puzzle</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .kicker { font: 600 12px var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .byline { font-style: italic; }
+  .cap { margin: 6px 0 0; font-family: var(--serif); }
+  .play { display: flex; gap: 28px; align-items: flex-start; margin-top: 16px; }
+  .board-col { flex: none; max-width: 100%; }
+  .clue-bar { min-height: 46px; padding: 8px 12px; margin-bottom: 8px; border-radius: 6px; background: var(--accent-soft);
+    font-family: var(--serif); line-height: 1.35; max-width: calc(var(--sz) * var(--cols) + 4px); }
+  .clue-bar b { font-family: var(--sans); margin-right: 6px; }
+  .board { --sz: min(34px, calc((100vw - 36px) / var(--cols))); display: grid; grid-template-columns: repeat(var(--cols), var(--sz));
+    border: 2px solid var(--block); width: max-content; user-select: none; background: var(--block); gap: 1px; }
+  .cell { width: var(--sz); height: var(--sz); background: var(--surface); position: relative; cursor: pointer;
+    display: flex; align-items: flex-end; justify-content: center; font: 600 calc(var(--sz) * .55)/1.25 var(--sans); text-transform: uppercase; }
+  .cell.blk { background: var(--block); cursor: default; }
+  .cell .num { position: absolute; top: 1px; left: 2px; font: 500 calc(var(--sz) * .27)/1 var(--sans); color: var(--muted); }
+  .cell.word { background: var(--word); }
+  .cell.cur { background: var(--cur); }
+  .cell.bad .ch { color: var(--bad); }
+  .cell.bad::after { content: ""; position: absolute; inset: auto 15% 8% 15%; border-top: 2px solid var(--bad); transform: rotate(-35deg); transform-origin: center; top: 50%; }
+  .cell.rev .ch { color: var(--accent); }
+  .tools { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; align-items: center; }
+  .status { font-size: 14px; flex-basis: 100%; min-height: 20px; }
+  .timer { font: 600 15px ui-monospace, monospace; margin-right: 6px; min-width: 52px; }
+  .lists { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; min-width: 0; }
+  .lists h3 { font: 600 13px var(--sans); text-transform: uppercase; letter-spacing: .08em; margin: 0 0 6px; color: var(--muted); }
+  .lists ol { list-style: none; margin: 0; padding: 0; max-height: 70vh; overflow-y: auto; font-family: var(--serif); font-size: 15px; }
+  .lists li { padding: 3px 8px; border-radius: 4px; cursor: pointer; display: flex; gap: 8px; }
+  .lists li b { font-family: var(--sans); font-size: 13px; min-width: 22px; text-align: right; }
+  .lists li.on { background: var(--word); }
+  .lists li.cross { background: var(--accent-soft); }
+  .about { margin-top: 32px; border-top: 1px solid var(--line); padding-top: 12px; font-size: 14px; }
+  .about p { margin: 6px 0; }
+  details { margin-top: 8px; } summary { cursor: pointer; color: var(--muted); }
+  #kbd { position: fixed; left: -100px; top: 0; width: 1px; height: 1px; opacity: 0; }
+  @media (max-width: 760px) {
+    .play { flex-direction: column; gap: 16px; }
+    .clue-bar { position: sticky; top: 0; z-index: 2; }
+    .lists { grid-template-columns: 1fr; width: 100%; }
+    .lists ol { max-height: none; }
+  }
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap"><a href="https://everypuzzleproject.github.io/puzzle-review/">Every Puzzle Project</a><span class="muted">Your private copy</span></div></header>
+<main class="wrap" id="app"><p class="muted">Loading puzzle…</p></main>
+<input id="kbd" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Type answers">
+<script src="puzzle.js"></script>
+<script src="data.js"></script>
+<script>
+const PUBS = {judge: 'Judge'};
+// A copy of one puzzle, made for the volunteer who reviewed it and kept on their computer.
+// data.js beside this file sets window.PUZZLE = {ocr, review}; nothing here is published.
+const id = window.PUZZLE?.ocr?.xdid || '', pub = id.match(/^[a-z]+/)?.[0] || '';
+const app = document.getElementById('app'), kbd = document.getElementById('kbd');
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+const store = {
+  key: `epp:${pub}/${id}`,
+  get() { try { return JSON.parse(localStorage.getItem(this.key)) || null; } catch { return null; } },
+  set(v) { try { localStorage.setItem(this.key, JSON.stringify(v)); } catch {} },
+};
+
+if (!id) app.innerHTML = "<p>This folder is missing its data.js. Ask Claude to make it again.</p>";
+else start(buildPuzzle(window.PUZZLE.ocr, window.PUZZLE.review));
+
+function start(P) {
+  document.title = `${P.title || 'Crossword'} (${PUBS[pub] || pub}, ${P.date})`;
+  const saved = store.get() || {};
+  const fill = P.cells.map((row, r) => row.map((x, c) => (saved.fill?.[r]?.[c]) || ''));
+  const revealed = new Set(saved.revealed || []), bad = new Set();
+  let elapsed = saved.t || 0, ticking = null, done = false;
+  const byDir = {A: [], D: []};  // cell -> word index, per direction
+  for (const d of ['A', 'D']) byDir[d] = P.cells.map(row => row.map(() => -1));
+  P.words.forEach((w, i) => w.cells.forEach(([r, c]) => byDir[w.dir][r][c] = i));
+  const first = P.words[0];
+  let cur = first ? {r: first.cells[0][0], c: first.cells[0][1]} : {r: 0, c: 0}, dir = first ? first.dir : 'A';
+
+  const byline = P.byline && P.byline.replace(/^by\s+/i, '') !== P.author ? P.byline : '';
+  app.innerHTML = `
+    <div class="kicker">${esc(PUBS[pub] || pub)} · ${esc(P.date)}</div>
+    <h1>${esc(P.title || 'Crossword')}</h1>
+    ${P.author ? `<div>by ${esc(P.author)}</div>` : ''}
+    ${byline ? `<div class="byline muted">${esc(byline)}</div>` : ''}
+    ${P.captions.filter(s => s !== P.byline).map(s => `<p class="cap">${esc(s)}</p>`).join('')}
+    <div id="banner"></div>
+    <div class="play">
+      <div class="board-col">
+        <div class="clue-bar" id="bar"></div>
+        <div class="board" id="board" style="--cols:${P.C}"></div>
+        <div class="tools">
+          <span class="timer" id="timer">0:00</span>
+          <button data-act="check">Check</button>
+          <button data-act="sq">Reveal square</button>
+          <button data-act="word">Reveal word</button>
+          <button data-act="all">Reveal puzzle</button>
+          <button data-act="clear">Clear</button>
+          <span class="status muted" id="status" aria-live="polite"></span>
+        </div>
+      </div>
+      <div class="lists">
+        <section><h3>Across</h3><ol id="la"></ol></section>
+        <section><h3>Down</h3><ol id="ld"></ol></section>
+      </div>
+    </div>
+    <div class="about">
+      <p>First printed in <i>${esc(PUBS[pub] || pub)}</i> on ${esc(P.date)}.
+        ${P.source ? `<a href="${esc(P.source)}" target="_blank" rel="noopener">See the original page</a> at the Internet Archive.` : ''}</p>
+      <p>Checked against the scan by your Claude${P.model ? ` (${esc(P.model)})` : ''} for the
+        <a href="https://everypuzzleproject.github.io/puzzle-review/">Every Puzzle Project</a>. Clues and answers are as printed, misprints included.
+        This copy is for your own use, as a thank-you; please don't share or post it.</p>
+      ${P.sic.length ? `<details><summary>Printed misprints, kept as printed</summary><ul>${P.sic.map(s => `<li>${esc(s)}</li>`).join('')}</ul></details>` : ''}
+      ${P.note ? `<details><summary>Notes</summary><p>${esc(P.note)}</p></details>` : ''}
+    </div>`;
+
+  const board = document.getElementById('board'), bar = document.getElementById('bar'), banner = document.getElementById('banner');
+  const timer = document.getElementById('timer');
+  const els = P.cells.map(row => row.map(() => null));
+  P.cells.forEach((row, r) => row.forEach((x, c) => {
+    const d = document.createElement('div');
+    d.className = x ? 'cell' : 'cell blk';
+    if (x) {
+      d.innerHTML = `${x.num ? `<span class="num">${x.num}</span>` : ''}<span class="ch"></span>`;
+      d.addEventListener('mousedown', e => { e.preventDefault(); select(r, c, true); });
+    }
+    board.appendChild(d);
+    els[r][c] = d;
+  }));
+  const lis = P.words.map((w, i) => {
+    const li = document.createElement('li');
+    li.innerHTML = `<b>${w.n}</b><span>${esc(w.text)}</span>`;
+    li.addEventListener('mousedown', e => { e.preventDefault(); dir = w.dir; cur = firstEmpty(i); paint(); kbd.focus(); });
+    document.getElementById(w.dir === 'A' ? 'la' : 'ld').appendChild(li);
+    return li;
+  });
+
+
+  const unknown = P.cells.flat().filter(x => x && !x.sol).length, known = P.cells.flat().filter(x => x && x.sol).length;
+  if (!known) {
+    banner.innerHTML = `<div class="banner">No answer key has been found for this puzzle yet, so you're solving without a net: Check and Reveal are off.</div>`;
+    document.querySelectorAll('[data-act]:not([data-act=clear])').forEach(b => b.disabled = true);
+  } else if (unknown) {
+    banner.insertAdjacentHTML('beforeend', `<div class="banner">${unknown} ${unknown === 1 ? 'square' : 'squares'} of the printed answer key couldn't be read, so Check and Reveal skip ${unknown === 1 ? 'it' : 'them'}.</div>`);
+  }
+
+  const wordIdx = () => { let i = byDir[dir][cur.r][cur.c]; if (i < 0) { dir = dir === 'A' ? 'D' : 'A'; i = byDir[dir][cur.r][cur.c]; } return i; };
+  const firstEmpty = i => { const w = P.words[i]; const e = w.cells.find(([r, c]) => !fill[r][c]) || w.cells[0]; return {r: e[0], c: e[1]}; };
+  function select(r, c, clicked) {
+    if (clicked && r === cur.r && c === cur.c) { const o = dir === 'A' ? 'D' : 'A'; if (byDir[o][r][c] >= 0) dir = o; }
+    cur = {r, c}; paint(); kbd.focus();
+  }
+  function paint() {
+    const wi = wordIdx(), w = P.words[wi], o = dir === 'A' ? 'D' : 'A', xi = byDir[o][cur.r][cur.c];
+    const inWord = new Set(w ? w.cells.map(([r, c]) => r + ',' + c) : []);
+    P.cells.forEach((row, r) => row.forEach((x, c) => {
+      if (!x) return;
+      const el = els[r][c], k = r + ',' + c;
+      el.querySelector('.ch').textContent = fill[r][c];
+      el.className = 'cell' + (r === cur.r && c === cur.c ? ' cur' : inWord.has(k) ? ' word' : '')
+        + (bad.has(k) ? ' bad' : '') + (revealed.has(k) ? ' rev' : '');
+    }));
+    lis.forEach((li, i) => li.className = i === wi ? 'on' : i === xi ? 'cross' : '');
+    if (w) { bar.innerHTML = `<b>${w.n} ${w.dir === 'A' ? 'Across' : 'Down'}</b>${esc(w.text)}`; lis[wi].scrollIntoView({block: 'nearest'}); }
+    if (xi >= 0) lis[xi].scrollIntoView({block: 'nearest'});
+  }
+  const tick = () => { timer.textContent = `${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, '0')}`; };
+  const run = () => { if (!ticking && !done) ticking = setInterval(() => { elapsed++; tick(); if (elapsed % 5 === 0) save(); }, 1000); };
+  const save = () => store.set({fill, revealed: [...revealed], t: elapsed});
+  tick();
+
+  function moveInWord(step) {
+    const w = P.words[wordIdx()], k = w.cells.findIndex(([r, c]) => r === cur.r && c === cur.c), n = k + step;
+    if (n >= 0 && n < w.cells.length) { cur = {r: w.cells[n][0], c: w.cells[n][1]}; return true; }
+    return false;
+  }
+  function nextWord(step) {
+    const i = (wordIdx() + step + P.words.length) % P.words.length;
+    dir = P.words[i].dir; cur = firstEmpty(i);
+  }
+  function type(ch) {
+    if (done) return;
+    run();
+    const k = cur.r + ',' + cur.c;
+    fill[cur.r][cur.c] = ch; bad.delete(k); revealed.delete(k);
+    if (!moveInWord(1)) nextWord(1);
+    paint(); save(); finished();
+  }
+  function back() {
+    if (done) return;
+    if (!fill[cur.r][cur.c]) moveInWord(-1);
+    fill[cur.r][cur.c] = ''; bad.delete(cur.r + ',' + cur.c);
+    paint(); save();
+  }
+  function arrow(dr, dc) {
+    const want = dc ? 'A' : 'D';
+    if (dir !== want && byDir[want][cur.r][cur.c] >= 0) { dir = want; paint(); return; }
+    let r = cur.r + dr, c = cur.c + dc;
+    while (r >= 0 && c >= 0 && r < P.R && c < P.C && !P.cells[r][c]) { r += dr; c += dc; }
+    if (r >= 0 && c >= 0 && r < P.R && c < P.C) { cur = {r, c}; paint(); }
+  }
+  function finished() {
+    const all = P.cells.flat().filter(Boolean);
+    if (!all.every(x => fill[x.r][x.c])) return;
+    if (known) {
+      if (!all.every(x => !x.sol || fill[x.r][x.c] === x.sol)) {
+        banner.innerHTML = `<div class="banner">The grid is full, but something isn't right yet. Check will show you where.</div>`;
+        return;
+      }
+      done = true; clearInterval(ticking); ticking = null; save();
+      const yrs = new Date().getFullYear() - +id.match(/\d{4}/)[0];
+      banner.innerHTML = `<div class="banner good"><b>${revealed.size ? 'Finished, with a little help.' : `Solved in ${timer.textContent}!`}</b>
+        Readers of <i>${esc(PUBS[pub] || pub)}</i> solved this one ${yrs} years ago.${unknown ? ` (Every square the key shows is right; ${unknown} we can't check.)` : ''} Thanks for bringing it back.</div>`;
+    } else {
+      banner.innerHTML = `<div class="banner">Grid full! There's no answer key for this one, so only you know if it's right.</div>`;
+    }
+  }
+  // Every button says what it did. Reveal puzzle and Clear ask for a second click instead of a pop-up.
+  const status = document.getElementById('status');
+  let armed = null, armTimer = null;
+  const say = t => { status.textContent = t; };
+  const arm = (b, text) => {
+    if (armed === b) { clearTimeout(armTimer); armed = null; b.textContent = b.dataset.label; return true; }
+    if (armed) armed.textContent = armed.dataset.label;
+    armed = b; b.dataset.label ||= b.textContent; b.textContent = text; say('');
+    clearTimeout(armTimer); armTimer = setTimeout(() => { b.textContent = b.dataset.label; armed = null; }, 3000);
+    return false;
+  };
+  document.querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', () => {
+    const act = b.dataset.act, w = P.words[wordIdx()];
+    const reveal = list => { let n = 0; list.forEach(([r, c]) => { const x = P.cells[r][c]; if (x.sol && fill[r][c] !== x.sol) { fill[r][c] = x.sol; revealed.add(r + ',' + c); bad.delete(r + ',' + c); n++; } }); return n; };
+    if (act === 'check') {
+      const all = P.cells.flat().filter(Boolean), typed = all.filter(x => fill[x.r][x.c] && x.sol);
+      const wrong = typed.filter(x => fill[x.r][x.c] !== x.sol);
+      wrong.forEach(x => bad.add(x.r + ',' + x.c));
+      say(!typed.length ? 'Nothing to check yet.' : wrong.length ? `${wrong.length} wrong, marked in red.` : `All ${typed.length} letters so far are right.`);
+    }
+    if (act === 'sq') say(reveal([[cur.r, cur.c]]) ? 'Revealed one square.' : P.cells[cur.r][cur.c].sol ? 'That square is already right.' : "That square can't be read in the printed key.");
+    if (act === 'word') { const n = reveal(w.cells); say(n ? `Revealed ${n} ${n === 1 ? 'square' : 'squares'}.` : 'That word is already right.'); }
+    if (act === 'all' && arm(b, 'Reveal all? Click again')) say(`Revealed ${reveal(P.cells.flat().filter(Boolean).map(x => [x.r, x.c]))} squares.`);
+    if (act === 'clear' && arm(b, 'Clear all? Click again')) {
+      fill.forEach(row => row.fill('')); revealed.clear(); bad.clear(); elapsed = 0; done = false; banner.innerHTML = ''; tick(); say('Cleared.');
+    }
+    paint(); save(); if (act !== 'clear') finished(); kbd.focus();
+  }));
+
+  document.addEventListener('keydown', e => {
+    if (e.ctrlKey || e.metaKey || e.altKey || e.target.tagName === 'BUTTON' && e.key === 'Enter') return;
+    const k = e.key;
+    if (/^[a-z]$/i.test(k)) type(k.toUpperCase());
+    else if (k === 'Backspace' || k === 'Delete') back();
+    else if (k === 'ArrowLeft') arrow(0, -1);
+    else if (k === 'ArrowRight') arrow(0, 1);
+    else if (k === 'ArrowUp') arrow(-1, 0);
+    else if (k === 'ArrowDown') arrow(1, 0);
+    else if (k === 'Tab') { nextWord(e.shiftKey ? -1 : 1); paint(); }
+    else if (k === ' ' || k === 'Enter') { const o = dir === 'A' ? 'D' : 'A'; if (byDir[o][cur.r][cur.c] >= 0) dir = o; paint(); }
+    else return;
+    e.preventDefault();
+  });
+  // Phone keyboards send 'Unidentified' keydowns; their letters arrive here instead.
+  kbd.addEventListener('beforeinput', e => {
+    e.preventDefault();
+    if (e.inputType.startsWith('delete')) back();
+    else for (const ch of (e.data || '')) if (/[a-z]/i.test(ch)) type(ch.toUpperCase());
+  });
+  paint();
+}
+</script>
+</body>
+</html>

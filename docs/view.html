@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Puzzle Record</title>
+<link rel="stylesheet" href="style.css?v=202610021017">
+<style>
+  .kicker { font: 600 12px var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .byline { font-style: italic; }
+  .cap { margin: 6px 0 0; font-family: var(--serif); }
+  .record { display: flex; gap: 28px; align-items: flex-start; margin-top: 16px; }
+  .board { --sz: min(28px, calc((100vw - 36px) / var(--cols))); flex: none; display: grid; grid-template-columns: repeat(var(--cols), var(--sz));
+    border: 2px solid var(--block); width: max-content; background: var(--block); gap: 1px; }
+  .cell { width: var(--sz); height: var(--sz); background: var(--surface); position: relative;
+    display: flex; align-items: flex-end; justify-content: center; font: 600 calc(var(--sz) * .5)/1.3 var(--sans); }
+  .cell.blk { background: var(--block); }
+  .cell .num { position: absolute; top: 1px; left: 2px; font: 500 calc(var(--sz) * .28)/1 var(--sans); color: var(--muted); }
+  .cell .unk { color: var(--muted); }
+  .lists { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; min-width: 0; }
+  .lists h3 { font: 600 13px var(--sans); text-transform: uppercase; letter-spacing: .08em; margin: 0 0 6px; color: var(--muted); }
+  .lists ol { list-style: none; margin: 0; padding: 0; font-family: var(--serif); font-size: 15px; }
+  .lists li { padding: 2px 0; display: flex; gap: 8px; }
+  .lists li b { font-family: var(--sans); font-size: 13px; min-width: 22px; text-align: right; flex: none; }
+  .ans { font: 600 12px ui-monospace, monospace; letter-spacing: .06em; color: var(--accent); margin-left: 4px; white-space: nowrap; }
+  .facts { margin-top: 28px; border-top: 1px solid var(--line); padding-top: 12px; font-size: 14px; display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; }
+  .facts dt { color: var(--muted); } .facts dd { margin: 0; }
+  details { margin-top: 10px; font-size: 14px; } summary { cursor: pointer; color: var(--muted); }
+  @media (max-width: 760px) { .record { flex-direction: column; } .lists { grid-template-columns: 1fr; width: 100%; } .facts { grid-template-columns: 1fr; gap: 2px; } .facts dd { margin-bottom: 8px; } }
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap"><a href="./">Every Puzzle Project</a><span class="muted">Puzzle record</span></div></header>
+<main class="wrap" id="app"><p class="muted">Loading…</p></main>
+<script src="puzzle.js?v=202610021017"></script>
+<script>
+// A puzzle's record in the archive: the transcription as printed, with where it came from.
+const PUBS = {judge: 'Judge'};
+const q = new URLSearchParams(location.search);
+const [pub, id] = (q.get('p') || '').split('/');
+const from = q.get('from') || '';
+const app = document.getElementById('app');
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+const STATE = {restored: 'Restored', 'needs-person': 'Still being checked', open: 'Open for review', later: 'Not open yet'};
+
+if (!pub || !id) app.innerHTML = '<p>No puzzle chosen. <a href="./">See the collection.</a></p>';
+else Promise.all([loadPuzzle(pub, id, from), loadStates(pub, from).catch(() => [])]).then(([P, rows]) => show(P, rows.find(r => r.xdid === id)))
+  .catch(e => app.innerHTML = `<p>Couldn't load this puzzle (${esc(e.message)}). If it was just pushed, give GitHub a minute and reload.</p>`);
+
+function show(P, row) {
+  const name = PUBS[pub] || pub;
+  document.title = `${P.title || 'Crossword'} (${name}, ${P.date})`;
+  const byline = P.byline && P.byline.replace(/^by\s+/i, '') !== P.author ? P.byline : '';
+  const unknown = P.cells.flat().filter(x => x && !x.sol).length, known = P.cells.flat().filter(x => x && x.sol).length;
+  const answer = w => w.cells.map(([r, c]) => P.cells[r][c].sol || '·').join('');
+  const list = dir => P.words.filter(w => w.dir === dir).map(w =>
+    `<li><b>${w.n}</b><span>${esc(w.text)}${known ? `<span class="ans">${esc(answer(w))}</span>` : ''}</span></li>`).join('');
+  const board = P.cells.map(row => row.map(x => !x ? '<div class="cell blk"></div>'
+    : `<div class="cell">${x.num ? `<span class="num">${x.num}</span>` : ''}${x.sol ? esc(x.sol) : known ? '<span class="unk">·</span>' : ''}</div>`).join('')).join('');
+  const who = from && from !== 'local' ? from.split(/[/:]/)[0] : '';
+  const state = row ? (row.state === 'needs-person' ? `Still being checked: ${esc(REASONS[row.reason] || row.reason)}` : esc(STATE[row.state] || row.state)) : '';
+  const xdLink = P.fromXd ? `https://github.com/${REPO}/blob/main/publications/${pub}/xd/${id}.xd` : '';
+
+  app.innerHTML = `
+    <div class="kicker">${esc(name)} · ${esc(P.date)}</div>
+    <h1>${esc(P.title || 'Crossword')}</h1>
+    ${P.author ? `<div>by ${esc(P.author)}</div>` : ''}
+    ${byline ? `<div class="byline muted">${esc(byline)}</div>` : ''}
+    ${P.captions.filter(s => s !== P.byline).map(s => `<p class="cap">${esc(s)}</p>`).join('')}
+    ${row && row.state === 'needs-person' ? `<div class="banner">${state}.</div>` : ''}
+    ${!known ? `<div class="banner">No answer key has been found for this puzzle yet, so only the grid and clues are transcribed.</div>`
+      : unknown ? `<div class="banner">${unknown} ${unknown === 1 ? 'square' : 'squares'} of the printed answer key couldn't be read (shown as ·).</div>` : ''}
+    <div class="record">
+      <div class="board" style="--cols:${P.C}" role="img" aria-label="The puzzle grid${known ? ', with its answers' : ''}">${board}</div>
+      <div class="lists">
+        <section><h3>Across</h3><ol>${list('A')}</ol></section>
+        <section><h3>Down</h3><ol>${list('D')}</ol></section>
+      </div>
+    </div>
+    <dl class="facts">
+      <dt>Printed</dt><dd><i>${esc(name)}</i>, ${esc(P.date)}${P.source ? ` · <a href="${esc(P.source)}" target="_blank" rel="noopener">original page</a> (Internet Archive)` : ''}</dd>
+      ${P.solutionSource ? `<dt>Answer key</dt><dd><a href="${esc(P.solutionSource)}" target="_blank" rel="noopener">printed in a later issue</a> (Internet Archive)</dd>` : ''}
+      <dt>Transcription</dt><dd>Read by the project's OCR, then checked against the scan ${who ? `by <a href="https://github.com/${esc(who)}">${esc(who)}</a>'s Claude` : 'by Claude'}${P.model ? ` (${esc(P.model)})` : ''}${row && row.person === 'y' ? ' and by a person' : ''}.
+        Clues and answers are as printed, misprints included.</dd>
+      ${state ? `<dt>State</dt><dd>${state}</dd>` : ''}
+      ${xdLink ? `<dt>Data</dt><dd><a href="${xdLink}">${esc(id)}.xd</a></dd>` : ''}
+    </dl>
+    ${P.sic.length ? `<details><summary>Printed misprints, kept as printed</summary><ul>${P.sic.map(s => `<li>${esc(s)}</li>`).join('')}</ul></details>` : ''}
+    ${P.note ? `<details><summary>Notes</summary><p style="white-space:pre-wrap">${esc(P.note)}</p></details>` : ''}`;
+}
+</script>
+</body>
+</html>

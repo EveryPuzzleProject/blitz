@@ -1,7 +1,8 @@
 # Every Puzzle Project: puzzle review
 
-**Have Claude usage left before your weekly reset? Spend it restoring
-crosswords that haven't been solved in nearly a hundred years.**
+**Have Claude usage left before your weekly reset? Put it toward a research
+archive of early crosswords, transcribed from scans of the pages they were
+printed on.**
 
 <img src="docs/img/judge1924-11-15-cover-crossword.jpg" width="220" align="right" alt="Judge's cover for November 15, 1924: a full-page crossword printed over an illustration">
 
@@ -20,13 +21,17 @@ be looked at, but not searched, counted, or compared.
 The Every Puzzle Project is turning those scans into
 [xd](https://github.com/century-arcade/xdformat) files, a plain-text crossword format
 with the grid, every clue and answer, the title, the author and the date. In
-xd, a 1929 puzzle sits in the same open archive as modern ones and can be
+xd, a 1929 puzzle can sit in the same research corpus as modern ones and be
 searched and analyzed with them. You can ask which words were crossword
 staples a century ago, how cluing changed, or who the forgotten constructors
 were. Many of them were readers who mailed puzzles in. Analysis of the xd
 archive has already turned up
 [a major crossword plagiarism case](https://web.archive.org/web/20161231234043/http://fivethirtyeight.com/features/a-plagiarism-scandal-is-unfolding-in-the-crossword-world/)
 (FiveThirtyEight, 2016).
+
+**What this is, and isn't.** This is a research project: the goal is an
+accurate data archive of puzzles as they were printed, each one linked back
+to its source scan. It isn't a site for playing old puzzles.
 
 ## What's done, and what's left
 
@@ -130,7 +135,7 @@ and notes what was meant.
 
 **6. The result.** The corrections are applied, a person spot-checks
 anything Claude flagged, and the puzzle becomes an xd file: plain text that
-anyone can search, diff, or load into a solver.
+can be searched, compared and analyzed.
 
 ```
 Title: Judge's Crossword Puzzle No. 46
@@ -147,8 +152,8 @@ A7. A modern who, in time of trouble, would gladly offer you a kingdom for a hor
 …
 ```
 
-Think you can solve a puzzle from 1928?
-[Give No. 46 a try.](https://everypuzzleproject.github.io/puzzle-review/solve.html?p=judge/judge1928-04-07)
+[See No. 46's record](https://everypuzzleproject.github.io/puzzle-review/view.html?p=judge/judge1928-04-07):
+the transcription laid out as printed, with links to the original pages.
 
 ## How to help
 
@@ -169,7 +174,7 @@ Change the 3 to whatever you like. Claude will:
 3. Download each puzzle's scan crops (about 3 MB) and review them, a few at
    a time.
 4. Push each review to your pull request as it finishes, and give you a
-   link to **solve the puzzle you just restored**.
+   link to **the puzzle you just restored**.
 
 **What it costs.** About 80k tokens a puzzle, nearly all of it Claude
 reading images. If you're not sure how that compares to your plan, do 1 and
@@ -186,11 +191,15 @@ Nothing else.
 
 ## What you get
 
-- A link to solve each puzzle you restored, right in your browser: the grid
-  and clues as printed in 1929 or 1930, with a check button.
+- A link to the record of each puzzle you restored: its transcription laid
+  out as printed in 1929 or 1930, next to a link to the original page.
+- As a curiosity, a private copy of each one on your computer that you can
+  type into, if you want to see how a 1920s crossword feels. (Fair warning:
+  they're close to impossible.) It's for your own use, so please don't share
+  or post it.
 - If you'd like, your GitHub name on the
   [contributors list](https://everypuzzleproject.github.io/puzzle-review/).
-  Claude will ask, and the default is no. Your pull request is public on
+  Claude will ask, and the default is no. Your pull request is visible on
   GitHub either way.
 - The satisfaction of knowing these puzzles have been preserved for posterity.
 
@@ -211,4 +220,4 @@ Volunteers work through these in order:
 - `publications/<pub>/reviews/<puzzle>/`: the OCR reading (`ocr.json`) and the review (`review.json`).
 - Puzzle packets (scan crops) are release assets, not in the repository.
 - `contributors/`: one empty file per volunteer who asked to be listed.
-- `docs/`: the website, including the solver.
+- `docs/`: the website, including a record page for each puzzle.

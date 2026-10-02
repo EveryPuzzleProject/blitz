@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Every Puzzle Project</title>
-<link rel="stylesheet" href="style.css?v=202610020956">
+<link rel="stylesheet" href="style.css?v=202610021017">
 <style>
   :root { --st-restored: var(--good); --st-person: #d9822b; --st-review: var(--accent); --st-open: color-mix(in srgb, var(--accent) 22%, var(--surface));
     --st-later: var(--line); }
@@ -63,9 +63,9 @@
   <h1>Bringing old crosswords back</h1>
   <p class="lede">Most old crosswords survive only on paper, or as page scans in digital library archives: you can look at
     them, but not search or study them. We're turning them into <a href="https://github.com/century-arcade/xdformat">xd</a> files, an open text format, so they can
-    join the public crossword archive and be discoverable again.</p>
+    join a research archive of crosswords and be discoverable again.</p>
   <p class="lede muted" style="font-size:16px">OCR built for this project has made a first draft of every puzzle. Volunteers contribute to the project by directing Claude
-    to check each draft against the scan, square by square and clue by clue, and get to solve the puzzle they restored.</p>
+    to check each draft against the scan, square by square and clue by clue.</p>
   <a class="cta" href="https://github.com/EveryPuzzleProject/puzzle-review#how-to-help">Get involved</a>
   </div>
   <figure><img src="img/judge1924-11-15-cover-crossword.jpg" alt="Judge's cover for November 15, 1924: a full-page crossword printed over an illustration">
@@ -75,7 +75,7 @@
   <h2>Contributors</h2>
   <div class="people" id="people"><span class="muted">Loading…</span></div>
 </main>
-<script src="puzzle.js?v=202610020956"></script>
+<script src="puzzle.js?v=202610021017"></script>
 <script>
 const PUBS = [{id: 'judge', name: 'Judge', years: '1924–1939 (scans so far)'}];
 const MILESTONES = [50, 100, 150, 200, 250, 300, 350, 400, 450, 500, 600, 700, 800, 900, 1000];
@@ -110,12 +110,12 @@ const label = r => `${r.number ? `No. ${r.number} · ` : ''}${puzzleDate(r.date)
     const week = new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10);
     const thisWeek = rows.filter(r => r.state === 'restored' && r.updated >= week).length;
     const next = MILESTONES.find(m => m > done);
-    const playable = r => ['restored', 'needs-person'].includes(r.state) || (r.state === 'review' && reviewed.has(r.xdid));
+    const viewable = r => ['restored', 'needs-person'].includes(r.state) || (r.state === 'review' && reviewed.has(r.xdid));
     const tile = r => {
       const cls = STATES.find(([s]) => s === r.state)?.[2] || 'st-later';
       const why = r.reason ? `: ${REASONS[r.reason] || r.reason}` : '';
       const title = `${label(r)} · ${STATES.find(([s]) => s === r.state)?.[1] || r.state}${why}`;
-      return playable(r) ? `<a class="tile ${cls}" href="solve.html?p=${pub.id}/${r.xdid}" title="${esc(title)}" aria-label="${esc(title)}"></a>`
+      return viewable(r) ? `<a class="tile ${cls}" href="view.html?p=${pub.id}/${r.xdid}" title="${esc(title)}" aria-label="${esc(title)}"></a>`
         : `<span class="tile ${cls}" title="${esc(title)}"></span>`;
     };
     const years = {};
@@ -131,7 +131,7 @@ const label = r => `${r.number ? `No. ${r.number} · ` : ''}${puzzleDate(r.date)
         const rs = rows.filter(r => r.reason === why && (r.state === 'needs-person' || r.state === 'missing'));
         return `<details><summary>${esc(REASONS[why] || why)} <span>· ${rs.length}</span></summary><ul>${rs.map(r =>
           r.state === 'missing' ? `<li>No. ${esc(r.number)}, around ${esc(puzzleDate(r.date))}</li>`
-            : `<li><a href="solve.html?p=${pub.id}/${r.xdid}">${esc(label(r))}</a></li>`).join('')}</ul></details>`;
+            : `<li><a href="view.html?p=${pub.id}/${r.xdid}">${esc(label(r))}</a></li>`).join('')}</ul></details>`;
       }).join('');
 
     html += `<section class="pub">
@@ -143,9 +143,9 @@ const label = r => `${r.number ? `No. ${r.number} · ` : ''}${puzzleDate(r.date)
       </div>
       <div class="bar">${STATES.map(([s, , c]) => n[s] ? `<span class="${c}" style="width:${100 * n[s] / total}%" title="${n[s]}"></span>` : '').join('')}</div>
       <div class="legend">${STATES.map(([s, l, c]) => `<span><i class="sw ${c}"></i><b>${n[s]}</b> ${l.toLowerCase()}</span>`).join('')}</div>
-      ${latest.length ? `<h4>Latest restored</h4><div class="latest">${latest.map(r => `<a href="solve.html?p=${pub.id}/${r.xdid}">${esc(label(r))}</a>`).join('')}</div>` : ''}
+      ${latest.length ? `<h4>Latest restored</h4><div class="latest">${latest.map(r => `<a href="view.html?p=${pub.id}/${r.xdid}">${esc(label(r))}</a>`).join('')}</div>` : ''}
       <h4>The collection</h4>
-      <p class="sub" style="margin-top:-2px">Every puzzle, one square each. Click a filled square to solve it.</p>
+      <p class="sub" style="margin-top:-2px">Every puzzle, one square each. Click a filled square to see its record.</p>
       <div class="years">${yearRows}</div>
       ${wanted ? `<h4>Wanted: people</h4><div class="wanted"><p class="sub">Claude can't finish these alone. If you can find a missing page,
         a cleaner scan or an answer key, <a href="https://github.com/EveryPuzzleProject/puzzle-review/issues">open an issue</a>.</p>${wanted}</div>` : ''}

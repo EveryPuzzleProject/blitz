@@ -19,7 +19,7 @@ suggest doing 1 first and checking how far their usage meter moved.
 
 Ask one more question at the same time: would they like their GitHub name
 listed on the project's contributors page? The default is no. Either way,
-their pull request is public on GitHub.
+their pull request is visible on GitHub.
 
 Also tell them:
 - They can stop you at any time. Every finished puzzle is already sent, so
@@ -142,12 +142,22 @@ As each puzzle finishes:
 3. Commit with the message `Review <xdid>`, push, tick its box in the PR
    body file, and update the PR:
    `gh pr edit <number> --repo EveryPuzzleProject/puzzle-review --body-file ../puzzle-review-work/pr-body.md`
-4. Tell the person, in one line, with a link to solve it:
+4. Make them a private copy of the puzzle, as a curiosity. It stays
+   in the work folder on their computer and is never pushed:
 
-   > ✓ *Judge*, March 16, 1929, "Cross Word Puzzle No. 231": 7 corrections, 1 printed misprint kept. Favorite clue: "…". Solve it: <link>
+   ```
+   cp tools/local-solver/solve.html docs/puzzle.js docs/style.css ../puzzle-review-work/<xdid>/
+   { printf 'window.PUZZLE = {"ocr": '; cat ../puzzle-review-work/<xdid>/ocr.json; printf ', "review": '; cat ../puzzle-review-work/<xdid>/review.json; printf '};
+'; } > ../puzzle-review-work/<xdid>/data.js
+   ```
 
-   The link is
-   `https://everypuzzleproject.github.io/puzzle-review/solve.html?p=<pub>/<xdid>&from=<user>:<branch>`.
+5. Tell the person, in one line, with a link to the puzzle's record and the
+   path of their private copy:
+
+   > ✓ *Judge*, March 16, 1929, "Cross Word Puzzle No. 231": 7 corrections, 1 printed misprint kept. Favorite clue: "…". Record: <link> · Try it yourself: <absolute path to solve.html>
+
+   The record link is
+   `https://everypuzzleproject.github.io/puzzle-review/view.html?p=<pub>/<xdid>&from=<user>:<branch>`.
 
 Only add files under `publications/<pub>/reviews/`, plus
 `contributors/<user>` if they asked to be listed. A check runs on the pull
@@ -158,7 +168,8 @@ request and flags any review that isn't well-formed.
 When every claimed puzzle is done (or skipped), mark the PR ready with
 `gh pr ready <number> --repo EveryPuzzleProject/puzzle-review`. Then give the
 person a short wrap-up:
-- the puzzles reviewed, with their solve links,
+- the puzzles reviewed, with their record links and private copies (the
+  copies are just for them: ask them not to share or post them),
 - the PR link,
 - the progress page: https://everypuzzleproject.github.io/puzzle-review/
 
