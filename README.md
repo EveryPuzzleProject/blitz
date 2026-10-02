@@ -193,14 +193,14 @@ Nothing else.
 
 - A link to the record of each puzzle you restored: its transcription laid
   out as printed in 1929 or 1930, next to a link to the original page.
-- As a curiosity, a private copy of each one on your computer that you can
-  type into, if you want to see how a 1920s crossword feels. (Fair warning:
+- As a souvenir, a private copy of each one on your computer that you can
+  try to solve, if you want to see how a 1920s crossword feels. (Fair warning:
   they're close to impossible.) It's for your own use, so please don't share
   or post it.
 - If you'd like, your GitHub name on the
   [contributors list](https://everypuzzleproject.github.io/blitz/).
-  Claude will ask, and the default is no. Your pull request is visible on
-  GitHub either way.
+  Claude will ask, and the default is no. (Your pull request is visible on
+  GitHub either way.)
 - The satisfaction of knowing these puzzles have been preserved for posterity.
 
 ## Publications
@@ -210,6 +210,7 @@ Volunteers work through these in order:
 | Publication | Years | Notes |
 |---|---|---|
 | [*Judge*](publications/judge/) | 1924–1939 scanned | A humor magazine with a crossword from 1924: weekly, then monthly from August 1932, often two a month. Late 1928 through 1930 open now. |
+| *GAMES* | 1977–1999 scanned | **Coming soon.** A puzzle magazine whose Pencilwise pages were edited by Will Shortz. |
 
 ## Layout
 

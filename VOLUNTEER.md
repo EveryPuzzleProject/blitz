@@ -142,7 +142,7 @@ As each puzzle finishes:
 3. Commit with the message `Review <xdid>`, push, tick its box in the PR
    body file, and update the PR:
    `gh pr edit <number> --repo EveryPuzzleProject/blitz --body-file ../blitz-work/pr-body.md`
-4. Make them a private copy of the puzzle, as a curiosity. It stays
+4. Make them a private copy of the puzzle, as a souvenir. It stays
    in the work folder on their computer and is never pushed:
 
    ```
