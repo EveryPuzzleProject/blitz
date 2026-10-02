@@ -10,9 +10,12 @@ Already convinced? [Here's the prompt to paste.](#how-to-help)
 ## The goal
 
 [The first crossword puzzle](https://en.wikipedia.org/wiki/Arthur_Wynne)
-appeared in print in 1913. Most of the crosswords printed before the 1940s
-survive only as pictures: page scans of old magazines and newspapers. You
-can look at them, but you can't search them, count them, or compare them.
+appeared in print in 1913. We don't know how many puzzles were printed in
+newspapers, magazines, and books between 1913 and the present day, and most
+survive only on paper. But many have been scanned as part of digital library
+archival efforts such as the
+[National Digital Newspaper Program](https://www.loc.gov/ndnp/). A scan can
+be looked at, but not searched, counted, or compared.
 
 The Every Puzzle Project is turning those scans into
 [xd files](https://github.com/century-arcade/xdformat), a plain-text crossword format
@@ -144,16 +147,19 @@ A7. A modern who, in time of trouble, would gladly offer you a kingdom for a hor
 …
 ```
 
-[Solve No. 46 yourself.](https://everypuzzleproject.github.io/puzzle-review/solve.html?p=judge/judge1928-04-07)
+Think you can solve a puzzle from 1928?
+[Give No. 46 a try.](https://everypuzzleproject.github.io/puzzle-review/solve.html?p=judge/judge1928-04-07)
 
 ## How to help
 
 You need [Claude Code](https://claude.com/claude-code) and a GitHub account.
 In an empty folder, start Claude Code and paste:
 
-> Help the Every Puzzle Project restore old crosswords. Follow
-> https://github.com/EveryPuzzleProject/puzzle-review/blob/main/VOLUNTEER.md
-> and review **3** puzzles.
+```text
+Help the Every Puzzle Project restore old crosswords. Follow
+https://github.com/EveryPuzzleProject/puzzle-review/blob/main/VOLUNTEER.md
+and review 3 puzzles.
+```
 
 Change the 3 to whatever you like. Claude will:
 
@@ -186,7 +192,7 @@ Nothing else.
   [contributors list](https://everypuzzleproject.github.io/puzzle-review/).
   Claude will ask, and the default is no. Your pull request is public on
   GitHub either way.
-- Knowing these puzzles are searchable again.
+- The satisfaction of knowing these puzzles have been preserved for posterity.
 
 ## Publications
 
