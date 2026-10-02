@@ -39,7 +39,7 @@
 </main>
 <script src="puzzle.js"></script>
 <script>
-const PUBS = [{id: 'judge', name: 'Judge', years: '1924–1939'}];
+const PUBS = [{id: 'judge', name: 'Judge', years: '1924–1939 (scans so far)'}];
 const api = p => fetch(`https://api.github.com/repos/${REPO}/${p}`).then(r => r.ok ? r.json() : Promise.reject(new Error(r.status)));
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
 (async () => {
