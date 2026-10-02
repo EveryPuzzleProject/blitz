@@ -1,0 +1,27 @@
+{
+  "model": "claude-opus-5-5",
+  "ready": true,
+  "remaining": "minor",
+  "remaining_note": "Title choice: the page prints 'Crossword Puzzle #1' above the grid and 'Illustrated Crossword / Armchair Safari' in larger type beside it; I used 'Armchair Safari'.",
+  "note": "Illustrated crossword, no difficulty stars. Picture clues: A1: a teacup and saucer (CHINA); A9: two hands clinking glasses (TOAST); A17: an elephant's trunk holding a rope, a tiny figure below (ELEPHANTS); A29: two swans with necks entwined (SWANS); A68: a sorry-looking horse (NAG); D1: a treble clef (CLEF); D9: a tuba (TUBA); D36: a lightning bolt in a dotted cloud (LIGHT); D60: a lei (LEI). Header type label 'Illustrated Crossword' and grid label 'Crossword Puzzle #1' are not used as the title. Answer key matches grid and clues.",
+  "corrections": {
+    "meta:title": "Armchair Safari",
+    "meta:author": "J.L.",
+    "clue:A1": "[picture]",
+    "clue:A9": "[picture]",
+    "clue:A17": "[picture]",
+    "clue:A29": "[picture]",
+    "clue:A68": "[picture]",
+    "clue:D1": "[picture]",
+    "clue:D9": "[picture]",
+    "clue:D36": "[picture]",
+    "clue:D60": "[picture]",
+    "clue:D63": "Wicked",
+    "clue:A66": "— Major, Dog Star constellation",
+    "other:1": "Marion Lathrop of Middleport, N.Y., grandmother of eight and a retired librarian, attended Skidmore and Wheelock colleges and now solves about 14 crossword puzzles a week. \"I thought this one was fairly easy, but 59 Across was a real stumper.\""
+  },
+  "sic": {},
+  "regions": {},
+  "confirm": ["cell:r3c9", "cell:r4c3", "cell:r6c5", "cell:r8c2", "cell:r9c3", "cell:r9c12", "cell:r14c5", "cell:r14c15", "clue:A53"],
+  "unsure": {"meta:title": "words"}
+}
