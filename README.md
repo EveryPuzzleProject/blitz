@@ -18,12 +18,15 @@ xd, a 1929 puzzle sits in the same open archive as modern ones and can be
 searched and analyzed with them. You can ask which words were crossword
 staples a century ago, how cluing changed, or who the forgotten constructors
 were. Many of them were readers who mailed puzzles in. Analysis of the xd
-archive has already turned up a major crossword plagiarism case.
+archive has already turned up
+[a major crossword plagiarism case](https://web.archive.org/web/20161231234043/http://fivethirtyeight.com/features/a-plagiarism-scandal-is-unfolding-in-the-crossword-world/)
+(FiveThirtyEight, 2016).
 
 ## What's done, and what's left
 
 **Done, by machine.** We found the puzzles in scanned magazines, cut out
-each grid, clue list and answer key, and read them all with OCR. The answer
+each grid, clue list and answer key, and read them all with OCR (text
+recognition) built for this project and tuned for 1920s crossword pages. The answer
 keys were often printed weeks later in another issue. Every puzzle now has a
 first-draft transcription.
 
@@ -63,7 +66,7 @@ Both grids are straightened so each square can be read.
 <img src="docs/img/judge1928-04-07-answers.png" width="250" alt="The answer key from the April 14 issue, straightened">
 </p>
 
-**3. Read it all with OCR.** That gives a first draft: 112 clues and a
+**3. Read it all with the project's OCR.** That gives a first draft: 112 clues and a
 17×17 grid of letters. Most of it is right, but 1920s magazine type, uneven
 ink and page curl trip OCR up. In this answer key, one square couldn't be
 read at all and another was misread, and 17 clues had mistakes.
