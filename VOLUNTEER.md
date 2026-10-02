@@ -53,18 +53,20 @@ model. Don't ask about models unprompted.
 If there's no `blitz` folder here yet:
 
 ```
-gh repo fork EveryPuzzleProject/blitz --clone --default-branch-only
+gh repo fork EveryPuzzleProject/blitz --clone --default-branch-only -- blitz
 ```
 
-Then, whether the folder is new or not:
+If they forked it before, this says the fork already exists (it may have an
+older name, such as `puzzle-review`) and clones it into `blitz` anyway. Then, whether the folder is new or not:
 
 ```
 cd blitz
 git fetch upstream
+git checkout --detach upstream/main
 ```
 
-The fork may be an old one from an earlier run. That's fine: your branch
-starts from `upstream/main` in step 4, not from the fork's `main`.
+The fork may be an old one from an earlier run. That's fine: you work from
+`upstream/main`, not from the fork's `main`.
 
 All later commands run inside `blitz`. Puzzle images go in a work
 folder beside it, `../blitz-work`, never inside the repository.
@@ -146,7 +148,7 @@ the paths and model):
 > review.json.
 >
 > Your final reply must be exactly one line, in this form and nothing else:
-> `<title as printed> | <N> corrections (<N> grid, <N> clue, <N> other) | <N> misprints kept | <N> unsure | ready or not ready | "<the clue you found most charming, quoted exactly>"`
+> `<title as printed> | <N> corrections (<N> grid, <N> clue, <N> other: captions, title, author, byline) | <N> misprints kept | <N> unsure | ready or not ready | "<the clue you found most charming, quoted exactly>"`
 
 As each puzzle finishes:
 1. Read `review.json` and make sure it's well-formed JSON. If it isn't, run

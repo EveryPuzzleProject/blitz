@@ -61,7 +61,8 @@ Use the answers as a cross-check: each clue's answer must fit its clue.
     "clue:A26": "",                    ("" = this clue number doesn't exist; if you fix the
                                         grid, key clues by the corrected grid's numbering)
     "other:2": "",                     (captions are numbered from 1; "" removes one; a number past the last adds one)
-    "meta:title": "corrected title"
+    "meta:title": "corrected title",
+    "meta:author": "the name alone",   (also "meta:byline")
   },
   "sic": {"D1": "cocktail"},            (a misprint you kept as printed: clue id -> what was meant;
                                         for a misprinted answer use the answer's clue id)
@@ -102,11 +103,16 @@ anything. If something can't be read, list it under "unsure" rather than guess.
   read by OCR as `*`) are the magazine's difficulty rating, not part of the
   title: leave them out and give the rating in the note ("difficulty ★★").
   An introduction ("For solvers who enjoy crosswords on the challenging
-  side...") is a caption, not the title.
+  side...") is a caption, not the title. The title is the puzzle's own name
+  ("Armchair Safari"), not a label for its kind ("Illustrated Crossword") or
+  its number in the issue ("Crossword Puzzle #1"); mention those in the
+  note. Only when the puzzle has no name of its own is the label its title.
 - Byline as printed ("by Merl H. Reagle"); the author is the name alone. Some
   early puzzles are signed with initials only ("J.L."): keep them as printed.
 - "Answer Drawer, page 61", "Pencilwise continues on page 65" and similar
-  page pointers are not part of the puzzle: remove them from captions.
+  page pointers are not part of the puzzle: remove them from captions. Text
+  the magazine printed about this puzzle (an introduction, a test solver's
+  comment on it) is a caption: keep it.
 - Answers are printed at the back of the same issue (the "Answer Drawer"),
   many grids side by side. `answers.png` is this puzzle's grid cut from that
   page, sometimes from another scan of the same issue. If it doesn't fit this
