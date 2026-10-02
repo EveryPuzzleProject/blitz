@@ -62,7 +62,7 @@ Use the answers as a cross-check: each clue's answer must fit its clue.
                                         grid, key clues by the corrected grid's numbering)
     "other:2": "",                     (captions are numbered from 1; "" removes one; a number past the last adds one)
     "meta:title": "corrected title",
-    "meta:author": "the name alone",   (also "meta:byline")
+    "meta:author": "the name alone",   (also "meta:byline", "meta:puzzle_number")
   },
   "sic": {"D1": "cocktail"},            (a misprint you kept as printed: clue id -> what was meant;
                                         for a misprinted answer use the answer's clue id)

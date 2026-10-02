@@ -62,7 +62,7 @@ Use the answers as a cross-check: each clue's answer must fit its clue.
                                         grid, key clues by the corrected grid's numbering)
     "other:2": "",                     (captions are numbered from 1; "" removes one; a number past the last adds one)
     "meta:title": "corrected title",
-    "meta:author": "the name alone",   (also "meta:byline")
+    "meta:author": "the name alone",   (also "meta:byline", "meta:puzzle_number")
   },
   "sic": {"D1": "cocktail"},            (a misprint you kept as printed: clue id -> what was meant;
                                         for a misprinted answer use the answer's clue id)
@@ -105,8 +105,10 @@ anything. If something can't be read, list it under "unsure" rather than guess.
   An introduction ("For solvers who enjoy crosswords on the challenging
   side...") is a caption, not the title. The title is the puzzle's own name
   ("Armchair Safari"), not a label for its kind ("Illustrated Crossword") or
-  its number in the issue ("Crossword Puzzle #1"); mention those in the
-  note. Only when the puzzle has no name of its own is the label its title.
+  its number ("Crossword Puzzle #1"). Only when the puzzle has no name of its
+  own is the label its title. A printed number goes in `"meta:puzzle_number"`,
+  digits only (`"1"`), even when it's also in the title; mention a kind label
+  in the note.
 - Byline as printed ("by Merl H. Reagle"); the author is the name alone. Some
   early puzzles are signed with initials only ("J.L."): keep them as printed.
 - "Answer Drawer, page 61", "Pencilwise continues on page 65" and similar
@@ -123,10 +125,11 @@ anything. If something can't be read, list it under "unsure" rather than guess.
 - Clues are numbered without a period ("12 Rolling stone"), and the Down list
   often continues in short columns under the grid. Abbreviation hints are
   part of the clue: keep ": 2 wds.", ": Abbr.", ": Fr." exactly as printed.
-- In illustrated crosswords some clues are pictures. A picture clue becomes
-  `[picture]`, followed by any letters or words printed in or under the
-  picture, exactly as printed (`[picture] S`). In the note, say in a few
-  plain words what each picture shows ("A17: a mermaid; A26: a fried egg").
+- In illustrated crosswords some clues are pictures. Write a picture clue as
+  `[picture: ...]` with a few plain words for what's drawn, then any letters
+  or words printed in or under the picture, exactly as printed:
+  `[picture: a fried egg] S`. Describe only what's drawn, not the answer:
+  "a teacup and saucer", not "china".
 - Not every grid here is a crossword. If this one is a cryptic (clues that
   end in the answer's length, "(7)"), a word search, a logic puzzle or another
   kind of puzzle, set "ready": false, "remaining": "blocker" and start the
