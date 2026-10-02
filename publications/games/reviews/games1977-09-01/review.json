@@ -7,21 +7,34 @@
   "corrections": {
     "meta:title": "Armchair Safari",
     "meta:author": "J.L.",
-    "clue:A1": "[picture]",
-    "clue:A9": "[picture]",
-    "clue:A17": "[picture]",
-    "clue:A29": "[picture]",
-    "clue:A68": "[picture]",
-    "clue:D1": "[picture]",
-    "clue:D9": "[picture]",
-    "clue:D36": "[picture]",
-    "clue:D60": "[picture]",
+    "clue:A1": "[picture: a teacup and saucer]",
+    "clue:A9": "[picture: two hands clinking glasses]",
+    "clue:A17": "[picture: an elephant's trunk holding a rope, a tiny figure below]",
+    "clue:A29": "[picture: two swans with necks entwined]",
+    "clue:A68": "[picture: a sorry-looking horse]",
+    "clue:D1": "[picture: a treble clef]",
+    "clue:D9": "[picture: a tuba]",
+    "clue:D36": "[picture: a lightning bolt in a dotted cloud]",
+    "clue:D60": "[picture: a lei]",
     "clue:D63": "Wicked",
     "clue:A66": "— Major, Dog Star constellation",
-    "other:1": "Marion Lathrop of Middleport, N.Y., grandmother of eight and a retired librarian, attended Skidmore and Wheelock colleges and now solves about 14 crossword puzzles a week. \"I thought this one was fairly easy, but 59 Across was a real stumper.\""
+    "other:1": "Marion Lathrop of Middleport, N.Y., grandmother of eight and a retired librarian, attended Skidmore and Wheelock colleges and now solves about 14 crossword puzzles a week. \"I thought this one was fairly easy, but 59 Across was a real stumper.\"",
+    "meta:puzzle_number": "1"
   },
   "sic": {},
   "regions": {},
-  "confirm": ["cell:r3c9", "cell:r4c3", "cell:r6c5", "cell:r8c2", "cell:r9c3", "cell:r9c12", "cell:r14c5", "cell:r14c15", "clue:A53"],
-  "unsure": {"meta:title": "words"}
+  "confirm": [
+    "cell:r3c9",
+    "cell:r4c3",
+    "cell:r6c5",
+    "cell:r8c2",
+    "cell:r9c3",
+    "cell:r9c12",
+    "cell:r14c5",
+    "cell:r14c15",
+    "clue:A53"
+  ],
+  "unsure": {
+    "meta:title": "words"
+  }
 }
