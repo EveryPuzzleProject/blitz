@@ -1,0 +1,874 @@
+{
+ "xdid": "judge1928-11-03",
+ "source": "https://archive.org/details/sim_judge_1928-11-03_95/page/n31/mode/1up",
+ "title": "TAKE MY FREE Judge's Crossword Puzzle No. 76",
+ "author": "Mr.W. R. Gilman",
+ "byline": "Submitted by Mr.W. R. Gilman, Columbus, Ohlo",
+ "captions": {
+  "1": "Judge pays $10 for each puzzle printed"
+ },
+ "grid": [
+  "......#.#......",
+  ".....#...#.....",
+  "....#.....#....",
+  ".......#.......",
+  "..#.#.....#.#..",
+  ".#...#...#...#.",
+  "#.....#.#.....#",
+  "...#.......#...",
+  "#.....#.#.....#",
+  ".#...#...#...#.",
+  "..#.#.....#.#..",
+  ".......#.......",
+  "....#.....#....",
+  ".....#...#.....",
+  "......#.#......"
+ ],
+ "answers": [
+  ".DECOY#S#FACTS.",
+  "DIVAN#LID#SHAPE",
+  "EVER#SYRUP#.MEN",
+  "MANAGER#PRESENT",
+  "US#V#WIFEY#S#DR",
+  "R#MAT#COD#AIR#Y",
+  "#TONIC#L#ESSAY#",
+  "PAT#P.RLORS#DEN",
+  "#ROOST#I#RESIN#",
+  "L#RAY#MEN#TWO#W",
+  "IS#T#ROSES#E#LO",
+  "ST.MPED#REVELER",
+  "PURE#DELVE#TIED",
+  "SNEAK#L.Y#DEARS",
+  ".SALON#W#PURRS."
+ ],
+ "answers_low_confidence": [
+  "r1c1",
+  "r1c11",
+  "r1c15",
+  "r3c12",
+  "r6c11",
+  "r8c6",
+  "r12c3",
+  "r14c8",
+  "r15c1",
+  "r15c15"
+ ],
+ "grid_asymmetric_squares": [],
+ "clue_image": "page.jpg",
+ "scales": {
+  "page.jpg": 0.36900369003690037
+ },
+ "clues": {
+  "A1": {
+   "text": "This is very misleading.",
+   "box": [
+    550,
+    806,
+    693,
+    823
+   ]
+  },
+  "A7": {
+   "text": "There's nothing fictitious about these.",
+   "box": [
+    551,
+    818,
+    763,
+    834
+   ],
+   "flags": [
+    "number-corrected:6"
+   ]
+  },
+  "A13": {
+   "text": "A sheik's work-bench. 12. This is sometimes tried on night-clubs—but it hardly ever fits.",
+   "box": [
+    546,
+    828,
+    824,
+    865
+   ],
+   "flags": [
+    "number-corrected:11"
+   ]
+  },
+  "A14": {
+   "text": "This is often a dangerous curve.",
+   "box": [
+    547,
+    861,
+    737,
+    878
+   ],
+   "flags": [
+    "spell:eurve>curve"
+   ]
+  },
+  "A16": {
+   "text": "No end, no endì",
+   "box": [
+    549,
+    873,
+    658,
+    890
+   ]
+  },
+  "A17": {
+   "text": "Sweetest thing you ever saw!",
+   "box": [
+    549,
+    884,
+    723,
+    901
+   ]
+  },
+  "A18": {
+   "text": "The last word in prayers.",
+   "box": [
+    549,
+    894,
+    704,
+    912
+   ],
+   "flags": [
+    "number-corrected:19"
+   ]
+  },
+  "A20": {
+   "text": "All fighters have one, so do a lot of married men.",
+   "box": [
+    549,
+    906,
+    823,
+    923
+   ]
+  },
+  "A21": {
+   "text": "She'll forgive your past—for this.",
+   "box": [
+    548,
+    917,
+    746,
+    934
+   ]
+  },
+  "A22": {
+   "text": "Just Mollie and me—without the offspring.",
+   "box": [
+    549,
+    928,
+    793,
+    945
+   ]
+  },
+  "A23": {
+   "text": "The bitter half",
+   "box": [
+    549,
+    940,
+    768,
+    956
+   ]
+  },
+  "A24": {
+   "text": "With some practice this can get along. (Abbr.)",
+   "box": [
+    549,
+    949,
+    815,
+    969
+   ],
+   "flags": [
+    "number-corrected:25"
+   ]
+  },
+  "A26": {
+   "text": "You'll never get far by putting your shoulder t this.",
+   "box": [
+    549,
+    962,
+    601,
+    989
+   ]
+  },
+  "A27": {
+   "text": "A big fish from Newfoundland.",
+   "box": [
+    549,
+    984,
+    731,
+    1000
+   ],
+   "flags": [
+    "number-corrected:28"
+   ]
+  },
+  "A29": {
+   "text": "What is cluttered with political propaganda now?",
+   "box": [
+    550,
+    996,
+    824,
+    1012
+   ]
+  },
+  "A30": {
+   "text": "This is a bracer—if you're sick.",
+   "box": [
+    549,
+    1007,
+    735,
+    1023
+   ],
+   "flags": [
+    "number-corrected:31"
+   ]
+  },
+  "A32": {
+   "text": "A literary composition.",
+   "box": [
+    550,
+    1019,
+    693,
+    1033
+   ],
+   "flags": [
+    "number-corrected:33"
+   ]
+  },
+  "A34": {
+   "text": "The funny Irishman of the Comics.",
+   "box": [
+    550,
+    1028,
+    754,
+    1045
+   ],
+   "flags": [
+    "number-corrected:35",
+    "spell:Comies>Comics"
+   ]
+  },
+  "A36": {
+   "text": "In what Horizontal 11 is found. (Plural.)",
+   "box": [
+    550,
+    1040,
+    787,
+    1056
+   ]
+  },
+  "A37": {
+   "text": "A bear's boudoir.",
+   "box": [
+    549,
+    1051,
+    665,
+    1069
+   ]
+  },
+  "A38": {
+   "text": "A perch.",
+   "box": [
+    550,
+    1063,
+    622,
+    1079
+   ]
+  },
+  "A39": {
+   "text": "Fine stuff for a bow.",
+   "box": [
+    550,
+    1075,
+    679,
+    1089
+   ],
+   "flags": [
+    "number-corrected:40"
+   ]
+  },
+  "A41": {
+   "text": "Kinds of large sea-fish allied to the shark.",
+   "box": [
+    550,
+    1085,
+    788,
+    1101
+   ],
+   "flags": [
+    "number-corrected:43"
+   ]
+  },
+  "A44": {
+   "text": "What clinging vines cling to.",
+   "box": [
+    550,
+    1096,
+    725,
+    1113
+   ],
+   "flags": [
+    "spell:elinging>clinging",
+    "spell:eling>cling"
+   ]
+  },
+  "A45": {
+   "text": "This is less than a crowd.",
+   "box": [
+    550,
+    1109,
+    706,
+    1123
+   ],
+   "flags": [
+    "number-corrected:46"
+   ]
+  },
+  "A47": {
+   "text": "Part of the verb to be.",
+   "box": [
+    550,
+    1118,
+    693,
+    1135
+   ],
+   "flags": [
+    "number-corrected:48"
+   ]
+  },
+  "A49": {
+   "text": "Bloomers.",
+   "box": [
+    550,
+    1130,
+    630,
+    1146
+   ],
+   "flags": [
+    "number-corrected:50"
+   ]
+  },
+  "A51": {
+   "text": "Behold!",
+   "box": [
+    550,
+    1140,
+    620,
+    1156
+   ],
+   "flags": [
+    "number-corrected:52"
+   ]
+  },
+  "A53": {
+   "text": "This kind of billet-doux will get somewhere.",
+   "box": [
+    551,
+    1152,
+    798,
+    1168
+   ]
+  },
+  "A54": {
+   "text": "What the Prodigal Son was.",
+   "box": [
+    551,
+    1162,
+    721,
+    1180
+   ],
+   "flags": [
+    "number-corrected:55"
+   ]
+  },
+  "A56": {
+   "text": "Unadulterated.",
+   "box": [
+    551,
+    1174,
+    654,
+    1190
+   ],
+   "flags": [
+    "number-corrected:57"
+   ]
+  },
+  "A58": {
+   "text": "You must dig if you're going to do this.",
+   "box": [
+    551,
+    1185,
+    778,
+    1201
+   ]
+  },
+  "A59": {
+   "text": "These kind of people are bound to have trouble.",
+   "box": [
+    550,
+    1196,
+    820,
+    1212
+   ],
+   "flags": [
+    "number-corrected:60"
+   ]
+  },
+  "A61": {
+   "text": "A low-down, crafty person.",
+   "box": [
+    550,
+    1207,
+    717,
+    1224
+   ]
+  },
+  "A62": {
+   "text": "Short lyric or narrative poem.",
+   "box": [
+    550,
+    1218,
+    731,
+    1235
+   ],
+   "flags": [
+    "number-corrected:63",
+    "spell:lyrie>lyric"
+   ]
+  },
+  "A64": {
+   "text": "What the little chorus darlings are to Reggie.",
+   "box": [
+    551,
+    1229,
+    807,
+    1246
+   ]
+  },
+  "A65": {
+   "text": "An artist wouldn't mind being hung here.",
+   "box": [
+    551,
+    1242,
+    788,
+    1256
+   ]
+  },
+  "A66": {
+   "text": "These are the cat's.",
+   "box": [
+    552,
+    1252,
+    678,
+    1269
+   ]
+  },
+  "A67": {
+   "text": "",
+   "flags": [
+    "missing"
+   ]
+  },
+  "D1": {
+   "text": "What chorus girls would like to be.",
+   "box": [
+    558,
+    1314,
+    757,
+    1330
+   ]
+  },
+  "D2": {
+   "text": "A poetic evening.",
+   "box": [
+    557,
+    1326,
+    668,
+    1341
+   ]
+  },
+  "D3": {
+   "text": "This goes a long way in a dry country.",
+   "box": [
+    557,
+    1337,
+    774,
+    1352
+   ]
+  },
+  "D4": {
+   "text": "Where Horizontal 12 is put but seldom kept.",
+   "box": [
+    557,
+    1346,
+    806,
+    1365
+   ]
+  },
+  "D5": {
+   "text": "This usually precedes \"How dare you!\"",
+   "box": [
+    557,
+    1359,
+    776,
+    1375
+   ]
+  },
+  "D6": {
+   "text": "In the same degree.",
+   "box": [
+    557,
+    1371,
+    679,
+    1387
+   ],
+   "flags": [
+    "number-corrected:7"
+   ]
+  },
+  "D8": {
+   "text": "The nude body—of a car.",
+   "box": [
+    557,
+    1383,
+    710,
+    1397
+   ]
+  },
+  "D9": {
+   "text": "You'll never find a wild-cat this way.",
+   "box": [
+    556,
+    1394,
+    766,
+    1407
+   ]
+  },
+  "D10": {
+   "text": "The author of Annie Laurie might lie him doon an dee for her; but we'll bet he wouldn't do this.",
+   "box": [
+    552,
+    1404,
+    827,
+    1430
+   ]
+  },
+  "D11": {
+   "text": "What flappers never do when invited to dine.",
+   "box": [
+    552,
+    1425,
+    811,
+    1442
+   ]
+  },
+  "D12": {
+   "text": "This is poetic.",
+   "box": [
+    842,
+    773,
+    944,
+    794
+   ]
+  },
+  "D14": {
+   "text": "Hornswoggled, deceived—or what were you?",
+   "box": [
+    842,
+    786,
+    1093,
+    803
+   ],
+   "flags": [
+    "number-corrected:13"
+   ]
+  },
+  "D15": {
+   "text": "This will let you in. 17. What doughboys have to do after a tear.",
+   "box": [
+    842,
+    799,
+    1075,
+    825
+   ]
+  },
+  "D18": {
+   "text": "What reformers love to do.",
+   "box": [
+    842,
+    821,
+    1005,
+    835
+   ]
+  },
+  "D19": {
+   "text": "There's a lot of kickers in these.",
+   "box": [
+    842,
+    831,
+    1030,
+    848
+   ],
+   "flags": [
+    "number-corrected:24"
+   ]
+  },
+  "D25": {
+   "text": "A bad place for a miss.",
+   "box": [
+    842,
+    844,
+    987,
+    857
+   ],
+   "flags": [
+    "number-corrected:26"
+   ]
+  },
+  "D27": {
+   "text": "This kind of person is tight even if he isn't Scotch.",
+   "box": [
+    842,
+    852,
+    1119,
+    869
+   ]
+  },
+  "D28": {
+   "text": "This can't be a liability.",
+   "box": [
+    842,
+    864,
+    994,
+    881
+   ],
+   "flags": [
+    "number-corrected:29"
+   ]
+  },
+  "D30": {
+   "text": "This brings things home to you.",
+   "box": [
+    842,
+    875,
+    1033,
+    892
+   ]
+  },
+  "D31": {
+   "text": "An old salt.",
+   "box": [
+    842,
+    887,
+    931,
+    903
+   ]
+  },
+  "D32": {
+   "text": "The Pied Piper's rival.",
+   "box": [
+    842,
+    898,
+    985,
+    914
+   ]
+  },
+  "D33": {
+   "text": "It's wrong to do this.",
+   "box": [
+    842,
+    910,
+    979,
+    925
+   ]
+  },
+  "D34": {
+   "text": "A desire or a piece of Chinese cash.",
+   "box": [
+    842,
+    919,
+    1048,
+    936
+   ]
+  },
+  "D35": {
+   "text": "Good old-fashioned breakfast food.",
+   "box": [
+    842,
+    931,
+    1046,
+    947
+   ],
+   "flags": [
+    "number-corrected:39"
+   ]
+  },
+  "D40": {
+   "text": "What a little more Horizontal 17 will make the griddle cakes.",
+   "box": [
+    842,
+    940,
+    1120,
+    969
+   ],
+   "flags": [
+    "number-corrected:41"
+   ]
+  },
+  "D42": {
+   "text": "One does this who speaks imperfectly.",
+   "box": [
+    842,
+    965,
+    1064,
+    981
+   ]
+  },
+  "D43": {
+   "text": "Even the reformers can't get anything on this.",
+   "box": [
+    842,
+    977,
+    1104,
+    992
+   ],
+   "flags": [
+    "number-corrected:44"
+   ]
+  },
+  "D45": {
+   "text": "The kind of people who take trans-Atlantic flights.",
+   "box": [
+    842,
+    988,
+    1120,
+    1003
+   ]
+  },
+  "D46": {
+   "text": "The weapons used in political contests.",
+   "box": [
+    842,
+    999,
+    1068,
+    1015
+   ],
+   "flags": [
+    "number-corrected:47"
+   ]
+  },
+  "D48": {
+   "text": "What a blackjack does.",
+   "box": [
+    843,
+    1009,
+    992,
+    1026
+   ],
+   "flags": [
+    "number-corrected:49"
+   ]
+  },
+  "D50": {
+   "text": "A stop signal.",
+   "box": [
+    842,
+    1021,
+    943,
+    1036
+   ]
+  },
+  "D51": {
+   "text": "You must have vision to do this.",
+   "box": [
+    842,
+    1031,
+    1038,
+    1048
+   ]
+  },
+  "D52": {
+   "text": "What the stage villain does.",
+   "box": [
+    842,
+    1042,
+    1015,
+    1059
+   ]
+  },
+  "D53": {
+   "text": "Superficial extent.",
+   "box": [
+    843,
+    1053,
+    965,
+    1071
+   ],
+   "flags": [
+    "number-corrected:54"
+   ]
+  },
+  "D55": {
+   "text": "There's something false about this.",
+   "box": [
+    844,
+    1065,
+    1049,
+    1081
+   ],
+   "flags": [
+    "number-corrected:56"
+   ]
+  },
+  "D57": {
+   "text": "A profession at which V. 56 should be successful.",
+   "box": [
+    844,
+    1075,
+    1120,
+    1093
+   ],
+   "flags": [
+    "number-corrected:59"
+   ]
+  },
+  "D60": {
+   "text": "The aim of two-fisted young men. (Abbr.)",
+   "box": [
+    844,
+    1088,
+    1089,
+    1104
+   ],
+   "flags": [
+    "number-corrected:62"
+   ]
+  },
+  "D63": {
+   "text": "A French preposition.",
+   "box": [
+    842,
+    1098,
+    987,
+    1115
+   ],
+   "flags": [
+    "number-corrected:64"
+   ]
+  },
+  "D65": {
+   "text": "A Frenen preposrtion. Solution of Last Week's Puzzle",
+   "box": [
+    839,
+    1108,
+    1120,
+    1154
+   ],
+   "flags": [
+    "number-corrected:64",
+    "low-ocr-score"
+   ]
+  }
+ }
+}
