@@ -17,9 +17,13 @@ once and suggest **3**. Each puzzle costs roughly 70–100 thousand tokens,
 almost all of it reading images, and takes a few minutes. If they're unsure,
 suggest doing 1 first and checking how far their usage meter moved.
 
-Ask one more question at the same time: would they like their GitHub name
-listed on the project's contributors page? The default is no. Either way,
-their pull request is visible on GitHub.
+Ask two more questions at the same time:
+- Would they like their GitHub name listed on the project's contributors
+  page? The default is no. Either way, their pull request is visible on
+  GitHub.
+- Which magazine: *Judge*, a 1920s humor magazine, or *GAMES*, the puzzle
+  magazine, from 1977? The default is whichever is next in line. Below, the
+  one they chose is `<magazine>` (`judge` or `games`).
 
 Also tell them:
 - They can stop you at any time. Every finished puzzle is already sent, so
@@ -68,14 +72,17 @@ folder beside it, `../blitz-work`, never inside the repository.
 ## 3. Pick the puzzles
 
 ```
-tools/pick.sh <budget>
+tools/pick.sh <budget> <magazine>
 ```
 
-It prints the open puzzles to review, oldest first, one per line:
-`<pub> <xdid> <release tag>`, e.g. `judge judge1929-03-16 judge-1929-1930`.
+Leave out `<magazine>` if they had no preference. It prints the open puzzles
+to review, oldest first, one per line:
+`<pub> <xdid> <release tag>`, e.g. `judge judge1929-03-16 judge-1929-1930`
+or `games games1977-09-01 games-1977-1979`.
 A puzzle is open when its scans are released, nobody has reviewed it, and
 nobody has claimed it in the last 48 hours. If it prints nothing, every
-available puzzle is taken: thank the person and stop.
+available puzzle is taken. If they chose a magazine, offer the other one;
+otherwise thank the person and stop.
 
 Tell the person what you picked, e.g. "*Judge*, March 16 – April 6, 1929:
 3 puzzles".

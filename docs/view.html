@@ -47,7 +47,7 @@
 <script src="puzzle.js?v=202610021023"></script>
 <script>
 // A puzzle's record in the archive: the transcription as printed, with where it came from.
-const PUBS = {judge: 'Judge'};
+const PUBS = {judge: 'Judge', games: 'GAMES'};
 const q = new URLSearchParams(location.search);
 const [pub, id] = (q.get('p') || '').split('/');
 const from = q.get('from') || '';
