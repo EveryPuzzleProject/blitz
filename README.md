@@ -41,6 +41,102 @@ For each puzzle, your Claude:
 The result is one small JSON file per puzzle. A person spot-checks before
 anything goes into the archive.
 
+## How it works: one puzzle, start to finish
+
+Here's *Judge's* Crossword Puzzle No. 46, from April 7, 1928, submitted by
+a reader, C. E. Nobes of New York City.
+
+<img src="docs/img/judge1928-04-07-page.jpg" width="300" align="right" alt="The scanned magazine page: the puzzle grid on top, two columns of clues below, each clue outlined in blue, four outlined in orange">
+
+**1. Find the puzzle.** The pipeline searches the scanned magazine for
+crossword grids, then finds the clue lists that go with each one. Every blue
+box on the right is one clue it found on this page.
+
+**2. Find the answers.** *Judge* printed the answer key the following week,
+so the pipeline looks for it in later issues and matches it to this grid.
+Both grids are straightened so each square can be read.
+
+<p>
+<img src="docs/img/judge1928-04-07-grid.png" width="250" alt="The puzzle's empty grid, straightened">
+<img src="docs/img/judge1928-04-07-answers.png" width="250" alt="The answer key from the April 14 issue, straightened">
+</p>
+
+**3. Read it all with OCR.** That gives a first draft: 112 clues and a
+17×17 grid of letters. Most of it is right, but 1920s magazine type, uneven
+ink and page curl trip OCR up. In this answer key, one square couldn't be
+read at all and another was misread, and 17 clues had mistakes.
+
+<br clear="right">
+
+**4. Claude checks it against the scan.** This is the step volunteers run.
+Claude gets the grid, the answer key, the whole page, and a strip for every
+clue: the clue's label, a box around the text OCR read, and a line above and
+below for context. These four strips are the orange boxes on the page:
+
+<img src="docs/img/judge1928-04-07-D87.png" width="520" alt="Scan strip of clue 87 Down">
+
+> OCR read: What many do for their new **ears**.<br>
+> Claude: What many do for their new **cars**.
+
+<img src="docs/img/judge1928-04-07-D62.png" width="520" alt="Scan strip of clue 62 Down">
+
+> OCR read: What does the **plun.ber** walk home for?<br>
+> Claude: What does the **plumber** walk home for?
+
+<img src="docs/img/judge1928-04-07-A53.png" width="520" alt="Scan strip of clue 53 Across">
+
+> OCR read: This sounds like an **exelamatlon**, but **it'e** a bird.<br>
+> Claude: This sounds like an **exclamation**, but **it's** a bird. *(AUK)*
+
+<img src="docs/img/judge1928-04-07-D33.png" width="520" alt="Scan strip of clue 33 Down">
+
+> OCR read: What your pardner does to you when she **truwps** your tricks.<br>
+> Claude: What your pardner does to you when she **trumps** your tricks.
+
+Claude also uses the answers as a cross-check. Each answer has to fit its
+clue, and each clue has to fit the grid. That catches errors no single
+strip would show. "Pardner" stays as printed: Claude fixes OCR misreadings,
+never the magazine. If the magazine itself made a mistake, Claude keeps it
+and notes what was meant.
+
+**5. Claude writes down what it found.** One small file per puzzle:
+
+```json
+{
+  "ready": true,
+  "corrections": {
+    "cell:r9c6": "A",
+    "cell:r16c17": "D",
+    "clue:D62": "What does the plumber walk home for?",
+    "clue:D87": "What many do for their new cars.",
+    "…": "20 corrections in all"
+  },
+  "sic": {},
+  "unsure": {}
+}
+```
+
+**6. The result.** The corrections are applied, a person spot-checks
+anything Claude flagged, and the puzzle becomes an xd file: plain text that
+anyone can search, diff, or load into a solver.
+
+```
+Title: Judge's Crossword Puzzle No. 46
+Author: C. E. Nobes
+Date: 1928-04-07
+
+#LIBERAL#AUTOIST#
+C#TURIN#T#SHARE#G
+RA#TAN#COP#ORE#PR
+…
+
+A1. What kind of Scotchman would offer a penny for your thoughts? ~ LIBERAL
+A7. A modern who, in time of trouble, would gladly offer you a kingdom for a horse. ~ AUTOIST
+…
+```
+
+[Solve No. 46 yourself.](https://everypuzzleproject.github.io/puzzle-review/solve.html?p=judge/judge1928-04-07)
+
 ## How to help
 
 You need [Claude Code](https://claude.com/claude-code) and a GitHub account.
@@ -87,7 +183,7 @@ Volunteers work through these in order:
 
 | Publication | Years | Notes |
 |---|---|---|
-| [*Judge*](publications/judge/) | 1924–1939 | A humor magazine with a weekly crossword from 1924. 1929–30 open now. |
+| [*Judge*](publications/judge/) | 1924–1939 | A humor magazine with a weekly crossword from 1924. Late 1928 through 1930 open now. |
 
 ## Layout
 

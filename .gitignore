@@ -3,3 +3,5 @@
 *.zip
 *.png
 *.jpg
+!docs/img/*.png
+!docs/img/*.jpg
