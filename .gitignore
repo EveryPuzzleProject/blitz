@@ -1,0 +1,5 @@
+# Puzzle images live in release assets and ../puzzle-review-work, never here.
+*.tar.gz
+*.zip
+*.png
+*.jpg

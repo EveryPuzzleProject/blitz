@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Every Puzzle Project</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .lede { font: 19px/1.5 var(--serif); max-width: 640px; margin: 8px 0 0; }
+  .cta { display: inline-block; margin-top: 14px; padding: 8px 14px; border-radius: 6px; background: var(--accent); color: var(--bg);
+    text-decoration: none; font-weight: 600; }
+  .pub { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-top: 12px; }
+  .pub h3 { margin: 0; font: 600 20px var(--serif); }
+  .bar { display: flex; height: 14px; border-radius: 7px; overflow: hidden; background: var(--line); margin: 12px 0 8px; }
+  .bar span { display: block; height: 100%; }
+  .s-done { background: var(--good); } .s-vol { background: var(--accent); } .s-claim { background: var(--cur); } .s-open { background: color-mix(in srgb, var(--accent) 25%, var(--line)); }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 14px; color: var(--muted); }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; }
+  .solved { list-style: none; padding: 0; margin: 12px 0 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; }
+  .solved a { display: block; padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; text-decoration: none; font-size: 14px; background: var(--bg); }
+  .people { display: flex; flex-wrap: wrap; gap: 10px; }
+  .people a { display: flex; align-items: center; gap: 6px; text-decoration: none; font-size: 14px; color: var(--ink); }
+  .people img { width: 28px; height: 28px; border-radius: 50%; }
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap"><a href="./">Every Puzzle Project</a><span class="muted">Puzzle review</span></div></header>
+<main class="wrap">
+  <h1>Bringing old crosswords back</h1>
+  <p class="lede">Crosswords from the 1920s on survive as magazine scans. Volunteers' Claude checks the OCR of each one against
+    the scan, so the puzzle can be solved again and saved to the public crossword archive.</p>
+  <a class="cta" href="https://github.com/EveryPuzzleProject/puzzle-review#how-to-help">Donate your spare Claude usage</a>
+  <div id="pubs"><p class="muted">Loading progress…</p></div>
+  <h2>Contributors</h2>
+  <div class="people" id="people"><span class="muted">Loading…</span></div>
+</main>
+<script src="puzzle.js"></script>
+<script>
+const PUBS = [{id: 'judge', name: 'Judge', years: '1924–1939'}];
+const api = p => fetch(`https://api.github.com/repos/${REPO}/${p}`).then(r => r.ok ? r.json() : Promise.reject(new Error(r.status)));
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+(async () => {
+  const [tree, pulls] = await Promise.all([api('git/trees/main?recursive=1'), api('pulls?state=open&per_page=100').catch(() => [])]);
+  const reviewed = new Set(tree.tree.map(t => t.path.match(/^publications\/[^/]+\/reviews\/([^/]+)\/review\.json$/)?.[1]).filter(Boolean));
+  const fresh = Date.now() - 48 * 3600e3, claimed = new Set();
+  for (const p of pulls) if (Date.parse(p.updated_at) > fresh) for (const m of (p.body || '').matchAll(/\b[a-z]+\d{4}-\d\d-\d\d[a-z]?\b/g)) claimed.add(m[0]);
+  let html = '';
+  for (const pub of PUBS) {
+    const tsv = await fetch(`${rawBase()}/publications/${pub.id}/puzzles.tsv`, {cache: 'no-cache'}).then(r => r.text());
+    const rows = tsv.trim().split(/\r?\n/).slice(1).map(l => l.split('\t'));
+    const n = {done: 0, vol: 0, claim: 0, open: 0, later: 0}, mine = [];
+    for (const [x, packet] of rows) {
+      if (packet === 'done') n.done++;
+      else if (reviewed.has(x)) { n.vol++; mine.push(x); }
+      else if (packet === 'later') n.later++;
+      else if (claimed.has(x)) n.claim++;
+      else n.open++;
+    }
+    const pct = k => `${(100 * n[k] / rows.length).toFixed(2)}%`;
+    html += `<div class="pub"><h3><i>${esc(pub.name)}</i> <span class="muted" style="font-size:15px">${pub.years}</span></h3>
+      <div class="bar"><span class="s-done" style="width:${pct('done')}"></span><span class="s-vol" style="width:${pct('vol')}"></span>
+        <span class="s-claim" style="width:${pct('claim')}"></span><span class="s-open" style="width:${pct('open')}"></span></div>
+      <div class="legend"><span><i class="s-done"></i>${n.done} reviewed earlier</span><span><i class="s-vol"></i>${n.vol} restored by volunteers</span>
+        <span><i class="s-claim"></i>${n.claim} in progress</span><span><i class="s-open"></i>${n.open} open now</span>
+        <span>${n.later} not yet open · ${rows.length} in all</span></div>
+      ${mine.length ? `<ul class="solved">${mine.sort().reverse().map(x => `<li><a href="solve.html?p=${pub.id}/${x}">${esc(puzzleDate(x))}</a></li>`).join('')}</ul>` : ''}
+    </div>`;
+  }
+  document.getElementById('pubs').innerHTML = `<h2>Progress</h2>${html}`;
+  const people = await api('contributors?per_page=100').catch(() => []);
+  document.getElementById('people').innerHTML = people.length ? people.filter(p => p.type === 'User').map(p =>
+    `<a href="${esc(p.html_url)}"><img src="${esc(p.avatar_url)}&s=56" alt="">${esc(p.login)}</a>`).join('') : '<span class="muted">You could be first.</span>';
+})().catch(e => document.getElementById('pubs').innerHTML = `<p class="muted">Couldn't load progress (${esc(e.message)}).</p>`);
+</script>
+</body>
+</html>
