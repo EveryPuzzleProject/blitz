@@ -17,6 +17,10 @@ once and suggest **3**. Each puzzle costs roughly 70–100 thousand tokens,
 almost all of it reading images, and takes a few minutes. If they're unsure,
 suggest doing 1 first and checking how far their usage meter moved.
 
+Ask one more question at the same time: would they like their GitHub name
+listed on the project's contributors page? The default is no. Either way,
+their pull request is public on GitHub.
+
 Also tell them:
 - They can stop you at any time. Every finished puzzle is already sent, so
   nothing is wasted.
@@ -86,6 +90,10 @@ mkdir -p publications/<pub>/reviews/<xdid>
 cp ../puzzle-review-work/<xdid>/ocr.json publications/<pub>/reviews/<xdid>/ocr.json
 ```
 
+If they asked to be listed as a contributor, and `contributors/<user>`
+doesn't exist yet, create it as an empty file. Otherwise leave that folder
+alone.
+
 Commit with the message `Claim <xdids, space-separated>`, then
 `git push -u origin HEAD`. Git may warn that CRLF will be replaced by LF.
 That's expected; ignore it.
@@ -141,7 +149,8 @@ As each puzzle finishes:
    The link is
    `https://everypuzzleproject.github.io/puzzle-review/solve.html?p=<pub>/<xdid>&from=<user>:<branch>`.
 
-Only add files under `publications/<pub>/reviews/`. A check runs on the pull
+Only add files under `publications/<pub>/reviews/`, plus
+`contributors/<user>` if they asked to be listed. A check runs on the pull
 request and flags any review that isn't well-formed.
 
 ## 6. Finish

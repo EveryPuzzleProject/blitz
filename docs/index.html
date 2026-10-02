@@ -70,9 +70,11 @@ const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&
     </div>`;
   }
   document.getElementById('pubs').innerHTML = `<h2>Progress</h2>${html}`;
-  const people = await api('contributors?per_page=100').catch(() => []);
-  document.getElementById('people').innerHTML = people.length ? people.filter(p => p.type === 'User').map(p =>
-    `<a href="${esc(p.html_url)}"><img src="${esc(p.avatar_url)}&s=56" alt="">${esc(p.login)}</a>`).join('') : '<span class="muted">You could be first.</span>';
+  // Only volunteers who asked to be listed: an empty file contributors/<login> on main.
+  const people = tree.tree.map(t => t.path.match(/^contributors\/([A-Za-z0-9-]+)$/)?.[1]).filter(Boolean);
+  document.getElementById('people').innerHTML = people.length ? people.map(u =>
+    `<a href="https://github.com/${esc(u)}"><img src="https://github.com/${esc(u)}.png?size=56" alt="">${esc(u)}</a>`).join('')
+    : '<span class="muted">You could be first.</span>';
 })().catch(e => document.getElementById('pubs').innerHTML = `<p class="muted">Couldn't load progress (${esc(e.message)}).</p>`);
 </script>
 </body>

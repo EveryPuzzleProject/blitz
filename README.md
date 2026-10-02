@@ -178,8 +178,10 @@ Nothing else.
 
 - A link to solve each puzzle you restored, right in your browser: the grid
   and clues as printed in 1929 or 1930, with a check button.
-- Your name on the [contributors list](https://everypuzzleproject.github.io/puzzle-review/)
-  once your pull request is merged.
+- If you'd like, your GitHub name on the
+  [contributors list](https://everypuzzleproject.github.io/puzzle-review/).
+  Claude will ask, and the default is no. Your pull request is public on
+  GitHub either way.
 - Knowing these puzzles are searchable again.
 
 ## Publications
@@ -197,4 +199,5 @@ Volunteers work through these in order:
 - `publications/<pub>/puzzles.tsv`: every puzzle and where its packet is.
 - `publications/<pub>/reviews/<puzzle>/`: the OCR reading (`ocr.json`) and the review (`review.json`).
 - Puzzle packets (scan crops) are release assets, not in the repository.
+- `contributors/`: one empty file per volunteer who asked to be listed.
 - `docs/`: the website, including the solver.
