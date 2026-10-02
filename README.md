@@ -2,6 +2,7 @@
 
 **Have Claude usage left before your weekly reset? Spend it restoring
 crosswords that haven't been solved in nearly a hundred years.**
+
 Already convinced? [Here's the prompt to paste.](#how-to-help)
 
 ## The goal
