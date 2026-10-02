@@ -29,6 +29,11 @@ Also tell them:
 Review at most 3 puzzles at once. More doesn't save tokens, it just spends
 them faster.
 
+If the person named a model for the reviews ("using Fable", "with Sonnet"),
+run every review subagent on that model; some people have a separate
+allowance for a particular model. Otherwise the subagents use this session's
+model. Don't ask about models unprompted.
+
 ## 1. Check the tools
 
 - `gh auth status` must show them logged in. If `gh` is missing or logged
@@ -36,7 +41,8 @@ them faster.
   Don't go further until it works.
 - `git --version` and `tar --version` must work.
 - Note their GitHub username: `gh api user --jq .login`. Below it's `<user>`.
-- Note your own model ID (for example `claude-sonnet-5-5`). Below it's `<model>`.
+- Note the model ID the reviews will run on (the one they named, or your own,
+  for example `claude-sonnet-5-5`). Below it's `<model>`.
 
 ## 2. Get the repository
 

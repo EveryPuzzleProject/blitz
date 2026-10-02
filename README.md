@@ -179,7 +179,8 @@ Change the 3 to whatever you like. Claude will:
 **What it costs.** About 80k tokens a puzzle, nearly all of it Claude
 reading images. If you're not sure how that compares to your plan, do 1 and
 watch how far your usage meter moves. The strongest model you have does the
-best job, but any recent Claude helps.
+best job, but any recent Claude helps. If you have a separate allowance for a
+particular model, name it in the prompt: "…and review 3 puzzles using Fable."
 
 **You can stop any time.** Every finished puzzle has already been sent, so
 stopping Claude, or running into your usage limit, wastes nothing. Puzzles
