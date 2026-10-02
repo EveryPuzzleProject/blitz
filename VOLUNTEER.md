@@ -6,7 +6,7 @@ readings against the scans and send the results back as a pull request. Work
 through the steps below in order. Keep the person informed in short, friendly
 lines; they're watching.
 
-Repository: `EveryPuzzleProject/puzzle-review`. Everything below uses `gh`
+Repository: `EveryPuzzleProject/blitz`. Everything below uses `gh`
 (the GitHub CLI), `git` and `tar` in a bash shell. On Windows, Claude Code's
 Bash tool (Git Bash) works.
 
@@ -40,24 +40,24 @@ them faster.
 
 ## 2. Get the repository
 
-If there's no `puzzle-review` folder here yet:
+If there's no `blitz` folder here yet:
 
 ```
-gh repo fork EveryPuzzleProject/puzzle-review --clone --default-branch-only
+gh repo fork EveryPuzzleProject/blitz --clone --default-branch-only
 ```
 
 Then, whether the folder is new or not:
 
 ```
-cd puzzle-review
+cd blitz
 git fetch upstream
 ```
 
 The fork may be an old one from an earlier run. That's fine: your branch
 starts from `upstream/main` in step 4, not from the fork's `main`.
 
-All later commands run inside `puzzle-review`. Puzzle images go in a work
-folder beside it, `../puzzle-review-work`, never inside the repository.
+All later commands run inside `blitz`. Puzzle images go in a work
+folder beside it, `../blitz-work`, never inside the repository.
 
 ## 3. Pick the puzzles
 
@@ -84,10 +84,10 @@ For each puzzle, download and unpack its packet, then copy its `ocr.json` into
 the repository:
 
 ```
-gh release download <release tag> --repo EveryPuzzleProject/puzzle-review --pattern "<xdid>.tar.gz" --dir ../puzzle-review-work
-tar -xzf ../puzzle-review-work/<xdid>.tar.gz -C ../puzzle-review-work
+gh release download <release tag> --repo EveryPuzzleProject/blitz --pattern "<xdid>.tar.gz" --dir ../blitz-work
+tar -xzf ../blitz-work/<xdid>.tar.gz -C ../blitz-work
 mkdir -p publications/<pub>/reviews/<xdid>
-cp ../puzzle-review-work/<xdid>/ocr.json publications/<pub>/reviews/<xdid>/ocr.json
+cp ../blitz-work/<xdid>/ocr.json publications/<pub>/reviews/<xdid>/ocr.json
 ```
 
 If they asked to be listed as a contributor, and `contributors/<user>`
@@ -98,7 +98,7 @@ Commit with the message `Claim <xdids, space-separated>`, then
 `git push -u origin HEAD`. Git may warn that CRLF will be replaced by LF.
 That's expected; ignore it.
 
-Write the PR body to `../puzzle-review-work/pr-body.md`:
+Write the PR body to `../blitz-work/pr-body.md`:
 
 ```
 Reviewing with <model>.
@@ -110,7 +110,7 @@ Reviewing with <model>.
 and open a draft pull request:
 
 ```
-gh pr create --draft --repo EveryPuzzleProject/puzzle-review --title "Review <xdids, space-separated>" --body-file ../puzzle-review-work/pr-body.md
+gh pr create --draft --repo EveryPuzzleProject/blitz --title "Review <xdids, space-separated>" --body-file ../blitz-work/pr-body.md
 ```
 
 This is the claim, so do it before reviewing.
@@ -122,7 +122,7 @@ the paths and model):
 
 > Review the OCR of one scanned crossword puzzle.
 >
-> Puzzle folder: `<absolute path to ../puzzle-review-work/<xdid>>`
+> Puzzle folder: `<absolute path to ../blitz-work/<xdid>>`
 > Instructions: `<absolute path to publications/<pub>/INSTRUCTIONS.md>`
 >
 > Read the instructions file first and follow it exactly. Use the Read tool on
@@ -141,14 +141,13 @@ As each puzzle finishes:
 2. Copy it to `publications/<pub>/reviews/<xdid>/review.json`.
 3. Commit with the message `Review <xdid>`, push, tick its box in the PR
    body file, and update the PR:
-   `gh pr edit <number> --repo EveryPuzzleProject/puzzle-review --body-file ../puzzle-review-work/pr-body.md`
+   `gh pr edit <number> --repo EveryPuzzleProject/blitz --body-file ../blitz-work/pr-body.md`
 4. Make them a private copy of the puzzle, as a curiosity. It stays
    in the work folder on their computer and is never pushed:
 
    ```
-   cp tools/local-solver/solve.html docs/puzzle.js docs/style.css ../puzzle-review-work/<xdid>/
-   { printf 'window.PUZZLE = {"ocr": '; cat ../puzzle-review-work/<xdid>/ocr.json; printf ', "review": '; cat ../puzzle-review-work/<xdid>/review.json; printf '};
-'; } > ../puzzle-review-work/<xdid>/data.js
+   cp tools/local-solver/solve.html docs/puzzle.js docs/style.css ../blitz-work/<xdid>/
+   { printf 'window.PUZZLE = {"ocr": '; cat ../blitz-work/<xdid>/ocr.json; printf ', "review": '; cat ../blitz-work/<xdid>/review.json; printf '};\n'; } > ../blitz-work/<xdid>/data.js
    ```
 
 5. Tell the person, in one line, with a link to the puzzle's record and the
@@ -157,7 +156,7 @@ As each puzzle finishes:
    > ✓ *Judge*, March 16, 1929, "Cross Word Puzzle No. 231": 7 corrections, 1 printed misprint kept. Favorite clue: "…". Record: <link> · Try it yourself: <absolute path to solve.html>
 
    The record link is
-   `https://everypuzzleproject.github.io/puzzle-review/view.html?p=<pub>/<xdid>&from=<user>:<branch>`.
+   `https://everypuzzleproject.github.io/blitz/view.html?p=<pub>/<xdid>&from=<user>:<branch>`.
 
 Only add files under `publications/<pub>/reviews/`, plus
 `contributors/<user>` if they asked to be listed. A check runs on the pull
@@ -166,12 +165,12 @@ request and flags any review that isn't well-formed.
 ## 6. Finish
 
 When every claimed puzzle is done (or skipped), mark the PR ready with
-`gh pr ready <number> --repo EveryPuzzleProject/puzzle-review`. Then give the
+`gh pr ready <number> --repo EveryPuzzleProject/blitz`. Then give the
 person a short wrap-up:
 - the puzzles reviewed, with their record links and private copies (the
   copies are just for them: ask them not to share or post them),
 - the PR link,
-- the progress page: https://everypuzzleproject.github.io/puzzle-review/
+- the progress page: https://everypuzzleproject.github.io/blitz/
 
 If the run stops early (they stop you, or a limit is hit), that's fine. Leave
 the PR as a draft. The maintainer merges partial runs, and unreviewed puzzles

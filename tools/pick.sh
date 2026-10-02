@@ -5,7 +5,7 @@
 # Usage, from the repository root: git fetch upstream && tools/pick.sh 3
 set -eu
 n=${1:-3}
-repo=EveryPuzzleProject/puzzle-review
+repo=EveryPuzzleProject/blitz
 claimed=$(gh pr list --repo "$repo" --state open --limit 200 --json updatedAt,body \
   --jq '.[] | select((.updatedAt | fromdateiso8601) > (now - 172800)) | .body' \
   | grep -oE '[a-z]+[0-9]{4}-[0-9]{2}-[0-9]{2}[a-z]?' | sort -u || true)

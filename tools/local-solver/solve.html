@@ -48,7 +48,7 @@
 </style>
 </head>
 <body>
-<header class="top"><div class="wrap"><a href="https://everypuzzleproject.github.io/puzzle-review/">Every Puzzle Project</a><span class="muted">Your private copy</span></div></header>
+<header class="top"><div class="wrap"><a href="https://everypuzzleproject.github.io/blitz/">Every Puzzle Project</a><span class="muted">Your private copy</span></div></header>
 <main class="wrap" id="app"><p class="muted">Loading puzzle…</p></main>
 <input id="kbd" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Type answers">
 <script src="puzzle.js"></script>
@@ -112,7 +112,7 @@ function start(P) {
       <p>First printed in <i>${esc(PUBS[pub] || pub)}</i> on ${esc(P.date)}.
         ${P.source ? `<a href="${esc(P.source)}" target="_blank" rel="noopener">See the original page</a> at the Internet Archive.` : ''}</p>
       <p>Checked against the scan by your Claude${P.model ? ` (${esc(P.model)})` : ''} for the
-        <a href="https://everypuzzleproject.github.io/puzzle-review/">Every Puzzle Project</a>. Clues and answers are as printed, misprints included.
+        <a href="https://everypuzzleproject.github.io/blitz/">Every Puzzle Project</a>. Clues and answers are as printed, misprints included.
         This copy is for your own use, as a thank-you; please don't share or post it.</p>
       ${P.sic.length ? `<details><summary>Printed misprints, kept as printed</summary><ul>${P.sic.map(s => `<li>${esc(s)}</li>`).join('')}</ul></details>` : ''}
       ${P.note ? `<details><summary>Notes</summary><p>${esc(P.note)}</p></details>` : ''}

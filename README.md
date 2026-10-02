@@ -1,4 +1,4 @@
-# Every Puzzle Project: puzzle review
+# Every Puzzle Project: Blitz
 
 **Have Claude usage left before your weekly reset? Put it toward a research
 archive of early crosswords, transcribed from scans of the pages they were
@@ -152,7 +152,7 @@ A7. A modern who, in time of trouble, would gladly offer you a kingdom for a hor
 …
 ```
 
-[See No. 46's record](https://everypuzzleproject.github.io/puzzle-review/view.html?p=judge/judge1928-04-07):
+[See No. 46's record](https://everypuzzleproject.github.io/blitz/view.html?p=judge/judge1928-04-07):
 the transcription laid out as printed, with links to the original pages.
 
 ## How to help
@@ -162,7 +162,7 @@ In an empty folder, start Claude Code and paste:
 
 ```text
 Help the Every Puzzle Project restore old crosswords. Follow
-https://github.com/EveryPuzzleProject/puzzle-review/blob/main/VOLUNTEER.md
+https://github.com/EveryPuzzleProject/blitz/blob/main/VOLUNTEER.md
 and review 3 puzzles.
 ```
 
@@ -198,7 +198,7 @@ Nothing else.
   they're close to impossible.) It's for your own use, so please don't share
   or post it.
 - If you'd like, your GitHub name on the
-  [contributors list](https://everypuzzleproject.github.io/puzzle-review/).
+  [contributors list](https://everypuzzleproject.github.io/blitz/).
   Claude will ask, and the default is no. Your pull request is visible on
   GitHub either way.
 - The satisfaction of knowing these puzzles have been preserved for posterity.

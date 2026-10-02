@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Every Puzzle Project</title>
-<link rel="stylesheet" href="style.css?v=202610021017">
+<link rel="stylesheet" href="style.css?v=202610021023">
 <style>
   :root { --st-restored: var(--good); --st-person: #d9822b; --st-review: var(--accent); --st-open: color-mix(in srgb, var(--accent) 22%, var(--surface));
     --st-later: var(--line); }
@@ -58,7 +58,7 @@
 </style>
 </head>
 <body>
-<header class="top"><div class="wrap"><a href="./">Every Puzzle Project</a><span class="muted">Puzzle review</span></div></header>
+<header class="top"><div class="wrap"><a href="./">Every Puzzle Project</a><span class="muted">Blitz</span></div></header>
 <main class="wrap">
   <div class="hero"><div>
   <h1>Bringing old crosswords back</h1>
@@ -69,7 +69,7 @@
   <p class="lede muted" style="font-size:16px">OCR built for this project has made a first draft of every puzzle. Volunteers contribute to the project by directing their Claude
     to check each draft against the scan, square by square and clue by clue.
     It takes around 80k tokens to review a single puzzle. How much you contribute is up to you.</p>
-  <a class="cta" href="https://github.com/EveryPuzzleProject/puzzle-review#how-to-help">Get involved</a>
+  <a class="cta" href="https://github.com/EveryPuzzleProject/blitz#how-to-help">Get involved</a>
   </div>
   <figure><img src="img/judge1924-11-15-cover-crossword.jpg" alt="Judge's cover for November 15, 1924: a full-page crossword printed over an illustration">
     <figcaption>November 15, 1924: at the height of the <a href="https://crosswordcraze.today">1924 crossword craze</a>, the whole cover was a crossword.</figcaption></figure>
@@ -78,7 +78,7 @@
   <h2>Contributors</h2>
   <div class="people" id="people"><span class="muted">Loading…</span></div>
 </main>
-<script src="puzzle.js?v=202610021017"></script>
+<script src="puzzle.js?v=202610021023"></script>
 <script>
 const PUBS = [{id: 'judge', name: 'Judge', years: '1924–1939 (scans so far)'}];
 const MILESTONES = [50, 100, 150, 200, 250, 300, 350, 400, 450, 500, 600, 700, 800, 900, 1000];
@@ -151,7 +151,7 @@ const label = r => `${r.number ? `No. ${r.number} · ` : ''}${puzzleDate(r.date)
       <p class="sub" style="margin-top:-2px">Every puzzle, one square each. Click a filled square to see its record.</p>
       <div class="years">${yearRows}</div>
       ${wanted ? `<h4>Wanted: people</h4><div class="wanted"><p class="sub">Claude can't finish these alone. If you can find a missing page,
-        a cleaner scan or an answer key, <a href="https://github.com/EveryPuzzleProject/puzzle-review/issues">open an issue</a>.</p>${wanted}</div>` : ''}
+        a cleaner scan or an answer key, <a href="https://github.com/EveryPuzzleProject/blitz/issues">open an issue</a>.</p>${wanted}</div>` : ''}
     </section>`;
   }
   document.getElementById('pubs').innerHTML = `<h2>Progress</h2>${html}`;

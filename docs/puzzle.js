@@ -1,14 +1,14 @@
 // Load a reviewed puzzle (the packet's ocr.json plus the volunteer's review.json)
 // from GitHub and apply the review's corrections, giving the puzzle as printed.
 
-const REPO = 'EveryPuzzleProject/puzzle-review';
+const REPO = 'EveryPuzzleProject/blitz';
 
-// from: "owner:branch" (a fork named puzzle-review), "owner/repo:branch", or empty for main here.
+// from: "owner:branch" (a fork named blitz), "owner/repo:branch", or empty for main here.
 function rawBase(from) {
   if (from === 'local') return '..';  // testing: the repo root served locally
   if (!from)return `https://raw.githubusercontent.com/${REPO}/main`;
   let [who, branch] = from.split(':');
-  if (!who.includes('/')) who += '/puzzle-review';
+  if (!who.includes('/')) who += '/blitz';
   return `https://raw.githubusercontent.com/${who}/${branch || 'main'}`;
 }
 

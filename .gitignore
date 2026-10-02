@@ -1,4 +1,4 @@
-# Puzzle images live in release assets and ../puzzle-review-work, never here.
+# Puzzle images live in release assets and ../blitz-work, never here.
 *.tar.gz
 *.zip
 *.png
