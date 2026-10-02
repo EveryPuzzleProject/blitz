@@ -94,7 +94,14 @@ anything. If something can't be read, list it under "unsure" rather than guess.
 - *Judge* printed each puzzle's answers in a LATER issue. `answers.png`, when
   present, is this puzzle's key cut from that later issue. A missing answer
   grid is expected for some puzzles and isn't a blocker by itself; the
-  answer grid printed on this puzzle's own page is usually last week's.
+  answer grid printed on this puzzle's own page is usually the previous
+  issue's.
+- *Judge* was weekly until July 1932 and monthly from August 1932 (dates
+  like 1932-08-01). Monthly issues usually have two or three puzzles; their
+  ids end in `b` or `c` (judge1934-06-01b). When the page holds more than one
+  puzzle, make sure the clues, captions and answer key you check are this
+  puzzle's (match the clue numbers and answers to this grid), and remove
+  anything that belongs to the other one.
 - The magazine's stock notice ("Judge pays $10 for each one printed", "Judge
   will run a Crossword Puzzle every week…") is not part of the puzzle.
 - "Submitted by …" under the grid often names the constructor: use it for the
