@@ -193,7 +193,7 @@ Nothing else.
 
 - A link to the record of each puzzle you restored: its transcription laid
   out as printed in 1929 or 1930, next to a link to the original page.
-- As a souvenir, a private copy of each one on your computer that you can
+- As a souvenir, a private copy of each puzzle on your computer that you can
   try to solve, if you want to see how a 1920s crossword feels. (Fair warning:
   they're close to impossible.) It's for your own use, so please don't share
   or post it.
