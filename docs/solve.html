@@ -26,6 +26,7 @@
   .cell.bad::after { content: ""; position: absolute; inset: auto 15% 8% 15%; border-top: 2px solid var(--bad); transform: rotate(-35deg); transform-origin: center; top: 50%; }
   .cell.rev .ch { color: var(--accent); }
   .tools { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; align-items: center; }
+  .status { font-size: 14px; flex-basis: 100%; min-height: 20px; }
   .timer { font: 600 15px ui-monospace, monospace; margin-right: 6px; min-width: 52px; }
   .lists { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; min-width: 0; }
   .lists h3 { font: 600 13px var(--sans); text-transform: uppercase; letter-spacing: .08em; margin: 0 0 6px; color: var(--muted); }
@@ -99,6 +100,7 @@ function start(P) {
           <button data-act="word">Reveal word</button>
           <button data-act="all">Reveal puzzle</button>
           <button data-act="clear">Clear</button>
+          <span class="status muted" id="status" aria-live="polite"></span>
         </div>
       </div>
       <div class="lists">
@@ -224,15 +226,31 @@ function start(P) {
       banner.innerHTML = `<div class="banner">Grid full! There's no answer key for this one, so only you know if it's right.</div>`;
     }
   }
+  // Every button says what it did. Reveal puzzle and Clear ask for a second click instead of a pop-up.
+  const status = document.getElementById('status');
+  let armed = null, armTimer = null;
+  const say = t => { status.textContent = t; };
+  const arm = (b, text) => {
+    if (armed === b) { clearTimeout(armTimer); armed = null; b.textContent = b.dataset.label; return true; }
+    if (armed) armed.textContent = armed.dataset.label;
+    armed = b; b.dataset.label ||= b.textContent; b.textContent = text; say('');
+    clearTimeout(armTimer); armTimer = setTimeout(() => { b.textContent = b.dataset.label; armed = null; }, 3000);
+    return false;
+  };
   document.querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', () => {
     const act = b.dataset.act, w = P.words[wordIdx()];
-    const reveal = list => list.forEach(([r, c]) => { const x = P.cells[r][c]; if (x.sol && fill[r][c] !== x.sol) { fill[r][c] = x.sol; revealed.add(r + ',' + c); bad.delete(r + ',' + c); } });
-    if (act === 'check') P.cells.flat().filter(Boolean).forEach(x => { if (fill[x.r][x.c] && x.sol && fill[x.r][x.c] !== x.sol) bad.add(x.r + ',' + x.c); });
-    if (act === 'sq') reveal([[cur.r, cur.c]]);
-    if (act === 'word') reveal(w.cells);
-    if (act === 'all' && confirm('Reveal the whole puzzle?')) reveal(P.cells.flat().filter(Boolean).map(x => [x.r, x.c]));
-    if (act === 'clear' && confirm('Clear the grid and start over?')) {
-      fill.forEach(row => row.fill('')); revealed.clear(); bad.clear(); elapsed = 0; done = false; banner.innerHTML = ''; tick();
+    const reveal = list => { let n = 0; list.forEach(([r, c]) => { const x = P.cells[r][c]; if (x.sol && fill[r][c] !== x.sol) { fill[r][c] = x.sol; revealed.add(r + ',' + c); bad.delete(r + ',' + c); n++; } }); return n; };
+    if (act === 'check') {
+      const all = P.cells.flat().filter(Boolean), typed = all.filter(x => fill[x.r][x.c] && x.sol);
+      const wrong = typed.filter(x => fill[x.r][x.c] !== x.sol);
+      wrong.forEach(x => bad.add(x.r + ',' + x.c));
+      say(!typed.length ? 'Nothing to check yet.' : wrong.length ? `${wrong.length} wrong, marked in red.` : `All ${typed.length} letters so far are right.`);
+    }
+    if (act === 'sq') say(reveal([[cur.r, cur.c]]) ? 'Revealed one square.' : P.cells[cur.r][cur.c].sol ? 'That square is already right.' : "That square can't be read in the printed key.");
+    if (act === 'word') { const n = reveal(w.cells); say(n ? `Revealed ${n} ${n === 1 ? 'square' : 'squares'}.` : 'That word is already right.'); }
+    if (act === 'all' && arm(b, 'Reveal all? Click again')) say(`Revealed ${reveal(P.cells.flat().filter(Boolean).map(x => [x.r, x.c]))} squares.`);
+    if (act === 'clear' && arm(b, 'Clear all? Click again')) {
+      fill.forEach(row => row.fill('')); revealed.clear(); bad.clear(); elapsed = 0; done = false; banner.innerHTML = ''; tick(); say('Cleared.');
     }
     paint(); save(); if (act !== 'clear') finished(); kbd.focus();
   }));

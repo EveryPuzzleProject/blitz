@@ -18,7 +18,7 @@ archival efforts such as the
 be looked at, but not searched, counted, or compared.
 
 The Every Puzzle Project is turning those scans into
-[xd files](https://github.com/century-arcade/xdformat), a plain-text crossword format
+[xd](https://github.com/century-arcade/xdformat) files, a plain-text crossword format
 with the grid, every clue and answer, the title, the author and the date. In
 xd, a 1929 puzzle sits in the same open archive as modern ones and can be
 searched and analyzed with them. You can ask which words were crossword
