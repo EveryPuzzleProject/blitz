@@ -1,0 +1,54 @@
+name: Request a blitz
+description: Point us to a scanned crossword you'd like transcribed into the archive
+title: "Blitz request: "
+labels: [blitz-request]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Know of a crossword that exists only as a scan or a photo? Tell us where it is, and we'll
+        look at adding it to the queue. One request can cover a single puzzle or a whole run.
+  - type: input
+    id: publication
+    attributes:
+      label: Publication
+      description: The newspaper, magazine, book or website it appeared in.
+      placeholder: "Judge"
+    validations:
+      required: true
+  - type: input
+    id: when
+    attributes:
+      label: Date, issue or page
+      description: As much as you know. A range is fine for a run of puzzles.
+      placeholder: "November 15, 1924, cover"
+  - type: textarea
+    id: links
+    attributes:
+      label: Link to the scan
+      description: An archive page, an image, a library record. One per line.
+      placeholder: "https://archive.org/details/sim_judge_1924-11-15_87/page/n0"
+    validations:
+      required: true
+  - type: textarea
+    id: answers
+    attributes:
+      label: Link to the answers, if you know where they are
+      description: Answers often ran in a later issue or the back of the book.
+  - type: dropdown
+    id: access
+    attributes:
+      label: Who can see the scan?
+      options:
+        - Anyone (free online)
+        - Subscribers (e.g. newspapers.com)
+        - Only at a library or archive
+        - It's my own scan or photo
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else
+      description: Puzzle number, constructor, why it's interesting, what's hard to read…

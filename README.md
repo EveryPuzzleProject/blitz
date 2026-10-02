@@ -212,6 +212,11 @@ Volunteers work through these in order:
 | [*Judge*](publications/judge/) | 1924–1939 scanned | A humor magazine with a crossword from 1924: weekly, then monthly from August 1932, often two a month. Late 1928 through 1930 open now. |
 | *GAMES* | 1977–1999 scanned | **Coming soon.** A puzzle magazine whose Pencilwise pages were edited by Will Shortz. |
 
+Know of a scanned crossword that should be here?
+[Request a blitz](https://github.com/EveryPuzzleProject/blitz/issues/new?template=request-blitz.yml).
+Know of a publication that ran crosswords? Add it to the
+[catalog](https://github.com/EveryPuzzleProject/catalog).
+
 ## Layout
 
 - `VOLUNTEER.md`: the procedure Claude follows.
