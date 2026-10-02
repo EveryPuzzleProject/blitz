@@ -1,0 +1,375 @@
+{
+ "model": "claude-opus-5-5",
+ "ready": true,
+ "remaining": "minor",
+ "remaining_note": "A16 ends 'end!' (print slightly broken, punctuation); D15 number printed without its period.",
+ "note": "The four corner squares (r1c1, r1c15, r15c1, r15c15) are printed white but unnumbered and belong to no word (empty in the answer key too); the OCR counted them as white, which shifted the numbering. Marked them black so the numbering matches the printed numbers (e.g. 1-Across starts at r1c2, 11-Across/Down at r2c1); all clues re-keyed to the printed numbers. Grid otherwise symmetric; every answer checked against its clue. answers.png is this puzzle's key (the grid on the page is last week's solution). OCR had merged 11/12 Across and 15/17 Down, and D65 was the 'Solution of Last Week's Puzzle' heading.",
+ "corrections": {
+  "grid:r1c1": "#",
+  "grid:r1c15": "#",
+  "grid:r15c1": "#",
+  "grid:r15c15": "#",
+  "cell:r1c1": "#",
+  "cell:r1c15": "#",
+  "cell:r15c1": "#",
+  "cell:r15c15": "#",
+  "cell:r3c12": "A",
+  "cell:r8c6": "A",
+  "cell:r12c3": "A",
+  "cell:r14c8": "A",
+  "clue:A1": "This is very misleading.",
+  "clue:A6": "There's nothing fictitious about these.",
+  "clue:A11": "A sheik's work-bench.",
+  "clue:A12": "This is sometimes tried on night-clubs—but it hardly ever fits.",
+  "clue:A14": "This is often a dangerous curve.",
+  "clue:A16": "No end, no end!",
+  "clue:A17": "Sweetest thing you ever saw!",
+  "clue:A19": "The last word in prayers.",
+  "clue:A20": "All fighters have one, so do a lot of married men.",
+  "clue:A21": "She'll forgive your past—for this.",
+  "clue:A22": "Just Mollie and me—without the offspring.",
+  "clue:A23": "The bitter half of a matrimonial mess.",
+  "clue:A25": "With some practice this can get along. (Abbr.)",
+  "clue:A26": "You'll never get far by putting your shoulder to this.",
+  "clue:A28": "A big fish from Newfoundland.",
+  "clue:A29": "What is cluttered with political propaganda now?",
+  "clue:A31": "This is a bracer—if you're sick.",
+  "clue:A33": "A literary composition.",
+  "clue:A35": "The funny Irishman of the Comics.",
+  "clue:A36": "In what Horizontal 11 is found. (Plural.)",
+  "clue:A37": "A bear's boudoir.",
+  "clue:A38": "A perch.",
+  "clue:A40": "Fine stuff for a bow.",
+  "clue:A43": "Kinds of large sea-fish allied to the shark.",
+  "clue:A44": "What clinging vines cling to.",
+  "clue:A46": "This is less than a crowd.",
+  "clue:A48": "Part of the verb to be.",
+  "clue:A50": "Bloomers.",
+  "clue:A52": "Behold!",
+  "clue:A53": "This kind of billet-doux will get somewhere.",
+  "clue:A55": "What the Prodigal Son was.",
+  "clue:A57": "Unadulterated.",
+  "clue:A58": "You must dig if you're going to do this.",
+  "clue:A60": "These kind of people are bound to have trouble.",
+  "clue:A61": "A low-down, crafty person.",
+  "clue:A63": "Short lyric or narrative poem.",
+  "clue:A64": "What the little chorus darlings are to Reggie.",
+  "clue:A65": "An artist wouldn't mind being hung here.",
+  "clue:A66": "These are the cat's.",
+  "clue:D1": "What chorus girls would like to be.",
+  "clue:D2": "A poetic evening.",
+  "clue:D3": "This goes a long way in a dry country.",
+  "clue:D4": "Where Horizontal 12 is put but seldom kept.",
+  "clue:D5": "This usually precedes \"How dare you!\"",
+  "clue:D7": "In the same degree.",
+  "clue:D8": "The nude body—of a car.",
+  "clue:D9": "You'll never find a wild-cat this way.",
+  "clue:D10": "The author of Annie Laurie might lie him doon an dee for her; but we'll bet he wouldn't do this.",
+  "clue:D11": "What flappers never do when invited to dine.",
+  "clue:D12": "This is poetic.",
+  "clue:D13": "Hornswoggled, deceived—or what were you?",
+  "clue:D15": "This will let you in.",
+  "clue:D17": "What doughboys have to do after a tear.",
+  "clue:D18": "What reformers love to do.",
+  "clue:D24": "There's a lot of kickers in these.",
+  "clue:D26": "A bad place for a miss.",
+  "clue:D27": "This kind of person is tight even if he isn't Scotch.",
+  "clue:D29": "This can't be a liability.",
+  "clue:D30": "This brings things home to you.",
+  "clue:D31": "An old salt.",
+  "clue:D32": "The Pied Piper's rival.",
+  "clue:D33": "It's wrong to do this.",
+  "clue:D34": "A desire or a piece of Chinese cash.",
+  "clue:D39": "Good old-fashioned breakfast food.",
+  "clue:D41": "What a little more Horizontal 17 will make the griddle cakes.",
+  "clue:D42": "One does this who speaks imperfectly.",
+  "clue:D44": "Even the reformers can't get anything on this.",
+  "clue:D45": "The kind of people who take trans-Atlantic flights.",
+  "clue:D47": "The weapons used in political contests.",
+  "clue:D49": "What a blackjack does.",
+  "clue:D50": "A stop signal.",
+  "clue:D51": "You must have vision to do this.",
+  "clue:D52": "What the stage villain does.",
+  "clue:D54": "Superficial extent.",
+  "clue:D56": "There's something false about this.",
+  "clue:D59": "A profession at which V. 56 should be successful.",
+  "clue:D62": "The aim of two-fisted young men. (Abbr.)",
+  "clue:D64": "A French preposition.",
+  "clue:A7": "",
+  "clue:A13": "",
+  "clue:A18": "",
+  "clue:A24": "",
+  "clue:A27": "",
+  "clue:A30": "",
+  "clue:A32": "",
+  "clue:A34": "",
+  "clue:A39": "",
+  "clue:A41": "",
+  "clue:A45": "",
+  "clue:A47": "",
+  "clue:A49": "",
+  "clue:A51": "",
+  "clue:A54": "",
+  "clue:A56": "",
+  "clue:A59": "",
+  "clue:A62": "",
+  "clue:A67": "",
+  "clue:D6": "",
+  "clue:D14": "",
+  "clue:D19": "",
+  "clue:D25": "",
+  "clue:D28": "",
+  "clue:D35": "",
+  "clue:D40": "",
+  "clue:D43": "",
+  "clue:D46": "",
+  "clue:D48": "",
+  "clue:D53": "",
+  "clue:D55": "",
+  "clue:D57": "",
+  "clue:D60": "",
+  "clue:D63": "",
+  "clue:D65": "",
+  "meta:title": "Judge's Crossword Puzzle No. 76",
+  "meta:author": "W. R. Gilman",
+  "meta:byline": "Submitted by Mr. W. R. Gilman, Columbus, Ohio",
+  "other:1": ""
+ },
+ "sic": {},
+ "regions": {
+  "clue:A6": [
+   551,
+   818,
+   763,
+   834
+  ],
+  "clue:A19": [
+   549,
+   894,
+   704,
+   912
+  ],
+  "clue:A25": [
+   549,
+   949,
+   815,
+   969
+  ],
+  "clue:A28": [
+   549,
+   984,
+   731,
+   1000
+  ],
+  "clue:A31": [
+   549,
+   1007,
+   735,
+   1023
+  ],
+  "clue:A33": [
+   550,
+   1019,
+   693,
+   1033
+  ],
+  "clue:A35": [
+   550,
+   1028,
+   754,
+   1045
+  ],
+  "clue:A40": [
+   550,
+   1075,
+   679,
+   1089
+  ],
+  "clue:A43": [
+   550,
+   1085,
+   788,
+   1101
+  ],
+  "clue:A46": [
+   550,
+   1109,
+   706,
+   1123
+  ],
+  "clue:A48": [
+   550,
+   1118,
+   693,
+   1135
+  ],
+  "clue:A50": [
+   550,
+   1130,
+   630,
+   1146
+  ],
+  "clue:A52": [
+   550,
+   1140,
+   620,
+   1156
+  ],
+  "clue:A55": [
+   551,
+   1162,
+   721,
+   1180
+  ],
+  "clue:A57": [
+   551,
+   1174,
+   654,
+   1190
+  ],
+  "clue:A60": [
+   550,
+   1196,
+   820,
+   1212
+  ],
+  "clue:A63": [
+   550,
+   1218,
+   731,
+   1235
+  ],
+  "clue:D7": [
+   557,
+   1371,
+   679,
+   1387
+  ],
+  "clue:D13": [
+   842,
+   786,
+   1093,
+   803
+  ],
+  "clue:D24": [
+   842,
+   831,
+   1030,
+   848
+  ],
+  "clue:D26": [
+   842,
+   844,
+   987,
+   857
+  ],
+  "clue:D29": [
+   842,
+   864,
+   994,
+   881
+  ],
+  "clue:D39": [
+   842,
+   931,
+   1046,
+   947
+  ],
+  "clue:D41": [
+   842,
+   940,
+   1120,
+   969
+  ],
+  "clue:D44": [
+   842,
+   977,
+   1104,
+   992
+  ],
+  "clue:D47": [
+   842,
+   999,
+   1068,
+   1015
+  ],
+  "clue:D49": [
+   843,
+   1009,
+   992,
+   1026
+  ],
+  "clue:D54": [
+   843,
+   1053,
+   965,
+   1071
+  ],
+  "clue:D56": [
+   844,
+   1065,
+   1049,
+   1081
+  ],
+  "clue:D59": [
+   844,
+   1075,
+   1120,
+   1093
+  ],
+  "clue:D62": [
+   844,
+   1088,
+   1089,
+   1104
+  ],
+  "clue:D64": [
+   842,
+   1098,
+   987,
+   1115
+  ],
+  "clue:A11": [
+   546,
+   828,
+   824,
+   843
+  ],
+  "clue:A12": [
+   546,
+   838,
+   824,
+   865
+  ],
+  "clue:A26": [
+   549,
+   962,
+   824,
+   989
+  ],
+  "clue:D15": [
+   842,
+   799,
+   1075,
+   813
+  ],
+  "clue:D17": [
+   842,
+   810,
+   1075,
+   825
+  ]
+ },
+ "confirm": [
+  "cell:r1c11",
+  "cell:r6c11",
+  "clue:A14",
+  "clue:A35",
+  "clue:A44",
+  "clue:A63",
+  "clue:D64"
+ ],
+ "unsure": {
+  "clue:A16": "punctuation"
+ }
+}
