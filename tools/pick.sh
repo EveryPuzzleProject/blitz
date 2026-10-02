@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Print the next N open puzzles, oldest first, one per line: "<pub> <xdid> <release tag>".
-# A puzzle is open when its packet is released, no review.json for it is on
+# A puzzle is open when puzzles.tsv says so, no review.json for it is on
 # upstream main, and no open pull request updated in the last 48 hours names it.
 # Usage, from the repository root: git fetch upstream && tools/pick.sh 3
 set -eu
@@ -12,8 +12,8 @@ claimed=$(gh pr list --repo "$repo" --state open --limit 200 --json updatedAt,bo
 reviewed=$(git ls-tree -r --name-only upstream/main publications \
   | sed -n 's#^publications/[^/]*/reviews/\([^/]*\)/review\.json$#\1#p')
 for pub in $(tr -d '\r' < publications/ORDER); do
-  tail -n +2 "publications/$pub/puzzles.tsv" | tr -d '\r' | while IFS=$'\t' read -r xdid packet; do
-    case "$packet" in done|later) continue ;; esac
+  # columns: xdid date number packet state reason person updated (some may be empty)
+  tr -d '\r' < "publications/$pub/puzzles.tsv" | awk -F'\t' 'NR > 1 && $5 == "open" { print $1, $4 }' | while read -r xdid packet; do
     grep -qx "$xdid" <<<"$claimed" && continue
     grep -qx "$xdid" <<<"$reviewed" && continue
     echo "$pub $xdid $packet"

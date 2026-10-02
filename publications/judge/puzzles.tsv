@@ -1,510 +1,543 @@
-xdid	packet
-judge1924-11-01	done
-judge1924-11-08	done
-judge1924-11-15	done
-judge1924-11-15b	done
-judge1924-11-22	done
-judge1924-11-29	done
-judge1924-12-13	done
-judge1924-12-20	done
-judge1924-12-27	done
-judge1925-01-03	done
-judge1925-01-10	done
-judge1925-01-17	done
-judge1925-01-24	done
-judge1925-01-31	done
-judge1925-02-07	done
-judge1925-02-21	done
-judge1925-02-28	done
-judge1925-03-07	done
-judge1925-03-14	done
-judge1925-03-21	done
-judge1925-03-28	done
-judge1925-04-04	done
-judge1925-04-11	done
-judge1925-04-18	done
-judge1925-04-25	done
-judge1925-05-02	done
-judge1925-05-09	done
-judge1925-05-16	done
-judge1925-05-23	done
-judge1925-05-30	done
-judge1925-06-06	done
-judge1925-06-13	done
-judge1925-06-20	done
-judge1925-06-27	done
-judge1925-07-04	done
-judge1925-07-11	done
-judge1925-07-18	done
-judge1925-07-25	done
-judge1925-09-12	done
-judge1925-09-19	done
-judge1925-09-26	done
-judge1925-10-03	done
-judge1925-10-10	done
-judge1925-10-17	done
-judge1925-10-17b	done
-judge1925-10-24	done
-judge1925-10-31	done
-judge1925-11-07	done
-judge1925-11-14	done
-judge1925-11-21	done
-judge1925-11-28	done
-judge1925-12-05	done
-judge1925-12-12	done
-judge1925-12-19	done
-judge1925-12-26	done
-judge1926-01-02	done
-judge1926-01-09	done
-judge1926-01-16	done
-judge1926-01-23	done
-judge1926-01-30	done
-judge1926-02-06	done
-judge1926-02-13	done
-judge1926-02-20	done
-judge1926-02-27	done
-judge1926-03-06	done
-judge1926-03-13	done
-judge1926-03-20	done
-judge1926-03-27	done
-judge1926-04-03	done
-judge1926-04-10	done
-judge1926-04-17	done
-judge1926-04-24	done
-judge1926-05-01	done
-judge1926-05-15	done
-judge1926-05-22	done
-judge1926-05-29	done
-judge1926-06-05	done
-judge1926-06-12	done
-judge1926-06-26	done
-judge1926-07-03	done
-judge1926-07-10	done
-judge1926-07-17	done
-judge1926-07-24	done
-judge1926-07-31	done
-judge1926-08-07	done
-judge1926-08-14	done
-judge1926-08-21	done
-judge1926-08-28	done
-judge1926-09-04	done
-judge1926-09-11	done
-judge1926-09-18	done
-judge1926-09-25	done
-judge1926-10-02	done
-judge1926-10-09	done
-judge1926-10-23	done
-judge1926-10-30	done
-judge1926-11-06	done
-judge1926-11-13	done
-judge1926-11-20	done
-judge1926-11-27	done
-judge1926-12-04	done
-judge1926-12-11	done
-judge1926-12-18	done
-judge1926-12-25	done
-judge1927-01-01	done
-judge1927-01-08	done
-judge1927-01-15	done
-judge1927-01-22	done
-judge1927-01-29	done
-judge1927-02-05	done
-judge1927-02-12	done
-judge1927-02-19	done
-judge1927-02-26	done
-judge1927-03-05	done
-judge1927-03-12	done
-judge1927-03-19	done
-judge1927-03-26	done
-judge1927-04-02	done
-judge1927-04-09	done
-judge1927-04-16	done
-judge1927-04-23	done
-judge1927-04-30	done
-judge1927-05-07	done
-judge1927-05-14	done
-judge1927-05-21	done
-judge1927-05-28	done
-judge1927-06-04	done
-judge1927-06-11	done
-judge1927-06-18	done
-judge1927-07-02	done
-judge1927-07-09	done
-judge1927-07-16	done
-judge1927-07-23	done
-judge1927-07-30	done
-judge1927-08-06	done
-judge1927-08-13	done
-judge1927-08-20	done
-judge1927-08-27	done
-judge1927-09-10	done
-judge1927-09-17	done
-judge1927-09-24	done
-judge1927-10-01	done
-judge1927-10-08	done
-judge1927-10-15	done
-judge1927-10-15b	done
-judge1927-10-29	done
-judge1927-11-05	done
-judge1927-12-17	done
-judge1927-12-24	done
-judge1927-12-31	done
-judge1928-01-07	done
-judge1928-01-14	done
-judge1928-01-21	done
-judge1928-01-28	done
-judge1928-02-04	done
-judge1928-02-11	done
-judge1928-02-18	done
-judge1928-02-25	done
-judge1928-03-03	done
-judge1928-03-10	done
-judge1928-03-17	done
-judge1928-03-24	done
-judge1928-03-31	done
-judge1928-04-07	done
-judge1928-04-14	done
-judge1928-04-21	done
-judge1928-04-28	done
-judge1928-05-12	done
-judge1928-05-19	done
-judge1928-05-26	done
-judge1928-06-02	done
-judge1928-06-09	done
-judge1928-06-16	done
-judge1928-06-23	done
-judge1928-06-30	done
-judge1928-07-07	done
-judge1928-07-14	done
-judge1928-07-21	done
-judge1928-07-28	done
-judge1928-08-04	done
-judge1928-08-11	done
-judge1928-08-18	done
-judge1928-08-25	done
-judge1928-09-01	done
-judge1928-09-08	done
-judge1928-09-15	done
-judge1928-09-22	done
-judge1928-09-29	done
-judge1928-10-06	done
-judge1928-10-13	done
-judge1928-10-20	done
-judge1928-10-27	done
-judge1928-11-03	judge-1929-1930
-judge1928-11-10	done
-judge1928-11-17	done
-judge1928-11-24	done
-judge1928-12-01	done
-judge1928-12-08	done
-judge1928-12-15	done
-judge1928-12-22	done
-judge1928-12-29	done
-judge1929-01-05	done
-judge1929-01-12	done
-judge1929-01-19	done
-judge1929-01-26	done
-judge1929-02-02	done
-judge1929-02-09	done
-judge1929-02-16	done
-judge1929-02-23	done
-judge1929-03-02	done
-judge1929-03-09	done
-judge1929-03-16	judge-1929-1930
-judge1929-03-23	judge-1929-1930
-judge1929-03-30	judge-1929-1930
-judge1929-04-06	judge-1929-1930
-judge1929-04-20	judge-1929-1930
-judge1929-04-27	judge-1929-1930
-judge1929-05-04	judge-1929-1930
-judge1929-05-11	judge-1929-1930
-judge1929-05-18	judge-1929-1930
-judge1929-05-25	judge-1929-1930
-judge1929-06-01	judge-1929-1930
-judge1929-06-08	judge-1929-1930
-judge1929-06-15	judge-1929-1930
-judge1929-06-22	judge-1929-1930
-judge1929-06-29	judge-1929-1930
-judge1929-07-06	judge-1929-1930
-judge1929-07-13	judge-1929-1930
-judge1929-07-20	judge-1929-1930
-judge1929-07-27	judge-1929-1930
-judge1929-08-10	judge-1929-1930
-judge1929-08-17	judge-1929-1930
-judge1929-08-24	judge-1929-1930
-judge1929-08-31	judge-1929-1930
-judge1929-09-07	judge-1929-1930
-judge1929-09-14	judge-1929-1930
-judge1929-09-21	judge-1929-1930
-judge1929-09-28	judge-1929-1930
-judge1929-10-05	judge-1929-1930
-judge1929-10-12	judge-1929-1930
-judge1929-10-19	judge-1929-1930
-judge1929-10-26	judge-1929-1930
-judge1929-11-02	judge-1929-1930
-judge1929-11-09	judge-1929-1930
-judge1929-11-16	judge-1929-1930
-judge1929-11-23	judge-1929-1930
-judge1929-11-30	judge-1929-1930
-judge1929-12-07	judge-1929-1930
-judge1929-12-14	judge-1929-1930
-judge1929-12-21	judge-1929-1930
-judge1929-12-28	judge-1929-1930
-judge1930-01-04	judge-1929-1930
-judge1930-01-11	judge-1929-1930
-judge1930-01-18	judge-1929-1930
-judge1930-01-25	judge-1929-1930
-judge1930-02-01	judge-1929-1930
-judge1930-02-08	judge-1929-1930
-judge1930-02-15	judge-1929-1930
-judge1930-02-22	judge-1929-1930
-judge1930-03-01	judge-1929-1930
-judge1930-03-08	judge-1929-1930
-judge1930-03-15	judge-1929-1930
-judge1930-03-22	judge-1929-1930
-judge1930-03-29	judge-1929-1930
-judge1930-04-05	judge-1929-1930
-judge1930-04-12	judge-1929-1930
-judge1930-04-19	judge-1929-1930
-judge1930-04-26	judge-1929-1930
-judge1930-05-03	judge-1929-1930
-judge1930-05-10	judge-1929-1930
-judge1930-05-17	judge-1929-1930
-judge1930-05-24	judge-1929-1930
-judge1930-05-31	judge-1929-1930
-judge1930-06-07	judge-1929-1930
-judge1930-06-14	judge-1929-1930
-judge1930-06-21	judge-1929-1930
-judge1930-06-28	judge-1929-1930
-judge1930-07-05	judge-1929-1930
-judge1930-07-12	judge-1929-1930
-judge1930-07-19	judge-1929-1930
-judge1930-07-26	judge-1929-1930
-judge1930-08-02	judge-1929-1930
-judge1930-08-09	judge-1929-1930
-judge1930-08-16	judge-1929-1930
-judge1930-08-23	judge-1929-1930
-judge1930-09-06	judge-1929-1930
-judge1930-09-13	judge-1929-1930
-judge1930-09-20	judge-1929-1930
-judge1930-09-27	judge-1929-1930
-judge1930-10-04	judge-1929-1930
-judge1930-10-11	judge-1929-1930
-judge1930-10-18	judge-1929-1930
-judge1930-10-25	judge-1929-1930
-judge1930-11-01	judge-1929-1930
-judge1930-11-08	judge-1929-1930
-judge1930-11-15	judge-1929-1930
-judge1930-11-22	judge-1929-1930
-judge1930-11-29	judge-1929-1930
-judge1930-12-06	judge-1929-1930
-judge1930-12-13	judge-1929-1930
-judge1930-12-20	judge-1929-1930
-judge1930-12-27	judge-1929-1930
-judge1931-01-03	later
-judge1931-01-10	later
-judge1931-01-17	later
-judge1931-01-24	later
-judge1931-01-31	later
-judge1931-02-07	later
-judge1931-02-14	later
-judge1931-02-21	later
-judge1931-02-28	later
-judge1931-03-07	later
-judge1931-03-14	later
-judge1931-03-21	later
-judge1931-03-28	later
-judge1931-04-04	later
-judge1931-04-11	later
-judge1931-04-18	later
-judge1931-04-25	later
-judge1931-05-02	later
-judge1931-05-09	later
-judge1931-05-16	later
-judge1931-05-23	later
-judge1931-05-30	later
-judge1931-06-06	later
-judge1931-06-13	later
-judge1931-06-20	later
-judge1931-06-27	later
-judge1931-07-04	later
-judge1931-07-11	later
-judge1931-07-18	later
-judge1931-07-25	later
-judge1931-08-01	later
-judge1931-08-08	later
-judge1931-08-15	later
-judge1931-08-22	later
-judge1931-08-29	later
-judge1931-09-05	later
-judge1931-09-12	later
-judge1931-09-19	later
-judge1931-09-26	later
-judge1931-10-03	later
-judge1931-10-10	later
-judge1931-10-17	later
-judge1931-10-24	later
-judge1931-10-31	later
-judge1931-11-07	later
-judge1931-11-14	later
-judge1931-11-21	later
-judge1931-11-28	later
-judge1931-12-05	later
-judge1931-12-12	later
-judge1931-12-19	later
-judge1931-12-26	later
-judge1932-01-02	later
-judge1932-01-09	later
-judge1932-01-16	later
-judge1932-01-23	later
-judge1932-01-30	later
-judge1932-02-06	later
-judge1932-02-13	later
-judge1932-02-20	later
-judge1932-02-27	later
-judge1932-03-05	later
-judge1932-03-12	later
-judge1932-03-19	later
-judge1932-03-26	later
-judge1932-04-02	later
-judge1932-04-09	later
-judge1932-04-16	later
-judge1932-04-23	later
-judge1932-04-30	later
-judge1932-05-07	later
-judge1932-05-14	later
-judge1932-05-21	later
-judge1932-05-28	later
-judge1932-06-04	later
-judge1932-06-11	later
-judge1932-06-25	later
-judge1932-07-01	later
-judge1932-08-01	later
-judge1932-08-01b	later
-judge1932-09-01	later
-judge1932-09-01b	later
-judge1932-10-01	later
-judge1932-11-01	later
-judge1932-11-01b	later
-judge1932-12-01	later
-judge1932-12-01b	later
-judge1933-01-01	later
-judge1933-01-01b	later
-judge1933-02-01	later
-judge1933-03-01	later
-judge1933-03-01b	later
-judge1933-04-01	later
-judge1933-05-01	later
-judge1933-05-01b	later
-judge1933-06-01	later
-judge1933-06-01b	later
-judge1933-07-01	later
-judge1933-07-01b	later
-judge1933-08-01	later
-judge1933-09-01	later
-judge1933-10-01	later
-judge1933-11-01	later
-judge1933-11-01b	later
-judge1933-12-01	later
-judge1934-01-01	later
-judge1934-02-01	later
-judge1934-02-01b	later
-judge1934-03-01	later
-judge1934-03-01b	later
-judge1934-04-01	later
-judge1934-04-01b	later
-judge1934-05-01	later
-judge1934-05-01b	later
-judge1934-06-01	later
-judge1934-06-01b	later
-judge1934-06-01c	later
-judge1934-07-01	later
-judge1934-07-01b	later
-judge1934-08-01	later
-judge1934-08-01b	later
-judge1934-09-01	later
-judge1934-09-01b	later
-judge1934-10-01	later
-judge1934-10-01b	later
-judge1934-11-01	later
-judge1934-12-01	later
-judge1934-12-01b	later
-judge1935-02-01	later
-judge1935-03-01	later
-judge1935-03-01b	later
-judge1935-04-01	later
-judge1935-05-01	later
-judge1935-06-01	later
-judge1935-06-01b	later
-judge1935-07-01	later
-judge1935-07-01b	later
-judge1935-08-01	later
-judge1935-08-01b	later
-judge1935-09-01	later
-judge1935-09-01b	later
-judge1935-10-01	later
-judge1935-10-01b	later
-judge1935-11-01	later
-judge1935-12-01	later
-judge1936-01-01	later
-judge1936-01-01b	later
-judge1936-02-01	later
-judge1936-02-01b	later
-judge1936-03-01	later
-judge1936-04-01	later
-judge1936-04-01b	later
-judge1936-05-01	later
-judge1936-05-01b	later
-judge1936-06-01	later
-judge1936-06-01b	later
-judge1936-07-01	later
-judge1936-07-01b	later
-judge1936-08-01	later
-judge1936-08-01b	later
-judge1936-09-01	later
-judge1936-10-01	later
-judge1936-10-01b	later
-judge1936-11-01	later
-judge1936-12-01	later
-judge1937-01-01	later
-judge1937-01-01b	later
-judge1937-02-01	later
-judge1937-02-01b	later
-judge1937-03-01	later
-judge1937-03-01b	later
-judge1937-04-01	later
-judge1937-04-01b	later
-judge1937-05-01	later
-judge1937-06-01	later
-judge1937-06-01b	later
-judge1937-07-01	later
-judge1937-07-01b	later
-judge1937-08-01	later
-judge1937-08-01b	later
-judge1937-09-01	later
-judge1937-09-01b	later
-judge1937-10-01	later
-judge1937-11-01	later
-judge1937-11-01b	later
-judge1937-12-01	later
-judge1937-12-01b	later
-judge1938-01-01	later
-judge1938-01-01b	later
-judge1938-02-01	later
-judge1938-02-01b	later
-judge1938-03-01	later
-judge1938-03-01b	later
-judge1938-04-01	later
-judge1938-04-01b	later
-judge1938-05-01	later
-judge1938-06-01	later
-judge1938-07-01	later
-judge1938-07-01b	later
-judge1938-08-01	later
-judge1938-08-01b	later
-judge1938-09-01	later
-judge1938-09-01b	later
-judge1938-12-01	later
-judge1938-12-01b	later
-judge1939-01-01	later
-judge1939-01-01b	later
+xdid	date	number	packet	state	reason	person	updated
+judge1924-11-01	1924-11-01	1	done	restored		y	2026-10-01
+judge1924-11-08	1924-11-08	2	done	restored		y	2026-09-29
+judge1924-11-15	1924-11-15		done	restored		y	2026-09-29
+judge1924-11-15b	1924-11-15	3	done	restored		y	2026-10-01
+judge1924-11-22	1924-11-22	4	done	restored		y	2026-10-01
+judge1924-11-29	1924-11-29	5	done	restored		y	2026-10-01
+judge1924-12-13	1924-12-13	7	done	restored		y	2026-09-29
+judge1924-12-20	1924-12-20	8	done	restored		y	2026-09-29
+judge1924-12-27	1924-12-27	9	done	restored		y	2026-10-01
+judge1925-01-03	1925-01-03	10	done	restored		y	2026-10-01
+judge1925-01-10	1925-01-10	11	done	restored		y	2026-09-29
+judge1925-01-17	1925-01-17	12	done	restored		y	2026-10-01
+judge1925-01-24	1925-01-24	13	done	restored		y	2026-10-01
+judge1925-01-31	1925-01-31	14	done	restored		y	2026-10-01
+judge1925-02-07	1925-02-07	15	done	restored		y	2026-10-01
+judge1925-02-21	1925-02-21	17	done	restored		y	2026-10-01
+judge1925-02-28	1925-02-28	18	done	restored		y	2026-10-01
+judge1925-03-07	1925-03-07	19	done	restored		y	2026-10-01
+judge1925-03-14	1925-03-14	20	done	restored		y	2026-10-01
+judge1925-03-21	1925-03-21	21	done	restored		y	2026-10-01
+judge1925-03-28	1925-03-28	22	done	restored		y	2026-10-01
+judge1925-04-04	1925-04-04	23	done	restored		y	2026-10-01
+judge1925-04-11	1925-04-11	24	done	restored		y	2026-10-01
+judge1925-04-18	1925-04-18	25	done	restored		y	2026-10-01
+judge1925-04-25	1925-04-25	26	done	restored		y	2026-10-01
+judge1925-05-02	1925-05-02	27	done	restored		y	2026-10-01
+judge1925-05-09	1925-05-09	28	done	restored		y	2026-10-01
+judge1925-05-16	1925-05-16	29	done	restored		y	2026-10-01
+judge1925-05-23	1925-05-23	30	done	restored		y	2026-10-01
+judge1925-05-30	1925-05-30	31	done	restored		y	2026-10-01
+judge1925-06-06	1925-06-06	32	done	restored		y	2026-10-01
+judge1925-06-13	1925-06-13	33	done	restored		y	2026-10-01
+judge1925-06-20	1925-06-20	34	done	restored		y	2026-10-01
+judge1925-06-27	1925-06-27	35	done	restored		y	2026-10-01
+judge1925-07-04	1925-07-04	36	done	restored		y	2026-10-01
+judge1925-07-11	1925-07-11	37	done	restored		y	2026-10-01
+judge1925-07-18	1925-07-18	38	done	restored		y	2026-10-01
+judge1925-07-25	1925-07-25	39	done	restored		y	2026-10-01
+judge1925-09-12	1925-09-12	40	done	restored		y	2026-10-01
+judge1925-09-19	1925-09-19	41	done	restored		y	2026-10-01
+judge1925-09-26	1925-09-26	42	done	restored		y	2026-10-01
+judge1925-10-03	1925-10-03	43	done	restored		y	2026-10-01
+judge1925-10-10	1925-10-10	44	done	restored		y	2026-10-01
+judge1925-10-17	1925-10-17	45	done	restored		y	2026-10-01
+judge1925-10-17b	1925-10-17	44	done	restored		y	2026-10-01
+judge1925-10-24	1925-10-24	46	done	restored		y	2026-10-01
+judge1925-10-31	1925-10-31	47	done	restored		y	2026-10-01
+judge1925-11-07	1925-11-07	48	done	restored		y	2026-10-01
+judge1925-11-14	1925-11-14	49	done	restored		y	2026-10-01
+judge1925-11-21	1925-11-21	50	done	restored		y	2026-10-01
+judge1925-11-28	1925-11-28	51	done	restored		y	2026-10-01
+judge1925-12-05	1925-12-05	52	done	restored		y	2026-10-01
+judge1925-12-12	1925-12-12	53	done	restored		y	2026-10-01
+judge1925-12-19	1925-12-19	54	done	restored		y	2026-10-01
+judge1925-12-26	1925-12-26	55	done	restored		y	2026-10-01
+judge1926-01-02	1926-01-02	56	done	restored		y	2026-10-01
+judge1926-01-09	1926-01-09	57	done	restored		y	2026-10-01
+judge1926-01-16	1926-01-16	58	done	restored		y	2026-10-01
+judge1926-01-23	1926-01-23	59	done	restored		y	2026-10-01
+judge1926-01-30	1926-01-30	60	done	restored		y	2026-10-01
+judge1926-02-06	1926-02-06	61	done	restored		y	2026-10-01
+judge1926-02-13	1926-02-13	62	done	restored		y	2026-10-01
+judge1926-02-20	1926-02-20	63	done	restored		y	2026-10-01
+judge1926-02-27	1926-02-27	64	done	restored		y	2026-10-01
+judge1926-03-06	1926-03-06	65	done	restored		y	2026-10-01
+judge1926-03-13	1926-03-13	66	done	restored		y	2026-10-01
+judge1926-03-20	1926-03-20	67	done	restored		y	2026-10-01
+judge1926-03-27	1926-03-27	68	done	restored		y	2026-10-01
+judge1926-04-03	1926-04-03	69	done	restored		y	2026-10-01
+judge1926-04-10	1926-04-10	70	done	restored		y	2026-10-01
+judge1926-04-17	1926-04-17	71	done	restored		y	2026-10-01
+judge1926-04-24	1926-04-24	72	done	restored		y	2026-10-01
+judge1926-05-01	1926-05-01	73	done	restored		y	2026-10-01
+judge1926-05-15	1926-05-15	74	done	restored		y	2026-10-01
+judge1926-05-22	1926-05-22	75	done	restored		y	2026-10-01
+judge1926-05-29	1926-05-29	76	done	restored		y	2026-10-01
+judge1926-06-05	1926-06-05	77	done	restored		y	2026-10-01
+judge1926-06-12	1926-06-12	78	done	restored		y	2026-10-01
+judge1926-06-26	1926-06-26	79	done	restored		y	2026-10-01
+judge1926-07-03	1926-07-03	80	done	restored		y	2026-10-01
+judge1926-07-10	1926-07-10	81	done	restored		y	2026-10-01
+judge1926-07-17	1926-07-17	82	done	restored		y	2026-10-01
+judge1926-07-24	1926-07-24	83	done	restored		y	2026-10-01
+judge1926-07-31	1926-07-31	84	done	restored		y	2026-10-01
+judge1926-08-07	1926-08-07	85	done	restored		y	2026-10-01
+judge1926-08-14	1926-08-14	86	done	restored		y	2026-10-01
+judge1926-08-21	1926-08-21	87	done	restored		y	2026-10-01
+judge1926-08-28	1926-08-28	88	done	restored		y	2026-10-01
+judge1926-09-04	1926-09-04	89	done	restored		y	2026-10-01
+judge1926-09-11	1926-09-11	90	done	restored		y	2026-10-01
+judge1926-09-18	1926-09-18	91	done	restored		y	2026-10-01
+judge1926-09-25	1926-09-25	92	done	restored		y	2026-10-01
+judge1926-10-02	1926-10-02	93	done	restored		y	2026-10-01
+judge1926-10-09	1926-10-09	94	done	restored		y	2026-10-01
+judge1926-10-23	1926-10-23	96	done	restored		y	2026-10-01
+judge1926-10-30	1926-10-30	97	done	restored		y	2026-10-01
+judge1926-11-06	1926-11-06	98	done	restored		y	2026-10-01
+judge1926-11-13	1926-11-13	99	done	restored		y	2026-10-01
+judge1926-11-20	1926-11-20	100	done	restored		y	2026-10-01
+judge1926-11-27	1926-11-27	101	done	restored		y	2026-10-01
+judge1926-12-04	1926-12-04	102	done	restored		y	2026-10-01
+judge1926-12-11	1926-12-11	103	done	restored		y	2026-10-01
+judge1926-12-18	1926-12-18	104	done	restored		y	2026-10-01
+judge1926-12-25	1926-12-25	105	done	restored		y	2026-10-01
+judge1927-01-01	1927-01-01	106	done	restored		y	2026-10-01
+judge1927-01-08	1927-01-08	107	done	restored		y	2026-10-01
+judge1927-01-15	1927-01-15	108	done	restored		y	2026-10-01
+judge1927-01-22	1927-01-22	109	done	needs-person	no-key	y	2026-10-01
+judge1927-01-29	1927-01-29	110	done	restored			2026-10-01
+judge1927-02-05	1927-02-05	111	done	restored			2026-10-01
+judge1927-02-12	1927-02-12	112	done	restored			2026-10-01
+judge1927-02-19	1927-02-19	113	done	restored		y	2026-10-01
+judge1927-02-26	1927-02-26	114	done	restored		y	2026-10-01
+judge1927-03-05	1927-03-05	115	done	restored		y	2026-10-01
+judge1927-03-12	1927-03-12	116	done	restored		y	2026-10-01
+judge1927-03-19	1927-03-19	117	done	restored		y	2026-10-01
+judge1927-03-26	1927-03-26	118	done	restored		y	2026-10-01
+judge1927-04-02	1927-04-02	119	done	restored		y	2026-10-01
+judge1927-04-09	1927-04-09	120	done	restored		y	2026-10-01
+judge1927-04-16	1927-04-16	121	done	restored		y	2026-10-01
+judge1927-04-23	1927-04-23	122	done	restored		y	2026-10-01
+judge1927-04-30	1927-04-30	1	done	needs-person	no-key	y	2026-10-01
+judge1927-05-07	1927-05-07		done	restored		y	2026-10-01
+judge1927-05-14	1927-05-14	3	done	needs-person	no-key	y	2026-10-01
+judge1927-05-21	1927-05-21	4	done	restored		y	2026-10-01
+judge1927-05-28	1927-05-28	5	done	restored		y	2026-10-01
+judge1927-06-04	1927-06-04	6	done	restored		y	2026-10-01
+judge1927-06-11	1927-06-11	7	done	restored		y	2026-10-01
+judge1927-06-18	1927-06-18	8	done	restored		y	2026-10-01
+judge1927-07-02	1927-07-02	10	done	restored		y	2026-10-01
+judge1927-07-09	1927-07-09	11	done	restored		y	2026-10-01
+judge1927-07-16	1927-07-16	12	done	needs-person	no-key		2026-10-02
+judge1927-07-23	1927-07-23	13	done	needs-person	quick		2026-10-02
+judge1927-07-30	1927-07-30	14	done	needs-person	quick		2026-10-02
+judge1927-08-06	1927-08-06	15	done	restored			2026-10-02
+judge1927-08-13	1927-08-13	16	done	restored			2026-10-02
+judge1927-08-20	1927-08-20	17	done	needs-person	unread		2026-10-02
+judge1927-08-27	1927-08-27	18	done	restored			2026-10-02
+judge1927-09-10	1927-09-10	20	done	restored			2026-10-02
+judge1927-09-17	1927-09-17	21	done	restored			2026-10-02
+judge1927-09-24	1927-09-24	22	done	needs-person	quick		2026-10-02
+judge1927-10-01	1927-10-01	23	done	restored			2026-10-02
+judge1927-10-08	1927-10-08	24	done	needs-person	quick		2026-10-02
+judge1927-10-15	1927-10-15	25	done	needs-person	no-key		2026-10-02
+judge1927-10-15b	1927-10-15	26	done	restored			2026-10-02
+judge1927-10-29	1927-10-29	27	done	restored			2026-10-02
+judge1927-11-05	1927-11-05	28	done	needs-person	no-key		2026-10-02
+judge1927-12-17	1927-12-17	30	done	needs-person	quick		2026-10-02
+judge1927-12-24	1927-12-24	31	done	needs-person	quick		2026-10-02
+judge1927-12-31	1927-12-31	32	done	restored			2026-10-02
+judge1928-01-07	1928-01-07	33	done	restored			2026-10-02
+judge1928-01-14	1928-01-14	34	done	needs-person	quick		2026-10-02
+judge1928-01-21	1928-01-21	35	done	restored			2026-10-02
+judge1928-01-28	1928-01-28	36	done	needs-person	no-key		2026-10-02
+judge1928-02-04	1928-02-04	37	done	restored			2026-10-02
+judge1928-02-11	1928-02-11	38	done	restored			2026-10-02
+judge1928-02-18	1928-02-18	39	done	restored			2026-10-02
+judge1928-02-25	1928-02-25	40	done	restored			2026-10-02
+judge1928-03-03	1928-03-03	41	done	needs-person	unread		2026-10-02
+judge1928-03-10	1928-03-10	42	done	needs-person	quick		2026-10-02
+judge1928-03-17	1928-03-17	43	done	needs-person	quick		2026-10-02
+judge1928-03-24	1928-03-24	44	done	needs-person	no-key		2026-10-02
+judge1928-03-31	1928-03-31	45	done	restored			2026-10-02
+judge1928-04-07	1928-04-07	46	done	restored			2026-10-02
+judge1928-04-14	1928-04-14	47	done	needs-person	no-key		2026-10-02
+judge1928-04-21	1928-04-21	48	done	restored			2026-10-02
+judge1928-04-28	1928-04-28	49	done	restored			2026-10-02
+judge1928-05-12	1928-05-12	51	done	needs-person	ruling		2026-10-02
+judge1928-05-19	1928-05-19	52	done	restored			2026-10-02
+judge1928-05-26	1928-05-26	53	done	restored			2026-10-02
+judge1928-06-02	1928-06-02	54	done	needs-person	no-key		2026-10-02
+judge1928-06-09	1928-06-09	55	done	restored			2026-10-02
+judge1928-06-16	1928-06-16	56	done	restored			2026-10-02
+judge1928-06-23	1928-06-23	57	done	needs-person	no-key		2026-10-02
+judge1928-06-30	1928-06-30	58	done	restored			2026-10-02
+judge1928-07-07	1928-07-07	59	done	restored			2026-10-02
+judge1928-07-14	1928-07-14	60	done	restored			2026-10-02
+judge1928-07-21	1928-07-21	61	done	restored			2026-10-02
+judge1928-07-28	1928-07-28	62	done	restored			2026-10-02
+judge1928-08-04	1928-08-04	63	done	needs-person	no-key		2026-10-02
+judge1928-08-11	1928-08-11	64	done	restored			2026-10-02
+judge1928-08-18	1928-08-18	65	done	restored			2026-10-02
+judge1928-08-25	1928-08-25	66	done	restored			2026-10-02
+judge1928-09-01	1928-09-01	67	done	needs-person	ruling		2026-10-02
+judge1928-09-08	1928-09-08	68	done	restored			2026-10-02
+judge1928-09-15	1928-09-15	69	done	restored			2026-10-02
+judge1928-09-22	1928-09-22	70	done	restored			2026-10-02
+judge1928-09-29	1928-09-29	71	done	needs-person	quick		2026-10-02
+judge1928-10-06	1928-10-06	72	done	restored			2026-10-02
+judge1928-10-13	1928-10-13	73	done	needs-person	quick		2026-10-02
+judge1928-10-20	1928-10-20	74	done	needs-person	unread		2026-10-02
+judge1928-10-27	1928-10-27	75	done	needs-person	unread		2026-10-02
+judge1928-11-03	1928-11-03	76	judge-1929-1930	open			
+judge1928-11-10	1928-11-10	77	done	restored			2026-10-02
+judge1928-11-17	1928-11-17	78	done	restored			2026-10-02
+judge1928-11-24	1928-11-24	79	done	restored			2026-10-02
+judge1928-12-01	1928-12-01	80	done	restored			2026-10-02
+judge1928-12-08	1928-12-08	81	done	restored			2026-10-02
+judge1928-12-15	1928-12-15	82	done	needs-person	quick		2026-10-02
+judge1928-12-22	1928-12-22	83	done	restored			2026-10-02
+judge1928-12-29	1928-12-29	84	done	restored			2026-10-02
+judge1929-01-05	1929-01-05	85	done	restored			2026-10-02
+judge1929-01-12	1929-01-12	86	done	restored			2026-10-02
+judge1929-01-19	1929-01-19	87	done	restored			2026-10-02
+judge1929-01-26	1929-01-26	88	done	restored			2026-10-02
+judge1929-02-02	1929-02-02	89	done	needs-person	scan-missing		2026-10-02
+judge1929-02-09	1929-02-09	90	done	restored			2026-10-02
+judge1929-02-16	1929-02-16	91	done	restored			2026-10-02
+judge1929-02-23	1929-02-23	92	done	restored			2026-10-02
+judge1929-03-02	1929-03-02	93	done	needs-person	ruling		2026-10-02
+judge1929-03-09	1929-03-09	94	done	restored			2026-10-02
+judge1929-03-16	1929-03-16	95	judge-1929-1930	open			
+judge1929-03-23	1929-03-23	96	judge-1929-1930	open			
+judge1929-03-30	1929-03-30	97	judge-1929-1930	open			
+judge1929-04-06	1929-04-06	98	judge-1929-1930	open			
+judge1929-04-20	1929-04-20	100	judge-1929-1930	open			
+judge1929-04-27	1929-04-27	101	judge-1929-1930	open			
+judge1929-05-04	1929-05-04	102	judge-1929-1930	open			
+judge1929-05-11	1929-05-11	103	judge-1929-1930	open			
+judge1929-05-18	1929-05-18	104	judge-1929-1930	open			
+judge1929-05-25	1929-05-25	105	judge-1929-1930	open			
+judge1929-06-01	1929-06-01	106	judge-1929-1930	open			
+judge1929-06-08	1929-06-08	107	judge-1929-1930	open			
+judge1929-06-15	1929-06-15		judge-1929-1930	open			
+judge1929-06-22	1929-06-22	109	judge-1929-1930	open			
+judge1929-06-29	1929-06-29	110	judge-1929-1930	open			
+judge1929-07-06	1929-07-06	111	judge-1929-1930	open			
+judge1929-07-13	1929-07-13	112	judge-1929-1930	open			
+judge1929-07-20	1929-07-20	113	judge-1929-1930	open			
+judge1929-07-27	1929-07-27	114	judge-1929-1930	open			
+judge1929-08-10	1929-08-10	116	judge-1929-1930	open			
+judge1929-08-17	1929-08-17	117	judge-1929-1930	open			
+judge1929-08-24	1929-08-24	118	judge-1929-1930	open			
+judge1929-08-31	1929-08-31	119	judge-1929-1930	open			
+judge1929-09-07	1929-09-07	120	judge-1929-1930	open			
+judge1929-09-14	1929-09-14	121	judge-1929-1930	open			
+judge1929-09-21	1929-09-21	122	judge-1929-1930	open			
+judge1929-09-28	1929-09-28	123	judge-1929-1930	open			
+judge1929-10-05	1929-10-05	124	judge-1929-1930	open			
+judge1929-10-12	1929-10-12	125	judge-1929-1930	open			
+judge-no126	1929-10-19	126		missing	not-found		
+judge1929-10-19	1929-10-19		judge-1929-1930	open			
+judge1929-10-26	1929-10-26	127	judge-1929-1930	open			
+judge1929-11-02	1929-11-02	128	judge-1929-1930	open			
+judge1929-11-09	1929-11-09	129	judge-1929-1930	open			
+judge1929-11-16	1929-11-16	130	judge-1929-1930	open			
+judge1929-11-23	1929-11-23	131	judge-1929-1930	open			
+judge1929-11-30	1929-11-30	132	judge-1929-1930	open			
+judge1929-12-07	1929-12-07	133	judge-1929-1930	open			
+judge1929-12-14	1929-12-14	134	judge-1929-1930	open			
+judge1929-12-21	1929-12-21	135	judge-1929-1930	open			
+judge1929-12-28	1929-12-28	136	judge-1929-1930	open			
+judge1930-01-04	1930-01-04	137	judge-1929-1930	open			
+judge1930-01-11	1930-01-11	138	judge-1929-1930	open			
+judge1930-01-18	1930-01-18	139	judge-1929-1930	open			
+judge1930-01-25	1930-01-25	140	judge-1929-1930	open			
+judge1930-02-01	1930-02-01	141	judge-1929-1930	open			
+judge1930-02-08	1930-02-08	142	judge-1929-1930	open			
+judge1930-02-15	1930-02-15	143	judge-1929-1930	open			
+judge1930-02-22	1930-02-22	144	judge-1929-1930	open			
+judge1930-03-01	1930-03-01	145	judge-1929-1930	open			
+judge1930-03-08	1930-03-08	146	judge-1929-1930	open			
+judge1930-03-15	1930-03-15	147	judge-1929-1930	open			
+judge1930-03-22	1930-03-22	148	judge-1929-1930	open			
+judge1930-03-29	1930-03-29	149	judge-1929-1930	open			
+judge1930-04-05	1930-04-05	150	judge-1929-1930	open			
+judge1930-04-12	1930-04-12	151	judge-1929-1930	open			
+judge1930-04-19	1930-04-19	152	judge-1929-1930	open			
+judge1930-04-26	1930-04-26	153	judge-1929-1930	open			
+judge1930-05-03	1930-05-03	154	judge-1929-1930	open			
+judge1930-05-10	1930-05-10	155	judge-1929-1930	open			
+judge1930-05-17	1930-05-17	155	judge-1929-1930	open			
+judge-no156	1930-05-21	156		missing	not-found		
+judge1930-05-24	1930-05-24	157	judge-1929-1930	open			
+judge1930-05-31	1930-05-31	158	judge-1929-1930	open			
+judge1930-06-07	1930-06-07	159	judge-1929-1930	open			
+judge1930-06-14	1930-06-14	160	judge-1929-1930	open			
+judge1930-06-21	1930-06-21	161	judge-1929-1930	open			
+judge1930-06-28	1930-06-28	162	judge-1929-1930	open			
+judge1930-07-05	1930-07-05	163	judge-1929-1930	open			
+judge1930-07-12	1930-07-12	164	judge-1929-1930	open			
+judge1930-07-19	1930-07-19	165	judge-1929-1930	open			
+judge1930-07-26	1930-07-26	166	judge-1929-1930	open			
+judge1930-08-02	1930-08-02	167	judge-1929-1930	open			
+judge1930-08-09	1930-08-09	168	judge-1929-1930	open			
+judge1930-08-16	1930-08-16	169	judge-1929-1930	open			
+judge1930-08-23	1930-08-23	170	judge-1929-1930	open			
+judge-no171	1930-08-30	171		missing	not-found		
+judge1930-09-06	1930-09-06	172	judge-1929-1930	open			
+judge1930-09-13	1930-09-13	173	judge-1929-1930	open			
+judge1930-09-20	1930-09-20	174	judge-1929-1930	open			
+judge1930-09-27	1930-09-27	175	judge-1929-1930	open			
+judge1930-10-04	1930-10-04	176	judge-1929-1930	open			
+judge1930-10-11	1930-10-11	177	judge-1929-1930	open			
+judge1930-10-18	1930-10-18	178	judge-1929-1930	open			
+judge1930-10-25	1930-10-25	179	judge-1929-1930	open			
+judge1930-11-01	1930-11-01	180	judge-1929-1930	open			
+judge1930-11-08	1930-11-08	181	judge-1929-1930	open			
+judge1930-11-15	1930-11-15	182	judge-1929-1930	open			
+judge1930-11-22	1930-11-22	183	judge-1929-1930	open			
+judge1930-11-29	1930-11-29	184	judge-1929-1930	open			
+judge1930-12-06	1930-12-06	185	judge-1929-1930	open			
+judge1930-12-13	1930-12-13	186	judge-1929-1930	open			
+judge1930-12-20	1930-12-20	187	judge-1929-1930	open			
+judge1930-12-27	1930-12-27	188	judge-1929-1930	open			
+judge1931-01-03	1931-01-03	189	later	later			
+judge1931-01-10	1931-01-10	190	later	later			
+judge1931-01-17	1931-01-17	191	later	later			
+judge1931-01-24	1931-01-24	192	later	later			
+judge1931-01-31	1931-01-31	193	later	later			
+judge1931-02-07	1931-02-07	194	later	later			
+judge1931-02-14	1931-02-14	195	later	later			
+judge1931-02-21	1931-02-21	196	later	later			
+judge1931-02-28	1931-02-28	197	later	later			
+judge1931-03-07	1931-03-07	198	later	later			
+judge1931-03-14	1931-03-14	199	later	later			
+judge1931-03-21	1931-03-21	200	later	later			
+judge1931-03-28	1931-03-28	201	later	later			
+judge1931-04-04	1931-04-04	202	later	later			
+judge1931-04-11	1931-04-11	203	later	later			
+judge1931-04-18	1931-04-18	204	later	later			
+judge1931-04-25	1931-04-25	205	later	later			
+judge1931-05-02	1931-05-02	206	later	later			
+judge1931-05-09	1931-05-09	207	later	later			
+judge1931-05-16	1931-05-16	208	later	later			
+judge1931-05-23	1931-05-23	209	later	later			
+judge1931-05-30	1931-05-30	210	later	later			
+judge1931-06-06	1931-06-06	211	later	later			
+judge1931-06-13	1931-06-13	212	later	later			
+judge1931-06-20	1931-06-20	213	later	later			
+judge-no214	1931-06-27	214		missing	not-found		
+judge1931-06-27	1931-06-27		later	later			
+judge1931-07-04	1931-07-04	215	later	later			
+judge1931-07-11	1931-07-11	216	later	later			
+judge-no217	1931-07-18	217		missing	not-found		
+judge1931-07-18	1931-07-18		later	later			
+judge1931-07-25	1931-07-25	218	later	later			
+judge1931-08-01	1931-08-01	219	later	later			
+judge-no220	1931-08-08	220		missing	not-found		
+judge1931-08-08	1931-08-08		later	later			
+judge1931-08-15	1931-08-15	221	later	later			
+judge1931-08-22	1931-08-22	222	later	later			
+judge1931-08-29	1931-08-29	223	later	later			
+judge1931-09-05	1931-09-05	224	later	later			
+judge1931-09-12	1931-09-12	225	later	later			
+judge1931-09-19	1931-09-19	226	later	later			
+judge1931-09-26	1931-09-26	227	later	later			
+judge1931-10-03	1931-10-03	228	later	later			
+judge1931-10-10	1931-10-10	229	later	later			
+judge1931-10-17	1931-10-17	230	later	later			
+judge1931-10-24	1931-10-24	231	later	later			
+judge1931-10-31	1931-10-31	232	later	later			
+judge1931-11-07	1931-11-07	233	later	later			
+judge1931-11-14	1931-11-14	234	later	later			
+judge1931-11-21	1931-11-21	235	later	later			
+judge1931-11-28	1931-11-28	236	later	later			
+judge1931-12-05	1931-12-05	237	later	later			
+judge1931-12-12	1931-12-12	238	later	later			
+judge1931-12-19	1931-12-19	239	later	later			
+judge1931-12-26	1931-12-26	240	later	later			
+judge1932-01-02	1932-01-02	241	later	later			
+judge1932-01-09	1932-01-09	242	later	later			
+judge1932-01-16	1932-01-16	243	later	later			
+judge1932-01-23	1932-01-23	244	later	later			
+judge1932-01-30	1932-01-30	245	later	later			
+judge1932-02-06	1932-02-06	246	later	later			
+judge1932-02-13	1932-02-13	247	later	later			
+judge1932-02-20	1932-02-20	248	later	later			
+judge1932-02-27	1932-02-27	249	later	later			
+judge1932-03-05	1932-03-05	250	later	later			
+judge1932-03-12	1932-03-12	251	later	later			
+judge1932-03-19	1932-03-19	252	later	later			
+judge1932-03-26	1932-03-26	253	later	later			
+judge1932-04-02	1932-04-02	254	later	later			
+judge1932-04-09	1932-04-09	255	later	later			
+judge1932-04-16	1932-04-16	256	later	later			
+judge1932-04-23	1932-04-23	257	later	later			
+judge1932-04-30	1932-04-30	258	later	later			
+judge1932-05-07	1932-05-07	259	later	later			
+judge1932-05-14	1932-05-14	260	later	later			
+judge1932-05-21	1932-05-21	261	later	later			
+judge1932-05-28	1932-05-28	262	later	later			
+judge1932-06-04	1932-06-04	263	later	later			
+judge1932-06-11	1932-06-11	264	later	later			
+judge-no265	1932-06-18	265		missing	not-found		
+judge1932-06-25	1932-06-25	266	later	later			
+judge1932-07-01	1932-07-01	267	later	later			
+judge-no268	1932-07-17	268		missing	not-found		
+judge1932-08-01	1932-08-01	269	later	later			
+judge1932-08-01b	1932-08-01	270	later	later			
+judge1932-09-01	1932-09-01	271	later	later			
+judge1932-09-01b	1932-09-01	272	later	later			
+judge-no273	1932-09-16	273		missing	not-found		
+judge1932-10-01	1932-10-01	274	later	later			
+judge1932-11-01	1932-11-01	275	later	later			
+judge1932-11-01b	1932-11-01	276	later	later			
+judge1932-12-01	1932-12-01	277	later	later			
+judge1932-12-01b	1932-12-01	278	later	later			
+judge1933-01-01	1933-01-01	279	later	later			
+judge1933-01-01b	1933-01-01	280	later	later			
+judge1933-02-01	1933-02-01	281	later	later			
+judge1933-03-01	1933-03-01	282	later	later			
+judge1933-03-01b	1933-03-01	283	later	later			
+judge1933-04-01	1933-04-01	284	later	later			
+judge-no285	1933-04-16	285		missing	not-found		
+judge1933-05-01	1933-05-01	286	later	later			
+judge1933-05-01b	1933-05-01	287	later	later			
+judge1933-06-01	1933-06-01	288	later	later			
+judge1933-06-01b	1933-06-01	289	later	later			
+judge1933-07-01	1933-07-01	290	later	later			
+judge1933-07-01b	1933-07-01	291	later	later			
+judge1933-08-01	1933-08-01	292	later	later			
+judge-no293	1933-08-11	293		missing	not-found		
+judge-no294	1933-08-22	294		missing	not-found		
+judge1933-09-01	1933-09-01	295	later	later			
+judge-no296	1933-09-21	296		missing	not-found		
+judge1933-10-01	1933-10-01		later	later			
+judge-no297	1933-10-12	297		missing	not-found		
+judge1933-11-01	1933-11-01	298	later	later			
+judge1933-11-01b	1933-11-01	299	later	later			
+judge1933-12-01	1933-12-01	300	later	later			
+judge1934-01-01	1934-01-01	301	later	later			
+judge1934-02-01	1934-02-01	302	later	later			
+judge1934-02-01b	1934-02-01	303	later	later			
+judge1934-03-01	1934-03-01	304	later	later			
+judge1934-03-01b	1934-03-01	305	later	later			
+judge1934-04-01	1934-04-01	306	later	later			
+judge1934-04-01b	1934-04-01	307	later	later			
+judge1934-05-01	1934-05-01	308	later	later			
+judge1934-05-01b	1934-05-01	309	later	later			
+judge1934-06-01	1934-06-01	310	later	later			
+judge1934-06-01b	1934-06-01	311	later	later			
+judge1934-06-01c	1934-06-01	310	later	later			
+judge1934-07-01	1934-07-01	312	later	later			
+judge1934-07-01b	1934-07-01	313	later	later			
+judge1934-08-01	1934-08-01	314	later	later			
+judge1934-08-01b	1934-08-01	315	later	later			
+judge1934-09-01	1934-09-01	316	later	later			
+judge1934-09-01b	1934-09-01	317	later	later			
+judge1934-10-01	1934-10-01	318	later	later			
+judge1934-10-01b	1934-10-01	319	later	later			
+judge1934-11-01	1934-11-01	320	later	later			
+judge-no321	1934-11-16	321		missing	not-found		
+judge1934-12-01	1934-12-01	322	later	later			
+judge1934-12-01b	1934-12-01	323	later	later			
+judge-no324	1934-12-22	324		missing	not-found		
+judge-no325	1935-01-11	325		missing	not-found		
+judge1935-02-01	1935-02-01	326	later	later			
+judge-no327	1935-02-15	327		missing	not-found		
+judge1935-03-01	1935-03-01	328	later	later			
+judge1935-03-01b	1935-03-01	329	later	later			
+judge1935-04-01	1935-04-01	330	later	later			
+judge-no331	1935-04-16	331		missing	not-found		
+judge-no332	1935-05-01	332		missing	not-found		
+judge1935-05-01	1935-05-01		later	later			
+judge-no333	1935-05-17	333		missing	not-found		
+judge1935-06-01	1935-06-01	334	later	later			
+judge1935-06-01b	1935-06-01		later	later			
+judge-no335	1935-06-16	335		missing	not-found		
+judge1935-07-01	1935-07-01	336	later	later			
+judge1935-07-01b	1935-07-01	337	later	later			
+judge1935-08-01	1935-08-01	338	later	later			
+judge1935-08-01b	1935-08-01	339	later	later			
+judge1935-09-01	1935-09-01	340	later	later			
+judge1935-09-01b	1935-09-01	341	later	later			
+judge1935-10-01	1935-10-01	342	later	later			
+judge1935-10-01b	1935-10-01	343	later	later			
+judge-no344	1935-10-17	344		missing	not-found		
+judge1935-11-01	1935-11-01	345	later	later			
+judge-no346	1935-11-16	346		missing	not-found		
+judge1935-12-01	1935-12-01	347	later	later			
+judge1936-01-01	1936-01-01	348	later	later			
+judge1936-01-01b	1936-01-01	349	later	later			
+judge1936-02-01	1936-02-01	350	later	later			
+judge1936-02-01b	1936-02-01	351	later	later			
+judge-no352	1936-02-15	352		missing	not-found		
+judge1936-03-01	1936-03-01	353	later	later			
+judge1936-04-01	1936-04-01	354	later	later			
+judge1936-04-01b	1936-04-01	355	later	later			
+judge1936-05-01	1936-05-01	356	later	later			
+judge1936-05-01b	1936-05-01	357	later	later			
+judge1936-06-01	1936-06-01	358	later	later			
+judge1936-06-01b	1936-06-01	359	later	later			
+judge1936-07-01	1936-07-01	360	later	later			
+judge1936-07-01b	1936-07-01	361	later	later			
+judge1936-08-01	1936-08-01	362	later	later			
+judge1936-08-01b	1936-08-01	363	later	later			
+judge-no364	1936-08-17	364		missing	not-found		
+judge1936-09-01	1936-09-01	365	later	later			
+judge1936-10-01	1936-10-01	366	later	later			
+judge1936-10-01b	1936-10-01	367	later	later			
+judge-no368	1936-10-17	368		missing	not-found		
+judge1936-11-01	1936-11-01	369	later	later			
+judge1936-12-01	1936-12-01	370	later	later			
+judge-no371	1936-12-17	371		missing	not-found		
+judge1937-01-01	1937-01-01	372	later	later			
+judge1937-01-01b	1937-01-01	373	later	later			
+judge1937-02-01	1937-02-01	374	later	later			
+judge1937-02-01b	1937-02-01	375	later	later			
+judge1937-03-01	1937-03-01	376	later	later			
+judge1937-03-01b	1937-03-01	377	later	later			
+judge1937-04-01	1937-04-01	378	later	later			
+judge1937-04-01b	1937-04-01	379	later	later			
+judge-no380	1937-04-16	380		missing	not-found		
+judge1937-05-01	1937-05-01	381	later	later			
+judge1937-06-01	1937-06-01	382	later	later			
+judge1937-06-01b	1937-06-01	383	later	later			
+judge1937-07-01	1937-07-01	384	later	later			
+judge1937-07-01b	1937-07-01	385	later	later			
+judge1937-08-01	1937-08-01	386	later	later			
+judge1937-08-01b	1937-08-01	387	later	later			
+judge1937-09-01	1937-09-01	388	later	later			
+judge1937-09-01b	1937-09-01	389	later	later			
+judge1937-10-01	1937-10-01	390	later	later			
+judge-no391	1937-10-17	391		missing	not-found		
+judge1937-11-01	1937-11-01	392	later	later			
+judge1937-11-01b	1937-11-01	393	later	later			
+judge1937-12-01	1937-12-01	394	later	later			
+judge1937-12-01b	1937-12-01	395	later	later			
+judge1938-01-01	1938-01-01	396	later	later			
+judge1938-01-01b	1938-01-01	397	later	later			
+judge1938-02-01	1938-02-01	398	later	later			
+judge1938-02-01b	1938-02-01	399	later	later			
+judge-no400	1938-02-15	400		missing	not-found		
+judge1938-03-01	1938-03-01		later	later			
+judge1938-03-01b	1938-03-01	401	later	later			
+judge1938-04-01	1938-04-01	402	later	later			
+judge1938-04-01b	1938-04-01	403	later	later			
+judge1938-05-01	1938-05-01	404	later	later			
+judge-no405	1938-05-31	405		missing	not-found		
+judge1938-06-01	1938-06-01		later	later			
+judge1938-07-01	1938-07-01	406	later	later			
+judge1938-07-01b	1938-07-01	407	later	later			
+judge1938-08-01	1938-08-01	408	later	later			
+judge1938-08-01b	1938-08-01	409	later	later			
+judge1938-09-01	1938-09-01	410	later	later			
+judge1938-09-01b	1938-09-01	411	later	later			
+judge1938-12-01	1938-12-01	412	later	later			
+judge1938-12-01b	1938-12-01	413	later	later			
+judge-no414	1938-12-17	414		missing	not-found		
+judge1939-01-01	1939-01-01		later	later			
+judge1939-01-01b	1939-01-01	415	later	later			

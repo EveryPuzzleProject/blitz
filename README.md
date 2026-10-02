@@ -3,16 +3,19 @@
 **Have Claude usage left before your weekly reset? Spend it restoring
 crosswords that haven't been solved in nearly a hundred years.**
 
+<img src="docs/img/judge1924-11-15-cover-crossword.jpg" width="220" align="right" alt="Judge's cover for November 15, 1924: a full-page crossword printed over an illustration">
+
 Already convinced? [Here's the prompt to paste.](#how-to-help)
 
 ## The goal
 
-Crosswords have been printed since 1913, but most from before the 1940s
+[The first crossword puzzle](https://en.wikipedia.org/wiki/Arthur_Wynne)
+appeared in print in 1913. Most of the crosswords printed before the 1940s
 survive only as pictures: page scans of old magazines and newspapers. You
 can look at them, but you can't search them, count them, or compare them.
 
 The Every Puzzle Project is turning those scans into
-[xd](https://github.com/century-arcade/xd), a plain-text crossword format
+[xd files](https://github.com/century-arcade/xdformat), a plain-text crossword format
 with the grid, every clue and answer, the title, the author and the date. In
 xd, a 1929 puzzle sits in the same open archive as modern ones and can be
 searched and analyzed with them. You can ask which words were crossword
@@ -43,8 +46,9 @@ For each puzzle, your Claude:
   (we restore what was published, not what was meant),
 - says whether the puzzle is ready or what a person still needs to look at.
 
-The result is one small JSON file per puzzle. A person spot-checks before
-anything goes into the archive.
+The result is one small JSON file per puzzle. Your Claude submits it to
+the project as a pull request in your name, and a person spot-checks it
+before it's merged and the puzzle goes into the archive.
 
 ## How it works: one puzzle, start to finish
 
@@ -196,7 +200,8 @@ Volunteers work through these in order:
 
 - `VOLUNTEER.md`: the procedure Claude follows.
 - `publications/<pub>/INSTRUCTIONS.md`: how to review that publication's puzzles.
-- `publications/<pub>/puzzles.tsv`: every puzzle and where its packet is.
+- `publications/<pub>/puzzles.tsv`: every puzzle, its state (restored, needs a person, open, not open yet, missing) and where its packet is.
+- `publications/<pub>/xd/`: the current xd file of every reviewed puzzle.
 - `publications/<pub>/reviews/<puzzle>/`: the OCR reading (`ocr.json`) and the review (`review.json`).
 - Puzzle packets (scan crops) are release assets, not in the repository.
 - `contributors/`: one empty file per volunteer who asked to be listed.

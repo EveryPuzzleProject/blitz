@@ -112,7 +112,7 @@ function start(P) {
       <p>Restored from the scan ${from && from !== 'local' ? `by <a href="https://github.com/${esc(from.split(/[/:]/)[0])}">${esc(from.split(/[/:]/)[0])}</a>'s Claude` : 'with Claude'}${P.model ? ` (${esc(P.model)})` : ''},
         for the <a href="./">Every Puzzle Project</a>. Clues and answers are as printed, misprints included.</p>
       ${P.sic.length ? `<details><summary>Printed misprints, kept as printed</summary><ul>${P.sic.map(s => `<li>${esc(s)}</li>`).join('')}</ul></details>` : ''}
-      ${P.note ? `<details><summary>The reviewer's notes</summary><p>${esc(P.note)}</p></details>` : ''}
+      ${P.note ? `<details><summary>Notes</summary><p>${esc(P.note)}</p></details>` : ''}
     </div>`;
 
   const board = document.getElementById('board'), bar = document.getElementById('bar'), banner = document.getElementById('banner');
@@ -136,9 +136,21 @@ function start(P) {
     return li;
   });
 
-  if (!P.hasKey) {
-    banner.innerHTML = `<div class="banner">No complete answer key was found for this puzzle, so you're solving without a net: Check and Reveal are off.</div>`;
+  loadStates(pub, from).then(rows => {
+    const row = rows.find(r => r.xdid === id);
+    if (!row) return;
+    if (row.state === 'needs-person')
+      banner.insertAdjacentHTML('afterbegin', `<div class="banner">Still being checked: ${esc(REASONS[row.reason] || row.reason)}. You can play it in the meantime.</div>`);
+    if (row.person === 'y')
+      document.querySelector('.about').insertAdjacentHTML('beforeend', '<p>✓ Checked by a person, too.</p>');
+  }).catch(() => {});
+
+  const unknown = P.cells.flat().filter(x => x && !x.sol).length, known = P.cells.flat().filter(x => x && x.sol).length;
+  if (!known) {
+    banner.innerHTML = `<div class="banner">No answer key has been found for this puzzle yet, so you're solving without a net: Check and Reveal are off.</div>`;
     document.querySelectorAll('[data-act]:not([data-act=clear])').forEach(b => b.disabled = true);
+  } else if (unknown) {
+    banner.insertAdjacentHTML('beforeend', `<div class="banner">${unknown} ${unknown === 1 ? 'square' : 'squares'} of the printed answer key couldn't be read, so Check and Reveal skip ${unknown === 1 ? 'it' : 'them'}.</div>`);
   }
 
   const wordIdx = () => { let i = byDir[dir][cur.r][cur.c]; if (i < 0) { dir = dir === 'A' ? 'D' : 'A'; i = byDir[dir][cur.r][cur.c]; } return i; };
@@ -199,15 +211,15 @@ function start(P) {
   function finished() {
     const all = P.cells.flat().filter(Boolean);
     if (!all.every(x => fill[x.r][x.c])) return;
-    if (P.hasKey) {
-      if (!all.every(x => fill[x.r][x.c] === x.sol)) {
+    if (known) {
+      if (!all.every(x => !x.sol || fill[x.r][x.c] === x.sol)) {
         banner.innerHTML = `<div class="banner">The grid is full, but something isn't right yet. Check will show you where.</div>`;
         return;
       }
       done = true; clearInterval(ticking); ticking = null; save();
       const yrs = new Date().getFullYear() - +id.match(/\d{4}/)[0];
       banner.innerHTML = `<div class="banner good"><b>${revealed.size ? 'Finished, with a little help.' : `Solved in ${timer.textContent}!`}</b>
-        Readers of <i>${esc(PUBS[pub] || pub)}</i> solved this one ${yrs} years ago. Thanks for bringing it back.</div>`;
+        Readers of <i>${esc(PUBS[pub] || pub)}</i> solved this one ${yrs} years ago.${unknown ? ` (Every square the key shows is right; ${unknown} we can't check.)` : ''} Thanks for bringing it back.</div>`;
     } else {
       banner.innerHTML = `<div class="banner">Grid full! There's no answer key for this one, so only you know if it's right.</div>`;
     }

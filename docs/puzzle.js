@@ -12,17 +12,62 @@ function rawBase(from) {
   return `https://raw.githubusercontent.com/${who}/${branch || 'main'}`;
 }
 
+// The published .xd (every correction so far, a person's included) when there
+// is one; otherwise a volunteer's review applied to its OCR reading.
 async function loadPuzzle(pub, id, from) {
-  const base = `${rawBase(from)}/publications/${pub}/reviews/${id}`;
-  const get = async f => {
-    const r = await fetch(`${base}/${f}`, {cache: 'no-cache'});
-    if (!r.ok) throw new Error(`${f}: ${r.status}`);
-    return r.json();
+  const root = `${rawBase(from)}/publications/${pub}`;
+  const get = async (path, as) => {
+    const r = await fetch(`${root}/${path}`, {cache: 'no-cache'});
+    if (!r.ok) throw new Error(`${path}: ${r.status}`);
+    return as === 'text' ? r.text() : r.json();
   };
-  const ocr = await get('ocr.json');
-  const review = await get('review.json').catch(() => null);
+  if (!from || from === 'local') {
+    const xd = await get(`xd/${id}.xd`, 'text').catch(() => null);
+    if (xd) return buildPuzzle(parseXd(xd, id), null);
+  }
+  const ocr = await get(`reviews/${id}/ocr.json`);
+  const review = await get(`reviews/${id}/review.json`).catch(() => null);
   return buildPuzzle(ocr, review);
 }
+
+// An .xd file in the shape of an OCR reading: headers, grid (letters are the
+// answers), clues "A1. text ~ ANSWER", and notes.
+function parseXd(text, id) {
+  const parts = text.replace(/\r\n/g, '\n').split(/\n\n\n+/);
+  const head = {};
+  for (const l of parts[0].split('\n')) { const i = l.indexOf(': '); if (i > 0) head[l.slice(0, i)] = l.slice(i + 2); }
+  const rows = (parts[1] || '').split('\n').filter(r => r.trim());
+  const clues = {};
+  for (const l of (parts[2] || '').split('\n')) {
+    const m = l.match(/^([AD]\d+)\. (.*)$/);
+    if (!m) continue;
+    const k = m[2].lastIndexOf(' ~ ');
+    clues[m[1]] = {text: k >= 0 ? m[2].slice(0, k) : m[2]};
+  }
+  return {
+    xdid: id, source: head.Source, title: head.Title, author: head.Author, byline: head.Byline, captions: {},
+    grid: rows.map(r => [...r].map(ch => (ch === '#' ? '#' : '.')).join('')),
+    answers: rows.some(r => /[A-Za-z]/.test(r)) ? rows : null,
+    clues, note: (parts[3] || '').trim(),
+  };
+}
+
+// Every puzzle of a publication with its state, from puzzles.tsv on main.
+async function loadStates(pub, from) {
+  const tsv = await fetch(`${rawBase(from === 'local' ? 'local' : '')}/publications/${pub}/puzzles.tsv`, {cache: 'no-cache'}).then(r => r.text());
+  const [cols, ...lines] = tsv.trim().split(/\r?\n/);
+  const names = cols.split('\t');
+  return lines.map(l => Object.fromEntries(l.split('\t').map((v, i) => [names[i], v])));
+}
+
+const REASONS = {
+  'scan-missing': 'Part of the scan is missing',
+  'no-key': 'Answer key not found',
+  'unread': "Some answer squares can't be read",
+  'quick': 'One small check left',
+  'ruling': 'A printed mistake to rule on',
+  'not-found': 'Not found in the scans yet',
+};
 
 function puzzleDate(xdid) {
   const m = xdid.match(/(\d{4})-(\d\d)-(\d\d)/);
@@ -111,6 +156,6 @@ function buildPuzzle(ocr, review) {
     title: meta.title, author: meta.author, byline: meta.byline,
     captions: captions.filter(s => s && s.trim()),
     hasKey: keyed.length > 0 && keyed.every(x => x.sol),
-    sic, note: rv.note || '', model: rv.model || '', ready: rv.ready,
+    sic, note: rv.note || ocr.note || '', model: rv.model || '', ready: rv.ready,
   };
 }
