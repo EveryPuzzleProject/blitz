@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Review by Hand</title>
+<style>
+:root{--bg:#fbfaf7;--fg:#1c1c1e;--muted:#6e6e73;--line:#e2e0da;--acc:#2957c7;--ok:#1f7a3a;--bad:#a8261c;--warn:#b7791f;--card:#fff;--hl:#e8590c;--soft:#eef2fb}
+@media (prefers-color-scheme:dark){:root{--bg:#141416;--fg:#ececef;--muted:#9a9aa2;--line:#2e2e33;--acc:#8fb0ff;--ok:#7fd49a;--bad:#f08a80;--warn:#e0b060;--card:#1c1c1f;--soft:#1e2433}}
+*{box-sizing:border-box} body{background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,sans-serif;margin:0;padding:10px 16px 80px}
+a{color:var(--acc)} h1{font-size:20px;margin:0} h2{font-size:13px;margin:18px 0 6px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.muted{color:var(--muted);font-size:13px} .intro{max-width:760px}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:1000px){.layout{grid-template-columns:1fr}.scan{position:static;height:60vh}}
+.scan{position:sticky;top:8px;height:calc(100vh - 20px);display:flex;flex-direction:column;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--card)}
+.scanbar{display:flex;gap:4px;padding:4px;border-bottom:1px solid var(--line);flex-wrap:wrap;align-items:center}
+button,.btn{font:13px system-ui;border:1px solid var(--line);background:transparent;color:inherit;border-radius:6px;padding:2px 9px;cursor:pointer}
+button.on{border-color:var(--acc);color:var(--acc);font-weight:600}
+.scanview{flex:1;overflow:auto;background:#fff} .pagewrap{position:relative} .pagewrap img{width:100%;display:block}
+.scanview.zoom .pagewrap{width:220%} .hlbox{position:absolute;border:3px solid var(--hl);box-shadow:0 0 0 3000px rgba(0,0,0,.14);pointer-events:none;border-radius:3px}
+.fields{display:grid;grid-template-columns:110px 1fr;gap:6px 10px;align-items:center}
+input[type=text],textarea,select{font:inherit;padding:4px 8px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:inherit;width:100%}
+input.changed,.ed.changed{border-color:var(--acc);background:var(--soft)}
+.grids{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start}
+table.g{border-collapse:collapse;border:2px solid var(--fg);user-select:none}
+table.g td{width:var(--c);height:var(--c);border:1px solid #999;text-align:center;font:600 calc(var(--c)*.58) system-ui;padding:0;cursor:pointer;background:var(--card);position:relative}
+table.g td.b{background:var(--fg)} table.g td.sel{outline:3px solid var(--hl);outline-offset:-3px} table.g td.low{box-shadow:inset 0 0 0 2px var(--warn)}
+table.g td.changed{color:var(--acc);background:var(--soft)} table.g td.b.changed{background:#4a5a8a} table.g td.unk{color:var(--bad)}
+canvas.key{display:block;border:1px solid var(--line);background:#fff;cursor:pointer;max-width:100%}
+.clue{display:grid;grid-template-columns:44px 1fr;gap:2px 8px;padding:6px 6px;border-radius:8px;border:1px solid transparent}
+.clue.focus{border-color:var(--acc);background:var(--soft)} .clue .lab{font:700 14px system-ui;color:var(--acc);padding-top:4px}
+.clue canvas{grid-column:2;max-width:100%;border:1px solid var(--line);background:#fff;display:block}
+.ed{grid-column:2;font-size:16px;padding:3px 8px;border:1px solid var(--line);border-radius:6px;outline:none;background:var(--card);min-height:1.6em;white-space:pre-wrap}
+.ed:focus{border-color:var(--acc)} .ed.removed{text-decoration:line-through;color:var(--muted)}
+.was{grid-column:2;font-size:12px;color:var(--muted)} .was del{color:var(--bad)}
+.tools{grid-column:2;display:flex;gap:5px;flex-wrap:wrap;align-items:center} .tools button{font-size:12px;padding:0 7px}
+.tools input{width:auto;flex:1;min-width:140px;font-size:13px;padding:1px 6px}
+.flag{font-size:11px;color:var(--warn);border:1px solid var(--warn);border-radius:4px;padding:0 4px}
+.tag{font-size:11px;border-radius:4px;padding:0 5px;background:var(--soft);color:var(--acc)}
+.bar{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);padding:8px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;z-index:5}
+.bar .save{background:var(--acc);color:#fff;border-color:var(--acc);font-weight:600;padding:4px 14px}
+.finish{display:grid;grid-template-columns:110px 1fr;gap:8px 10px;align-items:start}
+.radios{display:flex;gap:12px;flex-wrap:wrap} .radios label{display:flex;gap:4px;align-items:center}
+kbd{font:600 11px ui-monospace,monospace;border:1px solid var(--line);border-radius:4px;padding:0 4px}
+</style>
+</head>
+<body>
+<div class="intro"><h1 id="h1">Review by hand</h1>
+<p class="muted">Compare what the OCR read with the scan, and fix what it got wrong. Transcribe exactly as printed: keep odd spellings and
+misprints (mark a misprint with <b>Misprint</b> rather than correcting it). Click any clue or square to see it on the scan at right.
+Everything saves in this browser as you go. When you're done, press <b>Save review</b> and run <code>tools/hand.sh submit</code>.
+The full rules are in <a id="rules" href="#">INSTRUCTIONS.md</a>.</p></div>
+<div class="layout"><div id="main"></div>
+<div class="scan"><div class="scanbar" id="scanbar"></div><div class="scanview" id="scanview"><div class="pagewrap"><img id="scanimg" alt="scan"><div class="hlbox" id="hl" hidden></div></div></div></div></div>
+<div class="bar"><span id="count" class="muted"></span><span style="flex:1"></span><span id="msg" class="muted"></span>
+<button class="save" id="save">Save review</button></div>
+<script src="data.js"></script>
+<script>
+// A hand review of one puzzle: data.js beside this file sets window.PUZZLE = {ocr, images, review?, instructions}.
+// The result is review.json in the same format the Claude reviews use (see INSTRUCTIONS.md).
+const P = window.PUZZLE, O = P.ocr, X = O.xdid, KEY = 'hand-' + X, CELL = 40;
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const order = ls => ls.sort((a, b) => a[0] === b[0] ? +a.slice(1) - +b.slice(1) : a < b ? -1 : 1);
+document.title = `Review ${X} by hand`;
+document.getElementById('h1').textContent = `Review by hand: ${X}`;
+if (P.instructions) document.getElementById('rules').href = P.instructions;
+
+// State: the review being written. Starts from a saved review (continuing) or this browser's autosave.
+let R = {corrections: {}, sic: {}, unsure: {}, confirm: [], ready: null, remaining: '', remaining_note: '', note: ''};
+try { R = {...R, ...(P.review || {}), ...JSON.parse(localStorage.getItem(KEY) || '{}')}; } catch (e) {}
+const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(R)); } catch (e) {} count(); };
+function setItem(item, value, was) {
+  if (value === was) delete R.corrections[item]; else R.corrections[item] = value;
+  persist();
+}
+
+// ---- the scan pane
+const IMG = {};
+const img = src => IMG[src] ||= new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = src; });
+const files = (P.images || []).filter(f => !/^clues_/.test(f));
+function show(src, box) {
+  document.getElementById('scanbar').innerHTML = files.map(f => `<button data-f="${esc(f)}" class="${f === src ? 'on' : ''}">${esc(f)}</button>`).join('') + '<button id="zoom">zoom</button>';
+  document.querySelectorAll('[data-f]').forEach(b => b.onclick = () => show(b.dataset.f));
+  document.getElementById('zoom').onclick = () => document.getElementById('scanview').classList.toggle('zoom');
+  const el = document.getElementById('scanimg'), hl = document.getElementById('hl');
+  const place = () => {
+    if (!box) { hl.hidden = true; return; }
+    const k = el.clientWidth / el.naturalWidth, [x0, y0, x1, y1] = box;
+    Object.assign(hl.style, {left: x0 * k - 4 + 'px', top: y0 * k - 4 + 'px', width: (x1 - x0) * k + 8 + 'px', height: (y1 - y0) * k + 8 + 'px'});
+    hl.hidden = false;
+    const v = document.getElementById('scanview'); v.scrollTop = Math.max(0, y0 * k - v.clientHeight / 3);
+  };
+  if (el.getAttribute('src') !== src) { el.onload = place; el.src = src; } else place();
+}
+const clueImg = O.clue_image || 'page.jpg';
+async function crop(cv, box, picture) {
+  const im = await img(clueImg).catch(() => null); if (!im) return cv.remove();
+  const h = box[3] - box[1], [x0, y0, x1, y1] = [box[0] - 14, box[1] - Math.max(10, h * .5), box[2] + 14 + (picture ? 240 : 0), box[3] + Math.max(10, h * .5) + (picture ? 110 : 0)]
+    .map((v, i) => Math.max(0, Math.min(v, i % 2 ? im.height : im.width)));
+  const k = Math.min(1.5, 560 / (x1 - x0));
+  cv.width = (x1 - x0) * k; cv.height = (y1 - y0) * k;
+  const g = cv.getContext('2d'); g.drawImage(im, x0, y0, x1 - x0, y1 - y0, 0, 0, cv.width, cv.height);
+  g.strokeStyle = '#e8590c'; g.lineWidth = 2; g.strokeRect((box[0] - x0) * k, (box[1] - y0) * k, (box[2] - box[0]) * k, h * k);
+}
+
+// ---- title, author, byline, number, captions
+function metaHtml() {
+  const f = (key, label, hint) => {
+    const was = key === 'puzzle_number' ? '' : (O[key] || ''), v = R.corrections['meta:' + key] ?? was;
+    return `<label for="m-${key}">${label}</label><input type="text" id="m-${key}" data-meta="${key}" value="${esc(v)}" placeholder="${esc(hint)}" class="${'meta:' + key in R.corrections ? 'changed' : ''}">`;
+  };
+  return `<h2>Title and byline</h2><div class="fields">${f('title', 'Title', 'the puzzle’s own name, as printed')}${f('author', 'Author', 'the name alone')}
+    ${f('byline', 'Byline', 'as printed, e.g. by Merl H. Reagle')}${f('puzzle_number', 'Number', 'digits only, if the puzzle is numbered')}</div>`;
+}
+function captionsHtml() {
+  const ks = Object.keys(O.captions || {}).sort((a, b) => a - b);
+  if (!ks.length) return '';
+  return `<h2>Text printed near the puzzle</h2><p class="muted">Keep what belongs to this puzzle (an introduction, instructions). Remove page pointers, ads and other puzzles’ text.</p>`
+    + ks.map(k => { const v = R.corrections['other:' + k] ?? O.captions[k];
+      return `<div class="clue"><div class="lab">${k}</div><div class="ed ${v === '' ? 'removed' : ''} ${'other:' + k in R.corrections ? 'changed' : ''}" contenteditable="plaintext-only" spellcheck="false" data-other="${k}">${esc(v === '' ? O.captions[k] : v)}</div>
+        <div class="tools"><button data-drop="${k}">${v === '' ? 'Keep it' : 'Not part of this puzzle'}</button></div></div>`; }).join('');
+}
+
+// ---- the grid: answers when the key was found, else black and white squares
+const hasAns = !!O.answers;
+const base = hasAns ? O.answers : O.grid;
+const kind = hasAns ? 'cell' : 'grid';
+const low = new Set(O.answers_low_confidence || []);
+const cur = (r, c) => R.corrections[`${kind}:r${r + 1}c${c + 1}`] ?? base[r][c];
+let sel = null, flipMode = 'printed';
+function gridHtml() {
+  const rows = base.length, cols = base[0].length, size = Math.max(18, Math.min(30, Math.floor(520 / cols)));
+  let t = `<table class="g" style="--c:${size}px">`;
+  for (let r = 0; r < rows; r++) { t += '<tr>'; for (let c = 0; c < cols; c++) t += `<td data-r="${r}" data-c="${c}"></td>`; t += '</tr>'; }
+  t += '</table>';
+  const asym = (O.grid_asymmetric_squares || []).length ? `<p class="muted"><span class="flag">check</span> The grid isn’t symmetric at ${esc(O.grid_asymmetric_squares.join(', '))}: usually a misread black square.</p>` : '';
+  const key = P.images.includes('answers.png') ? `<div><div style="display:flex;gap:4px;margin-bottom:4px"><button class="on" data-flip="printed">Printed key</button><button data-flip="letters">Your letters</button></div><canvas class="key" id="key"></canvas></div>` : '';
+  return `<h2>${hasAns ? 'Answer grid' : 'Grid (no answer key was found)'}</h2>
+    <p class="muted">${hasAns ? 'Compare each square with the printed key. Click a square and type the right letter; <kbd>#</kbd> makes it black, <kbd>.</kbd> marks it unreadable. Orange-ringed squares are ones the OCR was unsure of.'
+      : 'Click a square to switch it between black and white, to match the printed grid.'}
+    Arrows move. Flip the key to compare your letters in place.</p>${asym}<div class="grids">${t}${key}</div>`;
+}
+function paintGrid() {
+  document.querySelectorAll('table.g td').forEach(td => {
+    const r = +td.dataset.r, c = +td.dataset.c, v = cur(r, c), item = `${kind}:r${r + 1}c${c + 1}`;
+    td.className = [v === '#' ? 'b' : '', v === '.' ? 'unk' : '', item in R.corrections ? 'changed' : '', low.has(`r${r + 1}c${c + 1}`) ? 'low' : '', sel && sel[0] === r && sel[1] === c ? 'sel' : ''].join(' ');
+    td.textContent = hasAns && v !== '#' ? (v === '.' ? '?' : v) : '';
+  });
+  if (P.images.includes('answers.png')) drawKey();
+}
+async function drawKey() {
+  const cv = document.getElementById('key'); if (!cv) return;
+  const im = await img('answers.png'); const k = Math.min(1, 420 / im.width), s = CELL * k;
+  cv.width = im.width * k; cv.height = im.height * k;
+  const g = cv.getContext('2d');
+  if (flipMode === 'letters') {
+    g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height);
+    g.font = `600 ${Math.round(s * .62)}px system-ui`; g.textAlign = 'center'; g.textBaseline = 'middle';
+    base.forEach((row, r) => [...row].forEach((_, c) => { const v = cur(r, c), x = c * s, y = r * s;
+      if (v === '#') { g.fillStyle = '#1c1c1e'; g.fillRect(x, y, s, s); return; }
+      g.strokeStyle = '#999'; g.lineWidth = 1; g.strokeRect(x + .5, y + .5, s - 1, s - 1);
+      g.fillStyle = v === '.' ? '#c0392b' : '#1c1c1e'; g.fillText(v === '.' ? '?' : v, x + s / 2, y + s / 2 + 1); }));
+  } else g.drawImage(im, 0, 0, cv.width, cv.height);
+  if (sel) { g.strokeStyle = '#e8590c'; g.lineWidth = 3; g.strokeRect(sel[1] * s + 1.5, sel[0] * s + 1.5, s - 3, s - 3); }
+}
+function select(r, c) {
+  sel = [r, c]; paintGrid();
+  const src = hasAns && P.images.includes('answers.png') ? 'answers.png' : 'grid.png';
+  show(src, [c * CELL, r * CELL, (c + 1) * CELL, (r + 1) * CELL]);
+}
+function type(v) {
+  if (!sel) return;
+  const [r, c] = sel, item = `${kind}:r${r + 1}c${c + 1}`;
+  setItem(item, v, base[r][c]);
+  if (/^[A-Z]$/.test(v) && c + 1 < base[0].length) sel = [r, c + 1];
+  select(...sel);
+}
+
+// ---- clues
+function clueHtml(l) {
+  const o = O.clues[l], item = 'clue:' + l, v = R.corrections[item] ?? (o ? o.text : ''), changed = item in R.corrections, gone = changed && v === '';
+  const flags = (o?.flags || []).map(f => `<span class="flag">${esc(f)}</span>`).join(' ');
+  const sic = R.sic[l], uns = R.unsure[item];
+  return `<div class="clue" data-l="${l}"><div class="lab">${l}</div>
+    ${o?.box ? `<canvas data-box="${o.box.join(',')}"></canvas>` : `<div class="muted" style="grid-column:2">${o ? 'not boxed on the scan' : 'added by you'}</div>`}
+    <div class="ed ${changed ? 'changed' : ''} ${gone ? 'removed' : ''}" contenteditable="plaintext-only" spellcheck="false" data-clue="${l}">${esc(gone ? o?.text : v)}</div>
+    ${changed && o && !gone ? `<div class="was">OCR read: <del>${esc(o.text)}</del></div>` : ''}
+    <div class="tools">${flags}
+      <button data-act="sic" class="${sic != null ? 'on' : ''}">Misprint</button>
+      <button data-act="unsure" class="${uns ? 'on' : ''}">Unsure</button>
+      <button data-act="noclue">No clue printed</button>
+      <button data-act="drop" class="${gone ? 'on' : ''}">${gone ? 'Restore' : 'Not a clue'}</button>
+      ${changed ? '<button data-act="undo">Undo</button>' : ''}
+      ${sic != null ? `<input type="text" data-sic placeholder="what was meant" value="${esc(sic)}">` : ''}
+      ${uns ? `<select data-uns>${['words', 'letters', 'punctuation', 'cut off'].map(k => `<option ${k === uns ? 'selected' : ''}>${k}</option>`).join('')}</select>` : ''}</div></div>`;
+}
+function cluesHtml() {
+  const labels = order([...new Set([...Object.keys(O.clues), ...Object.keys(R.corrections).filter(k => k.startsWith('clue:')).map(k => k.slice(5))])]);
+  const part = d => labels.filter(l => l[0] === d).map(clueHtml).join('');
+  return `<h2>Across</h2>${part('A')}<h2>Down</h2>${part('D')}
+    <div class="tools" style="margin-top:8px"><input type="text" id="addl" placeholder="clue the OCR missed, e.g. D27" style="max-width:220px"><button id="add">Add clue</button></div>`;
+}
+
+// ---- finishing
+function finishHtml() {
+  const rad = (name, opts, val) => `<div class="radios">${opts.map(([v, l]) => `<label><input type="radio" name="${name}" value="${v}" ${String(val) === v ? 'checked' : ''}>${l}</label>`).join('')}</div>`;
+  return `<h2>Finish</h2><div class="finish">
+    <span>Ready?</span>${rad('ready', [['true', 'Ready to publish as corrected'], ['false', 'Not ready']], R.ready)}
+    <span>What’s left</span>${rad('remaining', [['none', 'Nothing'], ['minor', 'Small doubts'], ['major', 'A person should look'], ['blocker', 'Can’t be published as is']], R.remaining)}
+    <label for="rn">About that</label><input type="text" id="rn" value="${esc(R.remaining_note)}" placeholder="one line on what’s left, if anything">
+    <label for="nt">Note</label><textarea id="nt" rows="2" placeholder="anything else: a theme, shaded squares, picture clues, an oddity">${esc(R.note)}</textarea></div>`;
+}
+
+function render() {
+  document.getElementById('main').innerHTML = metaHtml() + captionsHtml() + gridHtml() + cluesHtml() + finishHtml();
+  paintGrid(); wire(); count();
+  const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { io.unobserve(e.target);
+    const l = e.target.closest('.clue').dataset.l; crop(e.target, e.target.dataset.box.split(',').map(Number), /^\[picture/.test(R.corrections['clue:' + l] ?? O.clues[l]?.text ?? '')); } }), {rootMargin: '400px'});
+  document.querySelectorAll('canvas[data-box]').forEach(cv => io.observe(cv));
+}
+function rerenderClue(l) {
+  const old = document.querySelector(`.clue[data-l="${l}"]`), tmp = document.createElement('div'); tmp.innerHTML = clueHtml(l);
+  old.replaceWith(tmp.firstElementChild); wire(); const cv = document.querySelector(`.clue[data-l="${l}"] canvas[data-box]`);
+  if (cv) crop(cv, cv.dataset.box.split(',').map(Number), /^\[picture/.test(R.corrections['clue:' + l] ?? O.clues[l]?.text ?? ''));
+}
+function focusClue(l) {
+  document.querySelector('.clue.focus')?.classList.remove('focus');
+  const el = document.querySelector(`.clue[data-l="${l}"]`); el?.classList.add('focus');
+  const box = O.clues[l]?.box; show(clueImg, box);
+}
+function wire() {
+  document.querySelectorAll('[data-meta]').forEach(i => i.oninput = () => {
+    const k = i.dataset.meta, was = k === 'puzzle_number' ? '' : (O[k] || '');
+    setItem('meta:' + k, i.value.trim(), was); i.classList.toggle('changed', 'meta:' + k in R.corrections);
+  });
+  document.querySelectorAll('[data-meta]').forEach(i => i.onfocus = () => show('page.jpg'));
+  document.querySelectorAll('[data-other]').forEach(d => { d.onfocus = () => show('page.jpg');
+    d.onblur = () => { const k = d.dataset.other; setItem('other:' + k, d.textContent.trim(), O.captions[k]); render(); }; });
+  document.querySelectorAll('[data-drop]').forEach(b => b.onclick = () => { const k = b.dataset.drop;
+    setItem('other:' + k, R.corrections['other:' + k] === '' ? O.captions[k] : '', O.captions[k]); render(); });
+  document.querySelectorAll('table.g td').forEach(td => td.onclick = () => {
+    const r = +td.dataset.r, c = +td.dataset.c;
+    if (!hasAns) { const v = cur(r, c) === '#' ? '.' : '#'; setItem(`grid:r${r + 1}c${c + 1}`, v, base[r][c]); }
+    select(r, c);
+  });
+  document.querySelectorAll('[data-flip]').forEach(b => b.onclick = () => { flipMode = b.dataset.flip;
+    document.querySelectorAll('[data-flip]').forEach(o => o.classList.toggle('on', o === b)); drawKey(); });
+  const key = document.getElementById('key'); if (key) key.onclick = () => document.querySelector(`[data-flip="${flipMode === 'printed' ? 'letters' : 'printed'}"]`).click();
+  document.querySelectorAll('.clue[data-l]').forEach(el => el.onclick = e => { if (!e.target.closest('button,input,select')) focusClue(el.dataset.l); });
+  document.querySelectorAll('[data-clue]').forEach(d => d.onblur = () => {
+    const l = d.dataset.clue, o = O.clues[l], v = d.textContent.replace(/\s+/g, ' ').trim();
+    if (R.corrections['clue:' + l] === '' && v === o?.text) return;
+    setItem('clue:' + l, v, o ? o.text : null); rerenderClue(l);
+  });
+  document.querySelectorAll('[data-act]').forEach(b => b.onclick = () => {
+    const l = b.closest('.clue').dataset.l, item = 'clue:' + l, o = O.clues[l], a = b.dataset.act;
+    if (a === 'sic') { if (l in R.sic) delete R.sic[l]; else R.sic[l] = ''; }
+    else if (a === 'unsure') { if (R.unsure[item]) delete R.unsure[item]; else R.unsure[item] = 'words'; }
+    else if (a === 'noclue') setItem(item, '[no clue printed]', o?.text);
+    else if (a === 'drop') setItem(item, R.corrections[item] === '' ? (o?.text ?? '') : '', o?.text);
+    else if (a === 'undo') { delete R.corrections[item]; }
+    persist(); rerenderClue(l); if (a === 'sic') document.querySelector(`.clue[data-l="${l}"] [data-sic]`)?.focus();
+  });
+  document.querySelectorAll('[data-sic]').forEach(i => i.oninput = () => { R.sic[i.closest('.clue').dataset.l] = i.value; persist(); });
+  document.querySelectorAll('[data-uns]').forEach(s => s.onchange = () => { R.unsure['clue:' + s.closest('.clue').dataset.l] = s.value; persist(); });
+  const add = document.getElementById('add');
+  if (add) add.onclick = () => { const l = document.getElementById('addl').value.trim().toUpperCase();
+    if (!/^[AD]\d+$/.test(l) || l in O.clues || 'clue:' + l in R.corrections) return msg('Give a new clue number like D27.');
+    setItem('clue:' + l, '[type the clue]', null); render(); focusClue(l); };
+  document.querySelectorAll('input[name=ready]').forEach(i => i.onchange = () => { R.ready = i.value === 'true'; persist(); });
+  document.querySelectorAll('input[name=remaining]').forEach(i => i.onchange = () => { R.remaining = i.value; persist(); });
+  const rn = document.getElementById('rn'); if (rn) rn.oninput = () => { R.remaining_note = rn.value; persist(); };
+  const nt = document.getElementById('nt'); if (nt) nt.oninput = () => { R.note = nt.value; persist(); };
+}
+document.addEventListener('keydown', e => {
+  if (!sel || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName) || e.target.isContentEditable) return;
+  const [r, c] = sel, mv = {ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1]}[e.key];
+  if (mv) { e.preventDefault(); const nr = r + mv[0], nc = c + mv[1]; if (base[nr]?.[nc] !== undefined) select(nr, nc); return; }
+  if (!hasAns) return;
+  if (/^[a-z]$/i.test(e.key) && !e.ctrlKey && !e.metaKey) { e.preventDefault(); type(e.key.toUpperCase()); }
+  else if (e.key === '#') { e.preventDefault(); type('#'); }
+  else if (e.key === '.' || e.key === 'Backspace') { e.preventDefault(); type('.'); }
+});
+function count() {
+  const n = Object.keys(R.corrections).length, s = Object.keys(R.sic).length, u = Object.keys(R.unsure).length;
+  document.getElementById('count').textContent = `${n} correction${n === 1 ? '' : 's'} · ${s} misprint${s === 1 ? '' : 's'} kept · ${u} unsure`;
+}
+const msg = t => { document.getElementById('msg').textContent = t; setTimeout(() => document.getElementById('msg').textContent = '', 5000); };
+document.getElementById('save').onclick = () => {
+  if (R.ready === null) return msg('Choose “Ready?” under Finish first.');
+  const out = {by: 'hand', ready: R.ready, remaining: R.remaining || (R.ready ? 'none' : 'minor'), remaining_note: R.remaining_note, note: R.note,
+    corrections: R.corrections, sic: Object.fromEntries(Object.entries(R.sic).filter(([, v]) => v)), unsure: R.unsure, confirm: R.confirm};
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(out, null, 2) + '\n'], {type: 'application/json'}));
+  a.download = `${X}.review.json`; a.click();
+  msg(`Saved ${X}.review.json to your downloads. Now run: tools/hand.sh submit ${X}`);
+};
+render(); show('page.jpg');
+</script>
+</body>
+</html>

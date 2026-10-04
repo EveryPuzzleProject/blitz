@@ -186,6 +186,10 @@ particular model, name it in the prompt: "…and review 3 puzzles using Fable."
 stopping Claude, or running into your usage limit, wastes nothing. Puzzles
 you claimed but didn't finish go back to the pool after 48 hours.
 
+**Rather do it yourself?** You can review puzzles by hand, without Claude:
+an editor in your browser shows each clue beside its scan, and two commands
+claim the puzzles and send your work. See [HAND.md](HAND.md).
+
 **What it touches.** A folder on your machine with this repository and the
 puzzle images, a fork in your GitHub account, and one pull request here.
 Nothing else.
