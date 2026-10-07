@@ -3,7 +3,7 @@
 // allows what the database's row-level security allows. Never put the service key here.
 window.BLITZ_SITE = {
   name: "blitz",
-  supabaseUrl: "https://YOUR-PROJECT.supabase.co",   // Supabase: Project Settings > API > Project URL
-  supabaseAnonKey: "YOUR-ANON-KEY",                   // Supabase: Project Settings > API > anon public key
-  filesBase: "https://YOUR-R2-PUBLIC-URL",            // R2: the bucket's public URL (r2.dev or a custom domain)
+  supabaseUrl: "https://gvvgqyyutekmxkttxhzd.supabase.co",   // Supabase: Project Settings > API > Project URL
+  supabaseAnonKey: "sb_publishable_B_NPnAXFett7uk33ex1_mQ_ulAjxrMA",                   // Supabase: Project Settings > API > anon public key
+  filesBase: "https://pub-52ac4a15c4ba43fe8e4af5a496733fb5.r2.dev",            // R2: the bucket's public URL (r2.dev or a custom domain)
 };
