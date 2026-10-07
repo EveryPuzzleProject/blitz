@@ -53,6 +53,10 @@ def crop(packet: Path, target: str, ocr: dict | None = None) -> Image.Image | st
         if not box:
             return (f"no box for {target} (a clue the OCR never found: crop its place with box:)" if kind == "clue"
                     else f"this packet has no box for {target}: look at page.jpg, or crop the place with box:")
+        if kind == "clue":  # show the whole line: OCR boxes often stop short (or cover only the number)
+            h = box[3] - box[1]
+            col = [b["box"] for b in ocr["clues"].values() if b.get("box") and abs(b["box"][0] - box[0]) < 3 * max(h, 12)]
+            box = [box[0], box[1], max([box[2]] + [b[2] for b in col]), box[3]]
         x0, y0, x1, y1 = (v * f for v in box)
         line = max(12.0, (y1 - y0) if kind != "box" else 30.0)
         if kind == "clue":

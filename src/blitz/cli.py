@@ -133,6 +133,11 @@ def cmd_finish(a) -> None:
               + (f" (not on a sheet, so not applied: {', '.join(unchecked)})" if unchecked else "")
               + (f"; ignored: {'; '.join(ignored)}" if ignored else "")
               + (f"; escalated: {rv['escalate']}" if rv["escalate"] else ""))
+        if rv.get("odd_left"):
+            print("  Still odd after your review (OCR slips left in?): "
+                  + "; ".join(f"{k} {' '.join(w)}" for k, w in rv["odd_left"].items())
+                  + ".\n  Look at each on a sheet; then correct it, keep it as sic, or add it to \"as_printed\" "
+                    "(a name, a pun or dialect printed that way), and run finish again.")
 
 
 def cmd_submit(a) -> None:

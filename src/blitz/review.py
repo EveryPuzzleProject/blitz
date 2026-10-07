@@ -99,6 +99,12 @@ def _as_list(v, key: str = "item") -> list[dict]:
     return list(v or [])
 
 
+def _as_dict(v) -> dict:
+    if isinstance(v, dict):
+        return v
+    return {str(x): "" for x in v or []}
+
+
 def finish(ocr: dict, draft: dict, seen: list[str]) -> tuple[dict, list[str]]:
     """review.json from a draft. Returns (review, what was ignored)."""
     ent = entries(ocr)
@@ -138,6 +144,19 @@ def finish(ocr: dict, draft: dict, seen: list[str]) -> tuple[dict, list[str]]:
     }
     if draft.get("tool_notes"):
         review["tool_notes"] = list(draft["tool_notes"])
+    # Odd words still in the finished clues: each must be corrected, kept as sic, or said to be printed so.
+    ok = {k.partition(":")[2] or k for k in list(review["sic"]) + list(_as_dict(draft.get("as_printed")))}
+    left = {}
+    for k, v in ocr["clues"].items():
+        text = corrections.get(f"clue:{k}", v.get("text", ""))
+        read = set(odd_words(v.get("text", "")))  # only the OCR's own odd words: not the reviewer's
+        odd = [w for w in odd_words(text) if w in read] if text and k not in ok and f"clue:{k}" not in unsure else []
+        if odd:
+            left[k] = odd
+    if draft.get("as_printed"):
+        review["as_printed"] = _as_dict(draft["as_printed"])
+    if left:
+        review["odd_left"] = left
     if ignored:
         review["note"] = (review["note"] + " Ignored (not a valid correction): " + "; ".join(ignored)).strip()
     return review, ignored

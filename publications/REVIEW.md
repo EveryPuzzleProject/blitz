@@ -94,6 +94,7 @@ every call re-reads the whole conversation.
   "sic": {"D1": "cocktail"},            (misprints kept as printed: clue id -> what was meant)
   "confirm": ["clue:A7"],               (suspects you checked and found right)
   "unsure": {"clue:D22": "words"},      ("grid", "letters", "words", "cut off" or "punctuation")
+  "as_printed": {"D51": "Soury: a pun"},  (odd words that are printed so: names, puns, dialect)
   "tool_notes": [{"kind": "heading-in-clue", "target": "clue:D68", "note": "..."}]
 }
 ```
@@ -107,6 +108,14 @@ never found), "clue-split" / "clue-merged" / "clue-shifted" (texts on the wrong 
 or check in text.md that was wrong), "crop" (a crop that cut something off or showed the wrong
 place), "sheets", "finish", "text-md" or "other". Keep each note to one line. An empty list is
 fine.
+
+`finish` lists every clue that still has an odd word after your corrections. Each one must be
+settled: corrected, kept under "sic", or listed under "as_printed". "Confirm" doesn't settle an
+odd word, because it's easy to confirm a clue for one reason (its text belongs there) and miss a
+misread word in it. Settle them and run finish again.
+
+When you take text out of one clue because it belongs to another (merged clues), check the other
+clue's own text too: it has usually been read separately, with its own slips.
 
 Most odd-looking words are OCR misreads, not misprints: if the text says "bundred" and the crop
 shows "hundred", correct the clue. Damaged type is corrected too ("quarre!", "shel!", "fan ier":

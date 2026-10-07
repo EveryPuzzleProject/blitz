@@ -73,3 +73,21 @@ def test_feedback_groups_notes(tmp_path):
         (tmp_path / x / "review.json").write_text(json.dumps({"tool_notes": [{"kind": k, "note": "n"} for k in kinds]}))
     text = feedback(sorted(tmp_path.iterdir()))
     assert "## heading-in-clue: 2 notes, 2 puzzles" in text and text.index("heading-in-clue") < text.index("byline")
+
+
+def test_finish_lists_odd_words_the_review_left_in():
+    o = _ocr()
+    o["clues"]["A4"]["text"] = "Opera sonq."  # an OCR slip
+    o["clues"]["A6"]["text"] = "Agent's tie, thez."
+    review, _ = finish(o, {"ready": True, "confirm": ["clue:A4"], "as_printed": {"A6": "dialect"},
+                           "corrections": {"clue:A1": "Felinee."}}, ["clue:A1"])
+    assert review["odd_left"] == {"A4": ["sonq"]}  # confirm doesn't settle it; the reviewer's own word isn't flagged
+
+
+def test_a_clue_crop_spans_its_column(tmp_path):
+    from blitz.crops import crop
+
+    o = _ocr()
+    o["clues"]["A4"]["box"] = [10, 20, 30, 35]  # a box around the number only
+    d = _packet(tmp_path, o)
+    assert crop(d, "clue:A4", o).width > crop(d, "box:10,20,30,35", o).width * 4
