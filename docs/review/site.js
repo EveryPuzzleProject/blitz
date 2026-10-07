@@ -37,7 +37,7 @@
     return user;
   }
 
-  const PROVIDERS = (cfg.providers || ['google', 'github']).map(p => [p, {google: 'Google', github: 'GitHub'}[p] || p]);
+  const PROVIDERS = (cfg.providers || ['google', 'github']).map(p => [p, {google: 'Google', github: 'GitHub', discord: 'Discord', apple: 'Apple'}[p] || p]);
   const CLAIM = 'blitz-guest-claim';
 
   async function signIn(provider) {
