@@ -230,7 +230,7 @@ main{overflow:auto;padding:12px 16px}
 .hl.fix{border-color:var(--fix);background:color-mix(in srgb,var(--fix) 15%,transparent)}
 .hl.hot{border-color:var(--hot);border-width:3px;background:color-mix(in srgb,var(--hot) 30%,transparent);box-shadow:0 0 0 3px color-mix(in srgb,var(--hot) 40%,transparent);z-index:2}
 .hl.dim{opacity:.15}
-.cards{display:flex;flex-direction:column;gap:6px;max-height:70vh;overflow:auto}
+.cards{display:flex;flex-direction:column;gap:6px;max-height:36vh;overflow:auto}
 .card{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:6px 9px;cursor:pointer}
 .card:hover,.card.hot{border-color:var(--hot);box-shadow:0 0 0 2px color-mix(in srgb,var(--hot) 35%,transparent)}
 .card b{font-size:12px;color:var(--muted);font-weight:600}
@@ -241,6 +241,9 @@ main{overflow:auto;padding:12px 16px}
 .verdict{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0 2px;font-size:13px}.verdict button{font:inherit;font-size:13px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:5px;padding:3px 10px;cursor:pointer}
 .verdict button.on.good{border-color:var(--ok);color:var(--ok);font-weight:600}.verdict button.on.bad{border-color:var(--bad);color:var(--bad);font-weight:600}.verdict input{flex:1;min-width:180px;font:inherit;font-size:13px;padding:3px 6px;border:1px solid var(--line);border-radius:5px;background:var(--panel);color:var(--ink)}
 .mark{font-size:12px;margin-left:4px}
+.answ{font:600 12px/1 ui-monospace,Consolas,monospace;letter-spacing:.08em;background:var(--panel);border:1px solid var(--line);border-radius:3px;padding:1px 4px;margin-left:4px;color:var(--ink)}
+.answ ins{text-decoration:none;color:var(--ok)}
+.small .hl.hot{background:color-mix(in srgb,var(--hot) 55%,transparent)}
 del{color:var(--bad)}ins{color:var(--ok);text-decoration:none;font-weight:600}
 .sheets{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px}
 .sheets img{height:150px;border:1px solid var(--line);border-radius:4px;cursor:zoom-in;background:#fff}
@@ -436,9 +439,20 @@ function card(item, key, title, body) {  // key: what a decision is about, as th
   const r = rejected(key), a = accepted(key);
   return `<div class="card ${r ? 'rej' : a ? 'acc' : ''}" data-item="${esc(item)}" data-key="${esc(key)}"><span class="acts">`
     + `<button class="ok ${a ? 'on' : ''}" data-act="accept" title="Accept (A)">✓</button><button class="no ${r ? 'on' : ''}" data-act="reject" title="Reject (R)">✗</button></span>`
-    + `<b>${esc(title)}</b><br><span class="body">${body}</span>`
+    + `<b>${esc(title)}</b>${item.startsWith('clue:') ? answerHtml(item.slice(5)) : ''}<br><span class="body">${body}</span>`
     + (r ? `<input class="why" data-note="${esc(key)}" placeholder="Rejected. Why? What does the scan show? (optional; Enter to save)" value="${esc(D().notes[key] || '')}">` : '')
     + `</div>`;
+}
+function answerHtml(id) {  // the clue's answer as the corrected key reads it
+  const o = O(); if (!o.answers) return '';
+  const sq = entrySquares(id); if (!sq.length) return '';
+  const fixes = P.review.corrections || {};
+  const letters = sq.map(([r, c]) => {
+    const k = `cell:r${r + 1}c${c + 1}`, fixed = k in fixes && !rejected(k);
+    const ch = fixed ? fixes[k] : ((o.answers[r] || '')[c] || '.');
+    return fixed ? `<ins>${esc(ch)}</ins>` : esc(ch === '.' ? '·' : ch.toUpperCase());
+  }).join('');
+  return ` <span class="answ" title="its answer in the key">${letters}</span>`;
 }
 function progress() {
   const keys = [...document.querySelectorAll('.card[data-key]')].map(c => c.dataset.key);
