@@ -13,6 +13,7 @@ nav{border-right:1px solid var(--line);overflow:auto}
 .p{display:flex;justify-content:space-between;gap:8px;padding:7px 12px;border-bottom:1px solid var(--line);cursor:pointer}
 .p:hover{background:var(--panel)}.p.sel{background:var(--panel);box-shadow:inset 3px 0 var(--accent)}
 .chip{font-size:11px;padding:1px 7px;border-radius:9px;border:1px solid currentColor;white-space:nowrap;height:fit-content}
+.s-to{color:var(--warn)}.s-checked{color:var(--ok)}.s-flagged{color:var(--bad)}
 .s-waiting{color:var(--muted)}.s-looking{color:var(--look)}.s-writing{color:var(--warn)}.s-ready{color:var(--ok)}.s-needs{color:var(--warn)}.s-escalated{color:var(--bad)}
 .live::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:currentColor;margin-right:5px;animation:pulse 1.2s infinite}
 @keyframes pulse{50%{opacity:.25}}
@@ -121,6 +122,11 @@ let S = null, sel = null, P = null, tab = 'review', pageImg = 'page.jpg', hot = 
 const view = {};  // per puzzle and page: {s, x, y, fit}
 const ago = t => { const s = Math.max(0, Math.round(S.now - t)); return s < 60 ? `${s}s ago` : s < 3600 ? `${Math.round(s/60)} min ago` : `${Math.round(s/3600)} h ago`; };
 const chip = st => `<span class="chip s-${st.split(' ')[0]} ${['looking','writing'].includes(st) ? 'live' : ''}">${esc(st)}</span>`;
+// A helper's view of a puzzle: is it theirs to check, or done? (The agent's own status is for the
+// maintainer's page: its "ready" means the agent thinks the puzzle is ready to publish.)
+const HSTATES = {'to check': 's-to', 'checked ✓': 's-checked', 'needs work': 's-flagged'};
+const helperState = p => p.verdict === 'looks-right' ? 'checked ✓' : p.verdict === 'needs-work' ? 'needs work' : 'to check';
+const hchip = p => { const st = helperState(p); return `<span class="chip ${HSTATES[st]}">${esc(st)}</span>`; };
 const label = it => it.replace(/^clue:/, '').replace(/^cell:/, 'key square ').replace(/^grid:/, 'grid square ').replace(/^meta:/, '').replace(/^other:/, 'caption ');
 
 // The runs of words a change took out of a clue (e.g. text that belongs to another clue).
@@ -391,8 +397,13 @@ function setHot(item, zoom) {
 function renderList() {
   const counts = {};
   S.puzzles.forEach(p => counts[p.status] = (counts[p.status] || 0) + 1);
+  if (HELPER) {
+    const hc = {};
+    S.puzzles.forEach(p => hc[helperState(p)] = (hc[helperState(p)] || 0) + 1);
+    $('#counts').innerHTML = Object.keys(HSTATES).filter(s => hc[s]).map(s => `<span><span class="chip ${HSTATES[s]}">${esc(s)}</span> ${hc[s]}</span>`).join('');
+  } else
   $('#counts').innerHTML = ['waiting','looking','writing','ready','needs a person','escalated'].filter(s => counts[s]).map(s => `<span>${chip(s)} ${counts[s]}</span>`).join('');
-  $('#list').innerHTML = S.puzzles.map(p => `<div class="p ${p.xdid === sel ? 'sel' : ''}" data-x="${p.xdid}"><span>${esc(p.xdid)}<br><span class="muted" style="font-size:12px">${HELPER ? (p.eyes ? `${p.eyes} checked it` : 'needs eyes') : p.updated ? ago(p.updated) : ''}</span></span><span>${chip(p.status)}${p.verdict === 'looks-right' ? '<span class="mark" style="color:var(--ok)" title="you: looks right">✓</span>' : p.verdict === 'needs-work' ? '<span class="mark" style="color:var(--bad)" title="you: needs work">✗</span>' : ''}${p.rejected ? `<span class="mark" style="color:var(--bad)" title="changes you rejected">−${p.rejected}</span>` : ''}</span></div>`).join('');
+  $('#list').innerHTML = S.puzzles.map(p => `<div class="p ${p.xdid === sel ? 'sel' : ''}" data-x="${p.xdid}"><span>${esc(p.xdid)}<br><span class="muted" style="font-size:12px">${HELPER ? (p.eyes ? `${p.eyes} checked it` : 'needs eyes') : p.updated ? ago(p.updated) : ''}</span></span><span>${HELPER ? hchip(p) : chip(p.status)}${HELPER ? '' : p.verdict === 'looks-right' ? '<span class="mark" style="color:var(--ok)" title="you: looks right">✓</span>' : p.verdict === 'needs-work' ? '<span class="mark" style="color:var(--bad)" title="you: needs work">✗</span>' : ''}${p.rejected ? `<span class="mark" style="color:var(--bad)" title="changes you rejected">−${p.rejected}</span>` : ''}</span></div>`).join('');
   document.querySelectorAll('.p').forEach(el => el.onclick = () => { sel = el.dataset.x; $('#follow').checked = false; hot = null; focusCrops = null; focusCard = null; peek = null; pinned = false; load(true); });
 }
 
@@ -550,7 +561,7 @@ function renderMain() {
   const imgSrc = n => API.file(P.xdid, (P.src[n] ? '_src/' : '') + n);
   const cards = changesHtml();
   $('#main').innerHTML = `<div class="top"><div><h2 style="margin:0;font-size:18px">${esc(title)}</h2>
-    <span class="muted">${esc(P.xdid)} · ${esc(o.byline || '')} · ${o.grid.length}x${o.grid[0].length}</span></div>${chip(P.status)}</div>
+    <span class="muted">${esc(P.xdid)} · ${esc(o.byline || '')} · ${o.grid.length}x${o.grid[0].length}</span></div>${HELPER ? hchip({verdict: (P.decisions || {}).verdict}) : chip(P.status)}</div>
     ${rv.escalate ? `<p style="color:var(--bad)"><b>Escalated:</b> ${esc(rv.escalate)}</p>` : ''}
     ${rv.note ? `<p class="muted" style="margin:6px 0">${esc(rv.note)}</p>` : ''}
     ${['ready','needs a person','escalated'].includes(P.status) ? `<div class="verdict"><span class="muted">Your check:</span>`
