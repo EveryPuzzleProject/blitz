@@ -223,6 +223,11 @@ main{overflow:auto;padding:12px 16px}
 .lbl button.on{border-color:var(--accent)}
 .viewer{position:relative;overflow:hidden;height:70vh;min-height:360px;background:#888;border-radius:4px;cursor:grab;touch-action:none}
 .viewer.drag{cursor:grabbing}
+.hl.peek{border:2px dashed var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent);z-index:3}
+.tip{position:absolute;z-index:5;max-width:360px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:6px;box-shadow:0 4px 14px rgba(0,0,0,.25);padding:6px 9px;font-size:13px;pointer-events:none}
+.tip.pinned{pointer-events:auto;border-color:var(--accent)}
+.tip .st{font-size:11px;color:var(--muted);margin-top:3px}.tip .st.warn{color:var(--warn)}
+.moved{font-size:12px;margin-top:3px;color:var(--ok)}.moved.warn{color:var(--warn);font-weight:600}.moved.meh{color:var(--muted)}
 .stage{position:absolute;left:0;top:0;transform-origin:0 0}
 .stage img{display:block;width:100%;user-select:none;-webkit-user-drag:none}
 .small{position:relative}.small img{display:block;width:100%}
@@ -279,6 +284,51 @@ const ago = t => { const s = Math.max(0, Math.round(S.now - t)); return s < 60 ?
 const chip = st => `<span class="chip s-${st.split(' ')[0]} ${['looking','writing'].includes(st) ? 'live' : ''}">${esc(st)}</span>`;
 const label = it => it.replace(/^clue:/, '').replace(/^cell:/, 'key square ').replace(/^grid:/, 'grid square ').replace(/^meta:/, '').replace(/^other:/, 'caption ');
 
+// The runs of words a change took out of a clue (e.g. text that belongs to another clue).
+function removedRuns(a, b) {
+  const A = a.split(/\s+/).filter(Boolean), B = b.split(/\s+/).filter(Boolean), n = A.length, m = B.length;
+  const L = Array.from({length: n + 1}, () => new Array(m + 1).fill(0));
+  for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) L[i][j] = A[i] === B[j] ? L[i+1][j+1] + 1 : Math.max(L[i+1][j], L[i][j+1]);
+  // Walk the diff, pairing each run of deleted words with the words inserted in its place. A run
+  // replaced by about as many words is a misread fixed in place ("algo" -> "also"), not removed text.
+  const runs = []; let i = 0, j = 0, del = [], ins = [];
+  const flush = () => { if (del.length) runs.push({run: del.join(' '), words: del.length, swapped: ins.length >= del.length - 1 && ins.length > 0}); del = []; ins = []; };
+  while (i < n || j < m) {
+    if (i < n && j < m && A[i] === B[j]) { flush(); i++; j++; }
+    else if (j < m && (i >= n || L[i][j+1] >= L[i+1][j])) { ins.push(B[j]); j++; }
+    else { del.push(A[i]); i++; }
+  }
+  flush();
+  return runs;
+}
+const norm = t => ' ' + String(t).toLowerCase().split(/\s+/).filter(w => !/\d/.test(w)).join(' ')
+  .replace(/[^a-z]+/g, ' ').replace(/ +/g, ' ').trim() + ' ';
+function finalText(id) {  // a clue as it will be published: the OCR's text with the review's (accepted) fix
+  const k = 'clue:' + id, fx = P.review.corrections || {};
+  return k in fx && !rejected(k) ? fx[k] : ((O().clues[id] || {}).text || '');
+}
+const STOP = new Set('the and for you this that with what are was his her its not but from your they them have has had who how when where will would can one'.split(' '));
+function whereItWent(id, was, now) {
+  const out = [];
+  for (const {run, words, swapped} of removedRuns(was, now)) {
+    const n = norm(run);
+    if (norm(run).trim().length < 3 && !/\d/.test(run)) continue;  // punctuation, a stray letter
+    if (!n.trim()) { out.push(`<div class="moved meh">“${esc(run)}” removed (a page or clue number)</div>`); continue; }
+    if (/solution|last week/.test(n)) { out.push(`<div class="moved meh">“${esc(run)}” removed (a heading)</div>`); continue; }
+    // Moved text is often still misread where it was cut from ("deuees", "bold" for "boid"):
+    // a clue holds it when it has most of its words, as corrected or as the OCR read them.
+    const toks = n.trim().split(' ').filter(w => w.length > 2 && !STOP.has(w));
+    const holds = k => {
+      const ws = new Set((norm(finalText(k)) + norm((O().clues[k] || {}).text || '')).trim().split(' '));
+      return toks.length === 1 ? toks[0].length >= 4 && ws.has(toks[0])
+        : toks.filter(w => ws.has(w)).length >= Math.max(2, Math.ceil(0.6 * toks.length));
+    };
+    const hits = toks.length ? Object.keys(O().clues).filter(k => k !== id && holds(k)) : [];
+    if (hits.length) out.push(`<div class="moved">“${esc(run)}” is in ${hits.map(esc).join(', ')}</div>`);
+    else if (!swapped) out.push(`<div class="moved warn">“${esc(run)}” was taken out and isn't in any other clue: lost text?</div>`);
+  }
+  return out.join('');
+}
 function wordDiff(a, b) {
   const A = a.split(/(\s+)/), B = b.split(/(\s+)/), n = A.length, m = B.length;
   const L = Array.from({length: n + 1}, () => new Array(m + 1).fill(0));
@@ -374,6 +424,7 @@ function cur() {
 function applyView() {
   const v = cur(), st = $('#stage'); if (!st) return;
   st.style.transform = `translate(${v.x}px,${v.y}px) scale(${v.s})`;
+  if (peek) setTimeout(drawPeek, 0);
   st.querySelectorAll('.hl').forEach(d => d.style.borderWidth = (d.classList.contains('hot') ? 3 : 2) / v.s + 'px');
 }
 function drawPage() {
@@ -402,13 +453,65 @@ function zoomTo(box) {  // a box (packet pixels) in the middle of the viewer, la
 function bindViewer() {
   const vw = $('#viewer'); if (!vw) return;
   vw.onwheel = e => { e.preventDefault(); const r = vw.getBoundingClientRect(); zoomAt(e.clientX - r.left, e.clientY - r.top, e.deltaY < 0 ? 1.2 : 1 / 1.2); };
-  let drag = null;
-  vw.onpointerdown = e => { drag = {x: e.clientX, y: e.clientY}; vw.classList.add('drag'); vw.setPointerCapture(e.pointerId); };
-  vw.onpointermove = e => { if (!drag) return; const v = cur(); v.x += e.clientX - drag.x; v.y += e.clientY - drag.y; drag = {x: e.clientX, y: e.clientY}; applyView(); };
-  vw.onpointerup = () => { drag = null; vw.classList.remove('drag'); };
+  let drag = null, moved = 0;
+  const at = e => { const r = vw.getBoundingClientRect(), v = cur(); return [(e.clientX - r.left - v.x) / v.s, (e.clientY - r.top - v.y) / v.s]; };
+  vw.onpointerdown = e => { drag = {x: e.clientX, y: e.clientY}; moved = 0; vw.classList.add('drag'); vw.setPointerCapture(e.pointerId); };
+  vw.onpointermove = e => {
+    if (drag) { const v = cur(); moved += Math.abs(e.clientX - drag.x) + Math.abs(e.clientY - drag.y);
+      v.x += e.clientX - drag.x; v.y += e.clientY - drag.y; drag = {x: e.clientX, y: e.clientY}; applyView(); drawPeek(); return; }
+    if (pinned) return;
+    const hit = clueAt(...at(e));
+    if ((hit && hit[0]) !== (peek && peek[0])) { peek = hit; drawPeek(); }
+  };
+  vw.onpointerup = e => {
+    drag = null; vw.classList.remove('drag');
+    if (moved < 5) { const hit = clueAt(...at(e)); pinned = !!hit && !(pinned && peek && hit[0] === peek[0]); peek = hit; drawPeek(); }
+  };
+  vw.onpointerleave = () => { if (!pinned && peek) { peek = null; drawPeek(); } };
   vw.ondblclick = e => { const r = vw.getBoundingClientRect(); zoomAt(e.clientX - r.left, e.clientY - r.top, 2); };
 }
-function redraw() { drawPage(); drawSmall('gridimg', 'grid.png'); drawSmall('ansimg', 'answers.png'); }
+function redraw() { drawPage(); drawSmall('gridimg', 'grid.png'); drawSmall('ansimg', 'answers.png'); drawPeek(); }
+
+// Which clue a point on the page (packet pixels) falls on: its box, widened to its column.
+function clueAt(x, y) {
+  if ((O().clue_image || 'page.jpg') !== pageImg) return null;
+  const cl = O().clues;
+  let best = null;  // boxes can overlap (a clue the OCR ran into the next line): the smallest one wins
+  for (const [k, v] of Object.entries(cl)) {
+    const b = v.box; if (!b) continue;
+    const h = b[3] - b[1];
+    const x1 = Math.max(b[2], ...Object.values(cl).filter(o => o.box && Math.abs(o.box[0] - b[0]) < 3 * Math.max(h, 12)).map(o => o.box[2]));
+    if (x >= b[0] - 4 && x <= x1 && y >= b[1] - 2 && y <= b[3] + 2 && (!best || h < best[2])) best = [k, [b[0], b[1], x1, b[3]], h];
+  }
+  return best && best.slice(0, 2);
+}
+let peek = null, pinned = false;  // [clue id, box] under the pointer, or pinned by a click
+function clueStatus(id) {
+  const k = 'clue:' + id, rv = P.review;
+  if (k in (rv.corrections || {})) return rejected(k) ? ['changed, but you rejected the change', 'warn'] : ['changed by the review', ''];
+  if (id in (rv.sic || {})) return ['kept as printed (sic): meant ' + rv.sic[id], ''];
+  if (k in (rv.unsure || {})) return ['unsure: ' + rv.unsure[k], 'warn'];
+  if ((rv.confirm || []).includes(k)) return ['checked on the scan and confirmed', ''];
+  if (P.shown.includes(k) || P.shown.some(t => t.startsWith('box:') && (() => { const [x0, y0, x1, y1] = t.slice(4).split(',').map(Number), b = O().clues[id].box;
+      return b && b[0] < x1 && x0 < b[2] && b[1] < y1 && y0 < b[3]; })())) return ['on a sheet the reviewer read; not changed', ''];
+  return ['the reviewer never looked at this one (the OCR text as is)', 'warn'];
+}
+function drawPeek() {
+  const st = $('#stage'), vw = $('#viewer'); if (!st || !vw) return;
+  st.querySelectorAll('.hl.peek').forEach(e => e.remove());
+  vw.querySelectorAll('.tip').forEach(e => e.remove());
+  if (!peek) return;
+  const [id, b] = peek, v = cur();
+  const d = document.createElement('div'); d.className = 'hl peek';
+  Object.assign(d.style, {left: b[0] - 4 + 'px', top: b[1] - 3 + 'px', width: b[2] - b[0] + 8 + 'px', height: b[3] - b[1] + 6 + 'px', borderWidth: 2 / v.s + 'px'});
+  st.appendChild(d);
+  const was = (O().clues[id] || {}).text || '', now = finalText(id), [st1, cls] = clueStatus(id);
+  const tip = document.createElement('div'); tip.className = 'tip' + (pinned ? ' pinned' : '');
+  tip.innerHTML = `<b>${esc(id)}</b>${answerHtml(id)}<br>${now === was ? esc(now) : wordDiff(was, now)}<div class="st ${cls}">${esc(st1)}${pinned ? ' · click elsewhere to unpin' : ''}</div>`;
+  const W = vw.clientWidth, y = b[3] * v.s + v.y + 8, x = Math.min(Math.max(4, b[0] * v.s + v.x), W - 370);
+  Object.assign(tip.style, {left: x + 'px', top: (y + 90 > vw.clientHeight ? b[1] * v.s + v.y - 90 : y) + 'px'});
+  vw.appendChild(tip);
+}
 
 function setHot(item, zoom) {
   hot = item;
@@ -429,7 +532,7 @@ function renderList() {
   S.puzzles.forEach(p => counts[p.status] = (counts[p.status] || 0) + 1);
   $('#counts').innerHTML = ['waiting','looking','writing','ready','needs a person','escalated'].filter(s => counts[s]).map(s => `<span>${chip(s)} ${counts[s]}</span>`).join('');
   $('#list').innerHTML = S.puzzles.map(p => `<div class="p ${p.xdid === sel ? 'sel' : ''}" data-x="${p.xdid}"><span>${esc(p.xdid)}<br><span class="muted" style="font-size:12px">${p.updated ? ago(p.updated) : ''}</span></span><span>${chip(p.status)}${p.verdict === 'looks-right' ? '<span class="mark" style="color:var(--ok)" title="you: looks right">✓</span>' : p.verdict === 'needs-work' ? '<span class="mark" style="color:var(--bad)" title="you: needs work">✗</span>' : ''}${p.rejected ? `<span class="mark" style="color:var(--bad)" title="changes you rejected">−${p.rejected}</span>` : ''}</span></div>`).join('');
-  document.querySelectorAll('.p').forEach(el => el.onclick = () => { sel = el.dataset.x; $('#follow').checked = false; hot = null; focusCrops = null; focusCard = null; load(true); });
+  document.querySelectorAll('.p').forEach(el => el.onclick = () => { sel = el.dataset.x; $('#follow').checked = false; hot = null; focusCrops = null; focusCard = null; peek = null; pinned = false; load(true); });
 }
 
 const D = () => P.decisions || {items: {}, notes: {}};
@@ -496,7 +599,8 @@ function changesHtml() {
     else if (kind === 'cell') { const m = /r(\d+)c(\d+)/.exec(key); was = m && o.answers ? (o.answers[m[1]-1] || '')[m[2]-1] || '' : ''; }
     else if (kind === 'grid') { const m = /r(\d+)c(\d+)/.exec(key); was = m ? (o.grid[m[1]-1] || '')[m[2]-1] || '' : ''; }
     const body = kind === 'cell' || kind === 'grid' ? `<del>${esc(was || '?')}</del> → <ins>${esc(now)}</ins>`
-      : now === '' ? `<del>${esc(was || '(removed)')}</del> <span class="muted">(removed)</span>` : wordDiff(was, now);
+      : now === '' ? `<del>${esc(was || '(removed)')}</del> <span class="muted">(removed)</span>` : wordDiff(was, now)
+        + (kind === 'clue' && was ? whereItWent(key, was, now) : '');
     cards.push(card(item, item, label(item), body));
   }
   for (const [k, v] of Object.entries(rv.sic || {})) cards.push(card('clue:' + k, 'sic:' + k, k + ': kept as printed (sic)', 'meant: ' + esc(v)));
@@ -557,7 +661,7 @@ function renderMain() {
       + `<span class="hint">J/K next/previous change · A accept · R reject (then type why)</span></div>` : ''}
     <div class="tabs"><button data-tab="review" class="${tab === 'review' ? 'on' : ''}">The review</button><button data-tab="preview" class="${tab === 'preview' ? 'on' : ''}">The result (grid and xd)</button></div>
     ${tab === 'preview' ? previewHtml() : `
-    <div class="cols"><div class="panel"><div class="lbl"><span><span style="color:var(--look)">■</span> looked at · <span style="color:var(--fix)">■</span> corrected · <span style="color:var(--hot)">■</span> selected · scroll to zoom, drag to move, double-click to zoom in</span>
+    <div class="cols"><div class="panel"><div class="lbl"><span><span style="color:var(--look)">■</span> looked at · <span style="color:var(--fix)">■</span> corrected · <span style="color:var(--hot)">■</span> selected · point at any clue to see its transcription, click to pin · scroll to zoom, drag to move</span>
         <span>${pages.length > 1 ? pages.map(n => `<button data-page="${n}" class="${n === pageImg ? 'on' : ''}">${n === 'page.jpg' ? 'Page' : 'Clue page'}</button>`).join(' ') : ''} <button id="fit">Fit</button></span></div>
         <div class="viewer" id="viewer"><div class="stage" id="stage"><img id="pageimg" src="${esc(imgSrc(pageImg))}" alt="scanned page" draggable="false"></div></div></div>
       <div style="display:flex;flex-direction:column;gap:10px">
