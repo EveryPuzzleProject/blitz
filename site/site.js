@@ -77,7 +77,7 @@
     bindSignIn(el);
   }
 
-  async function profileForm(el, open) {  // a guest: the sign-in line; signed in: your name and Sign out
+  async function profileForm(el) {  // a guest: the sign-in line; signed in: the leaderboard setting and Sign out
     if (user.is_anonymous) { el.innerHTML = signInLine(); bindSignIn(el); return; }
     const {data} = await sb.from('profiles').select('display_name,on_leaderboard').eq('user_id', user.id).maybeSingle();
     const meta = user.user_metadata || {};
@@ -87,13 +87,11 @@
     // "Show me on the leaderboard [ ]: [name]": the name is used only if they tick the box, and
     // starts as the name we got from Google / GitHub / Discord (selected on focus, to replace).
     el.innerHTML = `<span style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px">
-      ${open ? `<label style="display:inline-flex;gap:4px;align-items:center">Show me on the leaderboard <input type="checkbox" data-lb ${p.on_leaderboard ? 'checked' : ''}></label>:
+      ${`<label style="display:inline-flex;gap:4px;align-items:center">Show me on the leaderboard <input type="checkbox" data-lb ${p.on_leaderboard ? 'checked' : ''}></label>:
         <input data-name value="${esc(p.display_name || fromProvider)}" placeholder="your name" maxlength="40" ${p.on_leaderboard ? '' : 'disabled'}
-               style="${box};width:170px" title="the name shown on the leaderboard">
-        <a href="#" data-done>done</a>`
-             : `<a href="#" data-settings title="your name on the leaderboard">${esc(who)}</a>`}
+               style="${box};width:170px" title="the name shown on the leaderboard">`}
       <span class="muted">·</span> <a href="#" data-out>Sign out</a></span>`;
-    if (open) {
+    {
       const name = el.querySelector('[data-name]'), lb = el.querySelector('[data-lb]');
       const save = () => sb.from('profiles').upsert({user_id: user.id, display_name: name.value.trim(), on_leaderboard: lb.checked});
       name.onfocus = () => setTimeout(() => name.select(), 0);  // after the browser places the caret
@@ -103,9 +101,6 @@
         if (lb.checked) { if (!name.value.trim()) name.value = fromProvider; name.focus(); }
         save();
       };
-      el.querySelector('[data-done]').onclick = async e => { e.preventDefault(); await save(); profileForm(el, false); };
-    } else {
-      el.querySelector('[data-settings]').onclick = e => { e.preventDefault(); profileForm(el, true); };
     }
     el.querySelector('[data-out]').onclick = async e => { e.preventDefault(); await sb.auth.signOut(); };
   }
