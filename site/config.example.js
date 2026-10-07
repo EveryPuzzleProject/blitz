@@ -3,6 +3,7 @@
 // allows what the database's row-level security allows. Never put the service key here.
 window.BLITZ_SITE = {
   name: "blitz",
+  providers: ["google", "github"],                      // sign-in buttons: those enabled in Supabase > Sign In / Providers
   supabaseUrl: "https://YOUR-PROJECT.supabase.co",   // Supabase: Project Settings > API > Project URL
   supabaseAnonKey: "YOUR-ANON-KEY",                   // Supabase: Project Settings > API > anon public key
   filesBase: "https://YOUR-R2-PUBLIC-URL",            // R2: the bucket's public URL (r2.dev or a custom domain)
