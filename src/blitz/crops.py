@@ -158,9 +158,11 @@ def make_sheets(packet: Path, targets: list[str], fresh: bool = False) -> dict:
     state_file = out / "shown.json"
     state = json.loads(state_file.read_text(encoding="utf-8")) if state_file.exists() else {"shown": [], "sheets": []}
     ocr = load(packet)
-    tiles, missed = [], []
+    tiles, missed, already = [], [], []
+    where = {c: Path(sh["file"]).name for sh in state["sheets"] for c in sh["crops"]}
     for t in targets:
         if t in state["shown"]:
+            already.append((t, where.get(t, "")))
             continue
         img = crop(packet, t, ocr)
         if isinstance(img, str):
@@ -176,4 +178,4 @@ def make_sheets(packet: Path, targets: list[str], fresh: bool = False) -> dict:
         state["shown"] += labels
         made.append(entry)
     state_file.write_text(json.dumps(state, indent=1), encoding="utf-8")
-    return {"sheets": made, "missed": missed}
+    return {"sheets": made, "missed": missed, "already": already}

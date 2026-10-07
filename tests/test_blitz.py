@@ -91,3 +91,13 @@ def test_a_clue_crop_spans_its_column(tmp_path):
     o["clues"]["A4"]["box"] = [10, 20, 30, 35]  # a box around the number only
     d = _packet(tmp_path, o)
     assert crop(d, "clue:A4", o).width > crop(d, "box:10,20,30,35", o).width * 4
+
+
+def test_odd_words_catch_ocr_slips_but_not_ordinary_forms():
+    from blitz.packet import odd_words
+
+    for slip in ("When Seotehmen are", "ean't", "Chieago", "intoxieating", "quarre!", "wal's", "highor der", "Sometbing"):
+        assert odd_words(slip), slip
+    for fine in ("Frau's (boy) freund.", "These men were corkers.", "The unkindest cut.", "This often follows a demi-tasse.",
+                 "England'd", "these'll", "Lobbyist's headquarters."):
+        assert not odd_words(fine), fine

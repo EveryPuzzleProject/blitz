@@ -108,16 +108,43 @@ def _zipf(word: str) -> float:
     return zipf_frequency(word, "en")
 
 
+_SUFFIXES = ("s", "es", "er", "ers", "est", "ed", "ing", "ish", "ly", "less", "maker", "ese")
+
+
+def _plausible(w: str) -> bool:
+    """A word, or a common word with a possessive or contraction ('s, 'd, 'll)
+    or an ordinary ending (corkers, unkindest, owlish): not an OCR slip."""
+    low = w.lower()
+    if _zipf(low) >= RARE:
+        return True
+    bare = re.sub(r"'(s|d|ll|ve|re|m)$", "", low)  # not n't: "ean't" is a slip for "can't"
+    if bare != low and len(bare) >= 4 and _zipf(bare) >= RARE:  # short stems: "wal's" is a slip for "walls"
+        return True
+    low = bare
+    for suf in _SUFFIXES:
+        if low.endswith(suf) and len(low) - len(suf) >= 3:
+            stem = low[:-len(suf)]
+            # the stem must be a common word, so a slip that happens to end in -er stays odd
+            if any(_zipf(s) >= RARE + 1 for s in (stem, stem + "e", stem[:-1] if stem[-1:] == stem[-2:-1] else stem)):
+                return True
+    return False
+
+
 def odd_words(text: str) -> list[str]:
     """Words a proofreader would stop at: not plausible English (OCR slips like
     "intoxieating"), or a letter-digit mix."""
     out = []
-    for w in re.findall(r"[A-Za-z0-9]+(?:'[a-z]+)?", text):
-        if any(ch.isdigit() for ch in w):
-            if any(ch.isalpha() for ch in w) and not re.fullmatch(r"\d+(st|nd|rd|th|s)", w):
+    for m in re.finditer(r"[A-Za-z0-9]+(?:-[A-Za-z]+)*(?:'[a-z]+)?", text):
+        whole = m.group(0)
+        parts = whole.split("-")
+        if len(parts) > 1 and _plausible("".join(parts)):  # demi-tasse
+            continue
+        for i, w in enumerate(parts):
+            if any(ch.isdigit() for ch in w):
+                if any(ch.isalpha() for ch in w) and not re.fullmatch(r"\d+(st|nd|rd|th|s)", w):
+                    out.append(w)
+            elif len(w) > 1 and not _plausible(w):
                 out.append(w)
-        elif len(w) > 1 and _zipf(w.lower()) < RARE:
-            out.append(w)
     return out
 
 

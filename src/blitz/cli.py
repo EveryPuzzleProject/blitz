@@ -115,8 +115,9 @@ def cmd_sheets(a) -> None:
         print(f"no crop for {t}: {why}")
     if bad:
         print(f"not a target: {', '.join(bad)}")
-    if not made["sheets"] and not made["missed"]:
-        print("nothing new to show: everything asked for is on the sheets already")
+    mine = [(t, f) for t, f in made["already"] if t in asked]
+    if mine:
+        print("already on your sheets: " + ", ".join(f"{t} ({d / 'sheets' / f})" for t, f in mine))
 
 
 def cmd_finish(a) -> None:
