@@ -13,6 +13,12 @@
     blitz decisions [folder] [-o FILE]   your accept/reject decisions from the watch page, for import
     blitz drop                           forget this run (claims expire after 48 hours)
 
+The public review site (helpers check agents' reviews in the browser; see site/README.md):
+    blitz site-build                     write docs/review/ (the page, served by GitHub Pages)
+    blitz site-publish <folder>          put a folder's reviewed puzzles on the site
+    blitz site-import [-o FILE]          what helpers decided, for xword-ocr import-reviews --decisions
+    blitz site-close <puzzle...>         take puzzles off the site
+
 A <puzzle> is its id (judge1931-03-14), looked up in ../blitz-work, or a path
 to any puzzle folder.
 """
@@ -179,6 +185,41 @@ def cmd_decisions(a) -> None:
         print(text)
 
 
+def cmd_site_build(a) -> None:
+    from .site import build
+
+    out = build(_root())
+    print(f"wrote {out}: fill in {out / 'config.js'} if you haven't, then commit and push docs/review/")
+
+
+def cmd_site_publish(a) -> None:
+    from .site import publish
+
+    done = publish(Path(a.folder), a.batch or "", a.dry_run)
+    print(f"{'would publish' if a.dry_run else 'published'} {len(done)} puzzles")
+
+
+def cmd_site_import(a) -> None:
+    from .site import fetch_decisions
+
+    data = fetch_decisions()
+    text = json.dumps(data, indent=1, ensure_ascii=False)
+    if a.out:
+        Path(a.out).write_text(text, encoding="utf-8")
+        n = data["puzzles"]
+        print(f"wrote {a.out}: {len(n)} puzzles, {sum(1 for p in n.values() if p['verdict'])} with a verdict, "
+              f"{sum(len(p['reports']) for p in n.values())} reports")
+    else:
+        print(text)
+
+
+def cmd_site_close(a) -> None:
+    from .site import close
+
+    close(a.puzzles)
+    print(f"closed {len(a.puzzles)} puzzles")
+
+
 def cmd_drop(a) -> None:
     s = work.drop(_root())
     print(f"Dropped {s['pr']}; its claims expire after 48 hours." if s else "No run to drop.")
@@ -229,6 +270,18 @@ def main(argv=None) -> None:
     q.add_argument("-o", "--out")
     q.set_defaults(fn=cmd_decisions)
     sub.add_parser("drop").set_defaults(fn=cmd_drop)
+    sub.add_parser("site-build", help="write docs/review/: the public review page").set_defaults(fn=cmd_site_build)
+    q = sub.add_parser("site-publish", help="put a folder's reviewed puzzles on the public review site")
+    q.add_argument("folder")
+    q.add_argument("--batch", help="a name for this batch (default: the folder's name)")
+    q.add_argument("--dry-run", action="store_true", help="list what would be published")
+    q.set_defaults(fn=cmd_site_publish)
+    q = sub.add_parser("site-import", help="what helpers decided on the site, for xword-ocr import-reviews --decisions")
+    q.add_argument("-o", "--out")
+    q.set_defaults(fn=cmd_site_import)
+    q = sub.add_parser("site-close", help="take puzzles off the public review site")
+    q.add_argument("puzzles", nargs="+")
+    q.set_defaults(fn=cmd_site_close)
     a = p.parse_args(argv)
     try:
         a.fn(a)

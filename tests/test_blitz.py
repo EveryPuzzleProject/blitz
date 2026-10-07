@@ -114,3 +114,24 @@ def test_rejected_changes_are_left_out_and_recorded(tmp_path):
     assert rv["corrections"] == {"cell:r1c1": "C"} and rv["sic"] == {}
     assert rv["checked"]["rejected"]["clue:A1"] == {"value": "Felines.", "note": "scan says Feline."}
     assert export_decisions(tmp_path)["puzzles"]["p1"]["verdict"] == "needs-work"
+
+
+def test_site_import_combines_helpers(monkeypatch):
+    import blitz.site as site
+
+    uid = {"a": "u1", "b": "u2"}
+    data = {
+        "profiles?select=user_id,display_name": [{"user_id": "u1", "display_name": "Ann"}, {"user_id": "u2", "display_name": ""}],
+        "decisions?select=*&order=at": [
+            {"xdid": "p1", "item": "clue:A1", "user_id": uid["a"], "decision": "accept", "note": ""},
+            {"xdid": "p1", "item": "clue:A1", "user_id": uid["b"], "decision": "reject", "note": "scan says Feline."}],
+        "verdicts?select=*&order=at": [
+            {"xdid": "p1", "user_id": uid["a"], "verdict": "looks-right", "note": ""},
+            {"xdid": "p1", "user_id": uid["b"], "verdict": "needs-work", "note": "A1"}],
+        "reports?select=*&order=at": [{"xdid": "p1", "target": "clue:D2", "user_id": uid["a"], "text": "Long tune."}],
+    }
+    monkeypatch.setattr(site, "_rest", lambda method, path, *a, **k: data[path])
+    p = site.fetch_decisions()["puzzles"]["p1"]
+    assert p["items"] == {"clue:A1": "reject"} and p["notes"]["clue:A1"] == "a helper: scan says Feline."
+    assert p["verdict"] == "needs-work" and p["reports"] == {"clue:D2": "Ann: Long tune."}
+    assert p["by"]["Ann"] == {"clue:A1": "accept", "verdict": "looks-right"}

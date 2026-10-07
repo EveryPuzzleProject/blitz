@@ -232,7 +232,7 @@ def apply_decisions(rv: dict, packet: Path, who: str = "") -> dict:
     with a record of the check: who, the verdict, and what was rejected and why."""
     dec = json.loads((packet / "decisions.json").read_text(encoding="utf-8")) if (packet / "decisions.json").exists() else {}
     items, notes = dec.get("items") or {}, dec.get("notes") or {}
-    if not items and not dec.get("verdict"):
+    if not items and not dec.get("verdict") and not dec.get("reports"):
         return rv
     rv = dict(rv)
     out = {}
@@ -245,7 +245,8 @@ def apply_decisions(rv: dict, packet: Path, who: str = "") -> dict:
             rv["corrections"] = {k: v for k, v in (rv.get("corrections") or {}).items() if k != item}
         if value is not None:
             out[item] = {"value": value, "note": notes.get(item, "")}
-    rv["checked"] = {"by": who, "verdict": dec.get("verdict", ""), "note": dec.get("note", ""), "rejected": out}
+    rv["checked"] = {"by": who, "verdict": dec.get("verdict", ""), "note": dec.get("note", ""), "rejected": out,
+                     "reports": dec.get("reports") or {}}
     return rv
 
 
@@ -258,7 +259,7 @@ def export_decisions(folder: Path) -> dict:
         if f.exists():
             dec = json.loads(f.read_text(encoding="utf-8"))
             out[d.name] = {k: dec.get(k, default) for k, default in
-                           (("items", {}), ("notes", {}), ("verdict", ""), ("note", ""))}
+                           (("items", {}), ("notes", {}), ("verdict", ""), ("note", ""), ("reports", {}))}
     return {"puzzles": out}
 
 
