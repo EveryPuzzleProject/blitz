@@ -5,3 +5,7 @@
 *.jpg
 !docs/img/*.png
 !docs/img/*.jpg
+
+# Python
+.venv/
+__pycache__/

@@ -6,47 +6,47 @@ readings against the scans and send the results back as a pull request. Work
 through the steps below in order. Keep the person informed in short, friendly
 lines; they're watching.
 
-Repository: `EveryPuzzleProject/blitz`. Everything below uses `gh`
-(the GitHub CLI), `git` and `tar` in a bash shell. On Windows, Claude Code's
-Bash tool (Git Bash) works.
+Repository: `EveryPuzzleProject/blitz`. Everything goes through one command,
+`blitz`, run with `uv run blitz …` from the `blitz` folder. It uses `git` and
+`gh` (the GitHub CLI). On Windows, Claude Code's Bash tool (Git Bash) works.
 
 ## 0. Settle the budget
 
 The person may have told you how many puzzles to review. If they haven't, ask
-once and suggest **3**. Each puzzle costs roughly 70–100 thousand tokens,
-almost all of it reading images, and takes a few minutes. If they're unsure,
-suggest doing 1 first and checking how far their usage meter moved.
+once and suggest **8**. Each puzzle costs roughly 20–30 thousand tokens and a
+few minutes. If they're unsure, suggest doing 4 first and checking how far
+their usage meter moved.
 
 Ask two more questions at the same time:
 - Would they like their GitHub name listed on the project's contributors
   page? The default is no. Either way, their pull request is visible on
   GitHub.
 - Which magazine: *Judge*, a 1920s humor magazine, or *GAMES*, the puzzle
-  magazine, from 1977? The default is whichever is next in line. Below, the
-  one they chose is `<magazine>` (`judge` or `games`).
+  magazine, from 1977? The default is whichever is next in line.
 
 Also tell them:
 - They can stop you at any time. Every finished puzzle is already sent, so
   nothing is wasted.
 - Hitting a usage limit partway through is fine for the same reason.
-
-Review at most 3 puzzles at once. More doesn't save tokens, it just spends
-them faster.
+- If they'd like to watch the review as it happens, `uv run blitz watch`
+  (step 4) opens a page showing where on each scan Claude is looking and what
+  it changes.
 
 If the person named a model for the reviews ("using Fable", "with Sonnet"),
 run every review subagent on that model; some people have a separate
 allowance for a particular model. Otherwise the subagents use this session's
-model. Don't ask about models unprompted.
+model. Don't ask about models unprompted. Below, `<model>` is the model ID
+the reviews run on (for example `claude-fable-5-1`).
 
 ## 1. Check the tools
 
 - `gh auth status` must show them logged in. If `gh` is missing or logged
   out, help them install it (https://cli.github.com) and run `gh auth login`.
-  Don't go further until it works.
-- `git --version` and `tar --version` must work.
-- Note their GitHub username: `gh api user --jq .login`. Below it's `<user>`.
-- Note the model ID the reviews will run on (the one they named, or your own,
-  for example `claude-sonnet-5-5`). Below it's `<model>`.
+- `git --version` must work.
+- `uv --version` must work. If it doesn't, install it
+  (https://docs.astral.sh/uv/getting-started/installation/: one command).
+
+Don't go further until all three work.
 
 ## 2. Get the repository
 
@@ -57,131 +57,84 @@ gh repo fork EveryPuzzleProject/blitz --clone --default-branch-only -- blitz
 ```
 
 If they forked it before, this says the fork already exists (it may have an
-older name, such as `puzzle-review`) and clones it into `blitz` anyway. Then, whether the folder is new or not:
+older name, such as `puzzle-review`) and clones it into `blitz` anyway. Then:
 
 ```
 cd blitz
-git fetch upstream
-git checkout --detach upstream/main
+git remote get-url upstream || git remote add upstream https://github.com/EveryPuzzleProject/blitz.git
+uv run blitz doctor
 ```
 
-The fork may be an old one from an earlier run. That's fine: you work from
-`upstream/main`, not from the fork's `main`.
+`doctor` says what's missing, if anything. All later commands run inside
+`blitz`. Puzzle files go in a work folder beside it, `../blitz-work`, never
+inside the repository.
 
-All later commands run inside `blitz`. Puzzle images go in a work
-folder beside it, `../blitz-work`, never inside the repository.
-
-## 3. Pick the puzzles
+## 3. Claim the puzzles
 
 ```
-tools/pick.sh <budget> <magazine>
+uv run blitz start <budget> [judge|games] --model <model> [--list-me]
 ```
 
-Leave out `<magazine>` if they had no preference. It prints the open puzzles
-to review, oldest first, one per line:
-`<pub> <xdid> <release tag>`, e.g. `judge judge1929-03-16 judge-1929-1930`
-or `games games1977-09-01 games-1977-1979`.
-A puzzle is open when its scans are released, nobody has reviewed it, and
-nobody has claimed it in the last 48 hours. If it prints nothing, every
-available puzzle is taken. If they chose a magazine, offer the other one;
-otherwise thank the person and stop.
+Leave out the magazine if they had no preference; add `--list-me` only if
+they asked to be listed. This claims the next open puzzles with a draft pull
+request (so nobody else takes them), downloads their scans to
+`../blitz-work/<puzzle>/`, and writes each one's `text.md`. It prints the
+pull request and the puzzles. A puzzle marked "expect a whole-puzzle problem"
+is still yours to review: the reviewer escalates what it can't settle.
 
-Tell the person what you picked, e.g. "*Judge*, March 16 – April 6, 1929:
-3 puzzles".
+If it says every puzzle is taken, offer the other magazine, or thank the
+person and stop. Tell the person what you claimed, e.g. "*Judge*, March 16 –
+May 4, 1929: 8 puzzles".
 
-## 4. Claim them with a draft pull request
+## 4. Review them
 
-```
-git checkout -b review-<user>-<yyyymmdd-hhmm> upstream/main
-```
+Run review subagents, **4 puzzles to a subagent**, at most 3 subagents at a
+time, with this prompt (fill in the folder, puzzles and model):
 
-For each puzzle, download and unpack its packet, then copy its `ocr.json` into
-the repository:
-
-```
-gh release download <release tag> --repo EveryPuzzleProject/blitz --pattern "<xdid>.tar.gz" --dir ../blitz-work
-tar -xzf ../blitz-work/<xdid>.tar.gz -C ../blitz-work
-mkdir -p publications/<pub>/reviews/<xdid>
-cp ../blitz-work/<xdid>/ocr.json publications/<pub>/reviews/<xdid>/ocr.json
-```
-
-If they asked to be listed as a contributor, and `contributors/<user>`
-doesn't exist yet, create it as an empty file. Otherwise leave that folder
-alone.
-
-Commit with the message `Claim <xdids, space-separated>`, then
-`git push -u origin HEAD`. Git may warn that CRLF will be replaced by LF.
-That's expected; ignore it.
-
-Write the PR body to `../blitz-work/pr-body.md`:
-
-```
-Reviewing with <model>.
-
-- [ ] judge1929-03-16
-- [ ] judge1929-03-23
-```
-
-and open a draft pull request:
-
-```
-gh pr create --draft --repo EveryPuzzleProject/blitz --title "Review <xdids, space-separated>" --body-file ../blitz-work/pr-body.md
-```
-
-This is the claim, so do it before reviewing.
-
-## 5. Review each puzzle
-
-Run one subagent per puzzle, at most 3 at a time, with this prompt (fill in
-the paths and model):
-
-> Review the OCR of one scanned crossword puzzle.
+> Review the OCR of some scanned crossword puzzles, text first.
 >
-> Puzzle folder: `<absolute path to ../blitz-work/<xdid>>`
-> Instructions: `<absolute path to publications/<pub>/INSTRUCTIONS.md>`
+> Run every command from `<absolute path to the blitz folder>`. First run
+> `uv run blitz instructions` and follow what it prints exactly. Then, for
+> each puzzle in turn: read `../blitz-work/<puzzle>/text.md`, make its contact
+> sheets with `uv run blitz sheets <puzzle> <targets>`, read the sheets, write
+> `../blitz-work/<puzzle>/draft.json`, and run `uv run blitz finish <puzzle>`.
+> Finish one puzzle before starting the next. Write no files other than the
+> draft.json files.
 >
-> Read the instructions file first and follow it exactly. Use the Read tool on
-> every image in the puzzle folder (it displays images). Compare against
-> ocr.json and write review.json into the puzzle folder in the format the
-> instructions give, adding one more key: "model": "<model>". Only read files
-> in that folder plus the instructions file; create no files other than
-> review.json.
+> Puzzles: `<puzzle>`, `<puzzle>`, `<puzzle>`, `<puzzle>`
 >
-> Your final reply must be exactly one line, in this form and nothing else:
-> `<title as printed> | <N> corrections (<N> grid, <N> clue, <N> other: captions, title, author, byline) | <N> misprints kept | <N> unsure | ready or not ready | "<the clue you found most charming, quoted exactly>"`
+> When done, reply with one line per puzzle, in this form and nothing else:
+> `<puzzle> | <title as printed> | <N> corrections | <N> misprints kept | <N> unsure | escalated or not | ready or not | "<the clue you found most charming, quoted exactly>"`
 
-As each puzzle finishes:
-1. Read `review.json` and make sure it's well-formed JSON. If it isn't, run
-   that puzzle once more; if it fails again, skip it and say so.
-2. Copy it to `publications/<pub>/reviews/<xdid>/review.json`.
-3. Commit with the message `Review <xdid>`, push, tick its box in the PR
-   body file, and update the PR:
-   `gh pr edit <number> --repo EveryPuzzleProject/blitz --body-file ../blitz-work/pr-body.md`
-4. Make them a private copy of the puzzle, as a souvenir. It stays
-   in the work folder on their computer and is never pushed:
+If the person wants to watch, run `uv run blitz watch` in the background
+before starting the subagents: it opens a page in their browser that follows
+the reviews live.
 
-   ```
-   cp tools/local-solver/solve.html docs/puzzle.js docs/style.css ../blitz-work/<xdid>/
-   { printf 'window.PUZZLE = {"ocr": '; cat ../blitz-work/<xdid>/ocr.json; printf ', "review": '; cat ../blitz-work/<xdid>/review.json; printf '};\n'; } > ../blitz-work/<xdid>/data.js
-   ```
+## 5. Send each review
 
-5. Tell the person, in one line, with a link to the puzzle's record and the
-   path of their private copy:
+As each puzzle finishes (it has a `review.json`):
 
-   > ✓ *Judge*, March 16, 1929, "Cross Word Puzzle No. 231": 7 corrections, 1 printed misprint kept. Favorite clue: "…". Record: <link> · Try it yourself: <absolute path to solve.html>
+```
+uv run blitz submit <puzzle>
+```
 
-   The record link is
-   `https://everypuzzleproject.github.io/blitz/view.html?p=<pub>/<xdid>&from=<user>:<branch>`.
+This commits the review, pushes it to the pull request, ticks it in the PR,
+and makes the person a private copy of the puzzle to solve, as a souvenir (it
+stays in the work folder and is never pushed). It prints the puzzle's record
+link and the path of the private copy. If it says the review isn't
+well-formed, run that puzzle's review once more; if it fails again, skip it
+and say so.
 
-Only add files under `publications/<pub>/reviews/`, plus
-`contributors/<user>` if they asked to be listed. A check runs on the pull
-request and flags any review that isn't well-formed.
+Tell the person, in one line:
+
+> ✓ *Judge*, March 16, 1929, "Cross Word Puzzle No. 231": 7 corrections, 1 printed misprint kept. Favorite clue: "…". Record: <link> · Try it yourself: <path>
+
+`uv run blitz status` shows where every puzzle of the run stands.
 
 ## 6. Finish
 
-When every claimed puzzle is done (or skipped), mark the PR ready with
-`gh pr ready <number> --repo EveryPuzzleProject/blitz`. Then give the
-person a short wrap-up:
+When the last puzzle is sent, `submit` marks the pull request ready for
+review. Then give the person a short wrap-up:
 - the puzzles reviewed, with their record links and private copies (the
   copies are just for them: ask them not to share or post them),
 - the PR link,
@@ -190,4 +143,5 @@ person a short wrap-up:
 If the run stops early (they stop you, or a limit is hit), that's fine. Leave
 the PR as a draft. The maintainer merges partial runs, and unreviewed puzzles
 return to the pool after 48 hours. If they come back later and ask you to
-continue, pick up the unticked puzzles in the same PR.
+continue, `uv run blitz status` shows what's left; review and submit those.
+To give up the rest instead, `uv run blitz drop`.

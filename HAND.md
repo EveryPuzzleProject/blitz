@@ -9,8 +9,9 @@ the same toward restoring each magazine.
 
 - A GitHub account, and the [GitHub CLI](https://cli.github.com) logged in
   (`gh auth login`).
-- `git`, `tar` and a bash shell. On Windows, Git Bash (it comes with
-  [Git for Windows](https://git-scm.com/download/win)) has all three.
+- `git` ([Git for Windows](https://git-scm.com/download/win) on Windows) and
+  [`uv`](https://docs.astral.sh/uv/getting-started/installation/), which runs
+  the `blitz` command.
 - A web browser.
 
 ## Once: get the repository
@@ -27,7 +28,7 @@ If you forked it before, `gh` says so and clones your fork anyway.
 **1. Claim puzzles.** From the `blitz` folder:
 
 ```
-tools/hand.sh start 1 games
+uv run blitz start 1 games --hand
 ```
 
 The number is how many puzzles to take; the last word is the magazine,
@@ -60,7 +61,7 @@ back. The magazine's full rules are in `publications/<magazine>/INSTRUCTIONS.md`
 as `<puzzle>.review.json`. Then:
 
 ```
-tools/hand.sh submit games1977-09-01b
+uv run blitz submit games1977-09-01b
 ```
 
 That checks the file, adds it to your pull request and ticks the puzzle off.

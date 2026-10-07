@@ -163,32 +163,36 @@ In an empty folder, start Claude Code and paste:
 ```text
 Help the Every Puzzle Project restore old crosswords. Follow
 https://github.com/EveryPuzzleProject/blitz/blob/main/VOLUNTEER.md
-and review 3 puzzles.
+and review 8 puzzles.
 ```
 
-Change the 3 to whatever you like. Claude will:
+Change the 8 to whatever you like. Claude will:
 
-1. Set up the GitHub CLI if you don't have it, and fork this repository.
+1. Set up the GitHub CLI and `uv` if you don't have them, and fork this
+   repository.
 2. Claim the next puzzles nobody is working on, by opening a draft pull
    request.
-3. Download each puzzle's scan crops (about 3 MB) and review them, a few at
-   a time.
+3. Download each puzzle's scan (about 3 MB) and review it the way a
+   proofreader would: read the OCR's text first, then look at the scan
+   wherever something seems wrong. If you like, watch it happen: a page in
+   your browser shows where on each scan Claude is looking and what it
+   changes.
 4. Push each review to your pull request as it finishes, and give you a
    link to **the puzzle you just restored**.
 
-**What it costs.** About 80k tokens a puzzle, nearly all of it Claude
-reading images. If you're not sure how that compares to your plan, do 1 and
-watch how far your usage meter moves. The strongest model you have does the
+**What it costs.** About 20–30k tokens a puzzle, most of it Claude reading
+crops of the scan. If you're not sure how that compares to your plan, do 4
+and watch how far your usage meter moves. The strongest model you have does the
 best job, but any recent Claude helps. If you have a separate allowance for a
-particular model, name it in the prompt: "…and review 3 puzzles using Fable."
+particular model, name it in the prompt: "…and review 8 puzzles using Fable."
 
 **You can stop any time.** Every finished puzzle has already been sent, so
 stopping Claude, or running into your usage limit, wastes nothing. Puzzles
 you claimed but didn't finish go back to the pool after 48 hours.
 
 **Rather do it yourself?** You can review puzzles by hand, without Claude:
-an editor in your browser shows each clue beside its scan, and two commands
-claim the puzzles and send your work. See [HAND.md](HAND.md).
+an editor in your browser shows each clue beside its scan, and the same
+`blitz` command claims the puzzles and sends your work. See [HAND.md](HAND.md).
 
 **What it touches.** A folder on your machine with this repository and the
 puzzle images, a fork in your GitHub account, and one pull request here.
@@ -225,6 +229,11 @@ Know of a publication that ran crosswords? Add it to the
 ## Layout
 
 - `VOLUNTEER.md`: the procedure Claude follows.
+- `src/blitz/`: the `blitz` command (`uv run blitz --help`): claiming puzzles, the
+  review tools (text view, scan crops, finishing a review), a live page to
+  watch reviews, and sending them.
+- `publications/REVIEW.md`: how to review a puzzle, text first; `publications/<pub>/NOTES.md`: what earlier
+  reviews learned about that publication's pages.
 - `publications/<pub>/INSTRUCTIONS.md`: how to review that publication's puzzles.
 - `publications/<pub>/puzzles.tsv`: every puzzle, its state (restored, needs a person, open, not open yet, missing) and where its packet is.
 - `publications/<pub>/xd/`: the current xd file of every reviewed puzzle.

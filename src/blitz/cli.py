@@ -1,0 +1,211 @@
+"""blitz: one command for a blitz run, from claiming puzzles to sending reviews.
+
+    blitz doctor                         is everything set up?
+    blitz start 3 [judge|games]          claim puzzles, download them, write text.md
+          [--hand] [--model M] [--list-me]
+    blitz status                         this run's puzzles and where each one is
+    blitz instructions [pub]             how to review (for Claude, or you)
+    blitz sheets <puzzle> <targets...>   crops of the scan on contact sheets
+    blitz finish <puzzle>                draft.json -> review.json
+    blitz submit <puzzle>                send a review to your pull request
+    blitz watch [folder]                 a live page of the reviews as they happen
+    blitz feedback [folder]              what reviewers said the tools got wrong
+    blitz drop                           forget this run (claims expire after 48 hours)
+
+A <puzzle> is its id (judge1931-03-14), looked up in ../blitz-work, or a path
+to any puzzle folder.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+from . import work
+
+
+def _root() -> Path:
+    return work.repo_root()
+
+
+def _packet(name: str) -> Path:
+    p = Path(name)
+    if (p / "ocr.json").exists():
+        return p
+    d = work.work_dir(_root()) / name
+    if (d / "ocr.json").exists():
+        return d
+    raise work.Stop(f"No puzzle {name}: give its id from `blitz status`, or a path to its folder.")
+
+
+def cmd_doctor(a) -> None:
+    problems = work.doctor(_root())
+    print("\n".join(problems) or "Ready: git, gh (logged in) and the upstream remote are all set.")
+
+
+def cmd_start(a) -> None:
+    s = work.start(_root(), a.count, a.pub or "", "hand" if a.hand else "claude", a.model or "", a.list_me)
+    print(f"\nClaimed {len(s['puzzles'])} puzzles: {s['pr']}")
+    _status(s)
+    if s["by"] == "hand":
+        print("\nOpen each puzzle's editor in your browser:")
+        for p in s["puzzles"]:
+            print(f"  {(work.work_dir(_root()) / p['xdid'] / 'edit.html').resolve()}")
+        print("When you've saved a review from the editor: blitz submit <puzzle>")
+    else:
+        print("\nNext: review each one (blitz instructions), then blitz submit <puzzle>.")
+        print("To watch the reviews as they happen: blitz watch")
+
+
+def _status(s: dict) -> None:
+    w = work.work_dir(_root())
+    for p in s["puzzles"]:
+        d = w / p["xdid"]
+        state = ("sent" if p["sent"] else "reviewed, not sent" if (d / "review.json").exists()
+                 else "drafted" if (d / "draft.json").exists() else "looking" if (d / "sheets").exists()
+                 else "to review")
+        lane = "" if p["lane"] == "text" else f"  (expect a whole-puzzle problem: {'; '.join(p['why'])})"
+        print(f"  {p['xdid']:<18} {state}{lane}")
+
+
+def cmd_status(a) -> None:
+    s = work.load_session(_root())
+    if not s:
+        print("No run here yet. Start one: blitz start 3")
+        return
+    print(f"{s['pr']} ({s['branch']}, {'by hand' if s['by'] == 'hand' else s['model'] or 'Claude'})")
+    _status(s)
+
+
+def cmd_instructions(a) -> None:
+    root = _root()
+    pub = a.pub or ((work.load_session(root) or {}).get("puzzles") or [{}])[0].get("pub", "")
+    print((root / "publications" / "REVIEW.md").read_text(encoding="utf-8"))
+    notes = root / "publications" / pub / "NOTES.md"
+    if pub and notes.exists():
+        print("\n" + notes.read_text(encoding="utf-8"))
+
+
+def cmd_text(a) -> None:
+    from .packet import write_text
+
+    for name in a.puzzles:
+        d = _packet(name)
+        lane, why = write_text(d)
+        print(f"{d / 'text.md'}" + (f"  (whole-puzzle problem: {'; '.join(why)})" if why else ""))
+
+
+def cmd_sheets(a) -> None:
+    from .crops import TARGET, make_sheets
+    from .packet import load
+    from .review import choose_targets
+
+    d = _packet(a.puzzle)
+    bad = [t for t in a.targets if not TARGET.fullmatch(t.strip())]
+    made = make_sheets(d, choose_targets(load(d), a.targets), a.fresh)
+    for s in made["sheets"]:
+        print(f"{s['file']}: {', '.join(s['crops'])}")
+    for t, why in made["missed"]:
+        print(f"no crop for {t}: {why}")
+    if bad:
+        print(f"not a target: {', '.join(bad)}")
+    if not made["sheets"] and not made["missed"]:
+        print("nothing new to show: everything asked for is on the sheets already")
+
+
+def cmd_finish(a) -> None:
+    from .review import finish_packet
+
+    model = a.model or (work.load_session(_root()) or {}).get("model", "")
+    for name in a.puzzles:
+        d = _packet(name)
+        if not (d / "draft.json").exists():
+            raise work.Stop(f"No draft.json in {d}: write the review there first.")
+        rv, ignored = finish_packet(d, model)
+        unchecked = [k for k, v in rv["unsure"].items() if str(v).startswith("not checked")]
+        print(f"{d.name}: {len(rv['corrections'])} corrections, {len(rv['sic'])} sic, {len(rv['unsure'])} unsure"
+              + (f" (not on a sheet, so not applied: {', '.join(unchecked)})" if unchecked else "")
+              + (f"; ignored: {'; '.join(ignored)}" if ignored else "")
+              + (f"; escalated: {rv['escalate']}" if rv["escalate"] else ""))
+
+
+def cmd_submit(a) -> None:
+    for x in a.puzzles:
+        r = work.submit(_root(), x)
+        rv = r["review"]
+        print(f"Sent {x}: {len(rv.get('corrections') or {})} corrections, {len(rv.get('sic') or {})} misprints kept"
+              f"{', escalated' if rv.get('escalate') else ''}.\n  Record: {r['record']}\n  Try it yourself: {r['solve']}")
+        if r["all_sent"]:
+            print(f"That was the last one: your pull request is ready for review. Thank you! {r['pr']}")
+
+
+def cmd_watch(a) -> None:
+    from .watch import serve
+
+    serve(Path(a.folder) if a.folder else work.work_dir(_root()), a.port, not a.no_browser)
+
+
+def cmd_feedback(a) -> None:
+    from .review import feedback
+
+    root = Path(a.folder) if a.folder else work.work_dir(_root())
+    print(feedback(sorted(d for d in root.iterdir() if d.is_dir())))
+
+
+def cmd_drop(a) -> None:
+    s = work.drop(_root())
+    print(f"Dropped {s['pr']}; its claims expire after 48 hours." if s else "No run to drop.")
+
+
+def main(argv=None) -> None:
+    p = argparse.ArgumentParser(prog="blitz", description=__doc__.split("\n\n")[0],
+                                formatter_class=argparse.RawDescriptionHelpFormatter,
+                                epilog=__doc__.split("\n\n", 1)[1])
+    sub = p.add_subparsers(dest="cmd", required=True)
+    sub.add_parser("doctor").set_defaults(fn=cmd_doctor)
+    q = sub.add_parser("start", help="claim puzzles with a draft pull request and download them")
+    q.add_argument("count", type=int, nargs="?", default=3)
+    q.add_argument("pub", nargs="?", help="judge or games (default: whichever is next)")
+    q.add_argument("--hand", action="store_true", help="review by hand in the browser editor")
+    q.add_argument("--model", help="the model Claude reviews with, e.g. claude-fable-5-1")
+    q.add_argument("--list-me", action="store_true", help="add your GitHub name to the contributors page")
+    q.set_defaults(fn=cmd_start)
+    sub.add_parser("status").set_defaults(fn=cmd_status)
+    q = sub.add_parser("instructions")
+    q.add_argument("pub", nargs="?")
+    q.set_defaults(fn=cmd_instructions)
+    q = sub.add_parser("text", help="(re)write text.md for puzzles")
+    q.add_argument("puzzles", nargs="+")
+    q.set_defaults(fn=cmd_text)
+    q = sub.add_parser("sheets", help="crops of the scan on contact sheets (added to the puzzle's earlier ones)")
+    q.add_argument("puzzle")
+    q.add_argument("targets", nargs="*")
+    q.add_argument("--fresh", action="store_true", help="start the puzzle's sheets over")
+    q.set_defaults(fn=cmd_sheets)
+    q = sub.add_parser("finish", help="turn draft.json into review.json")
+    q.add_argument("puzzles", nargs="+")
+    q.add_argument("--model")
+    q.set_defaults(fn=cmd_finish)
+    q = sub.add_parser("submit", help="send reviews to your pull request")
+    q.add_argument("puzzles", nargs="+")
+    q.set_defaults(fn=cmd_submit)
+    q = sub.add_parser("watch", help="a live page of the reviews as they happen")
+    q.add_argument("folder", nargs="?")
+    q.add_argument("--port", type=int, default=8770)
+    q.add_argument("--no-browser", action="store_true")
+    q.set_defaults(fn=cmd_watch)
+    q = sub.add_parser("feedback", help="the reviewers' notes on the tools, grouped")
+    q.add_argument("folder", nargs="?")
+    q.set_defaults(fn=cmd_feedback)
+    sub.add_parser("drop").set_defaults(fn=cmd_drop)
+    a = p.parse_args(argv)
+    try:
+        a.fn(a)
+    except work.Stop as e:
+        sys.exit(str(e))
+
+
+if __name__ == "__main__":
+    main()

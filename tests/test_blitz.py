@@ -1,0 +1,75 @@
+"""Run with: uv run --with pytest pytest"""
+
+import json
+
+from PIL import Image
+
+from blitz.crops import make_sheets
+from blitz.packet import entries, route, structural_checks, text_view
+from blitz.review import choose_targets, feedback, finish
+
+
+def _ocr(**extra):
+    o = {
+        "xdid": "test1929-01-01",
+        "grid": ["...#", "....", "....", "#..."],
+        "answers": ["CAT#", "ARIA", "BOND", "#END"],
+        "answers_low_confidence": ["r2c3"],
+        "clues": {k: {"text": t, "box": [10, 20 * i, 200, 20 * i + 15]} for i, (k, t) in enumerate({
+            "A1": "Feline.", "A4": "Opera song.", "A6": "Agent's tie.", "A7": "Finish.",
+            "D1": "Taxi.", "D2": "Long tune.", "D3": "Trial run.", "D5": "Wager."}.items())},
+        "meta_boxes": {"title": [10, 200, 200, 220]},
+    }
+    o.update(extra)
+    return o
+
+
+def _packet(tmp_path, ocr):
+    d = tmp_path / ocr["xdid"]
+    d.mkdir()
+    (d / "ocr.json").write_text(json.dumps(ocr))
+    Image.new("L", (400, 400), 255).save(d / "page.jpg")
+    for f in ("grid.png", "answers.png"):
+        Image.new("L", (160, 160), 255).save(d / f)
+    return d
+
+
+def test_entries_and_a_clean_puzzle():
+    e = entries(_ocr())
+    assert e["A1"][0] == "CAT" and e["A4"][0] == "ARiA" and e["D1"][0] == "CAB"
+    assert structural_checks(_ocr()) == {} and route(_ocr()) == ("text", [])
+    assert "A4    ARiA" in text_view(_ocr())
+
+
+def test_a_key_of_another_size_goes_to_the_full_review():
+    assert route(_ocr(answers=["CAT", "ARI", "BON"]))[0] == "full"
+
+
+def test_finish_applies_only_what_was_seen():
+    o = _ocr()
+    o["clues"]["A1"]["box"] = None  # the OCR never found A1's text
+    draft = {"ready": True, "corrections": {"clue:A1": "A cat.", "clue:A4": "An aria."}, "answers": {"D5": "ADS"}}
+    review, _ = finish(o, draft, ["box:300,300,390,320", "cell:r3c4"])
+    assert review["corrections"] == {"clue:A1": "A cat.", "cell:r4c4": "S"}
+    assert "clue:A4" in review["unsure"]
+
+
+def test_sheets_add_up_and_report_what_has_no_crop(tmp_path):
+    o = _ocr()
+    o["clues"]["A7"]["box"] = None
+    d = _packet(tmp_path, o)
+    first = make_sheets(d, choose_targets(o, ["clue:A1", "entry:D1"]))
+    assert first["sheets"] and ("meta:byline" in dict(first["missed"]))
+    second = make_sheets(d, ["clue:A1", "clue:A4", "clue:A7", "grid:all"])
+    assert [c for s in second["sheets"] for c in s["crops"]] == ["clue:A4", "grid:all"]
+    assert dict(second["missed"]).keys() == {"clue:A7"}
+    shown = json.loads((d / "sheets" / "shown.json").read_text())["shown"]
+    assert {"clue:A1", "entry:D1", "clue:A4", "grid:all"} <= set(shown)
+
+
+def test_feedback_groups_notes(tmp_path):
+    for x, kinds in (("p1", ["heading-in-clue"]), ("p2", ["heading-in-clue", "byline"])):
+        (tmp_path / x).mkdir()
+        (tmp_path / x / "review.json").write_text(json.dumps({"tool_notes": [{"kind": k, "note": "n"} for k in kinds]}))
+    text = feedback(sorted(tmp_path.iterdir()))
+    assert "## heading-in-clue: 2 notes, 2 puzzles" in text and text.index("heading-in-clue") < text.index("byline")
