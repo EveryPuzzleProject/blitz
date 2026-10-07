@@ -122,6 +122,19 @@ def odd_words(text: str) -> list[str]:
 
 
 TEXT_FLAGS = ("spell", "low-ocr-score", "text-moved", "missing", "line-recovered", "no-text")
+FLAG_HELP = {  # what the OCR's clue flags mean, for text.md
+    "spell": "(spell:x>y) the OCR read x and the pipeline already changed it to y (the text shows y). "
+             "Usually right; check that y is what's printed, since a real misprint must stay as printed.",
+    "number-missing": "the OCR didn't read the clue's printed number (usually the box cut it off; often a "
+                      "false alarm).",
+    "number-corrected": "(number-corrected:N) the OCR read the number as N and the pipeline renumbered the clue "
+                        "to fit the grid.",
+    "low-ocr-score": "the OCR wasn't confident about this line.",
+    "text-moved": "text was moved here from a neighbouring clue.",
+    "line-recovered": "a line found next to the clue was added to it; check it belongs.",
+    "missing": "the OCR found no text for this clue.",
+    "no-text": "the clue's box held no text (a picture clue?).",
+}
 _MERGED = re.compile(r"\S\s+\d{1,3}\s*[.,]\s+[A-Z]")  # "...a kiss. 23. What..." inside one clue
 
 
@@ -166,6 +179,10 @@ def text_view(ocr: dict) -> str:
     merged = [k for k, v in ocr["clues"].items() if _MERGED.search(v.get("text", ""))]
     if merged:
         lines += ["", f"Clue text that seems to run into another clue: {', '.join(merged)}"]
+    used = {f.split(":")[0] for v in ocr["clues"].values() for f in v.get("flags") or []}
+    legend = [f"- {k}: {FLAG_HELP[k]}" for k in FLAG_HELP if k in used]
+    if legend:
+        lines += ["", "Flags on the clues below:"] + legend
     for d, name in (("A", "Across"), ("D", "Down")):
         lines += ["", f"## {name}"]
         for k, v in ocr["clues"].items():

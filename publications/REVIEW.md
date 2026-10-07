@@ -56,7 +56,9 @@ every call re-reads the whole conversation.
    or seems to contain the next clue. Odd words, flagged clues, unsure letters, the title,
    byline and captions are added for you. If the problem is the whole puzzle (structural checks,
    a run of answers that don't fit their clues, clue numbers that don't follow the grid, a clue
-   list that seems to continue elsewhere), skip to step 4 and escalate.
+   list that seems to continue elsewhere), first see whether one look settles it: a box: crop of
+   a whole clue column shows every printed number and clue at once, and a list shifted by one is
+   then just a set of clue corrections. Escalate (step 4) only what that can't settle.
 3. **Make the contact sheets in one call** and read all of them (several Read calls in one
    turn is fine):
 

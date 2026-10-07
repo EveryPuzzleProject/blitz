@@ -104,9 +104,13 @@ def cmd_sheets(a) -> None:
 
     d = _packet(a.puzzle)
     bad = [t for t in a.targets if not TARGET.fullmatch(t.strip())]
+    asked = [m.group(0) for t in a.targets if (m := TARGET.fullmatch(t.strip()))]
     made = make_sheets(d, choose_targets(load(d), a.targets), a.fresh)
     for s in made["sheets"]:
         print(f"{s['file']}: {', '.join(s['crops'])}")
+    extra = [c for s in made["sheets"] for c in s["crops"] if c not in asked]
+    if extra:
+        print(f"also added (always shown: title, byline, captions, odd words, flags, unsure letters): {', '.join(extra)}")
     for t, why in made["missed"]:
         print(f"no crop for {t}: {why}")
     if bad:
