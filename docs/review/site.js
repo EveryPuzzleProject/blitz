@@ -85,7 +85,7 @@
     const fromProvider = meta.full_name || meta.name || meta.user_name || '';
     const who = p.display_name || fromProvider || user.email || 'you';
     // "Show me on the leaderboard [ ]: [name]": the name is used only if they tick the box, and
-    // starts as the name we got from Google / GitHub / Discord (selected on focus, to replace).
+    // starts as the name we got from Google / GitHub / Discord.
     el.innerHTML = `<span style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px">
       ${`<label style="display:inline-flex;gap:4px;align-items:center">Show me on the leaderboard <input type="checkbox" data-lb ${p.on_leaderboard ? 'checked' : ''}></label>:
         <input data-name value="${esc(p.display_name || fromProvider)}" placeholder="your name" maxlength="40" ${p.on_leaderboard ? '' : 'disabled'}
@@ -94,11 +94,10 @@
     {
       const name = el.querySelector('[data-name]'), lb = el.querySelector('[data-lb]');
       const save = () => sb.from('profiles').upsert({user_id: user.id, display_name: name.value.trim(), on_leaderboard: lb.checked});
-      name.onfocus = () => setTimeout(() => name.select(), 0);  // after the browser places the caret
       name.onchange = save;
       lb.onchange = () => {
         name.disabled = !lb.checked;
-        if (lb.checked) { if (!name.value.trim()) name.value = fromProvider; name.focus(); }
+        if (lb.checked && !name.value.trim()) name.value = fromProvider;
         save();
       };
     }
