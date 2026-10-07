@@ -224,6 +224,12 @@ main{overflow:auto;padding:12px 16px}
 .viewer{position:relative;overflow:hidden;height:70vh;min-height:360px;background:#888;border-radius:4px;cursor:grab;touch-action:none}
 .viewer.drag{cursor:grabbing}
 .hl.peek{border:2px dashed var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent);z-index:3}
+.ctx{position:absolute;left:8px;right:8px;bottom:8px;z-index:6;max-height:48%;overflow:auto;background:var(--panel);color:var(--ink);border:1px solid var(--accent);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.3);padding:8px 12px;font-size:13px;cursor:default}
+.ctx h4{margin:0 0 6px;font-size:13px;display:flex;justify-content:space-between;gap:8px}.ctx h4 span{font-weight:400;color:var(--muted);font-size:12px}
+.ctx .row{display:grid;grid-template-columns:44px 1fr auto;gap:8px;padding:4px 6px;border-radius:4px;align-items:baseline}
+.ctx .row.me{background:color-mix(in srgb,var(--hot) 22%,transparent)}.ctx .row .id{font-weight:600}
+.ctx .row .st{font-size:11px;color:var(--muted);white-space:nowrap}.ctx .row .st.ok{color:var(--ok)}.ctx .row .st.warn{color:var(--warn)}.ctx .row .st.bad{color:var(--bad)}
+.card .acts button.ctxb{color:var(--muted)}
 .tip{position:absolute;z-index:5;max-width:360px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:6px;box-shadow:0 4px 14px rgba(0,0,0,.25);padding:6px 9px;font-size:13px;pointer-events:none}
 .tip.pinned{pointer-events:auto;border-color:var(--accent)}
 .tip .st{font-size:11px;color:var(--muted);margin-top:3px}.tip .st.ok{color:var(--ok)}.tip .st.warn{color:var(--warn)}.tip .st.bad{color:var(--bad)}
@@ -307,7 +313,8 @@ function finalText(id) {  // a clue as it will be published: the OCR's text with
   const k = 'clue:' + id, fx = P.review.corrections || {};
   return k in fx && !rejected(k) ? fx[k] : ((O().clues[id] || {}).text || '');
 }
-const STOP = new Set('the and for you this that with what are was his her its not but from your they them have has had who how when where will would can one'.split(' '));
+const STOP = new Set(('the and for you this that with what are was his her its not but from your they them have has had who how when where will would can one '
+  + 'some also very more most just like only than then been into over much such each other about after before were there their these those').split(' '));
 function whereItWent(id, was, now) {
   const out = [];
   for (const {run, words, swapped} of removedRuns(was, now)) {
@@ -532,7 +539,7 @@ function renderList() {
   S.puzzles.forEach(p => counts[p.status] = (counts[p.status] || 0) + 1);
   $('#counts').innerHTML = ['waiting','looking','writing','ready','needs a person','escalated'].filter(s => counts[s]).map(s => `<span>${chip(s)} ${counts[s]}</span>`).join('');
   $('#list').innerHTML = S.puzzles.map(p => `<div class="p ${p.xdid === sel ? 'sel' : ''}" data-x="${p.xdid}"><span>${esc(p.xdid)}<br><span class="muted" style="font-size:12px">${p.updated ? ago(p.updated) : ''}</span></span><span>${chip(p.status)}${p.verdict === 'looks-right' ? '<span class="mark" style="color:var(--ok)" title="you: looks right">✓</span>' : p.verdict === 'needs-work' ? '<span class="mark" style="color:var(--bad)" title="you: needs work">✗</span>' : ''}${p.rejected ? `<span class="mark" style="color:var(--bad)" title="changes you rejected">−${p.rejected}</span>` : ''}</span></div>`).join('');
-  document.querySelectorAll('.p').forEach(el => el.onclick = () => { sel = el.dataset.x; $('#follow').checked = false; hot = null; focusCrops = null; focusCard = null; peek = null; pinned = false; load(true); });
+  document.querySelectorAll('.p').forEach(el => el.onclick = () => { sel = el.dataset.x; $('#follow').checked = false; hot = null; focusCrops = null; focusCard = null; peek = null; pinned = false; ctxOpen = false; load(true); });
 }
 
 const D = () => P.decisions || {items: {}, notes: {}};
@@ -541,7 +548,7 @@ const accepted = key => D().items[key] === 'accept';
 function card(item, key, title, body) {  // key: what a decision is about, as the importer names it
   const r = rejected(key), a = accepted(key);
   return `<div class="card ${r ? 'rej' : a ? 'acc' : ''}" data-item="${esc(item)}" data-key="${esc(key)}"><span class="acts">`
-    + `<button class="ok ${a ? 'on' : ''}" data-act="accept" title="Accept (A)">✓</button><button class="no ${r ? 'on' : ''}" data-act="reject" title="Reject (R)">✗</button></span>`
+    + `<button class="ctxb" data-act="context" title="Context: the clues around it (Enter)">↕</button><button class="ok ${a ? 'on' : ''}" data-act="accept" title="Accept (A)">✓</button><button class="no ${r ? 'on' : ''}" data-act="reject" title="Reject (R)">✗</button></span>`
     + `<b>${esc(title)}</b>${item.startsWith('clue:') ? answerHtml(item.slice(5)) : ''}<br><span class="body">${body}</span>`
     + (r ? `<input class="why" data-note="${esc(key)}" placeholder="Rejected. Why? What does the scan show? (optional; Enter to save)" value="${esc(D().notes[key] || '')}">` : '')
     + `</div>`;
@@ -567,6 +574,8 @@ async function decide(payload) {
   if (r.ok) { P.decisions = await r.json(); lastKey = renderKey(P); renderMain(); }
 }
 async function decideCard(el, act) {
+  if (act === 'context') { const i = [...document.querySelectorAll('.card')].indexOf(el);
+    ctxOpen = !(ctxOpen && focusCard === i); moveFocus(i); return; }
   const key = el.dataset.key; if (!key) return;
   const i = [...document.querySelectorAll('.card')].indexOf(el);
   if (act === 'reject') {
@@ -579,6 +588,37 @@ async function decideCard(el, act) {
     moveFocus(i + 1);
   }
 }
+let ctxOpen = false;
+function ctxRow(id, me) {
+  const was = (O().clues[id] || {}).text || '', now = finalText(id), [st, cls] = clueStatus(id);
+  return `<div class="row ${me ? 'me' : ''}"><span class="id">${esc(id)}</span><span>${now === was ? esc(now || '(no text)') : wordDiff(was, now)}${answerHtml(id)}</span><span class="st ${cls}">${esc(st)}</span></div>`;
+}
+function contextHtml(item) {
+  const i = item.indexOf(':'), kind = item.slice(0, i), key = item.slice(i + 1), cl = O().clues;
+  if (kind === 'clue' && cl[key] !== undefined) {  // the clues printed around it
+    const ids = Object.keys(cl).filter(k => k[0] === key[0]).sort((a, b) => +a.slice(1) - +b.slice(1)), at = ids.indexOf(key);
+    return `<h4>${esc(key)} and the clues around it <span>Esc or Enter to close · J/K next change</span></h4>`
+      + ids.slice(Math.max(0, at - 2), at + 3).map(k => ctxRow(k, k === key)).join('');
+  }
+  const m = /^r(\d+)c(\d+)$/.exec(key);
+  if ((kind === 'cell' || kind === 'grid') && m) {  // the entries that cross the square
+    const r = +m[1] - 1, c = +m[2] - 1;
+    const ids = Object.keys(cl).filter(k => entrySquares(k).some(([rr, cc]) => rr === r && cc === c));
+    return `<h4>The entries through square ${esc(key)} <span>Esc or Enter to close · J/K next change</span></h4>`
+      + (ids.length ? ids.map(k => ctxRow(k, false)).join('') : '<p class="muted">No entry crosses this square (a black square).</p>');
+  }
+  return `<h4>${esc(label(item))} <span>Esc or Enter to close</span></h4><p class="muted">No clue context for this change.</p>`;
+}
+function showContext() {
+  const vw = $('#viewer'); if (!vw) return;
+  vw.querySelectorAll('.ctx').forEach(e => e.remove());
+  const cs = [...document.querySelectorAll('.card')];
+  if (!ctxOpen || focusCard === null || !cs[focusCard]) return;
+  const d = document.createElement('div'); d.className = 'ctx';
+  d.innerHTML = contextHtml(cs[focusCard].dataset.item);
+  ['pointerdown', 'wheel', 'dblclick'].forEach(ev => d.addEventListener(ev, e => e.stopPropagation()));
+  vw.appendChild(d);
+}
 function moveFocus(i) {
   const cs = [...document.querySelectorAll('.card')];
   if (!cs.length) return;
@@ -587,6 +627,7 @@ function moveFocus(i) {
   cs[focusCard].classList.add('hot');
   cs[focusCard].scrollIntoView({block: 'nearest'});
   setHot(cs[focusCard].dataset.item, true);
+  showContext();
 }
 function changesHtml() {
   const rv = P.review, o = O(), cards = [];
@@ -658,7 +699,7 @@ function renderMain() {
       + `<button data-verdict="looks-right" class="good ${D().verdict === 'looks-right' ? 'on' : ''}">✓ Looks right</button>`
       + `<button data-verdict="needs-work" class="bad ${D().verdict === 'needs-work' ? 'on' : ''}">✗ Needs work</button>`
       + `<input id="vnote" placeholder="note (optional)" value="${esc(D().note || '')}">`
-      + `<span class="hint">J/K next/previous change · A accept · R reject (then type why)</span></div>` : ''}
+      + `<span class="hint">J/K next/previous change · A accept · R reject (then type why) · Enter: the clues around it</span></div>` : ''}
     <div class="tabs"><button data-tab="review" class="${tab === 'review' ? 'on' : ''}">The review</button><button data-tab="preview" class="${tab === 'preview' ? 'on' : ''}">The result (grid and xd)</button></div>
     ${tab === 'preview' ? previewHtml() : `
     <div class="cols"><div class="panel"><div class="lbl"><span><span style="color:var(--look)">■</span> looked at · <span style="color:var(--fix)">■</span> corrected · <span style="color:var(--hot)">■</span> selected · point at any clue to see its transcription, click to pin · scroll to zoom, drag to move</span>
@@ -703,6 +744,7 @@ function renderMain() {
   const cs = document.querySelectorAll('.card');
   if (focusCard !== null && cs[focusCard]) cs[focusCard].classList.add('hot');
   const pg = document.getElementById('progress'); if (pg) pg.textContent = progress();
+  showContext();
   document.querySelectorAll('.feed li[data-ev]').forEach(li => {
     const e = P.events[+li.dataset.ev];
     li.onmouseenter = () => { focusCrops = e.crops || null; redraw(); };
@@ -721,7 +763,9 @@ document.addEventListener('keydown', e => {
   const cs = [...document.querySelectorAll('.card')];
   if (!cs.length) return;
   const k = e.key.toLowerCase();
-  if (k === 'j' || k === 'k') moveFocus(focusCard === null ? 0 : focusCard + (k === 'j' ? 1 : -1));
+  if (k === 'enter') { e.preventDefault(); ctxOpen = !ctxOpen; if (focusCard === null) moveFocus(0); else showContext(); }
+  else if (k === 'escape' && ctxOpen) { ctxOpen = false; showContext(); }
+  else if (k === 'j' || k === 'k') moveFocus(focusCard === null ? 0 : focusCard + (k === 'j' ? 1 : -1));
   else if (k === 'a' || k === 'r') { e.preventDefault(); decideCard(cs[focusCard === null ? 0 : focusCard], k === 'a' ? 'accept' : 'reject'); }
 });
 let lastKey = '';
