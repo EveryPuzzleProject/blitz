@@ -129,9 +129,12 @@ class Handler(BaseHTTPRequestHandler):
         dec.setdefault("notes", {})
         if "item" in body:
             item = str(body["item"])
-            if body.get("decision") == "reject":
-                dec["items"][item] = "reject"
-                dec["notes"][item] = str(body.get("note", ""))
+            if body.get("decision") in ("reject", "accept"):
+                dec["items"][item] = body["decision"]
+                if body["decision"] == "reject":
+                    dec["notes"][item] = str(body.get("note", ""))
+                else:
+                    dec["notes"].pop(item, None)
             else:
                 dec["items"].pop(item, None)
                 dec["notes"].pop(item, None)
@@ -233,7 +236,8 @@ main{overflow:auto;padding:12px 16px}
 .card b{font-size:12px;color:var(--muted);font-weight:600}
 .card .acts{float:right;display:flex;gap:4px}.card .acts button{font:inherit;font-size:12px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:4px;padding:0 7px;cursor:pointer}
 .card .acts button.on.ok{border-color:var(--ok);color:var(--ok)}.card .acts button.on.no{border-color:var(--bad);color:var(--bad);font-weight:700}
-.card.rej{border-color:var(--bad);opacity:.75}.card.rej .body{text-decoration:line-through}.card .why{font-size:12px;color:var(--bad);margin-top:3px}
+.card.acc{border-left:4px solid var(--ok)}.card.rej{border-color:var(--bad);border-left:4px solid var(--bad)}.card.rej .body{text-decoration:line-through;opacity:.7}
+.card .why{width:100%;margin-top:4px;font:inherit;font-size:12px;padding:2px 5px;border:1px solid var(--bad);border-radius:4px;background:var(--panel);color:var(--ink)}
 .verdict{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0 2px;font-size:13px}.verdict button{font:inherit;font-size:13px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:5px;padding:3px 10px;cursor:pointer}
 .verdict button.on.good{border-color:var(--ok);color:var(--ok);font-weight:600}.verdict button.on.bad{border-color:var(--bad);color:var(--bad);font-weight:600}.verdict input{flex:1;min-width:180px;font:inherit;font-size:13px;padding:3px 6px;border:1px solid var(--line);border-radius:5px;background:var(--panel);color:var(--ink)}
 .mark{font-size:12px;margin-left:4px}
@@ -427,23 +431,45 @@ function renderList() {
 
 const D = () => P.decisions || {items: {}, notes: {}};
 const rejected = key => D().items[key] === 'reject';
+const accepted = key => D().items[key] === 'accept';
 function card(item, key, title, body) {  // key: what a decision is about, as the importer names it
-  const r = rejected(key);
-  return `<div class="card ${r ? 'rej' : ''}" data-item="${esc(item)}" data-key="${esc(key)}"><span class="acts">`
-    + `<button class="ok ${r ? '' : 'on'}" data-act="accept" title="Accept (A)">✓</button><button class="no ${r ? 'on' : ''}" data-act="reject" title="Reject (R)">✗</button></span>`
-    + `<b>${esc(title)}</b><br><span class="body">${body}</span>${r ? `<div class="why">rejected${D().notes[key] ? ': ' + esc(D().notes[key]) : ''}</div>` : ''}</div>`;
+  const r = rejected(key), a = accepted(key);
+  return `<div class="card ${r ? 'rej' : a ? 'acc' : ''}" data-item="${esc(item)}" data-key="${esc(key)}"><span class="acts">`
+    + `<button class="ok ${a ? 'on' : ''}" data-act="accept" title="Accept (A)">✓</button><button class="no ${r ? 'on' : ''}" data-act="reject" title="Reject (R)">✗</button></span>`
+    + `<b>${esc(title)}</b><br><span class="body">${body}</span>`
+    + (r ? `<input class="why" data-note="${esc(key)}" placeholder="Rejected. Why? What does the scan show? (optional; Enter to save)" value="${esc(D().notes[key] || '')}">` : '')
+    + `</div>`;
+}
+function progress() {
+  const keys = [...document.querySelectorAll('.card[data-key]')].map(c => c.dataset.key);
+  const done = keys.filter(k => D().items[k]).length;
+  return keys.length ? `${done} of ${keys.length} checked` : '';
 }
 async function decide(payload) {
   const r = await fetch('api/decide', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({x: P.xdid, ...payload})});
-  if (r.ok) { P.decisions = await r.json(); renderMain(); }
+  if (r.ok) { P.decisions = await r.json(); lastKey = renderKey(P); renderMain(); }
 }
-function decideCard(el, act) {
+async function decideCard(el, act) {
   const key = el.dataset.key; if (!key) return;
+  const i = [...document.querySelectorAll('.card')].indexOf(el);
   if (act === 'reject') {
-    const note = prompt('Why reject this change? (optional: what the scan shows)', D().notes[key] || '');
-    if (note === null) return;
-    decide({item: key, decision: 'reject', note});
-  } else decide({item: key, decision: 'accept'});
+    await decide({item: key, decision: 'reject', note: D().notes[key] || ''});
+    focusCard = i;
+    const box = document.querySelector(`[data-note="${CSS.escape(key)}"]`);
+    if (box) box.focus();  // type a note, or press Esc / J to move on
+  } else {
+    await decide({item: key, decision: 'accept'});
+    moveFocus(i + 1);
+  }
+}
+function moveFocus(i) {
+  const cs = [...document.querySelectorAll('.card')];
+  if (!cs.length) return;
+  focusCard = Math.min(cs.length - 1, Math.max(0, i));
+  cs.forEach(c => c.classList.remove('hot'));
+  cs[focusCard].classList.add('hot');
+  cs[focusCard].scrollIntoView({block: 'nearest'});
+  setHot(cs[focusCard].dataset.item, true);
 }
 function changesHtml() {
   const rv = P.review, o = O(), cards = [];
@@ -514,14 +540,14 @@ function renderMain() {
       + `<button data-verdict="looks-right" class="good ${D().verdict === 'looks-right' ? 'on' : ''}">✓ Looks right</button>`
       + `<button data-verdict="needs-work" class="bad ${D().verdict === 'needs-work' ? 'on' : ''}">✗ Needs work</button>`
       + `<input id="vnote" placeholder="note (optional)" value="${esc(D().note || '')}">`
-      + `<span class="hint">J/K next/previous change · A accept · R reject</span></div>` : ''}
+      + `<span class="hint">J/K next/previous change · A accept · R reject (then type why)</span></div>` : ''}
     <div class="tabs"><button data-tab="review" class="${tab === 'review' ? 'on' : ''}">The review</button><button data-tab="preview" class="${tab === 'preview' ? 'on' : ''}">The result (grid and xd)</button></div>
     ${tab === 'preview' ? previewHtml() : `
     <div class="cols"><div class="panel"><div class="lbl"><span><span style="color:var(--look)">■</span> looked at · <span style="color:var(--fix)">■</span> corrected · <span style="color:var(--hot)">■</span> selected · scroll to zoom, drag to move, double-click to zoom in</span>
         <span>${pages.length > 1 ? pages.map(n => `<button data-page="${n}" class="${n === pageImg ? 'on' : ''}">${n === 'page.jpg' ? 'Page' : 'Clue page'}</button>`).join(' ') : ''} <button id="fit">Fit</button></span></div>
         <div class="viewer" id="viewer"><div class="stage" id="stage"><img id="pageimg" src="${esc(imgSrc(pageImg))}" alt="scanned page" draggable="false"></div></div></div>
       <div style="display:flex;flex-direction:column;gap:10px">
-        <div class="panel"><div class="lbl">What it changed${rv._draft ? ' (draft)' : ''}: hover to find it, click to zoom there</div>
+        <div class="panel"><div class="lbl"><span>What it changed${rv._draft ? ' (draft)' : ''}: hover to find it, click to zoom there</span><span id="progress"></span></div>
           ${cards ? `<div class="cards">${cards}</div>` : `<p class="muted">${['waiting','looking'].includes(P.status) ? 'Nothing yet.' : 'No changes.'}</p>`}</div>
         ${P.has['answers.png'] ? `<div class="panel"><div class="lbl">Answer key</div><div class="small"><img id="ansimg" src="${esc(P.xdid)}/answers.png" alt="answer key"></div></div>` : ''}
         ${P.has['grid.png'] ? `<div class="panel"><div class="lbl">Grid</div><div class="small"><img id="gridimg" src="${esc(P.xdid)}/grid.png" alt="puzzle grid"></div></div>` : ''}
@@ -544,8 +570,21 @@ function renderMain() {
   document.querySelectorAll('[data-verdict]').forEach(b => b.onclick = () =>
     decide({verdict: D().verdict === b.dataset.verdict ? '' : b.dataset.verdict, note: $('#vnote').value}));
   if ($('#vnote')) $('#vnote').onchange = () => decide({verdict: D().verdict || '', note: $('#vnote').value});
+  document.querySelectorAll('input[data-note]').forEach(box => {
+    box.onclick = e => e.stopPropagation();
+    box.onkeydown = e => {
+      if (e.key === 'Enter' || e.key === 'Escape') {
+        e.preventDefault();
+        const i = [...document.querySelectorAll('.card')].indexOf(box.closest('.card'));
+        const save = e.key === 'Enter' && box.value !== (D().notes[box.dataset.note] || '');
+        (save ? decide({item: box.dataset.note, decision: 'reject', note: box.value}) : Promise.resolve()).then(() => moveFocus(i + 1));
+      }
+    };
+    box.onchange = () => decide({item: box.dataset.note, decision: 'reject', note: box.value});
+  });
   const cs = document.querySelectorAll('.card');
   if (focusCard !== null && cs[focusCard]) cs[focusCard].classList.add('hot');
+  const pg = document.getElementById('progress'); if (pg) pg.textContent = progress();
   document.querySelectorAll('.feed li[data-ev]').forEach(li => {
     const e = P.events[+li.dataset.ev];
     li.onmouseenter = () => { focusCrops = e.crops || null; redraw(); };
@@ -564,18 +603,17 @@ document.addEventListener('keydown', e => {
   const cs = [...document.querySelectorAll('.card')];
   if (!cs.length) return;
   const k = e.key.toLowerCase();
-  if (k === 'j' || k === 'k') {
-    focusCard = focusCard === null ? 0 : Math.min(cs.length - 1, Math.max(0, focusCard + (k === 'j' ? 1 : -1)));
-    cs.forEach(c => c.classList.remove('hot'));
-    cs[focusCard].classList.add('hot');
-    cs[focusCard].scrollIntoView({block: 'nearest'});
-    setHot(cs[focusCard].dataset.item, true);
-  } else if ((k === 'a' || k === 'r') && focusCard !== null && cs[focusCard]) decideCard(cs[focusCard], k === 'a' ? 'accept' : 'reject');
+  if (k === 'j' || k === 'k') moveFocus(focusCard === null ? 0 : focusCard + (k === 'j' ? 1 : -1));
+  else if (k === 'a' || k === 'r') { e.preventDefault(); decideCard(cs[focusCard === null ? 0 : focusCard], k === 'a' ? 'accept' : 'reject'); }
 });
 let lastKey = '';
+const renderKey = p => p.xdid + JSON.stringify([p.status, p.shown.length, Object.keys(p.review.corrections || {}).length,
+                                                p.events.length, p.decisions]);
 async function load(force) {
   const p = await (await fetch('api/puzzle?x=' + encodeURIComponent(sel))).json();
-  const key = sel + JSON.stringify([p.status, p.shown.length, Object.keys(p.review.corrections || {}).length, p.events.length, p.decisions]);
+  const key = renderKey(p);
+  const typing = document.activeElement && document.activeElement.matches('input, textarea');
+  if (!force && typing) { renderList(); return; }  // don't wipe a note being typed
   P = p;
   if (force || key !== lastKey) { lastKey = key; renderMain(); }
   renderList();
