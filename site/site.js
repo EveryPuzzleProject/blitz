@@ -1,6 +1,11 @@
 // The public review site's data adapter: the review page (review.html) asks BLITZ_API for the
 // puzzle list, a puzzle, and to save a decision; here those come from Supabase (who checked what)
 // and from the packet files in storage (R2). Settings are in config.js (window.BLITZ_SITE).
+//
+// No sign-up: a helper's first decision signs them in as a guest (Supabase anonymous sign-in, kept
+// in their browser), so their work hangs together and counts once. A guest can add a name for the
+// leaderboard, and an email to keep their progress across devices (that makes the same identity a
+// full account).
 (function () {
   const cfg = window.BLITZ_SITE;
   const sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
@@ -22,32 +27,51 @@
     return d;
   }
 
-  function signInForm(el, why) {
-    el.innerHTML = `<form class="signin" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-      <span class="muted" style="font-size:13px">${esc(why || 'Sign in to record what you check:')}</span>
-      <input type="email" required placeholder="your email" style="font:inherit;font-size:13px;padding:3px 6px;border:1px solid var(--line);border-radius:5px;background:var(--panel);color:var(--ink)">
-      <button style="font:inherit;font-size:13px;padding:3px 10px;border:1px solid var(--accent);border-radius:5px;background:var(--panel);color:var(--ink);cursor:pointer">Email me a sign-in link</button></form>`;
-    el.querySelector('form').onsubmit = async e => {
-      e.preventDefault();
-      const email = el.querySelector('input').value.trim();
-      const {error} = await sb.auth.signInWithOtp({email, options: {emailRedirectTo: location.href.split('#')[0]}});
-      el.innerHTML = error ? `<span style="color:var(--bad)">Couldn't send the link: ${esc(error.message)}</span>`
-        : `<span class="muted">Check your email for the sign-in link (${esc(email)}).</span>`;
-    };
+  const box = 'font:inherit;font-size:13px;padding:2px 6px;border:1px solid var(--line);border-radius:5px;background:var(--panel);color:var(--ink)';
+
+  async function ensureUser() {  // a guest identity on the first decision: nothing to fill in
+    if (user) return user;
+    const {data, error} = await sb.auth.signInAnonymously();
+    if (error) { alertBar(`Couldn't save: ${error.message}`); return null; }
+    user = data.user;
+    return user;
+  }
+
+  function welcome(el) {
+    el.innerHTML = `<span class="muted" style="font-size:13px">No sign-up needed: just start checking.</span>`;
   }
 
   async function profileForm(el) {
     const {data} = await sb.from('profiles').select('display_name,on_leaderboard').eq('user_id', user.id).maybeSingle();
     const p = data || {display_name: '', on_leaderboard: false};
+    const guest = user.is_anonymous;
     el.innerHTML = `<span style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px">
-      <input data-name placeholder="name for the leaderboard" value="${esc(p.display_name)}" maxlength="40" style="font:inherit;font-size:13px;padding:2px 6px;border:1px solid var(--line);border-radius:5px;background:var(--panel);color:var(--ink);width:180px">
-      <label><input type="checkbox" data-lb ${p.on_leaderboard ? 'checked' : ''}> show me on the leaderboard</label>
-      <span class="muted">${esc(user.email || '')}</span> <a href="#" data-out>sign out</a></span>`;
+      <input data-name placeholder="your name (optional)" value="${esc(p.display_name)}" maxlength="40" style="${box};width:170px">
+      <label><input type="checkbox" data-lb ${p.on_leaderboard ? 'checked' : ''}> on the leaderboard</label>
+      ${guest ? `<a href="#" data-keep title="Your progress is saved in this browser. Add an email to keep it on other devices too.">keep my progress</a>`
+              : `<span class="muted">${esc(user.email || '')}</span> <a href="#" data-out>sign out</a>`}</span>`;
     const save = () => sb.from('profiles').upsert({user_id: user.id, display_name: el.querySelector('[data-name]').value.trim(),
                                                    on_leaderboard: el.querySelector('[data-lb]').checked});
     el.querySelector('[data-name]').onchange = save;
     el.querySelector('[data-lb]').onchange = save;
-    el.querySelector('[data-out]').onclick = async e => { e.preventDefault(); await sb.auth.signOut(); };
+    if (el.querySelector('[data-out]')) el.querySelector('[data-out]').onclick = async e => { e.preventDefault(); await sb.auth.signOut(); };
+    if (el.querySelector('[data-keep]')) el.querySelector('[data-keep]').onclick = e => { e.preventDefault(); keepForm(el); };
+  }
+
+  function keepForm(el) {  // a guest adds an email: the same identity becomes an account
+    el.innerHTML = `<form style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:13px">
+      <span class="muted">Keep your progress on any device:</span>
+      <input type="email" required placeholder="your email" style="${box}">
+      <button style="${box};border-color:var(--accent);cursor:pointer">Send a confirmation link</button>
+      <a href="#" data-cancel>cancel</a></form>`;
+    el.querySelector('[data-cancel]').onclick = e => { e.preventDefault(); profileForm(el); };
+    el.querySelector('form').onsubmit = async e => {
+      e.preventDefault();
+      const email = el.querySelector('input').value.trim();
+      const {error} = await sb.auth.updateUser({email}, {emailRedirectTo: location.href.split('#')[0]});
+      el.innerHTML = error ? `<span style="color:var(--bad)">Couldn't: ${esc(error.message)}</span>`
+        : `<span class="muted">Check ${esc(email)} for a confirmation link.</span>`;
+    };
   }
 
   window.BLITZ_API = {
@@ -86,7 +110,7 @@
     },
 
     async decide(x, p) {
-      if (!user) { signInForm(document.getElementById('auth'), 'Sign in to record that:'); return null; }
+      if (!(await ensureUser())) return null;
       let res;
       if ('item' in p) {
         res = await sb.from('decisions').upsert({xdid: x, item: p.item, decision: p.decision === 'reject' ? 'reject' : 'accept',
@@ -105,7 +129,7 @@
     },
 
     file: (x, path) => `${base(x)}/${path}`,
-    renderAuth(el) { onAuth = () => (user ? profileForm(el) : signInForm(el)); onAuth(); },
+    renderAuth(el) { onAuth = () => (user ? profileForm(el) : welcome(el)); onAuth(); },
   };
 
   function alertBar(msg) {
