@@ -10,6 +10,7 @@
     blitz submit <puzzle>                send a review to your pull request
     blitz watch [folder]                 a live page of the reviews as they happen
     blitz feedback [folder]              what reviewers said the tools got wrong
+    blitz decisions [folder] [-o FILE]   your accept/reject decisions from the watch page, for import
     blitz drop                           forget this run (claims expire after 48 hours)
 
 A <puzzle> is its id (judge1931-03-14), looked up in ../blitz-work, or a path
@@ -66,6 +67,10 @@ def _status(s: dict) -> None:
         state = ("sent" if p["sent"] else "reviewed, not sent" if (d / "review.json").exists()
                  else "drafted" if (d / "draft.json").exists() else "looking" if (d / "sheets").exists()
                  else "to review")
+        dec = json.loads((d / "decisions.json").read_text(encoding="utf-8")) if (d / "decisions.json").exists() else {}
+        rej = sum(1 for v in (dec.get("items") or {}).values() if v == "reject")
+        if dec.get("verdict") or rej:
+            state += f" (your check: {dec.get('verdict') or 'no verdict'}{f', {rej} rejected' if rej else ''})"
         lane = "" if p["lane"] == "text" else f"  (expect a whole-puzzle problem: {'; '.join(p['why'])})"
         print(f"  {p['xdid']:<18} {state}{lane}")
 
@@ -164,6 +169,16 @@ def cmd_feedback(a) -> None:
     print(feedback(sorted(d for d in root.iterdir() if d.is_dir())))
 
 
+def cmd_decisions(a) -> None:
+    folder = Path(a.folder) if a.folder else work.work_dir(_root())
+    text = json.dumps(work.export_decisions(folder), indent=1, ensure_ascii=False)
+    if a.out:
+        Path(a.out).write_text(text, encoding="utf-8")
+        print(f"wrote {a.out}")
+    else:
+        print(text)
+
+
 def cmd_drop(a) -> None:
     s = work.drop(_root())
     print(f"Dropped {s['pr']}; its claims expire after 48 hours." if s else "No run to drop.")
@@ -209,6 +224,10 @@ def main(argv=None) -> None:
     q = sub.add_parser("feedback", help="the reviewers' notes on the tools, grouped")
     q.add_argument("folder", nargs="?")
     q.set_defaults(fn=cmd_feedback)
+    q = sub.add_parser("decisions", help="your accept/reject decisions from the watch page, as one file for import")
+    q.add_argument("folder", nargs="?")
+    q.add_argument("-o", "--out")
+    q.set_defaults(fn=cmd_decisions)
     sub.add_parser("drop").set_defaults(fn=cmd_drop)
     a = p.parse_args(argv)
     try:

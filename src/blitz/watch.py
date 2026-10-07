@@ -61,7 +61,9 @@ def batch_state(root: Path) -> dict:
     for d in sorted(root.iterdir()):
         if d.is_dir() and (d / "ocr.json").exists():
             st, t = _status(d)
-            puzzles.append({"xdid": d.name, "status": st, "updated": t})
+            dec = _read(d / "decisions.json") or {}
+            puzzles.append({"xdid": d.name, "status": st, "updated": t, "verdict": dec.get("verdict", ""),
+                            "rejected": sum(1 for v in (dec.get("items") or {}).values() if v == "reject")})
     return {"root": root.name, "now": time.time(), "puzzles": puzzles}
 
 
@@ -91,6 +93,7 @@ def puzzle_detail(d: Path) -> dict:
         "xdid": d.name, "status": st, "updated": updated, "ocr": ocr, "review": review or {},
         "shown": shown.get("shown", []), "events": sorted(events, key=lambda e: e["t"]),
         "has": {f: (d / f).exists() for f in ("page.jpg", "clue_page.jpg", "grid.png", "answers.png")}, "src": src,
+        "decisions": _read(d / "decisions.json") or {"items": {}, "notes": {}, "verdict": "", "note": ""},
     }
 
 
@@ -107,6 +110,37 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+
+    def do_POST(self):
+        """Save a decision from the page: {"x", "item", "decision": "accept"|"reject", "note"} or
+        {"x", "verdict": "looks-right"|"needs-work"|"", "note"}, into <puzzle>/decisions.json."""
+        if urlparse(self.path).path != "/api/decide":
+            return self._send(b"not found", "text/plain", 404)
+        try:
+            body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
+        except ValueError:
+            return self._send(b"bad json", "text/plain", 400)
+        x = str(body.get("x", ""))
+        d = self.root / x
+        if not re.fullmatch(r"[\w-]+", x) or not (d / "ocr.json").exists():
+            return self._send(b"no such puzzle", "text/plain", 404)
+        dec = _read(d / "decisions.json") or {}
+        dec.setdefault("items", {})
+        dec.setdefault("notes", {})
+        if "item" in body:
+            item = str(body["item"])
+            if body.get("decision") == "reject":
+                dec["items"][item] = "reject"
+                dec["notes"][item] = str(body.get("note", ""))
+            else:
+                dec["items"].pop(item, None)
+                dec["notes"].pop(item, None)
+        if "verdict" in body:
+            dec["verdict"] = body["verdict"] if body["verdict"] in ("looks-right", "needs-work") else ""
+            dec["note"] = str(body.get("note", ""))
+        dec["at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
+        (d / "decisions.json").write_text(json.dumps(dec, indent=1, ensure_ascii=False), encoding="utf-8")
+        self._send(json.dumps(dec).encode("utf-8"), "application/json")
 
     def do_GET(self):
         u = urlparse(self.path)
@@ -197,6 +231,12 @@ main{overflow:auto;padding:12px 16px}
 .card{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:6px 9px;cursor:pointer}
 .card:hover,.card.hot{border-color:var(--hot);box-shadow:0 0 0 2px color-mix(in srgb,var(--hot) 35%,transparent)}
 .card b{font-size:12px;color:var(--muted);font-weight:600}
+.card .acts{float:right;display:flex;gap:4px}.card .acts button{font:inherit;font-size:12px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:4px;padding:0 7px;cursor:pointer}
+.card .acts button.on.ok{border-color:var(--ok);color:var(--ok)}.card .acts button.on.no{border-color:var(--bad);color:var(--bad);font-weight:700}
+.card.rej{border-color:var(--bad);opacity:.75}.card.rej .body{text-decoration:line-through}.card .why{font-size:12px;color:var(--bad);margin-top:3px}
+.verdict{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0 2px;font-size:13px}.verdict button{font:inherit;font-size:13px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:5px;padding:3px 10px;cursor:pointer}
+.verdict button.on.good{border-color:var(--ok);color:var(--ok);font-weight:600}.verdict button.on.bad{border-color:var(--bad);color:var(--bad);font-weight:600}.verdict input{flex:1;min-width:180px;font:inherit;font-size:13px;padding:3px 6px;border:1px solid var(--line);border-radius:5px;background:var(--panel);color:var(--ink)}
+.mark{font-size:12px;margin-left:4px}
 del{color:var(--bad)}ins{color:var(--ok);text-decoration:none;font-weight:600}
 .sheets{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px}
 .sheets img{height:150px;border:1px solid var(--line);border-radius:4px;cursor:zoom-in;background:#fff}
@@ -381,10 +421,30 @@ function renderList() {
   const counts = {};
   S.puzzles.forEach(p => counts[p.status] = (counts[p.status] || 0) + 1);
   $('#counts').innerHTML = ['waiting','looking','writing','ready','needs a person','escalated'].filter(s => counts[s]).map(s => `<span>${chip(s)} ${counts[s]}</span>`).join('');
-  $('#list').innerHTML = S.puzzles.map(p => `<div class="p ${p.xdid === sel ? 'sel' : ''}" data-x="${p.xdid}"><span>${esc(p.xdid)}<br><span class="muted" style="font-size:12px">${p.updated ? ago(p.updated) : ''}</span></span>${chip(p.status)}</div>`).join('');
-  document.querySelectorAll('.p').forEach(el => el.onclick = () => { sel = el.dataset.x; $('#follow').checked = false; hot = null; focusCrops = null; load(true); });
+  $('#list').innerHTML = S.puzzles.map(p => `<div class="p ${p.xdid === sel ? 'sel' : ''}" data-x="${p.xdid}"><span>${esc(p.xdid)}<br><span class="muted" style="font-size:12px">${p.updated ? ago(p.updated) : ''}</span></span><span>${chip(p.status)}${p.verdict === 'looks-right' ? '<span class="mark" style="color:var(--ok)" title="you: looks right">✓</span>' : p.verdict === 'needs-work' ? '<span class="mark" style="color:var(--bad)" title="you: needs work">✗</span>' : ''}${p.rejected ? `<span class="mark" style="color:var(--bad)" title="changes you rejected">−${p.rejected}</span>` : ''}</span></div>`).join('');
+  document.querySelectorAll('.p').forEach(el => el.onclick = () => { sel = el.dataset.x; $('#follow').checked = false; hot = null; focusCrops = null; focusCard = null; load(true); });
 }
 
+const D = () => P.decisions || {items: {}, notes: {}};
+const rejected = key => D().items[key] === 'reject';
+function card(item, key, title, body) {  // key: what a decision is about, as the importer names it
+  const r = rejected(key);
+  return `<div class="card ${r ? 'rej' : ''}" data-item="${esc(item)}" data-key="${esc(key)}"><span class="acts">`
+    + `<button class="ok ${r ? '' : 'on'}" data-act="accept" title="Accept (A)">✓</button><button class="no ${r ? 'on' : ''}" data-act="reject" title="Reject (R)">✗</button></span>`
+    + `<b>${esc(title)}</b><br><span class="body">${body}</span>${r ? `<div class="why">rejected${D().notes[key] ? ': ' + esc(D().notes[key]) : ''}</div>` : ''}</div>`;
+}
+async function decide(payload) {
+  const r = await fetch('api/decide', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({x: P.xdid, ...payload})});
+  if (r.ok) { P.decisions = await r.json(); renderMain(); }
+}
+function decideCard(el, act) {
+  const key = el.dataset.key; if (!key) return;
+  if (act === 'reject') {
+    const note = prompt('Why reject this change? (optional: what the scan shows)', D().notes[key] || '');
+    if (note === null) return;
+    decide({item: key, decision: 'reject', note});
+  } else decide({item: key, decision: 'accept'});
+}
 function changesHtml() {
   const rv = P.review, o = O(), cards = [];
   for (const [item, now] of Object.entries(rv.corrections || {})) {
@@ -397,9 +457,9 @@ function changesHtml() {
     else if (kind === 'grid') { const m = /r(\d+)c(\d+)/.exec(key); was = m ? (o.grid[m[1]-1] || '')[m[2]-1] || '' : ''; }
     const body = kind === 'cell' || kind === 'grid' ? `<del>${esc(was || '?')}</del> → <ins>${esc(now)}</ins>`
       : now === '' ? `<del>${esc(was || '(removed)')}</del> <span class="muted">(removed)</span>` : wordDiff(was, now);
-    cards.push(`<div class="card" data-item="${esc(item)}"><b>${esc(label(item))}</b><br>${body}</div>`);
+    cards.push(card(item, item, label(item), body));
   }
-  for (const [k, v] of Object.entries(rv.sic || {})) cards.push(`<div class="card" data-item="clue:${esc(k)}"><b>${esc(k)}: kept as printed</b><br>meant: ${esc(v)}</div>`);
+  for (const [k, v] of Object.entries(rv.sic || {})) cards.push(card('clue:' + k, 'sic:' + k, k + ': kept as printed (sic)', 'meant: ' + esc(v)));
   for (const [k, v] of Object.entries(rv.unsure || {})) cards.push(`<div class="card" data-item="${esc(k)}"><b>${esc(label(k))}: unsure</b><br>${esc(v)}</div>`);
   return cards.join('');
 }
@@ -414,16 +474,18 @@ function xdText(Z) {  // the corrected puzzle as xd (a preview: the archive's ow
 
 function previewHtml() {
   if (typeof buildPuzzle !== 'function') return '<p class="muted">The preview needs docs/puzzle.js from the blitz repository.</p>';
-  const Z = buildPuzzle(O(), P.review);
+  const rv = {...P.review, corrections: Object.fromEntries(Object.entries(P.review.corrections || {}).filter(([k]) => !rejected(k))),
+              sic: Object.fromEntries(Object.entries(P.review.sic || {}).filter(([k]) => !rejected('sic:' + k)))};
+  const Z = buildPuzzle(O(), rv);
   if (!Z) return '<p class="muted">No preview.</p>';
-  const corr = Object.keys(P.review.corrections || {});
+  const corr = Object.keys(rv.corrections);
   const changedSq = new Set(corr.filter(k => k.startsWith('cell:') || k.startsWith('grid:')).map(k => k.slice(5)));
   const changedClue = new Set(corr.filter(k => k.startsWith('clue:')).map(k => k.slice(5)));
   const board = Z.cells.map((row, r) => row.map((x, c) => !x ? '<div class="cell blk"></div>'
     : `<div class="cell ${changedSq.has(`r${r+1}c${c+1}`) ? 'chg' : ''}">${x.num ? `<span class="num">${x.num}</span>` : ''}${x.sol ? esc(x.sol) : '<span class="unk">·</span>'}</div>`).join('')).join('');
   const ans = w => w.cells.map(([r, c]) => (Z.cells[r][c] || {}).sol || '·').join('');
   const list = d => Z.words.filter(w => w.dir === d).map(w => `<li class="${changedClue.has(w.id) ? 'chg' : ''}"><span class="n">${w.n}</span>${esc(w.text)}<span class="ans">${esc(ans(w))}</span></li>`).join('');
-  return `<p class="hint">${P.review._draft ? 'From the draft (not finished yet). ' : ''}The puzzle with this review applied, as its record page will show it. Changed squares and clues are tinted.</p>
+  return `<p class="hint">${P.review._draft ? 'From the draft (not finished yet). ' : ''}The puzzle with this review applied (less any change you rejected), as its record page will show it. Changed squares and clues are tinted.</p>
     <div class="preview"><div><h2 style="margin:0 0 2px;font:600 20px Georgia,serif">${esc(Z.title)}</h2>
       <div class="muted" style="margin-bottom:8px">${esc(Z.byline || Z.author)} · ${esc(Z.date)}</div>
       <div class="board" style="--cols:${Z.C};--rows:${Z.R}">${board}</div></div>
@@ -448,6 +510,11 @@ function renderMain() {
     <span class="muted">${esc(P.xdid)} · ${esc(o.byline || '')} · ${o.grid.length}x${o.grid[0].length}</span></div>${chip(P.status)}</div>
     ${rv.escalate ? `<p style="color:var(--bad)"><b>Escalated:</b> ${esc(rv.escalate)}</p>` : ''}
     ${rv.note ? `<p class="muted" style="margin:6px 0">${esc(rv.note)}</p>` : ''}
+    ${['ready','needs a person','escalated'].includes(P.status) ? `<div class="verdict"><span class="muted">Your check:</span>`
+      + `<button data-verdict="looks-right" class="good ${D().verdict === 'looks-right' ? 'on' : ''}">✓ Looks right</button>`
+      + `<button data-verdict="needs-work" class="bad ${D().verdict === 'needs-work' ? 'on' : ''}">✗ Needs work</button>`
+      + `<input id="vnote" placeholder="note (optional)" value="${esc(D().note || '')}">`
+      + `<span class="hint">J/K next/previous change · A accept · R reject</span></div>` : ''}
     <div class="tabs"><button data-tab="review" class="${tab === 'review' ? 'on' : ''}">The review</button><button data-tab="preview" class="${tab === 'preview' ? 'on' : ''}">The result (grid and xd)</button></div>
     ${tab === 'preview' ? previewHtml() : `
     <div class="cols"><div class="panel"><div class="lbl"><span><span style="color:var(--look)">■</span> looked at · <span style="color:var(--fix)">■</span> corrected · <span style="color:var(--hot)">■</span> selected · scroll to zoom, drag to move, double-click to zoom in</span>
@@ -465,11 +532,20 @@ function renderMain() {
   document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => { tab = b.dataset.tab; renderMain(); });
   document.querySelectorAll('[data-page]').forEach(b => b.onclick = () => { pageImg = b.dataset.page; renderMain(); });
   if ($('#fit')) $('#fit').onclick = () => { const v = cur(); v.s = v.fit; v.x = 0; v.y = 0; applyView(); };
-  document.querySelectorAll('.card').forEach(c => {
+  document.querySelectorAll('.card').forEach((c, i) => {
     c.onmouseenter = () => setHot(c.dataset.item, false);
-    c.onmouseleave = () => setHot(null, false);
-    c.onclick = () => setHot(c.dataset.item, true);
+    c.onmouseleave = () => { if (focusCard !== i) setHot(null, false); };
+    c.onclick = e => {
+      focusCard = i;
+      const b = e.target.closest('button[data-act]');
+      if (b) decideCard(c, b.dataset.act); else setHot(c.dataset.item, true);
+    };
   });
+  document.querySelectorAll('[data-verdict]').forEach(b => b.onclick = () =>
+    decide({verdict: D().verdict === b.dataset.verdict ? '' : b.dataset.verdict, note: $('#vnote').value}));
+  if ($('#vnote')) $('#vnote').onchange = () => decide({verdict: D().verdict || '', note: $('#vnote').value});
+  const cs = document.querySelectorAll('.card');
+  if (focusCard !== null && cs[focusCard]) cs[focusCard].classList.add('hot');
   document.querySelectorAll('.feed li[data-ev]').forEach(li => {
     const e = P.events[+li.dataset.ev];
     li.onmouseenter = () => { focusCrops = e.crops || null; redraw(); };
@@ -482,10 +558,24 @@ function renderMain() {
   bindViewer();
 }
 
+let focusCard = null;
+document.addEventListener('keydown', e => {
+  if (!P || tab !== 'review' || e.target.matches('input, textarea') || e.ctrlKey || e.metaKey || e.altKey) return;
+  const cs = [...document.querySelectorAll('.card')];
+  if (!cs.length) return;
+  const k = e.key.toLowerCase();
+  if (k === 'j' || k === 'k') {
+    focusCard = focusCard === null ? 0 : Math.min(cs.length - 1, Math.max(0, focusCard + (k === 'j' ? 1 : -1)));
+    cs.forEach(c => c.classList.remove('hot'));
+    cs[focusCard].classList.add('hot');
+    cs[focusCard].scrollIntoView({block: 'nearest'});
+    setHot(cs[focusCard].dataset.item, true);
+  } else if ((k === 'a' || k === 'r') && focusCard !== null && cs[focusCard]) decideCard(cs[focusCard], k === 'a' ? 'accept' : 'reject');
+});
 let lastKey = '';
 async function load(force) {
   const p = await (await fetch('api/puzzle?x=' + encodeURIComponent(sel))).json();
-  const key = sel + JSON.stringify([p.status, p.shown.length, Object.keys(p.review.corrections || {}).length, p.events.length]);
+  const key = sel + JSON.stringify([p.status, p.shown.length, Object.keys(p.review.corrections || {}).length, p.events.length, p.decisions]);
   P = p;
   if (force || key !== lastKey) { lastKey = key; renderMain(); }
   renderList();

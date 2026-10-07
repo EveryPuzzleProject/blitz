@@ -101,3 +101,16 @@ def test_odd_words_catch_ocr_slips_but_not_ordinary_forms():
     for fine in ("Frau's (boy) freund.", "These men were corkers.", "The unkindest cut.", "This often follows a demi-tasse.",
                  "England'd", "these'll", "Lobbyist's headquarters."):
         assert not odd_words(fine), fine
+
+
+def test_rejected_changes_are_left_out_and_recorded(tmp_path):
+    from blitz.work import apply_decisions, export_decisions
+
+    d = tmp_path / "p1"
+    d.mkdir()
+    (d / "decisions.json").write_text(json.dumps({"items": {"clue:A1": "reject", "sic:D2": "reject"},
+                                                  "notes": {"clue:A1": "scan says Feline."}, "verdict": "needs-work"}))
+    rv = apply_decisions({"corrections": {"clue:A1": "Felines.", "cell:r1c1": "C"}, "sic": {"D2": "tune"}}, d, "me")
+    assert rv["corrections"] == {"cell:r1c1": "C"} and rv["sic"] == {}
+    assert rv["checked"]["rejected"]["clue:A1"] == {"value": "Felines.", "note": "scan says Feline."}
+    assert export_decisions(tmp_path)["puzzles"]["p1"]["verdict"] == "needs-work"

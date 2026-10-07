@@ -194,7 +194,7 @@ def submit(root: Path, xdid: str) -> dict:
     if not review.exists():
         raise Stop(f"No review for {xdid} yet. "
                    + ("In the editor, press Save review." if s["by"] == "hand" else f"Run: blitz finish {xdid}"))
-    rv = json.loads(review.read_text(encoding="utf-8"))
+    rv = apply_decisions(json.loads(review.read_text(encoding="utf-8")), d, s["user"])
     if s["by"] == "hand":
         rv["by"] = "hand"
     if run("git", "branch", "--show-current", cwd=root).strip() != s["branch"]:
@@ -225,6 +225,41 @@ def submit(root: Path, xdid: str) -> dict:
         run("gh", "pr", "ready", s["pr"], "--repo", REPO, cwd=root)
     return {"record": f"{SITE}/view.html?p={p['pub']}/{xdid}&from={s['user']}:{s['branch']}",
             "solve": str((d / "solve.html").resolve()), "pr": s["pr"], "all_sent": done, "review": rv}
+
+
+def apply_decisions(rv: dict, packet: Path, who: str = "") -> dict:
+    """The review less the changes rejected on the watch page (decisions.json),
+    with a record of the check: who, the verdict, and what was rejected and why."""
+    dec = json.loads((packet / "decisions.json").read_text(encoding="utf-8")) if (packet / "decisions.json").exists() else {}
+    items, notes = dec.get("items") or {}, dec.get("notes") or {}
+    if not items and not dec.get("verdict"):
+        return rv
+    rv = dict(rv)
+    out = {}
+    for item in [k for k, v in items.items() if v == "reject"]:
+        if item.startswith("sic:"):
+            value = (rv.get("sic") or {}).get(item[4:])
+            rv["sic"] = {k: v for k, v in (rv.get("sic") or {}).items() if k != item[4:]}
+        else:
+            value = (rv.get("corrections") or {}).get(item)
+            rv["corrections"] = {k: v for k, v in (rv.get("corrections") or {}).items() if k != item}
+        if value is not None:
+            out[item] = {"value": value, "note": notes.get(item, "")}
+    rv["checked"] = {"by": who, "verdict": dec.get("verdict", ""), "note": dec.get("note", ""), "rejected": out}
+    return rv
+
+
+def export_decisions(folder: Path) -> dict:
+    """Every puzzle's decisions in a folder, in the shape the maintainer's
+    import takes (xword-ocr import-reviews --decisions)."""
+    out = {}
+    for d in sorted(folder.iterdir()):
+        f = d / "decisions.json"
+        if f.exists():
+            dec = json.loads(f.read_text(encoding="utf-8"))
+            out[d.name] = {k: dec.get(k, default) for k, default in
+                           (("items", {}), ("notes", {}), ("verdict", ""), ("note", ""))}
+    return {"puzzles": out}
 
 
 def drop(root: Path) -> dict | None:
