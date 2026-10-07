@@ -143,7 +143,11 @@
     async decide(x, p) {
       if (!(await ensureUser())) return null;
       let res;
-      if ('item' in p) {
+      if ('item' in p && p.decision === 'noop') {
+        res = null;
+      } else if ('item' in p && p.decision === 'clear') {
+        res = await sb.from('decisions').delete().eq('xdid', x).eq('item', p.item);
+      } else if ('item' in p) {
         res = await sb.from('decisions').upsert({xdid: x, item: p.item, decision: p.decision === 'reject' ? 'reject' : 'accept',
                                                  note: p.note || '', user_id: user.id, at: new Date().toISOString()});
       } else if ('report' in p) {

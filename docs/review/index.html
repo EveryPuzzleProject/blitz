@@ -415,7 +415,7 @@ const accepted = key => D().items[key] === 'accept';
 function card(item, key, title, body) {  // key: what a decision is about, as the importer names it
   const r = rejected(key), a = accepted(key);
   return `<div class="card ${r ? 'rej' : a ? 'acc' : ''}" data-item="${esc(item)}" data-key="${esc(key)}"><span class="acts">`
-    + `<button class="ctxb" data-act="context" title="Context: the clues around it (Enter)">↕</button><button class="ok ${a ? 'on' : ''}" data-act="accept" title="Accept (A)">✓</button><button class="no ${r ? 'on' : ''}" data-act="reject" title="Reject (R)">✗</button></span>`
+    + `<button class="ctxb" data-act="context" title="Context: the clues around it (Enter)">↕</button><button class="ok ${a ? 'on' : ''}" data-act="accept" title="${a ? 'Accepted: click again to undo (U)' : 'Accept (A)'}">✓</button><button class="no ${r ? 'on' : ''}" data-act="reject" title="${r ? 'Rejected: click again to undo (U)' : 'Reject (R)'}">✗</button></span>`
     + `<b>${esc(title)}</b>${item.startsWith('clue:') ? answerHtml(item.slice(5)) : ''}<br><span class="body">${body}</span>`
     + (r ? `<input class="why" data-note="${esc(key)}" placeholder="Rejected. Why? What does the scan show? (optional; Enter to save)" value="${esc(D().notes[key] || '')}">` : '')
     + `</div>`;
@@ -454,6 +454,12 @@ async function decideCard(el, act) {
     const on = !(ctxOpen && focusCard === i); moveFocus(i); setCtx(on); return; }
   const key = el.dataset.key; if (!key) return;
   const i = [...document.querySelectorAll('.card')].indexOf(el);
+  const now = D().items[key];
+  if (act === 'clear' || (act === 'accept' && now === 'accept') || (act === 'reject' && now === 'reject')) {
+    await decide({item: key, decision: 'clear'});  // back to unchecked
+    moveFocus(i);
+    return;
+  }
   if (act === 'reject') {
     await decide({item: key, decision: 'reject', note: D().notes[key] || ''});
     focusCard = i;
@@ -579,7 +585,7 @@ function renderMain() {
       + `<button data-verdict="looks-right" class="good ${D().verdict === 'looks-right' ? 'on' : ''}">✓ Looks right</button>`
       + `<button data-verdict="needs-work" class="bad ${D().verdict === 'needs-work' ? 'on' : ''}">✗ Needs work</button>`
       + `<input id="vnote" placeholder="note (optional)" value="${esc(D().note || '')}">`
-      + `<span class="hint">J/K next/previous change · A accept · R reject (then type why) · Enter: show or hide the context</span></div>` : ''}
+      + `<span class="hint">J/K next/previous change · A accept · R reject (then type why) · U undo · Enter: show or hide the context</span></div>` : ''}
     <div class="tabs"><button data-tab="review" class="${tab === 'review' ? 'on' : ''}">The review</button><button data-tab="preview" class="${tab === 'preview' ? 'on' : ''}">The result (grid and xd)</button></div>
     ${tab === 'preview' ? previewHtml() : `
     <div class="cols"><div class="panel"><div class="lbl"><span><span style="color:var(--look)">■</span> looked at · <span style="color:var(--fix)">■</span> corrected · <span style="color:var(--hot)">■</span> selected · point at any clue to see its transcription, click to pin · scroll to zoom, drag to move</span>
@@ -587,6 +593,7 @@ function renderMain() {
         <div class="viewer" id="viewer"><div class="stage" id="stage"><img id="pageimg" src="${esc(imgSrc(pageImg))}" alt="scanned page" draggable="false"></div></div></div>
       <div style="display:flex;flex-direction:column;gap:10px">
         <div class="panel"><div class="lbl"><span>What it changed${rv._draft ? ' (draft)' : ''}: hover to find it, click to zoom there</span><span id="progress"></span></div>
+          ${cards && Object.keys(D().items || {}).length ? `<div class="hint" style="margin-top:6px;text-align:right"><a href="#" data-clearall>Clear my checks on this puzzle</a></div>` : ''}
           ${cards ? `<div class="cards">${cards}</div>` : `<p class="muted">${['waiting','looking'].includes(P.status) ? 'Nothing yet.' : 'No changes.'}</p>`}</div>
         ${P.has['answers.png'] ? `<div class="panel"><div class="lbl">Answer key</div><div class="small"><img id="ansimg" src="${esc(API.file(P.xdid, 'answers.png'))}" alt="answer key"></div></div>` : ''}
         ${P.has['grid.png'] ? `<div class="panel"><div class="lbl">Grid</div><div class="small"><img id="gridimg" src="${esc(API.file(P.xdid, 'grid.png'))}" alt="puzzle grid"></div></div>` : ''}
@@ -609,6 +616,14 @@ function renderMain() {
       if (b) decideCard(c, b.dataset.act); else moveFocus(i);  // select it: outline, scan, context
     };
   });
+  const ca = document.querySelector('[data-clearall]');
+  if (ca) ca.onclick = async e => {
+    e.preventDefault();
+    if (!ca.dataset.sure) { ca.dataset.sure = '1'; ca.textContent = 'Clear all your ✓ and ✗ here? Click again to confirm'; return; }
+    for (const key of Object.keys(D().items || {})) await API.decide(P.xdid, {item: key, decision: 'clear'});
+    if (D().verdict) await API.decide(P.xdid, {verdict: '', note: ''});
+    await decide({item: '', decision: 'noop'});
+  };
   document.querySelectorAll('[data-verdict]').forEach(b => b.onclick = () =>
     decide({verdict: D().verdict === b.dataset.verdict ? '' : b.dataset.verdict, note: $('#vnote').value}));
   if ($('#vnote')) $('#vnote').onchange = () => decide({verdict: D().verdict || '', note: $('#vnote').value});
@@ -650,6 +665,7 @@ document.addEventListener('keydown', e => {
   else if (k === 'escape' && ctxOpen) setCtx(false);
   else if (k === 'j' || k === 'k') moveFocus(focusCard === null ? 0 : focusCard + (k === 'j' ? 1 : -1));
   else if (k === 'a' || k === 'r') { e.preventDefault(); decideCard(cs[focusCard === null ? 0 : focusCard], k === 'a' ? 'accept' : 'reject'); }
+  else if (k === 'u' && focusCard !== null && cs[focusCard]) { e.preventDefault(); decideCard(cs[focusCard], 'clear'); }
 });
 let lastKey = '';
 const renderKey = p => p.xdid + JSON.stringify([p.status, p.shown.length, Object.keys(p.review.corrections || {}).length,
