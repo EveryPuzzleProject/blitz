@@ -35,7 +35,8 @@ helper mode (try it locally: `blitz watch` and open `/?helper`).
    anon key, the bucket's public URL), commit and push. For a custom address, add a CNAME record
    `blitz` → `everypuzzleproject.github.io` and set the custom domain in the repository's
    Settings > Pages.
-4. **Your machine.** Set these environment variables (never put them in a file in the repo):
+4. **Your machine.** Put these in `~/.blitz-site.env`, one `KEY=value` per line (or set them as
+   environment variables; never in a file in the repo):
    `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`,
    `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_PUBLIC_URL`.
 

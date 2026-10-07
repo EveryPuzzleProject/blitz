@@ -7,7 +7,8 @@
 - `fetch_decisions`: everything helpers recorded, combined per puzzle in the shape
   `xword-ocr import-reviews --decisions` takes.
 
-Secrets come from the environment, never from files in the repository:
+Secrets come from ~/.blitz-site.env (KEY=value lines) or the environment, never from files in the
+repository:
 SUPABASE_URL, SUPABASE_SERVICE_KEY (publish and import), and R2_ACCOUNT_ID, R2_ACCESS_KEY_ID,
 R2_SECRET_ACCESS_KEY, R2_BUCKET, R2_PUBLIC_URL (publish).
 """
@@ -29,10 +30,19 @@ FILES = ("ocr.json", "review.json", "sheets/shown.json", "page.jpg", "clue_page.
 SUPABASE_JS = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"
 
 
+SECRETS = Path.home() / ".blitz-site.env"  # KEY=value lines; outside every repository
+
+
 def _env(*names: str) -> list[str]:
+    if SECRETS.exists():  # the environment wins over the file
+        for line in SECRETS.read_text(encoding="utf-8").splitlines():
+            k, sep, v = line.strip().partition("=")
+            if sep and not k.startswith("#") and k.strip() not in os.environ:
+                os.environ[k.strip()] = v.strip().strip('"').strip("'")
     missing = [n for n in names if not os.environ.get(n)]
     if missing:
-        raise Stop(f"Set {', '.join(missing)} in your environment first (see site/README.md).")
+        raise Stop(f"Set {', '.join(missing)} in {SECRETS} (KEY=value lines) or in your environment "
+                   f"(see site/README.md).")
     return [os.environ[n] for n in names]
 
 
