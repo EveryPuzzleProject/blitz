@@ -539,7 +539,7 @@ function renderList() {
   S.puzzles.forEach(p => counts[p.status] = (counts[p.status] || 0) + 1);
   $('#counts').innerHTML = ['waiting','looking','writing','ready','needs a person','escalated'].filter(s => counts[s]).map(s => `<span>${chip(s)} ${counts[s]}</span>`).join('');
   $('#list').innerHTML = S.puzzles.map(p => `<div class="p ${p.xdid === sel ? 'sel' : ''}" data-x="${p.xdid}"><span>${esc(p.xdid)}<br><span class="muted" style="font-size:12px">${p.updated ? ago(p.updated) : ''}</span></span><span>${chip(p.status)}${p.verdict === 'looks-right' ? '<span class="mark" style="color:var(--ok)" title="you: looks right">✓</span>' : p.verdict === 'needs-work' ? '<span class="mark" style="color:var(--bad)" title="you: needs work">✗</span>' : ''}${p.rejected ? `<span class="mark" style="color:var(--bad)" title="changes you rejected">−${p.rejected}</span>` : ''}</span></div>`).join('');
-  document.querySelectorAll('.p').forEach(el => el.onclick = () => { sel = el.dataset.x; $('#follow').checked = false; hot = null; focusCrops = null; focusCard = null; peek = null; pinned = false; ctxOpen = false; load(true); });
+  document.querySelectorAll('.p').forEach(el => el.onclick = () => { sel = el.dataset.x; $('#follow').checked = false; hot = null; focusCrops = null; focusCard = null; peek = null; pinned = false; load(true); });
 }
 
 const D = () => P.decisions || {items: {}, notes: {}};
@@ -575,7 +575,7 @@ async function decide(payload) {
 }
 async function decideCard(el, act) {
   if (act === 'context') { const i = [...document.querySelectorAll('.card')].indexOf(el);
-    ctxOpen = !(ctxOpen && focusCard === i); moveFocus(i); return; }
+    const on = !(ctxOpen && focusCard === i); moveFocus(i); setCtx(on); return; }
   const key = el.dataset.key; if (!key) return;
   const i = [...document.querySelectorAll('.card')].indexOf(el);
   if (act === 'reject') {
@@ -588,26 +588,29 @@ async function decideCard(el, act) {
     moveFocus(i + 1);
   }
 }
-let ctxOpen = false;
+let ctxOpen = true;  // on by default; Enter or Hide turns it off (remembered in this browser)
+try { ctxOpen = localStorage.getItem('watch-context') !== 'off'; } catch (e) {}
+function setCtx(on) { ctxOpen = on; try { localStorage.setItem('watch-context', on ? 'on' : 'off'); } catch (e) {} showContext(); }
 function ctxRow(id, me) {
   const was = (O().clues[id] || {}).text || '', now = finalText(id), [st, cls] = clueStatus(id);
   return `<div class="row ${me ? 'me' : ''}"><span class="id">${esc(id)}</span><span>${now === was ? esc(now || '(no text)') : wordDiff(was, now)}${answerHtml(id)}</span><span class="st ${cls}">${esc(st)}</span></div>`;
 }
+const HIDE = '<span>J/K next change · <a href="#" data-hide>Hide</a> (Enter shows it again)</span>';
 function contextHtml(item) {
   const i = item.indexOf(':'), kind = item.slice(0, i), key = item.slice(i + 1), cl = O().clues;
   if (kind === 'clue' && cl[key] !== undefined) {  // the clues printed around it
     const ids = Object.keys(cl).filter(k => k[0] === key[0]).sort((a, b) => +a.slice(1) - +b.slice(1)), at = ids.indexOf(key);
-    return `<h4>${esc(key)} and the clues around it <span>Esc or Enter to close · J/K next change</span></h4>`
+    return `<h4>${esc(key)} and the clues around it ${HIDE}</h4>`
       + ids.slice(Math.max(0, at - 2), at + 3).map(k => ctxRow(k, k === key)).join('');
   }
   const m = /^r(\d+)c(\d+)$/.exec(key);
   if ((kind === 'cell' || kind === 'grid') && m) {  // the entries that cross the square
     const r = +m[1] - 1, c = +m[2] - 1;
     const ids = Object.keys(cl).filter(k => entrySquares(k).some(([rr, cc]) => rr === r && cc === c));
-    return `<h4>The entries through square ${esc(key)} <span>Esc or Enter to close · J/K next change</span></h4>`
+    return `<h4>The entries through square ${esc(key)} ${HIDE}</h4>`
       + (ids.length ? ids.map(k => ctxRow(k, false)).join('') : '<p class="muted">No entry crosses this square (a black square).</p>');
   }
-  return `<h4>${esc(label(item))} <span>Esc or Enter to close</span></h4><p class="muted">No clue context for this change.</p>`;
+  return `<h4>${esc(label(item))} ${HIDE}</h4><p class="muted">No clue context for this change.</p>`;
 }
 function showContext() {
   const vw = $('#viewer'); if (!vw) return;
@@ -617,6 +620,7 @@ function showContext() {
   const d = document.createElement('div'); d.className = 'ctx';
   d.innerHTML = contextHtml(cs[focusCard].dataset.item);
   ['pointerdown', 'wheel', 'dblclick'].forEach(ev => d.addEventListener(ev, e => e.stopPropagation()));
+  d.querySelector('[data-hide]')?.addEventListener('click', e => { e.preventDefault(); setCtx(false); });
   vw.appendChild(d);
 }
 function moveFocus(i) {
@@ -699,7 +703,7 @@ function renderMain() {
       + `<button data-verdict="looks-right" class="good ${D().verdict === 'looks-right' ? 'on' : ''}">✓ Looks right</button>`
       + `<button data-verdict="needs-work" class="bad ${D().verdict === 'needs-work' ? 'on' : ''}">✗ Needs work</button>`
       + `<input id="vnote" placeholder="note (optional)" value="${esc(D().note || '')}">`
-      + `<span class="hint">J/K next/previous change · A accept · R reject (then type why) · Enter: the clues around it</span></div>` : ''}
+      + `<span class="hint">J/K next/previous change · A accept · R reject (then type why) · Enter: show or hide the context</span></div>` : ''}
     <div class="tabs"><button data-tab="review" class="${tab === 'review' ? 'on' : ''}">The review</button><button data-tab="preview" class="${tab === 'preview' ? 'on' : ''}">The result (grid and xd)</button></div>
     ${tab === 'preview' ? previewHtml() : `
     <div class="cols"><div class="panel"><div class="lbl"><span><span style="color:var(--look)">■</span> looked at · <span style="color:var(--fix)">■</span> corrected · <span style="color:var(--hot)">■</span> selected · point at any clue to see its transcription, click to pin · scroll to zoom, drag to move</span>
@@ -723,7 +727,7 @@ function renderMain() {
     c.onclick = e => {
       focusCard = i;
       const b = e.target.closest('button[data-act]');
-      if (b) decideCard(c, b.dataset.act); else setHot(c.dataset.item, true);
+      if (b) decideCard(c, b.dataset.act); else { setHot(c.dataset.item, true); showContext(); }
     };
   });
   document.querySelectorAll('[data-verdict]').forEach(b => b.onclick = () =>
@@ -759,12 +763,12 @@ function renderMain() {
 
 let focusCard = null;
 document.addEventListener('keydown', e => {
-  if (!P || tab !== 'review' || e.target.matches('input, textarea') || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (!P || tab !== 'review' || e.target.matches?.('input, textarea') || e.ctrlKey || e.metaKey || e.altKey) return;
   const cs = [...document.querySelectorAll('.card')];
   if (!cs.length) return;
   const k = e.key.toLowerCase();
-  if (k === 'enter') { e.preventDefault(); ctxOpen = !ctxOpen; if (focusCard === null) moveFocus(0); else showContext(); }
-  else if (k === 'escape' && ctxOpen) { ctxOpen = false; showContext(); }
+  if (k === 'enter') { e.preventDefault(); if (focusCard === null) { moveFocus(0); setCtx(true); } else setCtx(!ctxOpen); }
+  else if (k === 'escape' && ctxOpen) setCtx(false);
   else if (k === 'j' || k === 'k') moveFocus(focusCard === null ? 0 : focusCard + (k === 'j' ? 1 : -1));
   else if (k === 'a' || k === 'r') { e.preventDefault(); decideCard(cs[focusCard === null ? 0 : focusCard], k === 'a' ? 'accept' : 'reject'); }
 });
