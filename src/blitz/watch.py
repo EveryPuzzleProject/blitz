@@ -1,15 +1,14 @@
-"""Watch reviewer agents work: a live page for a folder of puzzle packets.
+"""Watch reviews happen: a live page for a folder of puzzle packets.
 
     blitz watch [folder]
 
 Each puzzle folder holds what a text-first review leaves behind as it goes:
 `sheets/shown.json` (the crops the reviewer asked to see, in order),
 `draft.json` (its verdict) and `review.json` (after `finish`). The page polls
-those files and shows, per puzzle, where on the scan the reviewer is looking,
-the contact sheets it read, and what it changed, beside a batch overview.
-
-Standard library only (the page is plain HTML and script), so it also runs
-on its own: python -m blitz.watch <folder>.
+those files and shows, per puzzle, where on the scan the reviewer looked, the
+contact sheets it read, what it changed (hover a change to see it on the
+scan, click to zoom there), and a preview of the puzzle that results, as a
+grid and as xd text.
 """
 
 from __future__ import annotations
@@ -24,7 +23,9 @@ import time
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import unquote, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
+
+DOCS = Path(__file__).resolve().parents[2] / "docs"  # the blitz site: puzzle.js builds the corrected puzzle
 
 
 def _read(path: Path):
@@ -41,90 +42,56 @@ def _mtime(path: Path) -> float:
         return 0.0
 
 
-def entries(grid: list[str]) -> dict[str, list[list[int]]]:
-    """Standard numbering: entry id (A1, D2) -> its squares [row, col], 0-based."""
-    rows, cols = len(grid), len(grid[0]) if grid else 0
-    white = lambda r, c: 0 <= r < rows and 0 <= c < cols and grid[r][c] != "#"
-    out, n = {}, 0
-    for r in range(rows):
-        for c in range(cols):
-            if not white(r, c):
-                continue
-            across = not white(r, c - 1) and white(r, c + 1)
-            down = not white(r - 1, c) and white(r + 1, c)
-            if across or down:
-                n += 1
-            if across:
-                out[f"A{n}"] = [[r, cc] for cc in range(c, cols) if all(white(r, k) for k in range(c, cc + 1))]
-            if down:
-                out[f"D{n}"] = [[rr, c] for rr in range(r, rows) if all(white(k, c) for k in range(r, rr + 1))]
-    return out
-
-
-def puzzle_state(d: Path) -> dict:
-    """Everything the page shows about one puzzle folder, read fresh."""
-    ocr = _read(d / "ocr.json") or {}
-    shown = _read(d / "sheets" / "shown.json") or {"shown": [], "sheets": []}
-    draft, review = _read(d / "draft.json"), _read(d / "review.json")
-    t_sheets, t_draft, t_review = (_mtime(d / "sheets" / "shown.json"), _mtime(d / "draft.json"),
-                                   _mtime(d / "review.json"))
-    sheet_files = sorted((d / "sheets").glob("sheet_*.png"), key=lambda p: int(re.sub(r"\D", "", p.stem) or 0))
-    # Where the review is: the newest file it wrote says how far it got.
+def _status(d: Path) -> tuple[str, float]:
+    review, t_draft, t_review = _read(d / "review.json"), _mtime(d / "draft.json"), _mtime(d / "review.json")
+    t_sheets = _mtime(d / "sheets" / "shown.json")
     if review is not None and t_review >= t_draft:
-        status = "escalated" if review.get("escalate") else ("ready" if review.get("ready") else "needs a person")
-    elif draft is not None:
-        status = "writing"
+        st = "escalated" if review.get("escalate") else ("ready" if review.get("ready") else "needs a person")
+    elif t_draft:
+        st = "writing"
     elif t_sheets:
-        status = "looking"
+        st = "looking"
     else:
-        status = "waiting"
-    events = [{"t": _mtime(f), "what": "sheet", "file": f"{d.name}/sheets/{f.name}",
-               "crops": next((s["crops"] for s in shown.get("sheets", []) if Path(s["file"]).name == f.name), [])}
-              for f in sheet_files]
-    if t_draft:
-        events.append({"t": t_draft, "what": "draft"})
-    if t_review:
-        events.append({"t": t_review, "what": "review"})
-    rv = review if review is not None else {}
-    clues = ocr.get("clues") or {}
-    answers = ocr.get("answers") or []
-    changes = []
-    for item, value in (rv.get("corrections") or {}).items():
-        kind, _, key = item.partition(":")
-        was = ""
-        if kind == "clue":
-            was = (clues.get(key) or {}).get("text", "")
-        elif kind == "cell":
-            m = re.fullmatch(r"r(\d+)c(\d+)", key)
-            if m and answers:
-                r, c = int(m[1]) - 1, int(m[2]) - 1
-                was = answers[r][c] if r < len(answers) and c < len(answers[r]) else ""
-        elif kind == "meta":
-            was = ocr.get(key, "")
-        elif kind == "other":
-            was = (ocr.get("captions") or {}).get(key, "") if isinstance(ocr.get("captions"), dict) else ""
-        changes.append({"item": item, "was": was, "now": value})
-    grid = ocr.get("grid") or []
-    return {
-        "xdid": d.name, "status": status, "updated": max([t_sheets, t_draft, t_review] + [e["t"] for e in events]),
-        "title": (rv.get("corrections") or {}).get("meta:title") or ocr.get("title", ""),
-        "byline": ocr.get("byline", ""), "size": f"{len(grid)}x{len(grid[0])}" if grid else "",
-        "shown": shown.get("shown", []), "events": sorted(events, key=lambda e: e["t"]),
-        "changes": changes, "sic": rv.get("sic") or {}, "unsure": rv.get("unsure") or {},
-        "escalate": rv.get("escalate", ""), "note": rv.get("note", ""), "remaining": rv.get("remaining", ""),
-        "tool_notes": rv.get("tool_notes") or (draft or {}).get("tool_notes") or [],
-        "draft_only": review is None and draft is not None,
-        # for drawing what was looked at on the scan
-        "scale": (ocr.get("scales") or {}).get("page.jpg", 1.0), "clue_image": ocr.get("clue_image", "page.jpg"),
-        "boxes": {k: v.get("box") for k, v in clues.items() if v.get("box")}, "meta_boxes": ocr.get("meta_boxes") or {},
-        "grid": grid, "entries": entries(grid) if grid else {},
-        "has": {f: (d / f).exists() for f in ("page.jpg", "grid.png", "answers.png")},
-    }
+        st = "waiting"
+    return st, max(t_sheets, t_draft, t_review)
 
 
 def batch_state(root: Path) -> dict:
-    puzzles = [puzzle_state(d) for d in sorted(root.iterdir()) if d.is_dir() and (d / "ocr.json").exists()]
+    puzzles = []
+    for d in sorted(root.iterdir()):
+        if d.is_dir() and (d / "ocr.json").exists():
+            st, t = _status(d)
+            puzzles.append({"xdid": d.name, "status": st, "updated": t})
     return {"root": root.name, "now": time.time(), "puzzles": puzzles}
+
+
+def puzzle_detail(d: Path) -> dict:
+    """Everything the page shows about one puzzle, read fresh."""
+    ocr = _read(d / "ocr.json") or {}
+    shown = _read(d / "sheets" / "shown.json") or {"shown": [], "sheets": []}
+    draft, review = _read(d / "draft.json"), _read(d / "review.json")
+    st, updated = _status(d)
+    if draft is not None and (review is None or _mtime(d / "draft.json") > _mtime(d / "review.json")):
+        try:  # a draft not finished yet: show what finishing it would give
+            from .review import finish
+
+            review, _ = finish(ocr, draft, shown.get("shown", []))
+            review["_draft"] = True
+        except Exception:
+            pass
+    events = []
+    for s in shown.get("sheets", []):
+        f = d / "sheets" / Path(s["file"]).name
+        events.append({"t": _mtime(f), "what": "sheet", "file": f"{d.name}/sheets/{f.name}", "crops": s["crops"]})
+    for name in ("draft", "review"):
+        if (d / f"{name}.json").exists():
+            events.append({"t": _mtime(d / f"{name}.json"), "what": name})
+    src = {n: (d / "_src" / n).exists() for n in ("page.jpg", "clue_page.jpg")}
+    return {
+        "xdid": d.name, "status": st, "updated": updated, "ocr": ocr, "review": review or {},
+        "shown": shown.get("shown", []), "events": sorted(events, key=lambda e: e["t"]),
+        "has": {f: (d / f).exists() for f in ("page.jpg", "clue_page.jpg", "grid.png", "answers.png")}, "src": src,
+    }
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -142,11 +109,22 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self):
-        path = unquote(urlparse(self.path).path)
+        u = urlparse(self.path)
+        path = unquote(u.path)
         if path in ("/", "/index.html"):
             return self._send(PAGE.encode("utf-8"), "text/html; charset=utf-8")
         if path == "/api/state":
             return self._send(json.dumps(batch_state(self.root)).encode("utf-8"), "application/json")
+        if path == "/api/puzzle":
+            x = (parse_qs(u.query).get("x") or [""])[0]
+            d = self.root / x
+            if not re.fullmatch(r"[\w-]+", x) or not (d / "ocr.json").exists():
+                return self._send(b"{}", "application/json", 404)
+            return self._send(json.dumps(puzzle_detail(d)).encode("utf-8"), "application/json")
+        if path == "/puzzle.js":
+            f = DOCS / "puzzle.js"
+            body = f.read_bytes() if f.exists() else b"function buildPuzzle(){return null}"
+            return self._send(body, "text/javascript; charset=utf-8")
         f = (self.root / path.lstrip("/")).resolve()
         if self.root.resolve() not in f.parents or not f.is_file() or f.suffix.lower() not in (".png", ".jpg", ".jpeg"):
             return self._send(b"not found", "text/plain", 404)
@@ -167,71 +145,96 @@ def serve(root: Path, port: int = 8770, open_browser: bool = True) -> None:
 
 
 def main(argv=None) -> None:
-    p = argparse.ArgumentParser(description="watch reviewer agents work on a folder of puzzle packets")
-    p.add_argument("folder", help="folder of puzzle packets (one subfolder per puzzle)")
+    p = argparse.ArgumentParser(description="watch reviews of a folder of puzzle packets")
+    p.add_argument("folder")
     p.add_argument("--port", type=int, default=int(os.environ.get("PORT", 8770)))
     p.add_argument("--no-browser", action="store_true")
     a = p.parse_args(argv)
-    root = Path(a.folder)
-    if not root.is_dir():
-        sys.exit(f"no folder {root}")
-    serve(root, a.port, not a.no_browser)
+    if not Path(a.folder).is_dir():
+        sys.exit(f"no folder {a.folder}")
+    serve(Path(a.folder), a.port, not a.no_browser)
 
 
 PAGE = r"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Review watch</title>
 <style>
-:root{--bg:#f7f5f0;--panel:#fff;--ink:#1d1d1b;--muted:#6b6860;--line:#e2ded4;--accent:#b4501e;--look:#1f6fd1;--fix:#c2410c;--ok:#15803d;--warn:#b45309;--bad:#b91c1c}
-@media (prefers-color-scheme:dark){:root{--bg:#171614;--panel:#211f1c;--ink:#ece8df;--muted:#a19c90;--line:#38342e;--accent:#e08a5a;--look:#6aa8ff;--fix:#fb923c;--ok:#4ade80;--warn:#fbbf24;--bad:#f87171}}
+:root{--bg:#f7f5f0;--panel:#fff;--ink:#1d1d1b;--muted:#6b6860;--line:#e2ded4;--accent:#b4501e;--look:#1f6fd1;--fix:#c2410c;--hot:#d97706;--ok:#15803d;--warn:#b45309;--bad:#b91c1c}
+@media (prefers-color-scheme:dark){:root{--bg:#171614;--panel:#211f1c;--ink:#ece8df;--muted:#a19c90;--line:#38342e;--accent:#e08a5a;--look:#6aa8ff;--fix:#fb923c;--hot:#facc15;--ok:#4ade80;--warn:#fbbf24;--bad:#f87171}}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,sans-serif}
-header{display:flex;gap:16px;align-items:baseline;padding:12px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
-h1{font-size:17px;margin:0}.muted{color:var(--muted)}.counts span{margin-right:12px}
-.wrap{display:grid;grid-template-columns:260px 1fr;min-height:calc(100vh - 50px)}
-@media (max-width:800px){.wrap{grid-template-columns:1fr}}
-nav{border-right:1px solid var(--line);overflow:auto;max-height:calc(100vh - 50px)}
+header{display:flex;gap:16px;align-items:baseline;padding:10px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+h1{font-size:17px;margin:0}.muted{color:var(--muted)}.counts span{margin-right:10px}
+.wrap{display:grid;grid-template-columns:220px 1fr;height:calc(100vh - 46px)}
+@media (max-width:800px){.wrap{grid-template-columns:1fr;height:auto}}
+nav{border-right:1px solid var(--line);overflow:auto}
 .p{display:flex;justify-content:space-between;gap:8px;padding:7px 12px;border-bottom:1px solid var(--line);cursor:pointer}
 .p:hover{background:var(--panel)}.p.sel{background:var(--panel);box-shadow:inset 3px 0 var(--accent)}
-.chip{font-size:11px;padding:1px 7px;border-radius:9px;border:1px solid currentColor;white-space:nowrap}
-.s-waiting{color:var(--muted)}.s-looking{color:var(--look)}.s-writing{color:var(--warn)}.s-ready{color:var(--ok)}
-.s-needs{color:var(--warn)}.s-escalated{color:var(--bad)}
+.chip{font-size:11px;padding:1px 7px;border-radius:9px;border:1px solid currentColor;white-space:nowrap;height:fit-content}
+.s-waiting{color:var(--muted)}.s-looking{color:var(--look)}.s-writing{color:var(--warn)}.s-ready{color:var(--ok)}.s-needs{color:var(--warn)}.s-escalated{color:var(--bad)}
 .live::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:currentColor;margin-right:5px;animation:pulse 1.2s infinite}
 @keyframes pulse{50%{opacity:.25}}
-main{padding:14px 16px;overflow:auto;max-height:calc(100vh - 50px)}
+main{overflow:auto;padding:12px 16px}
 .top{display:flex;justify-content:space-between;gap:12px;align-items:baseline;flex-wrap:wrap}
-.scans{display:flex;gap:14px;flex-wrap:wrap;margin:10px 0}
-.scan{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:6px}
-.scan img{display:block;max-width:100%}.scan .lbl{font-size:12px;color:var(--muted);margin-bottom:4px}
-.hl{position:absolute;border:2px solid var(--look);background:color-mix(in srgb,var(--look) 15%,transparent);pointer-events:none}
-.hl.fix{border-color:var(--fix);background:color-mix(in srgb,var(--fix) 18%,transparent)}
-.hl.new{animation:flash 1.5s 2}@keyframes flash{50%{border-width:4px}}
-.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:8px;margin:8px 0}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:8px 10px}
+.tabs{display:flex;gap:4px;margin:10px 0 8px;border-bottom:1px solid var(--line)}
+.tabs button{border:0;background:none;color:var(--muted);padding:6px 12px;cursor:pointer;font:inherit;border-bottom:2px solid transparent}
+.tabs button.on{color:var(--ink);border-color:var(--accent)}
+.cols{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:14px}
+@media (max-width:1100px){.cols{grid-template-columns:1fr}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:8px}
+.lbl{font-size:12px;color:var(--muted);margin-bottom:4px;display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap}
+.lbl button{font:inherit;font-size:12px;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:4px;padding:1px 7px;cursor:pointer}
+.lbl button.on{border-color:var(--accent)}
+.viewer{position:relative;overflow:hidden;height:70vh;min-height:360px;background:#888;border-radius:4px;cursor:grab;touch-action:none}
+.viewer.drag{cursor:grabbing}
+.stage{position:absolute;left:0;top:0;transform-origin:0 0}
+.stage img{display:block;width:100%;user-select:none;-webkit-user-drag:none}
+.small{position:relative}.small img{display:block;width:100%}
+.hl{position:absolute;border:2px solid var(--look);background:color-mix(in srgb,var(--look) 12%,transparent);pointer-events:none;border-radius:2px}
+.hl.fix{border-color:var(--fix);background:color-mix(in srgb,var(--fix) 15%,transparent)}
+.hl.hot{border-color:var(--hot);border-width:3px;background:color-mix(in srgb,var(--hot) 30%,transparent);box-shadow:0 0 0 3px color-mix(in srgb,var(--hot) 40%,transparent);z-index:2}
+.hl.dim{opacity:.15}
+.cards{display:flex;flex-direction:column;gap:6px;max-height:70vh;overflow:auto}
+.card{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:6px 9px;cursor:pointer}
+.card:hover,.card.hot{border-color:var(--hot);box-shadow:0 0 0 2px color-mix(in srgb,var(--hot) 35%,transparent)}
 .card b{font-size:12px;color:var(--muted);font-weight:600}
 del{color:var(--bad)}ins{color:var(--ok);text-decoration:none;font-weight:600}
 .sheets{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px}
-.sheets img{height:160px;border:1px solid var(--line);border-radius:4px;cursor:zoom-in;background:#fff}
-.feed{font-size:13px;margin:0;padding-left:18px}.feed li{margin:2px 0}
-h3{font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:16px 0 6px}
+.sheets img{height:150px;border:1px solid var(--line);border-radius:4px;cursor:zoom-in;background:#fff}
+.feed{font-size:13px;margin:0;padding-left:0;list-style:none}.feed li{margin:2px 0;padding:3px 6px;border-radius:4px}
+.feed li[data-ev]{cursor:default}.feed li[data-ev]:hover{background:color-mix(in srgb,var(--hot) 20%,transparent)}
+h3{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:14px 0 6px}
 .zoom{position:fixed;inset:0;background:rgba(0,0,0,.8);display:none;align-items:center;justify-content:center;z-index:9;cursor:zoom-out}
 .zoom img{max-width:95vw;max-height:95vh;background:#fff}
 label{font-size:13px}
+.board{display:grid;grid-template-columns:repeat(var(--cols),1fr);border:2px solid #111;width:min(100%,520px);aspect-ratio:var(--cols)/var(--rows);background:#111;gap:1px}
+.cell{background:#fff;color:#111;position:relative;display:flex;align-items:flex-end;justify-content:center;font:600 clamp(9px,1.6vw,17px)/1 Georgia,serif;padding-bottom:6%}
+.cell.blk{background:#111}.cell .num{position:absolute;left:2px;top:1px;font:9px/1 system-ui,sans-serif;color:#444}
+.cell.chg{background:#fde7c7}.cell .unk{color:#999}
+.preview{display:grid;grid-template-columns:minmax(0,520px) minmax(0,1fr);gap:18px}
+@media (max-width:1100px){.preview{grid-template-columns:1fr}}
+.cl{columns:2 260px;font-size:13px}.cl h4{margin:0 0 4px}.cl ol{list-style:none;margin:0 0 10px;padding:0}.cl li{margin:1px 0;break-inside:avoid}
+.cl li.chg{background:color-mix(in srgb,var(--hot) 22%,transparent);border-radius:3px}.cl .n{display:inline-block;min-width:26px;font-weight:600}
+.cl .ans{color:var(--muted);font-size:11px;margin-left:6px;letter-spacing:.04em}
+pre.xd{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:10px;overflow:auto;max-height:60vh;font-size:12px;white-space:pre}
+.hint{font-size:12px;color:var(--muted)}
 </style></head><body>
 <header><h1>Review watch: <span id="root"></span></h1><span class="counts" id="counts"></span>
 <label><input type="checkbox" id="follow" checked> follow the latest activity</label></header>
 <div class="wrap"><nav id="list"></nav><main id="main"><p class="muted">Waiting for reviews…</p></main></div>
 <div class="zoom" id="zoom"><img alt="contact sheet"></div>
+<script src="puzzle.js"></script>
 <script>
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-let S = null, sel = null, seenTargets = {};
+let S = null, sel = null, P = null, tab = 'review', pageImg = 'page.jpg', hot = null, focusCrops = null;
+const view = {};  // per puzzle and page: {s, x, y, fit}
 const ago = t => { const s = Math.max(0, Math.round(S.now - t)); return s < 60 ? `${s}s ago` : s < 3600 ? `${Math.round(s/60)} min ago` : `${Math.round(s/3600)} h ago`; };
-const chip = st => `<span class="chip s-${st.split(' ')[0]} ${['looking','writing'].includes(st) && S && S.now - 0 ? 'live' : ''}">${esc(st)}</span>`;
-const label = it => it.replace(/^clue:/, '').replace(/^cell:/, 'square ').replace(/^meta:/, '').replace(/^other:/, 'caption ');
+const chip = st => `<span class="chip s-${st.split(' ')[0]} ${['looking','writing'].includes(st) ? 'live' : ''}">${esc(st)}</span>`;
+const label = it => it.replace(/^clue:/, '').replace(/^cell:/, 'key square ').replace(/^grid:/, 'grid square ').replace(/^meta:/, '').replace(/^other:/, 'caption ');
 
 function wordDiff(a, b) {
-  const A = a.split(/(\s+)/), B = b.split(/(\s+)/);
-  const n = A.length, m = B.length, L = Array.from({length: n + 1}, () => new Array(m + 1).fill(0));
+  const A = a.split(/(\s+)/), B = b.split(/(\s+)/), n = A.length, m = B.length;
+  const L = Array.from({length: n + 1}, () => new Array(m + 1).fill(0));
   for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) L[i][j] = A[i] === B[j] ? L[i+1][j+1] + 1 : Math.max(L[i+1][j], L[i][j+1]);
   let i = 0, j = 0, out = '';
   while (i < n || j < m) {
@@ -242,101 +245,267 @@ function wordDiff(a, b) {
   return out;
 }
 
-// What a crop target covers: page boxes (in original-page pixels) or grid squares.
-function pageBox(P, t) {
-  const [k, v] = [t.split(':')[0], t.slice(t.indexOf(':') + 1)];
-  if (k === 'clue') return P.boxes[v];
-  if (k === 'box') return v.split(',').map(Number);
-  if (k === 'meta') return P.meta_boxes[v];
-  if (k === 'caption') return P.meta_boxes['other' + v];
+// ---- where a target or a change sits on the images ----
+const O = () => P.ocr;
+function pageBox(t) {  // [image name, box in that image's packet pixels] or null
+  const i = t.indexOf(':'), k = t.slice(0, i), v = t.slice(i + 1), ci = O().clue_image || 'page.jpg';
+  if (k === 'clue') { const c = O().clues[v]; return c && c.box ? [ci, c.box] : null; }
+  if (k === 'box') return [ci, v.split(',').map(Number)];
+  if (k === 'meta') { const b = (O().meta_boxes || {})[v === 'author' ? 'byline' : v]; return b ? ['page.jpg', b] : null; }
+  if (k === 'caption' || k === 'other') { const b = (O().meta_boxes || {})['other' + v]; return b ? ['page.jpg', b] : null; }
+  return null;
 }
-function squares(P, t) {
-  const [k, v] = [t.split(':')[0], t.slice(t.indexOf(':') + 1)], R = P.grid.length, C = R ? P.grid[0].length : 0;
-  if ((k === 'cell' || k === 'grid') && v === 'all') return [[0, 0, R, C]];
-  let m = /^r(\d+)c(\d+)$/.exec(v);
-  if ((k === 'cell' || k === 'grid') && m) return [[+m[1]-2, +m[2]-2, 3, 3]];
-  if (k === 'row') return [[+v-1, 0, 1, C]];
-  if (k === 'col') return [[0, +v-1, R, 1]];
-  if (k === 'entry' && P.entries[v]) { const sq = P.entries[v]; const r = sq.map(s => s[0]), c = sq.map(s => s[1]);
-    return [[Math.min(...r), Math.min(...c), Math.max(...r) - Math.min(...r) + 1, Math.max(...c) - Math.min(...c) + 1]]; }
+function entrySquares(id) {
+  const g = O().grid, R = g.length, C = g[0].length, white = (r, c) => r >= 0 && c >= 0 && r < R && c < C && g[r][c] !== '#';
+  let n = 0;
+  for (let r = 0; r < R; r++) for (let c = 0; c < C; c++) {
+    if (!white(r, c)) continue;
+    const a = !white(r, c - 1) && white(r, c + 1), d = !white(r - 1, c) && white(r + 1, c);
+    if (!(a || d)) continue; n++;
+    if (id === 'A' + n && a) { const sq = []; for (let cc = c; white(r, cc); cc++) sq.push([r, cc]); return sq; }
+    if (id === 'D' + n && d) { const sq = []; for (let rr = r; white(rr, c); rr++) sq.push([rr, c]); return sq; }
+  }
   return [];
 }
+function squares(t) {  // [image, [[r0, c0, h, w]]] on grid.png or answers.png
+  const i = t.indexOf(':'), k = t.slice(0, i), v = t.slice(i + 1), R = O().grid.length, C = O().grid[0].length;
+  if (!['cell','grid','row','col','entry'].includes(k)) return null;
+  const img = k === 'grid' ? 'grid.png' : 'answers.png';
+  if (v === 'all') return [img, [[0, 0, R, C]]];
+  const m = /^r(\d+)c(\d+)$/.exec(v);
+  if (m) return [img, [[+m[1]-1, +m[2]-1, 1, 1]]];
+  if (k === 'row') return [img, [[+v-1, 0, 1, C]]];
+  if (k === 'col') return [img, [[0, +v-1, R, 1]]];
+  const sq = entrySquares(v); if (!sq.length) return null;
+  const r = sq.map(s => s[0]), c = sq.map(s => s[1]);
+  return [img, [[Math.min(...r), Math.min(...c), Math.max(...r) - Math.min(...r) + 1, Math.max(...c) - Math.min(...c) + 1]]];
+}
+// The places a change shows up: a clue fix also lights its answer in the key, a key fix its grid square.
+function places(item) {
+  const out = [item];
+  if (item.startsWith('clue:')) out.push('entry:' + item.slice(5));
+  if (item.startsWith('cell:')) out.push('grid:' + item.slice(5));
+  return out;
+}
 
-function overlay(img, P, which) {
-  const wrap = img.parentElement; wrap.querySelectorAll('.hl').forEach(e => e.remove());
-  if (!img.naturalWidth) return;
-  const k = img.clientWidth / img.naturalWidth, fixed = new Set(P.changes.map(c => c.item));
-  const fresh = new Set(P.shown.filter(t => !(seenTargets[P.xdid] || new Set()).has(t)));
-  const add = (x, y, w, h, t) => { const d = document.createElement('div'); d.className = 'hl' + (fixed.has(t) ? ' fix' : '') + (fresh.has(t) ? ' new' : '');
-    d.title = t; Object.assign(d.style, {left: img.offsetLeft + x * k + 'px', top: img.offsetTop + y * k + 'px', width: w * k + 'px', height: h * k + 'px'}); wrap.appendChild(d); };
-  for (const t of P.shown) {
-    if (which === 'page') { const b = pageBox(P, t); if (b) add(b[0] - 3, b[1] - 3, b[2] - b[0] + 6, b[3] - b[1] + 6, t); }  // boxes are in page.jpg pixels
-    else {
-      const kind = t.split(':')[0];
-      if ((which === 'grid') !== (kind === 'grid')) continue;
-      const R = P.grid.length, C = R ? P.grid[0].length : 1, cw = img.naturalWidth / C, ch = img.naturalHeight / R;
-      for (const [r, c, h, w] of squares(P, t)) { const r0 = Math.max(0, r), c0 = Math.max(0, c);
-        add(c0 * cw, r0 * ch, (Math.min(C, c + w) - c0) * cw, (Math.min(R, r + h) - r0) * ch, t); }
-    }
+// ---- overlays ----
+function boxesFor(name) {
+  const fixed = new Set(Object.keys(P.review.corrections || {}));
+  const hotSet = new Set(hot ? places(hot) : []);
+  const want = [...new Set(P.shown.concat([...hotSet]).concat(focusCrops || []))];
+  const out = [];
+  for (const t of want) {
+    let cls = hotSet.has(t) ? 'hot' : fixed.has(t) ? 'fix' : '';
+    if (focusCrops && !focusCrops.includes(t) && cls !== 'hot') cls += ' dim';
+    const pb = pageBox(t);
+    if (pb && pb[0] === name) { const [x0, y0, x1, y1] = pb[1]; out.push({t, x: x0 - 3, y: y0 - 3, w: x1 - x0 + 6, h: y1 - y0 + 6, cls}); }
+    const sq = squares(t);
+    if (sq && sq[0] === name) for (const s of sq[1]) out.push({t, sq: s, cls});
+  }
+  return out;
+}
+function drawSmall(id, name) {
+  const im = document.getElementById(id); if (!im || !im.naturalWidth) return;
+  const wrap = im.parentElement; wrap.querySelectorAll('.hl').forEach(e => e.remove());
+  const R = O().grid.length, C = O().grid[0].length, k = im.clientWidth / im.naturalWidth, cw = im.naturalWidth / C, ch = im.naturalHeight / R;
+  for (const b of boxesFor(name)) {
+    if (!b.sq) continue;
+    const [r, c, h, w] = b.sq, d = document.createElement('div');
+    d.className = 'hl ' + b.cls; d.title = b.t;
+    Object.assign(d.style, {left: c * cw * k + 'px', top: r * ch * k + 'px', width: w * cw * k + 'px', height: h * ch * k + 'px'});
+    wrap.appendChild(d);
   }
 }
 
+// ---- the zoomable page ----
+let pageW = 0;  // the page's width in packet pixels (the boxes' units)
+function cur() {
+  const key = P.xdid + pageImg, vw = $('#viewer');
+  if (!view[key] && vw && pageW) { const s = vw.clientWidth / pageW; view[key] = {s, x: 0, y: 0, fit: s}; }
+  return view[key] || {s: 1, x: 0, y: 0, fit: 1};
+}
+function applyView() {
+  const v = cur(), st = $('#stage'); if (!st) return;
+  st.style.transform = `translate(${v.x}px,${v.y}px) scale(${v.s})`;
+  st.querySelectorAll('.hl').forEach(d => d.style.borderWidth = (d.classList.contains('hot') ? 3 : 2) / v.s + 'px');
+}
+function drawPage() {
+  const st = $('#stage'), im = $('#pageimg'); if (!st || !im || !im.naturalWidth) return;
+  pageW = im.naturalWidth * (P.src[pageImg] ? ((O().scales || {})[pageImg] || 1) : 1);
+  st.style.width = pageW + 'px';
+  st.querySelectorAll('.hl').forEach(e => e.remove());
+  for (const b of boxesFor(pageImg)) {
+    if (b.sq) continue;
+    const d = document.createElement('div'); d.className = 'hl ' + b.cls; d.title = b.t;
+    Object.assign(d.style, {left: b.x + 'px', top: b.y + 'px', width: b.w + 'px', height: b.h + 'px'});
+    st.appendChild(d);
+  }
+  applyView();
+}
+function zoomAt(px, py, f) {
+  const v = cur(), s = Math.min(Math.max(v.s * f, v.fit * 0.8), v.fit * 12);
+  v.x = px - (px - v.x) * s / v.s; v.y = py - (py - v.y) * s / v.s; v.s = s; applyView();
+}
+function zoomTo(box) {  // a box (packet pixels) in the middle of the viewer, large enough to read
+  const vw = $('#viewer'); if (!vw || !pageW) return; const v = cur();
+  const [x0, y0, x1, y1] = box, W = vw.clientWidth, H = vw.clientHeight;
+  v.s = Math.max(v.fit, Math.min(W / ((x1 - x0) + 200), H / ((y1 - y0) + 300), v.fit * 8));
+  v.x = W / 2 - (x0 + x1) / 2 * v.s; v.y = H / 2 - (y0 + y1) / 2 * v.s; applyView();
+}
+function bindViewer() {
+  const vw = $('#viewer'); if (!vw) return;
+  vw.onwheel = e => { e.preventDefault(); const r = vw.getBoundingClientRect(); zoomAt(e.clientX - r.left, e.clientY - r.top, e.deltaY < 0 ? 1.2 : 1 / 1.2); };
+  let drag = null;
+  vw.onpointerdown = e => { drag = {x: e.clientX, y: e.clientY}; vw.classList.add('drag'); vw.setPointerCapture(e.pointerId); };
+  vw.onpointermove = e => { if (!drag) return; const v = cur(); v.x += e.clientX - drag.x; v.y += e.clientY - drag.y; drag = {x: e.clientX, y: e.clientY}; applyView(); };
+  vw.onpointerup = () => { drag = null; vw.classList.remove('drag'); };
+  vw.ondblclick = e => { const r = vw.getBoundingClientRect(); zoomAt(e.clientX - r.left, e.clientY - r.top, 2); };
+}
+function redraw() { drawPage(); drawSmall('gridimg', 'grid.png'); drawSmall('ansimg', 'answers.png'); }
+
+function setHot(item, zoom) {
+  hot = item;
+  document.querySelectorAll('.card').forEach(c => c.classList.toggle('hot', c.dataset.item === item));
+  if (item && zoom) {
+    const pb = places(item).map(pageBox).find(Boolean);
+    if (pb) {
+      if (pb[0] !== pageImg && P.has[pb[0]]) { pageImg = pb[0]; renderMain(); hot = item; const im = $('#pageimg'); im.onload = () => { drawPage(); zoomTo(pb[1]); }; return; }
+      zoomTo(pb[1]);
+    }
+  }
+  redraw();
+}
+
+// ---- rendering ----
 function renderList() {
   const counts = {};
-  S.puzzles.forEach(P => counts[P.status] = (counts[P.status] || 0) + 1);
+  S.puzzles.forEach(p => counts[p.status] = (counts[p.status] || 0) + 1);
   $('#counts').innerHTML = ['waiting','looking','writing','ready','needs a person','escalated'].filter(s => counts[s]).map(s => `<span>${chip(s)} ${counts[s]}</span>`).join('');
-  $('#list').innerHTML = S.puzzles.map(P => `<div class="p ${P.xdid === sel ? 'sel' : ''}" data-x="${P.xdid}"><span>${esc(P.xdid)}<br><span class="muted" style="font-size:12px">${P.updated ? ago(P.updated) : ''}</span></span>${chip(P.status)}</div>`).join('');
-  document.querySelectorAll('.p').forEach(el => el.onclick = () => { sel = el.dataset.x; $('#follow').checked = false; render(); });
+  $('#list').innerHTML = S.puzzles.map(p => `<div class="p ${p.xdid === sel ? 'sel' : ''}" data-x="${p.xdid}"><span>${esc(p.xdid)}<br><span class="muted" style="font-size:12px">${p.updated ? ago(p.updated) : ''}</span></span>${chip(p.status)}</div>`).join('');
+  document.querySelectorAll('.p').forEach(el => el.onclick = () => { sel = el.dataset.x; $('#follow').checked = false; hot = null; focusCrops = null; load(true); });
+}
+
+function changesHtml() {
+  const rv = P.review, o = O(), cards = [];
+  for (const [item, now] of Object.entries(rv.corrections || {})) {
+    const i = item.indexOf(':'), kind = item.slice(0, i), key = item.slice(i + 1);
+    let was = '';
+    if (kind === 'clue') was = (o.clues[key] || {}).text || '';
+    else if (kind === 'meta') was = o[key] || '';
+    else if (kind === 'other') was = (o.captions || {})[key] || '';
+    else if (kind === 'cell') { const m = /r(\d+)c(\d+)/.exec(key); was = m && o.answers ? (o.answers[m[1]-1] || '')[m[2]-1] || '' : ''; }
+    else if (kind === 'grid') { const m = /r(\d+)c(\d+)/.exec(key); was = m ? (o.grid[m[1]-1] || '')[m[2]-1] || '' : ''; }
+    const body = kind === 'cell' || kind === 'grid' ? `<del>${esc(was || '?')}</del> → <ins>${esc(now)}</ins>`
+      : now === '' ? `<del>${esc(was || '(removed)')}</del> <span class="muted">(removed)</span>` : wordDiff(was, now);
+    cards.push(`<div class="card" data-item="${esc(item)}"><b>${esc(label(item))}</b><br>${body}</div>`);
+  }
+  for (const [k, v] of Object.entries(rv.sic || {})) cards.push(`<div class="card" data-item="clue:${esc(k)}"><b>${esc(k)}: kept as printed</b><br>meant: ${esc(v)}</div>`);
+  for (const [k, v] of Object.entries(rv.unsure || {})) cards.push(`<div class="card" data-item="${esc(k)}"><b>${esc(label(k))}: unsure</b><br>${esc(v)}</div>`);
+  return cards.join('');
+}
+
+function xdText(Z) {  // the corrected puzzle as xd (a preview: the archive's own export is made upstream)
+  const m = /(\d{4}-\d\d-\d\d)/.exec(Z.id), head = [['Title', Z.title], ['Author', Z.author], ['Byline', Z.byline], ['Date', m ? m[1] : ''], ['Source', Z.source]];
+  const grid = Z.cells.map(row => row.map(x => !x ? '#' : x.sol || '.').join(''));
+  const ans = w => w.cells.map(([r, c]) => (Z.cells[r][c] || {}).sol || '.').join('');
+  const list = d => Z.words.filter(w => w.dir === d).map(w => `${d}${w.n}. ${w.text} ~ ${ans(w)}`).join('\n');
+  return head.filter(h => h[1]).map(h => `${h[0]}: ${h[1]}`).join('\n') + '\n\n\n' + grid.join('\n') + '\n\n\n' + list('A') + '\n\n' + list('D') + '\n';
+}
+
+function previewHtml() {
+  if (typeof buildPuzzle !== 'function') return '<p class="muted">The preview needs docs/puzzle.js from the blitz repository.</p>';
+  const Z = buildPuzzle(O(), P.review);
+  if (!Z) return '<p class="muted">No preview.</p>';
+  const corr = Object.keys(P.review.corrections || {});
+  const changedSq = new Set(corr.filter(k => k.startsWith('cell:') || k.startsWith('grid:')).map(k => k.slice(5)));
+  const changedClue = new Set(corr.filter(k => k.startsWith('clue:')).map(k => k.slice(5)));
+  const board = Z.cells.map((row, r) => row.map((x, c) => !x ? '<div class="cell blk"></div>'
+    : `<div class="cell ${changedSq.has(`r${r+1}c${c+1}`) ? 'chg' : ''}">${x.num ? `<span class="num">${x.num}</span>` : ''}${x.sol ? esc(x.sol) : '<span class="unk">·</span>'}</div>`).join('')).join('');
+  const ans = w => w.cells.map(([r, c]) => (Z.cells[r][c] || {}).sol || '·').join('');
+  const list = d => Z.words.filter(w => w.dir === d).map(w => `<li class="${changedClue.has(w.id) ? 'chg' : ''}"><span class="n">${w.n}</span>${esc(w.text)}<span class="ans">${esc(ans(w))}</span></li>`).join('');
+  return `<p class="hint">${P.review._draft ? 'From the draft (not finished yet). ' : ''}The puzzle with this review applied, as its record page will show it. Changed squares and clues are tinted.</p>
+    <div class="preview"><div><h2 style="margin:0 0 2px;font:600 20px Georgia,serif">${esc(Z.title)}</h2>
+      <div class="muted" style="margin-bottom:8px">${esc(Z.byline || Z.author)} · ${esc(Z.date)}</div>
+      <div class="board" style="--cols:${Z.C};--rows:${Z.R}">${board}</div></div>
+      <div class="cl"><h4>Across</h4><ol>${list('A')}</ol><h4>Down</h4><ol>${list('D')}</ol></div></div>
+    <h3>xd</h3><pre class="xd">${esc(xdText(Z))}</pre>`;
 }
 
 function renderMain() {
-  const P = S.puzzles.find(p => p.xdid === sel); if (!P) return;
-  const ev = P.events.slice().reverse().map(e => e.what === 'sheet' ? `<li>${ago(e.t)}: looked at ${e.crops.length} crop${e.crops.length === 1 ? '' : 's'}: ${esc(e.crops.join(', '))}</li>`
-    : `<li>${ago(e.t)}: ${e.what === 'draft' ? 'wrote its verdict (draft.json)' : 'finished (review.json)'}</li>`).join('');
-  const cards = P.changes.map(c => `<div class="card"><b>${esc(label(c.item))}</b><br>${c.item.startsWith('cell:') ? `<del>${esc(c.was || '?')}</del> → <ins>${esc(c.now)}</ins>` : c.now === '' ? `<del>${esc(c.was || '(removed)')}</del>` : wordDiff(c.was || '', c.now)}</div>`).join('');
-  const sic = Object.entries(P.sic).map(([k, v]) => `<div class="card"><b>${esc(k)}: kept as printed</b><br>meant: ${esc(v)}</div>`).join('');
-  const uns = Object.entries(P.unsure).map(([k, v]) => `<div class="card"><b>${esc(label(k))}: unsure</b><br>${esc(v)}</div>`).join('');
-  const notes = P.tool_notes.map(n => typeof n === 'string' ? n : `${n.kind}${n.target ? ' ' + n.target : ''}: ${n.note}`).map(n => `<li>${esc(n)}</li>`).join('');
+  if (!P) return;
+  const rv = P.review, o = O();
+  const title = (rv.corrections || {})['meta:title'] || o.title || P.xdid;
+  const ev = P.events.map((e, i) => e.what === 'sheet'
+    ? `<li data-ev="${i}">${ago(e.t)}: looked at ${e.crops.length} crop${e.crops.length === 1 ? '' : 's'}: ${esc(e.crops.join(', '))}</li>`
+    : `<li>${ago(e.t)}: ${e.what === 'draft' ? 'wrote its verdict (draft.json)' : 'finished (review.json)'}</li>`).reverse().join('');
+  const notes = (rv.tool_notes || []).map(n => typeof n === 'string' ? n : `${n.kind}${n.target ? ' ' + n.target : ''}: ${n.note}`).map(n => `<li>${esc(n)}</li>`).join('');
   const sheets = P.events.filter(e => e.what === 'sheet').map(e => `<img src="${esc(e.file)}?t=${e.t}" title="${esc(e.crops.join(', '))}" alt="contact sheet">`).join('');
-  $('#main').innerHTML = `<div class="top"><div><h2 style="margin:0;font-size:18px">${esc(P.title || P.xdid)}</h2>
-    <span class="muted">${esc(P.xdid)} · ${esc(P.byline)} · ${esc(P.size)}</span></div>${chip(P.status)}</div>
-    ${P.escalate ? `<p style="color:var(--bad)"><b>Escalated:</b> ${esc(P.escalate)}</p>` : ''}
-    ${P.note ? `<p class="muted">${esc(P.note)}</p>` : ''}
-    <div class="scans">
-      ${P.has['page.jpg'] ? `<div class="scan" style="flex:2 1 420px"><div class="lbl">The page: <span style="color:var(--look)">■</span> looked at · <span style="color:var(--fix)">■</span> corrected</div><img id="pg" src="${esc(P.xdid)}/page.jpg" alt="scanned page"></div>` : ''}
-      <div style="display:flex;flex-direction:column;gap:14px;flex:1 1 260px">
-      ${P.has['grid.png'] ? `<div class="scan"><div class="lbl">Grid</div><img id="gr" src="${esc(P.xdid)}/grid.png" alt="puzzle grid"></div>` : ''}
-      ${P.has['answers.png'] ? `<div class="scan"><div class="lbl">Answer key</div><img id="an" src="${esc(P.xdid)}/answers.png" alt="answer key"></div>` : ''}</div>
-    </div>
-    <h3>What it changed${P.draft_only ? ' (draft, not finished yet)' : ''}</h3>
-    ${cards || sic || uns ? `<div class="cards">${cards}${sic}${uns}</div>` : `<p class="muted">${P.status === 'waiting' || P.status === 'looking' ? 'Nothing yet.' : 'No changes.'}</p>`}
+  const pages = ['page.jpg', 'clue_page.jpg'].filter(n => P.has[n]);
+  if (!P.has[pageImg]) pageImg = 'page.jpg';
+  const imgSrc = n => `${P.xdid}/${P.src[n] ? '_src/' : ''}${n}`;
+  const cards = changesHtml();
+  $('#main').innerHTML = `<div class="top"><div><h2 style="margin:0;font-size:18px">${esc(title)}</h2>
+    <span class="muted">${esc(P.xdid)} · ${esc(o.byline || '')} · ${o.grid.length}x${o.grid[0].length}</span></div>${chip(P.status)}</div>
+    ${rv.escalate ? `<p style="color:var(--bad)"><b>Escalated:</b> ${esc(rv.escalate)}</p>` : ''}
+    ${rv.note ? `<p class="muted" style="margin:6px 0">${esc(rv.note)}</p>` : ''}
+    <div class="tabs"><button data-tab="review" class="${tab === 'review' ? 'on' : ''}">The review</button><button data-tab="preview" class="${tab === 'preview' ? 'on' : ''}">The result (grid and xd)</button></div>
+    ${tab === 'preview' ? previewHtml() : `
+    <div class="cols"><div class="panel"><div class="lbl"><span><span style="color:var(--look)">■</span> looked at · <span style="color:var(--fix)">■</span> corrected · <span style="color:var(--hot)">■</span> selected · scroll to zoom, drag to move, double-click to zoom in</span>
+        <span>${pages.length > 1 ? pages.map(n => `<button data-page="${n}" class="${n === pageImg ? 'on' : ''}">${n === 'page.jpg' ? 'Page' : 'Clue page'}</button>`).join(' ') : ''} <button id="fit">Fit</button></span></div>
+        <div class="viewer" id="viewer"><div class="stage" id="stage"><img id="pageimg" src="${esc(imgSrc(pageImg))}" alt="scanned page" draggable="false"></div></div></div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div class="panel"><div class="lbl">What it changed${rv._draft ? ' (draft)' : ''}: hover to find it, click to zoom there</div>
+          ${cards ? `<div class="cards">${cards}</div>` : `<p class="muted">${['waiting','looking'].includes(P.status) ? 'Nothing yet.' : 'No changes.'}</p>`}</div>
+        ${P.has['answers.png'] ? `<div class="panel"><div class="lbl">Answer key</div><div class="small"><img id="ansimg" src="${esc(P.xdid)}/answers.png" alt="answer key"></div></div>` : ''}
+        ${P.has['grid.png'] ? `<div class="panel"><div class="lbl">Grid</div><div class="small"><img id="gridimg" src="${esc(P.xdid)}/grid.png" alt="puzzle grid"></div></div>` : ''}
+      </div></div>
+    <h3>Activity: hover a step to see what it looked at</h3>${ev ? `<ul class="feed">${ev}</ul>` : '<p class="muted">Not started.</p>'}
     <h3>Contact sheets it read</h3>${sheets ? `<div class="sheets">${sheets}</div>` : '<p class="muted">None yet.</p>'}
-    <h3>Activity</h3>${ev ? `<ul class="feed">${ev}</ul>` : '<p class="muted">Not started.</p>'}
-    ${notes ? `<h3>Notes on the tools</h3><ul class="feed">${notes}</ul>` : ''}`;
-  const hook = (id, which) => { const im = document.getElementById(id); if (!im) return; const go = () => overlay(im, P, which); im.complete ? go() : im.onload = go; };
-  hook('pg', 'page'); hook('gr', 'grid'); hook('an', 'cell');
+    ${notes ? `<h3>Notes on the tools</h3><ul class="feed">${notes}</ul>` : ''}`}`;
+  document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => { tab = b.dataset.tab; renderMain(); });
+  document.querySelectorAll('[data-page]').forEach(b => b.onclick = () => { pageImg = b.dataset.page; renderMain(); });
+  if ($('#fit')) $('#fit').onclick = () => { const v = cur(); v.s = v.fit; v.x = 0; v.y = 0; applyView(); };
+  document.querySelectorAll('.card').forEach(c => {
+    c.onmouseenter = () => setHot(c.dataset.item, false);
+    c.onmouseleave = () => setHot(null, false);
+    c.onclick = () => setHot(c.dataset.item, true);
+  });
+  document.querySelectorAll('.feed li[data-ev]').forEach(li => {
+    const e = P.events[+li.dataset.ev];
+    li.onmouseenter = () => { focusCrops = e.crops || null; redraw(); };
+    li.onmouseleave = () => { focusCrops = null; redraw(); };
+  });
   document.querySelectorAll('.sheets img').forEach(im => im.onclick = () => { $('#zoom img').src = im.src; $('#zoom').style.display = 'flex'; });
-  seenTargets[P.xdid] = new Set(P.shown);
+  for (const [id, fn] of [['pageimg', drawPage], ['gridimg', () => drawSmall('gridimg', 'grid.png')], ['ansimg', () => drawSmall('ansimg', 'answers.png')]]) {
+    const im = document.getElementById(id); if (im) { if (im.complete) fn(); else im.onload = fn; }
+  }
+  bindViewer();
 }
 
 let lastKey = '';
-function render() { renderList(); renderMain(); }
+async function load(force) {
+  const p = await (await fetch('api/puzzle?x=' + encodeURIComponent(sel))).json();
+  const key = sel + JSON.stringify([p.status, p.shown.length, Object.keys(p.review.corrections || {}).length, p.events.length]);
+  P = p;
+  if (force || key !== lastKey) { lastKey = key; renderMain(); }
+  renderList();
+}
 async function poll() {
   try {
     S = await (await fetch('api/state')).json();
     $('#root').textContent = S.root;
     if ($('#follow').checked || !sel) {
-      const live = S.puzzles.filter(P => P.updated).sort((a, b) => b.updated - a.updated)[0];
-      sel = live ? live.xdid : S.puzzles[0]?.xdid;
+      const live = S.puzzles.filter(p => p.updated).sort((a, b) => b.updated - a.updated)[0];
+      const next = live ? live.xdid : S.puzzles[0]?.xdid;
+      if (next !== sel) { sel = next; hot = null; focusCrops = null; }
     }
-    const P = S.puzzles.find(p => p.xdid === sel);
-    const key = sel + JSON.stringify(P && [P.status, P.shown.length, P.changes.length, P.events.length]);
-    if (key !== lastKey) { lastKey = key; render(); } else renderList();
+    renderList();
+    if (sel) await load(false);
   } catch (e) {}
   setTimeout(poll, 2000);
 }
 $('#zoom').onclick = () => $('#zoom').style.display = 'none';
-window.onresize = () => S && renderMain();
+window.onresize = () => P && redraw();
 poll();
 </script></body></html>
 """
