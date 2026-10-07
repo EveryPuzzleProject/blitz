@@ -50,7 +50,8 @@ main{overflow:auto;padding:12px 16px}
 .hl.dim{opacity:.15}
 .cards{display:flex;flex-direction:column;gap:6px;max-height:36vh;overflow:auto}
 .card{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:6px 9px;cursor:pointer}
-.card:hover,.card.hot{border-color:var(--hot);box-shadow:0 0 0 2px color-mix(in srgb,var(--hot) 35%,transparent)}
+.card:hover{border-color:var(--hot)}
+.card.sel{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 45%,transparent)}
 .card b{font-size:12px;color:var(--muted);font-weight:600}
 .card .acts{float:right;display:flex;gap:4px}.card .acts button{font:inherit;font-size:12px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:4px;padding:0 7px;cursor:pointer}
 .card .acts button.on.ok{border-color:var(--ok);color:var(--ok)}.card .acts button.on.no{border-color:var(--bad);color:var(--bad);font-weight:700}
@@ -383,7 +384,7 @@ function drawPeek() {
 
 function setHot(item, zoom) {
   hot = item;
-  document.querySelectorAll('.card').forEach(c => c.classList.toggle('hot', c.dataset.item === item));
+
   if (item && zoom) {
     const pb = places(item).map(pageBox).find(Boolean);
     if (pb) {
@@ -437,7 +438,16 @@ function progress() {
 }
 async function decide(payload) {
   const d = await API.decide(P.xdid, payload);
-  if (d) { P.decisions = d; lastKey = renderKey(P); renderMain(); }
+  if (d) {
+    P.decisions = d; lastKey = renderKey(P); renderMain();
+    const row = S && S.puzzles.find(p => p.xdid === P.xdid);  // the list shows it now, not at the next refresh
+    if (row) {
+      if (!row.verdict !== !d.verdict) row.eyes = Math.max(0, (row.eyes || 0) + (d.verdict ? 1 : -1));
+      row.verdict = d.verdict || '';
+      row.rejected = Object.values(d.items || {}).filter(v => v === 'reject').length;
+      renderList();
+    }
+  }
 }
 async function decideCard(el, act) {
   if (act === 'context') { const i = [...document.querySelectorAll('.card')].indexOf(el);
@@ -493,8 +503,8 @@ function moveFocus(i) {
   const cs = [...document.querySelectorAll('.card')];
   if (!cs.length) return;
   focusCard = Math.min(cs.length - 1, Math.max(0, i));
-  cs.forEach(c => c.classList.remove('hot'));
-  cs[focusCard].classList.add('hot');
+  cs.forEach(c => c.classList.remove('sel'));
+  cs[focusCard].classList.add('sel');
   cs[focusCard].scrollIntoView({block: 'nearest'});
   setHot(cs[focusCard].dataset.item, true);
   showContext();
@@ -589,11 +599,14 @@ function renderMain() {
   if ($('#fit')) $('#fit').onclick = () => { const v = cur(); v.s = v.fit; v.x = 0; v.y = 0; applyView(); };
   document.querySelectorAll('.card').forEach((c, i) => {
     c.onmouseenter = () => setHot(c.dataset.item, false);
-    c.onmouseleave = () => { if (focusCard !== i) setHot(null, false); };
+    c.onmouseleave = () => {  // back to the selected change on the scan
+      const cs = document.querySelectorAll('.card');
+      setHot(focusCard !== null && cs[focusCard] ? cs[focusCard].dataset.item : null, false);
+    };
     c.onclick = e => {
       focusCard = i;
       const b = e.target.closest('button[data-act]');
-      if (b) decideCard(c, b.dataset.act); else { setHot(c.dataset.item, true); showContext(); }
+      if (b) decideCard(c, b.dataset.act); else moveFocus(i);  // select it: outline, scan, context
     };
   });
   document.querySelectorAll('[data-verdict]').forEach(b => b.onclick = () =>
@@ -612,7 +625,7 @@ function renderMain() {
     box.onchange = () => decide({item: box.dataset.note, decision: 'reject', note: box.value});
   });
   const cs = document.querySelectorAll('.card');
-  if (focusCard !== null && cs[focusCard]) cs[focusCard].classList.add('hot');
+  if (focusCard !== null && cs[focusCard]) cs[focusCard].classList.add('sel');
   const pg = document.getElementById('progress'); if (pg) pg.textContent = progress();
   showContext();
   document.querySelectorAll('.feed li[data-ev]').forEach(li => {
