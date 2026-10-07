@@ -59,35 +59,48 @@
     window.dispatchEvent(new Event('blitz-refresh'));
   }
 
-  const signInLinks = () => PROVIDERS.map(([p, name]) => `<a href="#" data-signin="${p}">${esc(name)}</a>`).join(' · ');
+  // The providers' own marks (as their sign-in guidelines ask), 18px, in the page's text size.
+  const ICONS = {
+    google: `<svg viewBox="0 0 48 48" width="18" height="18" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.6-.4-3.9z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.1H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C36.9 39.2 44 34 44 24c0-1.3-.1-2.6-.4-3.9z"/></svg>`,
+    github: `<svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>`,
+    discord: `<svg viewBox="0 0 127.14 96.36" width="20" height="18" aria-hidden="true"><path fill="#5865F2" d="M107.7 8.07A105.15 105.15 0 0 0 81.47 0a72.06 72.06 0 0 0-3.36 6.83 97.68 97.68 0 0 0-29.11 0A72.37 72.37 0 0 0 45.64 0a105.89 105.89 0 0 0-26.25 8.09C2.79 32.65-1.71 56.6.54 80.21a105.73 105.73 0 0 0 32.17 16.15 77.7 77.7 0 0 0 6.89-11.11 68.42 68.42 0 0 1-10.85-5.18c.91-.66 1.8-1.34 2.66-2a75.57 75.57 0 0 0 64.32 0c.87.71 1.76 1.39 2.66 2a68.68 68.68 0 0 1-10.87 5.19 77 77 0 0 0 6.89 11.1 105.25 105.25 0 0 0 32.19-16.14c2.64-27.38-4.51-51.11-18.9-72.15zM42.45 65.69C36.18 65.69 31 60 31 53s5-12.74 11.43-12.74S54 46 53.89 53s-5.05 12.69-11.44 12.69zm42.24 0C78.41 65.69 73.25 60 73.25 53s5-12.74 11.44-12.74S96.23 46 96.12 53s-5.04 12.69-11.43 12.69z"/></svg>`,
+  };
+  const signInLinks = () => PROVIDERS.map(([p, name]) =>
+    `<a href="#" data-signin="${p}" title="Sign in with ${esc(name)}" aria-label="Sign in with ${esc(name)}" style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink)">${ICONS[p] || esc(name)}</a>`).join('');
+  const signInLine = () => `<span style="display:inline-flex;gap:6px;align-items:center;font-size:13px" class="muted">Sign in to save your progress ${signInLinks()}</span>`;
   function bindSignIn(el) {
     el.querySelectorAll('[data-signin]').forEach(a => a.onclick = e => { e.preventDefault(); signIn(a.dataset.signin); });
   }
 
   function welcome(el) {
-    el.innerHTML = `<span class="muted" style="font-size:13px">No sign-up needed: just start checking.
-      Or sign in with ${signInLinks()}</span>`;
+    el.innerHTML = signInLine();
     bindSignIn(el);
   }
 
-  async function profileForm(el) {
+  async function profileForm(el, open) {  // a guest: the sign-in line; signed in: your name and Sign out
+    if (user.is_anonymous) { el.innerHTML = signInLine(); bindSignIn(el); return; }
     const {data} = await sb.from('profiles').select('display_name,on_leaderboard').eq('user_id', user.id).maybeSingle();
     const meta = user.user_metadata || {};
     const p = data || {display_name: '', on_leaderboard: false};
-    const guest = user.is_anonymous;
-    const who = meta.full_name || meta.name || meta.user_name || user.email || '';
+    const who = p.display_name || meta.full_name || meta.name || meta.user_name || user.email || 'you';
     el.innerHTML = `<span style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px">
-      <input data-name placeholder="${esc(guest ? 'your name (optional)' : who || 'your name')}" value="${esc(p.display_name)}" maxlength="40" style="${box};width:170px" title="the name shown on the leaderboard">
-      <label><input type="checkbox" data-lb ${p.on_leaderboard ? 'checked' : ''}> on the leaderboard</label>
-      ${guest ? `<span class="muted" title="Your progress is saved in this browser. Sign in to keep it on any device.">keep my progress: ${signInLinks()}</span>`
-              : `<span class="muted">${esc(who)}</span> <a href="#" data-out>sign out</a>`}</span>`;
-    const save = () => sb.from('profiles').upsert({user_id: user.id, display_name: el.querySelector('[data-name]').value.trim(),
-                                                   on_leaderboard: el.querySelector('[data-lb]').checked});
-    el.querySelector('[data-name]').onchange = save;
-    el.querySelector('[data-lb]').onchange = save;
-    if (el.querySelector('[data-out]')) el.querySelector('[data-out]').onclick = async e => { e.preventDefault(); await sb.auth.signOut(); };
-    bindSignIn(el);
+      ${open ? `<input data-name placeholder="${esc(meta.full_name || meta.user_name || 'your name')}" value="${esc(p.display_name)}" maxlength="40" style="${box};width:170px" title="the name shown on the leaderboard">
+        <label><input type="checkbox" data-lb ${p.on_leaderboard ? 'checked' : ''}> show me on the leaderboard</label>
+        <a href="#" data-done>done</a>`
+             : `<a href="#" data-settings title="your name on the leaderboard">${esc(who)}</a>`}
+      <span class="muted">·</span> <a href="#" data-out>Sign out</a></span>`;
+    if (open) {
+      const save = () => sb.from('profiles').upsert({user_id: user.id, display_name: el.querySelector('[data-name]').value.trim(),
+                                                     on_leaderboard: el.querySelector('[data-lb]').checked});
+      el.querySelector('[data-name]').onchange = save;
+      el.querySelector('[data-lb]').onchange = save;
+      el.querySelector('[data-done]').onclick = async e => { e.preventDefault(); await save(); profileForm(el, false); };
+    } else {
+      el.querySelector('[data-settings]').onclick = e => { e.preventDefault(); profileForm(el, true); };
+    }
+    el.querySelector('[data-out]').onclick = async e => { e.preventDefault(); await sb.auth.signOut(); };
   }
+
 
   window.BLITZ_API = {
     mode: 'site', pollMs: 60000,
