@@ -226,7 +226,7 @@ main{overflow:auto;padding:12px 16px}
 .hl.peek{border:2px dashed var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent);z-index:3}
 .tip{position:absolute;z-index:5;max-width:360px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:6px;box-shadow:0 4px 14px rgba(0,0,0,.25);padding:6px 9px;font-size:13px;pointer-events:none}
 .tip.pinned{pointer-events:auto;border-color:var(--accent)}
-.tip .st{font-size:11px;color:var(--muted);margin-top:3px}.tip .st.warn{color:var(--warn)}
+.tip .st{font-size:11px;color:var(--muted);margin-top:3px}.tip .st.ok{color:var(--ok)}.tip .st.warn{color:var(--warn)}.tip .st.bad{color:var(--bad)}
 .moved{font-size:12px;margin-top:3px;color:var(--ok)}.moved.warn{color:var(--warn);font-weight:600}.moved.meh{color:var(--muted)}
 .stage{position:absolute;left:0;top:0;transform-origin:0 0}
 .stage img{display:block;width:100%;user-select:none;-webkit-user-drag:none}
@@ -486,15 +486,15 @@ function clueAt(x, y) {
   return best && best.slice(0, 2);
 }
 let peek = null, pinned = false;  // [clue id, box] under the pointer, or pinned by a click
-function clueStatus(id) {
+function clueStatus(id) {  // gray: the OCR's text, untouched; green: the reviewer looked (✓) or edited (✎)
   const k = 'clue:' + id, rv = P.review;
-  if (k in (rv.corrections || {})) return rejected(k) ? ['changed, but you rejected the change', 'warn'] : ['changed by the review', ''];
-  if (id in (rv.sic || {})) return ['kept as printed (sic): meant ' + rv.sic[id], ''];
-  if (k in (rv.unsure || {})) return ['unsure: ' + rv.unsure[k], 'warn'];
-  if ((rv.confirm || []).includes(k)) return ['checked on the scan and confirmed', ''];
+  if (k in (rv.corrections || {})) return rejected(k) ? ['✎ edited, but you rejected the edit', 'bad'] : ['✎ edited', 'ok'];
+  if (id in (rv.sic || {})) return ['✓ reviewed, kept as printed (sic): meant ' + rv.sic[id], 'ok'];
+  if (k in (rv.unsure || {})) return ['? unsure: ' + rv.unsure[k], 'warn'];
+  if ((rv.confirm || []).includes(k)) return ['✓ OCR text, reviewed', 'ok'];
   if (P.shown.includes(k) || P.shown.some(t => t.startsWith('box:') && (() => { const [x0, y0, x1, y1] = t.slice(4).split(',').map(Number), b = O().clues[id].box;
-      return b && b[0] < x1 && x0 < b[2] && b[1] < y1 && y0 < b[3]; })())) return ['on a sheet the reviewer read; not changed', ''];
-  return ['the reviewer never looked at this one (the OCR text as is)', 'warn'];
+      return b && b[0] < x1 && x0 < b[2] && b[1] < y1 && y0 < b[3]; })())) return ['✓ OCR text, reviewed', 'ok'];
+  return ['OCR text (not reviewed)', ''];
 }
 function drawPeek() {
   const st = $('#stage'), vw = $('#viewer'); if (!st || !vw) return;
