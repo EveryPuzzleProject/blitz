@@ -2,8 +2,8 @@
 
 People without Claude can help: they open a link and check what an agent's review changed in each
 puzzle, against the scan. No sign-up: their first click makes them a guest (kept in their browser),
-so their work hangs together; they can add a name for the leaderboard, and an email to keep their
-progress on other devices. It's the same page as `blitz watch`, in
+so their work hangs together; they can add a name for the leaderboard, and sign in with Google or
+GitHub to keep their progress on any device (their guest work moves to the account). It's the same page as `blitz watch`, in
 helper mode (try it locally: `blitz watch` and open `/?helper`).
 
 - **The page:** `docs/review/` on GitHub Pages (`blitz site-build` writes it).
@@ -16,12 +16,18 @@ helper mode (try it locally: `blitz watch` and open `/?helper`).
    - SQL Editor: paste and run `site/schema.sql`.
    - Authentication > Sign In / Providers: turn on **Allow anonymous sign-ins**. That's what lets
      helpers start without signing up.
-   - Authentication > URL Configuration (only for guests who add an email): set the Site URL to the
-     review page's address (e.g. `https://blitz.xwordapp.com/review/`) and add
-     `https://blitz.xwordapp.com/**` and `https://everypuzzleproject.github.io/blitz/**` under
-     Redirect URLs.
-   - Later, if many guests add emails: Supabase's built-in mail sends only a few emails an hour;
-     add your own SMTP (e.g. Resend's free tier) under Authentication > Emails > SMTP Settings.
+   - SQL Editor: also run `site/schema-2-sign-in.sql` (lets a guest's work follow them when they sign in).
+   - Authentication > URL Configuration: Site URL `https://blitz.xwordapp.com/review/`; Redirect
+     URLs `https://blitz.xwordapp.com/**` (and `http://localhost:8780/**` for testing locally).
+   - Sign in with Google and GitHub (no email sending needed). Both ask for a callback URL:
+     `https://<project>.supabase.co/auth/v1/callback`.
+     - GitHub: Settings > Developer settings > OAuth Apps > New OAuth App (homepage
+       `https://blitz.xwordapp.com`, callback as above); copy the Client ID and a new client secret
+       into Supabase > Authentication > Sign In / Providers > GitHub, and enable it.
+     - Google: Google Cloud Console > APIs & Services > OAuth consent screen (External; app name,
+       support email), then Credentials > Create credentials > OAuth client ID (Web application;
+       authorized redirect URI: the callback above); copy the Client ID and secret into Supabase >
+       Providers > Google, and enable it.
    - Project Settings > API: note the Project URL, the `anon` key (public) and the `service_role`
      key (secret).
 2. **Cloudflare R2.** Create a bucket (e.g. `blitz-scans`).
