@@ -16,7 +16,8 @@
 The public review site (helpers check agents' reviews in the browser; see site/README.md):
     blitz site-build                     write docs/review/ (the page, served by GitHub Pages)
     blitz site-publish <folder>          put a folder's reviewed puzzles on the site
-    blitz site-import [-o FILE]          what helpers decided, for xword-ocr import-reviews --decisions
+    blitz site-import [-o FILE] [--agreed]  what helpers decided, for xword-ocr import-reviews --decisions
+    blitz site-status                    how many helpers checked each puzzle, and where they disagree
     blitz site-close <puzzle...>         take puzzles off the site
 
 A <puzzle> is its id (judge1931-03-14), looked up in ../blitz-work, or a path
@@ -220,7 +221,7 @@ def cmd_site_publish(a) -> None:
 def cmd_site_import(a) -> None:
     from .site import fetch_decisions
 
-    data = fetch_decisions()
+    data = fetch_decisions(a.agreed)
     text = json.dumps(data, indent=1, ensure_ascii=False)
     if a.out:
         Path(a.out).write_text(text, encoding="utf-8")
@@ -229,6 +230,24 @@ def cmd_site_import(a) -> None:
               f"{sum(len(p['reports']) for p in n.values())} reports")
     else:
         print(text)
+
+
+def cmd_site_status(a) -> None:
+    from .site import fetch_decisions, _rest
+
+    data = fetch_decisions()["puzzles"]
+    open_ids = [r["xdid"] for r in _rest("GET", "puzzles?select=xdid&open=eq.true&order=xdid") or []]
+    by = {"agreed": [], "disputed": [], "single": [], "none": []}
+    for x in open_ids:
+        by[data.get(x, {}).get("agreement", "none")].append(x)
+    print(f"{len(open_ids)} puzzles on the site:")
+    for k, label in (("agreed", "two or more helpers agree: ready to import"), ("disputed", "helpers differ or said needs work: look at these"),
+                     ("single", "one helper so far: could use a second pair of eyes"), ("none", "nobody yet")):
+        print(f"  {len(by[k]):4d}  {k:9s} {label}")
+    for x in by["disputed"]:
+        d = data[x]
+        why = ("; changes " + ", ".join(d["conflicts"][:6]) if d["conflicts"] else "") + ("; needs-work" if d["verdict"] == "needs-work" else "")
+        print(f"        {x}: {d['eyes']} checked{why}")
 
 
 def cmd_site_close(a) -> None:
@@ -306,8 +325,10 @@ def main(argv=None) -> None:
     q.add_argument("--dry-run", action="store_true", help="list what would be published")
     q.add_argument("--skip", nargs="+", metavar="PUZZLE", help="leave these puzzles out (e.g. already imported ones)")
     q.set_defaults(fn=cmd_site_publish)
+    sub.add_parser("site-status", help="how many puzzles on the site have been checked, by how many helpers, and where they disagree").set_defaults(fn=cmd_site_status)
     q = sub.add_parser("site-import", help="what helpers decided on the site, for xword-ocr import-reviews --decisions")
     q.add_argument("-o", "--out")
+    q.add_argument("--agreed", action="store_true", help="only puzzles two or more helpers agree on (see site-status)")
     q.set_defaults(fn=cmd_site_import)
     q = sub.add_parser("site-close", help="take puzzles off the public review site")
     q.add_argument("puzzles", nargs="+")

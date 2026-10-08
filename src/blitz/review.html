@@ -143,7 +143,7 @@ const HOWTO = `<b>How to help:</b> an AI read each of these 1920s–30s crosswor
       corrected what it could. Check its work against the scan: for each change on the right, press
       <b>✓</b> if the scan agrees, <b>✗</b> if it doesn't (and say what the scan shows). Point at any clue on the
       scan to see how it was transcribed; click it to report a mistake nobody caught. When you've been through the
-      changes, mark the puzzle <b>Looks right</b> or <b>Needs work</b>. Keys: J/K next/previous, A accept, R reject.`;
+      changes, mark the puzzle <b>Looks right</b> or <b>Needs work</b>. Keys: J/K next/previous, A accept, R reject. We open the puzzles that have had the fewest checks first: a second opinion is as welcome as a first.`;
 let S = null, sel = null, P = null, tab = 'review', pageImg = 'page.jpg', hot = null, focusCrops = null;
 const view = {};  // per puzzle and page: {s, x, y, fit}
 const ago = t => { const s = Math.max(0, Math.round(S.now - t)); return s < 60 ? `${s}s ago` : s < 3600 ? `${Math.round(s/60)} min ago` : `${Math.round(s/3600)} h ago`; };
@@ -424,6 +424,10 @@ function setHot(item, zoom) {
 const yearOf = x => (/(\d{4})-\d\d/.exec(x) || [])[1] || '';
 let yearSel = '';
 try { yearSel = localStorage.getItem('blitz-year') || ''; } catch (e) {}
+// The puzzle that most needs a helper's eyes: one they haven't checked, by the fewest people so far, then in date order.
+function pickToCheck(skip) {
+  return visible().filter(p => !p.verdict && p.xdid !== skip).reduce((b, p) => !b || (p.eyes || 0) < (b.eyes || 0) ? p : b, null);
+}
 function visible() { return yearSel ? S.puzzles.filter(p => yearOf(p.xdid) === yearSel) : S.puzzles; }
 function renderYears() {
   const by = {};
@@ -442,7 +446,7 @@ function renderYears() {
       try { yearSel ? localStorage.setItem('blitz-year', yearSel) : localStorage.removeItem('blitz-year'); } catch (e) {}
       const v = visible();
       if (v.length && !v.some(p => p.xdid === sel)) {  // the open puzzle isn't in this year: open the first one to check
-        sel = (v.find(p => !p.verdict) || v[0]).xdid; hot = null; focusCrops = null; focusCard = null; peek = null; pinned = false;
+        sel = (pickToCheck() || v[0]).xdid; hot = null; focusCrops = null; focusCard = null; peek = null; pinned = false;
         renderList(); load(true); return;
       }
       renderList();
@@ -642,6 +646,7 @@ function renderMain() {
       + `<button data-verdict="needs-work" class="bad ${D().verdict === 'needs-work' ? 'on' : ''}">✗ Needs work</button>`
       + rxHtml()
       + `<input id="vnote" placeholder="note (optional)" value="${esc(D().note || '')}">`
+      + (HELPER ? `<button id="nextbtn" title="Open the puzzle that has had the fewest checks so far">Next puzzle →</button>` : '')
       + `<span class="hint">J/K next/previous change · A accept · R reject (then type why) · U undo · Enter: show or hide the context</span></div>` : ''}
     <div class="tabs"><button data-tab="review" class="${tab === 'review' ? 'on' : ''}">The review</button><button data-tab="preview" class="${tab === 'preview' ? 'on' : ''}">The result (grid and xd)</button></div>
     ${tab === 'preview' ? previewHtml() : `
@@ -684,6 +689,10 @@ function renderMain() {
   document.querySelectorAll('[data-verdict]').forEach(b => b.onclick = () =>
     decide({verdict: D().verdict === b.dataset.verdict ? '' : b.dataset.verdict, note: $('#vnote').value}));
   bindReactions();
+  if ($('#nextbtn')) $('#nextbtn').onclick = () => {
+    const n = pickToCheck(P.xdid); if (!n) { $('#nextbtn').textContent = 'No more to check here'; return; }
+    sel = n.xdid; hot = null; focusCrops = null; focusCard = null; peek = null; pinned = false; load(true);
+  };
   if ($('#vnote')) $('#vnote').onchange = () => decide({verdict: D().verdict || '', note: $('#vnote').value});
   document.querySelectorAll('input[data-note]').forEach(box => {
     box.onclick = e => e.stopPropagation();
@@ -757,7 +766,7 @@ const TOUR = [
       <b>Your part is to check its work against the scan.</b> A puzzle takes a few minutes, and you don't need an account.</p>
     <p class="muted">Here's a quick tour of how it works.</p>`},
   {h: 'Pick a puzzle', sel: ['nav'], html: () => `<p>Choose a puzzle from the list on the left${$('#yf').hidden ? '' : ' (the year menu on top narrows it)'}.
-      <b>needs eyes</b> means nobody has checked it yet. The tag on each row shows where you are with it.</p>`},
+      <b>needs eyes</b> means nobody has checked it yet. The tag on each row shows where you are with it. We open the puzzles with the fewest checks first, and a second opinion on one someone has already checked is just as welcome.</p>`},
   {h: 'Look at the scan', sel: ['#scanpanel'], html: () => `<p>This is the original scanned page. <b style="color:var(--look)">Blue</b> boxes are what the AI looked at,
       <b style="color:var(--fix)">orange</b> boxes are what it corrected.</p>
     <p>Scroll to zoom and drag to move. Point at any clue to see how it was read; click it to report a mistake nobody caught.</p>`},
@@ -878,7 +887,7 @@ async function poll() {
     if ($('#root')) $('#root').textContent = S.root;
     if (!HELPER && $('#follow').checked || !sel) {
       const live = S.puzzles.filter(p => p.updated).sort((a, b) => b.updated - a.updated)[0];
-      const vis = visible(), next = HELPER ? (vis.find(p => !p.verdict) || vis[0])?.xdid : live ? live.xdid : vis[0]?.xdid;
+      const vis = visible(), next = HELPER ? (pickToCheck() || vis[0])?.xdid : live ? live.xdid : vis[0]?.xdid;
       if (next !== sel) { sel = next; hot = null; focusCrops = null; }
     }
     renderList();

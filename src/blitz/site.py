@@ -117,15 +117,38 @@ def publish(folder: Path, batch: str = "", dry_run: bool = False, skip: tuple[st
     return [r["xdid"] for r in rows]
 
 
-def fetch_decisions() -> dict:
+def consensus(verdicts: dict[str, str], items: dict[str, dict[str, str]]) -> dict:
+    """How the helpers who checked a puzzle line up. verdicts: helper -> 'looks-right' | 'needs-work';
+    items: change -> {helper: 'accept' | 'reject'}.
+      agreed    two or more helpers, all said looks-right, nobody disagrees about any change
+      disputed  someone said needs-work, or helpers differ on the verdict or on a change (conflicts lists them)
+      single    one helper's verdict so far
+      none      no verdict yet"""
+    conflicts = sorted(i for i, v in items.items() if len(set(v.values())) > 1)
+    kinds = set(verdicts.values())
+    if not verdicts:
+        status = "none"
+    elif "needs-work" in kinds or len(kinds) > 1 or conflicts:
+        status = "disputed"
+    elif len(verdicts) >= 2:
+        status = "agreed"
+    else:
+        status = "single"
+    return {"eyes": len(verdicts), "agreement": status, "conflicts": conflicts}
+
+
+def fetch_decisions(agreed_only: bool = False) -> dict:
     """Everything helpers recorded, per puzzle: rejected if anyone rejected (their notes kept, with
     who), the verdict "needs-work" if anyone said so, and every report. Also each helper's own rows."""
     names = {p["user_id"]: p["display_name"] or "a helper" for p in _rest("GET", "profiles?select=user_id,display_name") or []}
     who = lambda r: names.get(r["user_id"], "a helper")
     out: dict[str, dict] = {}
     get = lambda x: out.setdefault(x, {"items": {}, "notes": {}, "verdict": "", "note": "", "reports": {}, "by": {}})
+    votes: dict[str, dict[str, dict[str, str]]] = {}   # puzzle -> change -> helper -> decision
+    said: dict[str, dict[str, str]] = {}               # puzzle -> helper -> verdict
     for r in _rest("GET", "decisions?select=*&order=at") or []:
         p = get(r["xdid"])
+        votes.setdefault(r["xdid"], {}).setdefault(r["item"], {})[r["user_id"]] = r["decision"]
         p["by"].setdefault(who(r), {})[r["item"]] = r["decision"]
         if r["decision"] == "reject":
             p["items"][r["item"]] = "reject"
@@ -140,9 +163,14 @@ def fetch_decisions() -> dict:
         if r["note"]:
             p["note"] = "; ".join(filter(None, [p["note"], f"{who(r)}: {r['note']}"]))
         p["by"].setdefault(who(r), {})["verdict"] = r["verdict"]
+        said.setdefault(r["xdid"], {})[r["user_id"]] = r["verdict"]
     for r in _rest("GET", "reports?select=*&order=at") or []:
         p = get(r["xdid"])
         p["reports"][r["target"]] = "; ".join(filter(None, [p["reports"].get(r["target"]), f"{who(r)}: {r['text']}"]))
+    for x, p in out.items():
+        p.update(consensus(said.get(x, {}), votes.get(x, {})))
+    if agreed_only:
+        out = {x: p for x, p in out.items() if p["agreement"] == "agreed"}
     return {"puzzles": out}
 
 

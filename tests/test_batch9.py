@@ -312,3 +312,20 @@ def test_feedback_survives_a_cp1252_console(tmp_path):  # judge1934-02-01b: the 
                        env={**os.environ, "PYTHONIOENCODING": "cp1252", "PYTHONUTF8": "0"})
     assert r.returncode == 0, r.stderr.decode("utf-8", "replace")
     assert "θ".encode("utf-8") in r.stdout
+
+
+def test_consensus_agreed_disputed_single_none():
+    from blitz.site import consensus
+
+    assert consensus({}, {})["agreement"] == "none"
+    assert consensus({"a": "looks-right"}, {})["agreement"] == "single"
+    two = consensus({"a": "looks-right", "b": "looks-right"}, {"clue:A1": {"a": "accept", "b": "accept"}})
+    assert two == {"eyes": 2, "agreement": "agreed", "conflicts": []}
+    # one helper rejects a change the other accepted: disputed, and the change is named
+    d = consensus({"a": "looks-right", "b": "looks-right"}, {"clue:A1": {"a": "accept", "b": "reject"}})
+    assert d["agreement"] == "disputed" and d["conflicts"] == ["clue:A1"]
+    # any needs-work is disputed, even from a single helper
+    assert consensus({"a": "needs-work"}, {})["agreement"] == "disputed"
+    assert consensus({"a": "looks-right", "b": "needs-work"}, {})["agreement"] == "disputed"
+    # a lone reject with no one to disagree is not a conflict
+    assert consensus({"a": "looks-right", "b": "looks-right"}, {"clue:A1": {"a": "reject"}})["agreement"] == "agreed"
