@@ -65,11 +65,47 @@
     github: `<svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>`,
     discord: `<svg viewBox="0 0 127.14 96.36" width="20" height="18" aria-hidden="true"><path fill="#5865F2" d="M107.7 8.07A105.15 105.15 0 0 0 81.47 0a72.06 72.06 0 0 0-3.36 6.83 97.68 97.68 0 0 0-29.11 0A72.37 72.37 0 0 0 45.64 0a105.89 105.89 0 0 0-26.25 8.09C2.79 32.65-1.71 56.6.54 80.21a105.73 105.73 0 0 0 32.17 16.15 77.7 77.7 0 0 0 6.89-11.11 68.42 68.42 0 0 1-10.85-5.18c.91-.66 1.8-1.34 2.66-2a75.57 75.57 0 0 0 64.32 0c.87.71 1.76 1.39 2.66 2a68.68 68.68 0 0 1-10.87 5.19 77 77 0 0 0 6.89 11.1 105.25 105.25 0 0 0 32.19-16.14c2.64-27.38-4.51-51.11-18.9-72.15zM42.45 65.69C36.18 65.69 31 60 31 53s5-12.74 11.43-12.74S54 46 53.89 53s-5.05 12.69-11.44 12.69zm42.24 0C78.41 65.69 73.25 60 73.25 53s5-12.74 11.44-12.74S96.23 46 96.12 53s-5.04 12.69-11.43 12.69z"/></svg>`,
   };
-  const signInLinks = () => PROVIDERS.map(([p, name]) =>
+  const GSI = !!cfg.googleClientId;  // Google's own button when its client ID is configured
+  let gsiReady = null, rawNonce = '';
+  function loadGsi() {
+    gsiReady = gsiReady || new Promise((ok, no) => {
+      const sc = document.createElement('script');
+      sc.src = 'https://accounts.google.com/gsi/client'; sc.async = true;
+      sc.onload = () => ok(window.google); sc.onerror = no;
+      document.head.appendChild(sc);
+    });
+    return gsiReady;
+  }
+  async function hashed(raw) {
+    const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(raw));
+    return [...new Uint8Array(d)].map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+  async function renderGoogle(el) {
+    const slot = el.querySelector('[data-gsi]');
+    if (!slot) return;
+    const g = await loadGsi().catch(() => null);
+    if (!g) { slot.outerHTML = `<a href="#" data-signin="google" title="Sign in with Google">${ICONS.google}</a>`; bindSignIn(el); return; }
+    rawNonce = crypto.randomUUID() + crypto.randomUUID();
+    g.accounts.id.initialize({
+      client_id: cfg.googleClientId, nonce: await hashed(rawNonce), use_fedcm_for_prompt: true,
+      callback: async ({credential}) => {
+        if (user && user.is_anonymous) {  // keep the guest's work, as for the other providers
+          const {data, error} = await sb.rpc('start_guest_claim');
+          if (!error && data) { try { localStorage.setItem(CLAIM, data); } catch (e) {} }
+        }
+        const {error} = await sb.auth.signInWithIdToken({provider: 'google', token: credential, nonce: rawNonce});
+        if (error) alertBar(`Couldn't sign in: ${error.message}`);
+      },
+    });
+    g.accounts.id.renderButton(slot, {type: 'icon', size: 'medium', shape: 'square', theme: 'outline'});
+  }
+
+  const signInLinks = () => PROVIDERS.map(([p, name]) => p === 'google' && GSI ? `<span data-gsi title="Sign in with Google"></span>` :
     `<a href="#" data-signin="${p}" title="Sign in with ${esc(name)}" aria-label="Sign in with ${esc(name)}" style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink)">${ICONS[p] || esc(name)}</a>`).join('');
   const signInLine = () => `<span style="display:inline-flex;gap:6px;align-items:center;font-size:13px" class="muted">Sign in to save your progress ${signInLinks()}</span>`;
   function bindSignIn(el) {
     el.querySelectorAll('[data-signin]').forEach(a => a.onclick = e => { e.preventDefault(); signIn(a.dataset.signin); });
+    if (GSI) renderGoogle(el);
   }
 
   function welcome(el) {
