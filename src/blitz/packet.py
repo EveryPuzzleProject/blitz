@@ -2,7 +2,9 @@
 
 A packet is one puzzle's folder as the OCR pipeline (xword-ocr) writes it:
 `ocr.json` (what the OCR read, with each clue's box on the page), `page.jpg`
-(and `clue_page.jpg` when the clues are on another page), `grid.png` and
+(and `clue_page.jpg` when the clues are on another page; `continued_page.jpg`
+when a clue list goes on to another page, its clues naming it as their
+"image"), `grid.png` and
 `answers.png` (the grid and the printed answer key, straightened at 40 pixels
 a square), and `_src/` (the pages at full resolution, for crops). Everything
 here reads only that folder.
@@ -220,9 +222,10 @@ def last_in_column(ocr: dict, label: str) -> bool:
     b = (ocr["clues"].get(label) or {}).get("box")
     if not b:
         return False
+    img = (ocr["clues"].get(label) or {}).get("image")
     for k, v in ocr["clues"].items():
         c = v.get("box")
-        if k == label or not c:
+        if k == label or not c or v.get("image") != img:
             continue
         overlap = min(b[2], c[2]) - max(b[0], c[0])
         if overlap >= 0.5 * min(b[2] - b[0], c[2] - c[0]) and abs(b[0] - c[0]) < 60 and c[1] > b[1] + 5:
@@ -365,6 +368,7 @@ def number_cut_off(ocr: dict, label: str) -> bool:
         return False
     peers = sorted(w["box"][0] for k, w in cl.items()
                    if k != label and w.get("box") and abs(w["box"][0] - box[0]) < 80
+                   and w.get("image") == cl[label].get("image")
                    and not any(f == "number-missing" or f.startswith("number-corrected") for f in w.get("flags") or []))
     return bool(peers) and box[0] - peers[len(peers) // 2] >= CUT_OFF
 
@@ -433,6 +437,14 @@ def text_view(ocr: dict) -> str:
     checks = structural_checks(ocr)
     if checks:
         lines += ["", "## Structural checks"] + [f"- {k}: {', '.join(v[:12])}" for k, v in checks.items()]
+    cont = ocr.get("continued_page") or {}
+    on_next = set(cont.get("clues") or [])
+    if on_next:
+        labs = cont["clues"]
+        lines += ["", f"## Clues on the next page: {labs[0]}..{labs[-1]} ({len(labs)})",
+                  f"The clue list doesn't end on the clue page: these clues are printed on "
+                  f"{cont.get('image', 'continued_page.jpg')} ({cont.get('source', '')}) and marked [next page] "
+                  f"below. clue: crops show them there; crop other parts of that page with next:x0,y0,x1,y1."]
     merged = [k for k, v in ocr["clues"].items() if _MERGED.search(v.get("text", ""))]
     if merged:
         lines += ["", f"Clue text that seems to run into another clue: {', '.join(merged)}"]
@@ -465,6 +477,8 @@ def text_view(ocr: dict) -> str:
             notes = ["number-cut-off" if f == "number-missing" and k in cut else
                      f + " (spell-doubt)" if f.startswith("spell:") and k in doubt and spell_doubt(f) else f
                      for f in v.get("flags") or []]
+            if k in on_next:
+                notes.insert(0, "next page")
             odd = odd_words(text)
             if odd:
                 notes.append("odd: " + " ".join(odd))
@@ -474,7 +488,8 @@ def text_view(ocr: dict) -> str:
                 notes.append(tail_number_hint(ocr, k))
             flags = f"  [{'; '.join(notes)}]" if notes else ""
             lines.append(f"{k:<5} {word or '?':<16} {text}{flags}")
-    boxes = [f"{k} {','.join(str(round(x)) for x in v['box'])}" for k, v in ocr["clues"].items() if v.get("box")]
+    boxes = [f"{k} {','.join(str(round(x)) for x in v['box'])}{' (next page)' if k in on_next else ''}"
+             for k, v in ocr["clues"].items() if v.get("box")]
     if boxes:  # for box: crops, e.g. widening a clue whose text runs past its box
         lines += ["", "## Clue boxes (x0,y0,x1,y1 in scan pixels)", "  ".join(boxes)]
     return "\n".join(lines) + "\n"
