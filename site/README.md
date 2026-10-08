@@ -74,6 +74,12 @@ uv run blitz site-import -o ../blitz-work/site-decisions.json
 then, in xword-ocr, `import-reviews <folder> --pubid judge --by "..." --decisions <that file>`, and
 `uv run blitz site-close <puzzles...>` to take imported puzzles off the page.
 
+`uv run --extra site blitz site-status` shows how many puzzles have been checked by how many helpers, and lists
+the ones where helpers disagree (someone said needs work, or two helpers differ on a change). Each puzzle in
+`site-import`'s file also carries `eyes` (how many checked it), `agreement` (`agreed`, `disputed`, `single` or
+`none`) and `conflicts` (the changes helpers differ on); `site-import --agreed` writes only the puzzles that two or
+more helpers agree on. The page opens the puzzle with the fewest checks first, so second opinions come for free.
+
 How several helpers' decisions combine: a change is rejected if anyone rejected it (all their
 notes kept, with names); a puzzle "needs work" if anyone said so; every report is kept.
 `by` in the file shows each helper's own decisions.
