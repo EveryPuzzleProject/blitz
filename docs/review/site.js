@@ -155,9 +155,10 @@
     howto: cfg.howto || '',
 
     async state() {
-      const [pz, prog] = await Promise.all([
-        sb.from('puzzles').select('xdid,pub,title,base_url,files,review_status').eq('open', true).order('xdid'),
+      let [pz, prog] = await Promise.all([
+        sb.from('puzzles').select('xdid,pub,title,base_url,files,review_status,checkup').eq('open', true).order('xdid'),
         sb.from('puzzle_progress').select('xdid,eyes')]);
+      if (pz.error) pz = await sb.from('puzzles').select('xdid,pub,title,base_url,files,review_status').eq('open', true).order('xdid');  // no checkup column yet
       const eyes = Object.fromEntries((prog.data || []).map(r => [r.xdid, r.eyes]));
       let mine = {}, rejected = {};
       if (user) {
@@ -168,7 +169,7 @@
       }
       rows = Object.fromEntries((pz.data || []).map(r => [r.xdid, r]));
       return {root: cfg.name || 'blitz', now: Date.now() / 1000, puzzles: (pz.data || []).map(r => ({
-        xdid: r.xdid, status: r.review_status, updated: 0, eyes: eyes[r.xdid] || 0,
+        xdid: r.xdid, status: r.review_status, updated: 0, eyes: eyes[r.xdid] || 0, grade: (r.checkup || {}).grade || '',
         verdict: mine[r.xdid] || '', rejected: rejected[r.xdid] || 0}))};
     },
 

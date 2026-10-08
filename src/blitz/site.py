@@ -19,6 +19,7 @@ import json
 import mimetypes
 import os
 import shutil
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -133,11 +134,21 @@ def publish(folder: Path, batch: str = "", dry_run: bool = False, skip: tuple[st
         ocr = json.loads((d / "ocr.json").read_text(encoding="utf-8"))
         status = "escalated" if rv.get("escalate") else ("ready" if rv.get("ready") else "needs a person")
         title = (rv.get("corrections") or {}).get("meta:title") or ocr.get("title", "")
+        cu = rv.get("checkup") or {}
         rows.append({"xdid": d.name, "pub": pub, "batch": batch or folder.name, "title": title[:200],
                      "base_url": f"{public.rstrip('/')}/{pub}/{d.name}", "files": files,
-                     "review_status": status, "open": True})
+                     "review_status": status, "open": True,
+                     "checkup": {"grade": cu.get("grade", ""), "high": sum(w["level"] == "high" for w in cu.get("warnings", [])),
+                                 "medium": sum(w["level"] == "medium" for w in cu.get("warnings", []))} if cu else None})
         print(f"  {d.name}: {len(files)} files")
-    _rest("POST", "puzzles?on_conflict=xdid", rows, prefer="resolution=merge-duplicates,return=minimal")
+    try:
+        _rest("POST", "puzzles?on_conflict=xdid", rows, prefer="resolution=merge-duplicates,return=minimal")
+    except urllib.error.HTTPError as e:  # the checkup column (schema-4-checkup.sql) isn't there yet: publish without it
+        if "checkup" not in e.read().decode("utf-8", "replace"):
+            raise
+        print("  (no checkup column yet: run site/schema-4-checkup.sql to show grades in the list)")
+        _rest("POST", "puzzles?on_conflict=xdid", [{k: v for k, v in r.items() if k != "checkup"} for r in rows],
+              prefer="resolution=merge-duplicates,return=minimal")
     return [r["xdid"] for r in rows]
 
 

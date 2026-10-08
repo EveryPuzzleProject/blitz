@@ -135,6 +135,104 @@ def structural_checks(ocr: dict) -> dict[str, list[str]]:
     return found
 
 
+GRADES = {"check": "check closely", "look": "worth a look", "clean": "looks clean"}
+
+
+def checkup(ocr: dict, review: dict) -> dict:
+    """What a checker should know about a reviewed puzzle, worst first. Each warning is
+    {id, level: high | medium | info, text, items}; the grade is the worst level:
+      check  something structural or unsettled (a clue or entry that doesn't pair up, a grid the reviewer
+             changed, a key that doesn't fit, items the reviewer was unsure of, a very heavy edit)
+      look   worth knowing (no answer key, a grid that isn't symmetric, a lot of hard-to-read key letters,
+             a remaining issue the reviewer noted)
+      clean  nothing beyond the information notes."""
+    corr = review.get("corrections") or {}
+    out: list[dict] = []
+    add = lambda id, level, text, items=(): out.append({"id": id, "level": level, "text": text, "items": list(items)})
+    grid = [list(r) for r in ocr["grid"]]
+    changed = []
+    for k, v in corr.items():
+        m = re.fullmatch(r"grid:r(\d+)c(\d+)", k)
+        if m and 0 < int(m[1]) <= len(grid) and 0 < int(m[2]) <= len(grid[0]) and (grid[int(m[1]) - 1][int(m[2]) - 1] == "#") != (v == "#"):
+            changed.append((k, grid[int(m[1]) - 1][int(m[2]) - 1] == "#", v == "#"))
+            grid[int(m[1]) - 1][int(m[2]) - 1] = "#" if v == "#" else "."
+    # the clue list as it will be published: the OCR's, with the review's text, minus clues the review removed
+    texts = {k: v.get("text", "") for k, v in ocr["clues"].items()}
+    for k, v in corr.items():
+        if k.startswith("clue:"):
+            texts[k[5:]] = v
+    texts = {k: v for k, v in texts.items() if corr.get("clue:" + k) != ""}
+    entries_ = {lab for lab, *_ in number_grid(["".join(r) for r in grid])}
+    printed_none = sorted(k for k, v in texts.items() if v == NO_CLUE)
+    missing = sorted(entries_ - set(texts))
+    extra = sorted(set(texts) - entries_)
+    blank_ok = {str(k).partition(":")[2] or str(k) for k in (review.get("as_printed") or {})}  # printed blank on purpose
+    empty = sorted(k for k, v in texts.items() if not v.strip() and k not in blank_ok)
+    blank = sorted(k for k, v in texts.items() if not v.strip() and k in blank_ok)
+    if review.get("escalate"):
+        add("escalated", "high", f"The reviewer couldn't finish this one: {review['escalate']}")
+    elif not review.get("ready"):
+        add("not-ready", "high", "The reviewer marked this puzzle as needing a person.")
+    if changed:
+        say = ", ".join(f"{k[5:]}: {'black' if was else 'white'} → {'black' if now else 'white'}" for k, was, now in changed)
+        add("grid-changed", "high", f"The reviewer changed the grid ({say}). That is rare and changes the numbering: check each square against the scan.",
+            [k for k, *_ in changed])
+    gc = review.get("grid_check")
+    if gc:
+        add("grid-numbering", "high", f"The grid change makes the numbering worse: {', '.join(gc.get('created') or [])} would have no printed clue.", gc.get("created"))
+    if missing:
+        add("missing-clues", "high", f"{len(missing)} {'entry in the grid has' if len(missing) == 1 else 'entries in the grid have'} no clue: {', '.join(missing)}.", missing)
+    if extra:
+        add("extra-clues", "high", f"{len(extra)} {'clue has' if len(extra) == 1 else 'clues have'} no matching entry in the grid: {', '.join(extra)}.", extra)
+    if empty:
+        add("empty-clues", "high", f"{len(empty)} {'clue has' if len(empty) == 1 else 'clues have'} no text: {', '.join(empty)}.", empty)
+    sc = structural_checks({**ocr, "grid": ["".join(r) for r in grid]})
+    for key, text in (("answer key is a different size from the grid", "The answer key is a different size from the grid."),
+                      ("black squares differ from the answer key", "The grid's black squares differ from the answer key's.")):
+        if key in sc:
+            add("key-mismatch", "high", text, sc[key][:8])
+    unsure = review.get("unsure") or {}
+    # what the reviewer couldn't settle: punctuation is a smaller worry than letters, or text the scan cuts off
+    punct = {k: v for k, v in unsure.items() if "punctuation" in str(v).lower()}
+    letters = {k: v for k, v in unsure.items() if k not in punct}
+    label = lambda d: ", ".join(f"{k.partition(':')[2] or k} ({v})" for k, v in sorted(d.items())[:6]) + (" …" if len(d) > 6 else "")
+    if letters:
+        add("unsure", "high", f"The reviewer wasn't sure about: {label(letters)}.", sorted(letters))
+    if punct:
+        add("unsure-punctuation", "medium", f"The reviewer wasn't sure of the punctuation in: {label(punct)}.", sorted(punct))
+    nclue = sum(1 for k in corr if k.startswith("clue:"))
+    if nclue >= 40:
+        add("heavy-edit", "high", f"Heavily corrected: {nclue} clue corrections (most puzzles have about 6).")
+    elif nclue >= 20:
+        add("heavy-edit", "medium", f"Heavily corrected: {nclue} clue corrections (most puzzles have about 6).")
+    rem = str(review.get("remaining") or "").lower()
+    if rem in ("major", "blocker"):
+        add("remaining", "high", "The reviewer left a " + rem + " issue: " + (review.get("remaining_note") or "(no note)"))
+    elif rem == "minor":
+        add("remaining", "medium", "The reviewer left a minor issue: " + (review.get("remaining_note") or "(no note)"))
+    if not ocr.get("answers"):
+        add("no-answers", "medium", "No answer key: the answers for this puzzle weren't found (often printed in a later issue), so they can't be checked; only the clues, grid and numbering are here.")
+    else:
+        hard = [c for c in (ocr.get("answers_low_confidence") or [])]
+        if len(hard) >= 8:
+            add("hard-letters", "medium", f"{len(hard)} answer-key letters were hard to read (the reviewer has checked them).", hard[:12])
+    if ocr.get("grid_asymmetric_squares"):
+        confirmed = any(re.fullmatch(r"grid:r\d+c\d+/r\d+c\d+", c) for c in review.get("confirm") or [])
+        add("asymmetric", "info" if confirmed else "medium", "The grid isn't symmetric" + (" (the reviewer confirmed it is printed that way)." if confirmed else "."))
+    if printed_none:
+        add("no-clue-printed", "info", f"The magazine printed no clue for {', '.join(printed_none)}.", printed_none)
+    if blank:
+        add("blank-clue", "info", f"The clue for {', '.join(blank)} is printed blank (kept as printed).", blank)
+    if review.get("sic"):
+        add("sic", "info", f"{len(review['sic'])} printed {'misprint' if len(review['sic']) == 1 else 'misprints'} kept as printed.", sorted(review["sic"]))
+    if ocr.get("continued_page"):
+        add("continued", "info", "The clue list continues on the next page of the issue; those clues come from there.")
+    rank = {"high": 0, "medium": 1, "info": 2}
+    out.sort(key=lambda w: rank[w["level"]])
+    grade = "check" if any(w["level"] == "high" for w in out) else "look" if any(w["level"] == "medium" for w in out) else "clean"
+    return {"grade": grade, "warnings": out}
+
+
 CONTINUES_MIN = 10  # a list with at least this many clues without text ...
 CONTINUES_SHARE = 0.5  # ... and at least this share of its entries probably goes on elsewhere
 

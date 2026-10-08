@@ -17,6 +17,7 @@ The public review site (helpers check agents' reviews in the browser; see site/R
     blitz site-build                     write docs/review/ (the page, served by GitHub Pages)
     blitz site-publish <folder>          put a folder's reviewed puzzles on the site
     blitz site-import [-o FILE] [--agreed]  what helpers decided, for xword-ocr import-reviews --decisions
+    blitz checkup [folder] [--all]       grade each reviewed puzzle: check closely / worth a look / looks clean
     blitz site-status                    how many helpers checked each puzzle, and where they disagree
     blitz site-close <puzzle...>         take puzzles off the site
 
@@ -239,6 +240,28 @@ def cmd_site_import(a) -> None:
         print(text)
 
 
+def cmd_checkup(a) -> None:
+    """The grade of every reviewed puzzle in a folder, and what is behind the ones that need a closer look."""
+    from .packet import GRADES, checkup, load
+
+    root = Path(a.folder) if a.folder else _root()
+    rows = []
+    for d in sorted(p for p in root.iterdir() if (p / "review.json").exists() and (p / "ocr.json").exists()):
+        rv = json.loads((d / "review.json").read_text(encoding="utf-8"))
+        rows.append((d.name, rv.get("checkup") or checkup(load(d), rv)))
+    count = {g: sum(c["grade"] == g for _, c in rows) for g in GRADES}
+    print(f"{len(rows)} reviewed puzzles in {root.name}: " + ", ".join(f"{count[g]} {GRADES[g]}" for g in ("check", "look", "clean")))
+    for level, title in (("check", "CHECK CLOSELY"), ("look", "WORTH A LOOK")):
+        mine = [(x, c) for x, c in rows if c["grade"] == level]
+        if mine and (level == "check" or a.all):
+            print(f"\n{title} ({len(mine)}):")
+            for x, c in mine:
+                ws = [w for w in c["warnings"] if w["level"] != "info"]
+                print(f"  {x}: " + "; ".join(w["text"] for w in ws[:3]) + (f" (+{len(ws) - 3} more)" if len(ws) > 3 else ""))
+    if not a.all and count["look"]:
+        print(f"\n({count['look']} more are worth a look: --all lists them)")
+
+
 def cmd_site_status(a) -> None:
     from .site import fetch_decisions, _rest
 
@@ -332,6 +355,10 @@ def main(argv=None) -> None:
     q.add_argument("--dry-run", action="store_true", help="list what would be published")
     q.add_argument("--skip", nargs="+", metavar="PUZZLE", help="leave these puzzles out (e.g. already imported ones)")
     q.set_defaults(fn=cmd_site_publish)
+    q = sub.add_parser("checkup", help="the grade of each reviewed puzzle (check closely / worth a look / looks clean) and why")
+    q.add_argument("folder", nargs="?")
+    q.add_argument("--all", action="store_true", help="also list the puzzles that are only worth a look")
+    q.set_defaults(fn=cmd_checkup)
     sub.add_parser("site-status", help="how many puzzles on the site have been checked, by how many helpers, and where they disagree").set_defaults(fn=cmd_site_status)
     q = sub.add_parser("site-import", help="what helpers decided on the site, for xword-ocr import-reviews --decisions")
     q.add_argument("-o", "--out")

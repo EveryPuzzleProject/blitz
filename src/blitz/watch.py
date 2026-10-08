@@ -62,7 +62,9 @@ def batch_state(root: Path) -> dict:
         if d.is_dir() and (d / "ocr.json").exists():
             st, t = _status(d)
             dec = _read(d / "decisions.json") or {}
+            cu = (_read(d / "review.json") or {}).get("checkup") or {}
             puzzles.append({"xdid": d.name, "status": st, "updated": t, "verdict": dec.get("verdict", ""),
+                            "grade": cu.get("grade", ""),
                             "rejected": sum(1 for v in (dec.get("items") or {}).values() if v == "reject")})
     return {"root": root.name, "now": time.time(), "puzzles": puzzles}
 

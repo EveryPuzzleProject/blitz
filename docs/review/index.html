@@ -101,6 +101,13 @@ pre.xd{background:var(--panel);border:1px solid var(--line);border-radius:6px;pa
 .tip .rep{display:flex;gap:6px;margin-top:6px}.tip .rep input{flex:1;font:inherit;font-size:12px;padding:2px 5px;border:1px solid var(--line);border-radius:4px;background:var(--bg);color:var(--ink)}
 .tip .rep button{font:inherit;font-size:12px;border:1px solid var(--accent);background:var(--bg);color:var(--ink);border-radius:4px;cursor:pointer}
 .tip .reported{font-size:12px;color:var(--warn);margin-top:4px}
+/* the checkup: grade and warnings */
+.g-check{color:var(--bad)}.g-look{color:var(--warn)}.g-clean{color:var(--ok)}
+.gdot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;background:currentColor;vertical-align:middle}
+.checkup{margin:8px 0}.checkup .gh{display:flex;gap:8px;align-items:center;margin-bottom:4px;font-size:13px}
+.checkup .fact.high{border-left-color:var(--bad)}.checkup .fact.medium{border-left-color:var(--warn)}.checkup .fact.info{border-left-color:var(--look)}
+.checkup details{margin:4px 0;font-size:13px}.checkup summary{cursor:pointer;color:var(--muted)}
+.checkup .fact .sq{border-color:currentColor;font-size:12px}
 /* facts about this puzzle that a checker needs up front */
 .fact{margin:8px 0;padding:7px 11px;border:1px solid var(--line);border-left:5px solid var(--warn);border-radius:6px;background:var(--panel);font-size:13px}
 .fact.info{border-left-color:var(--look)}.fact.bad{border-left-color:var(--bad)}
@@ -443,13 +450,19 @@ function setHot(item, zoom) {
 // ---- rendering ----
 // ---- the year filter at the top of the list ----
 const yearOf = x => (/(\d{4})-\d\d/.exec(x) || [])[1] || '';
-let yearSel = '';
+let yearSel = '', gradeSel = '';
+try { gradeSel = localStorage.getItem('blitz-grade') || ''; } catch (e) {}
+const GRADE_RANK = {check: 0, look: 1, clean: 2};
+const GRADE_NAME = {check: 'check closely', look: 'worth a look', clean: 'looks clean'};
 try { yearSel = localStorage.getItem('blitz-year') || ''; } catch (e) {}
 // The puzzle that most needs a helper's eyes: one they haven't checked, by the fewest people so far, then in date order.
 function pickToCheck(skip) {
-  return visible().filter(p => !p.verdict && p.xdid !== skip).reduce((b, p) => !b || (p.eyes || 0) < (b.eyes || 0) ? p : b, null);
+  return visible().filter(p => !p.verdict && p.xdid !== skip).reduce((b, p) => !b || (p.eyes || 0) < (b.eyes || 0) || ((p.eyes || 0) === (b.eyes || 0) && (GRADE_RANK[p.grade] ?? 3) < (GRADE_RANK[b.grade] ?? 3)) ? p : b, null);
 }
-function visible() { return yearSel ? S.puzzles.filter(p => yearOf(p.xdid) === yearSel) : S.puzzles; }
+function visible() {
+  return S.puzzles.filter(p => (!yearSel || yearOf(p.xdid) === yearSel)
+    && (!gradeSel || (gradeSel === 'check' ? p.grade === 'check' : p.grade === 'check' || p.grade === 'look')));
+}
 function renderYears() {
   const by = {};
   S.puzzles.forEach(p => { const y = yearOf(p.xdid); if (y) by[y] = (by[y] || 0) + 1; });
@@ -461,7 +474,13 @@ function renderYears() {
   if (box.dataset.sig !== sig) {
     box.dataset.sig = sig;
     box.innerHTML = `<label for="year">Year</label><select id="year"><option value="">All years (${S.puzzles.length})</option>`
-      + years.map(y => `<option value="${y}">${y} (${by[y]})</option>`).join('') + `</select>`;
+      + years.map(y => `<option value="${y}">${y} (${by[y]})</option>`).join('') + `</select>`
+      + (S.puzzles.some(p => p.grade) ? `<select id="gradef" title="Show only puzzles that need a closer look"><option value="">any</option>`
+        + `<option value="look">worth a look+</option><option value="check">check closely</option></select>` : '');
+    if ($('#gradef')) $('#gradef').onchange = e => {
+      gradeSel = e.target.value; try { gradeSel ? localStorage.setItem('blitz-grade', gradeSel) : localStorage.removeItem('blitz-grade'); } catch (er) {}
+      renderList();
+    };
     $('#year').onchange = e => {
       yearSel = e.target.value;
       try { yearSel ? localStorage.setItem('blitz-year', yearSel) : localStorage.removeItem('blitz-year'); } catch (e) {}
@@ -475,6 +494,7 @@ function renderYears() {
   }
   box.hidden = false;
   $('#year').value = yearSel;
+  if ($('#gradef')) $('#gradef').value = gradeSel;
 }
 function renderList() {
   const counts = {};
@@ -486,7 +506,7 @@ function renderList() {
   } else
   $('#counts').innerHTML = ['waiting','looking','writing','ready','needs a person','escalated'].filter(s => counts[s]).map(s => `<span>${chip(s)} ${counts[s]}</span>`).join('');
   renderYears();
-  $('#list').innerHTML = visible().map(p => `<div class="p ${p.xdid === sel ? 'sel' : ''}" data-x="${p.xdid}"><span>${esc(p.xdid)}<br><span class="muted" style="font-size:12px">${HELPER ? (p.eyes ? `${p.eyes} checked it` : 'needs eyes') : p.updated ? ago(p.updated) : ''}</span></span><span>${HELPER ? hchip(p) : chip(p.status)}${HELPER ? '' : p.verdict === 'looks-right' ? '<span class="mark" style="color:var(--ok)" title="you: looks right">✓</span>' : p.verdict === 'needs-work' ? '<span class="mark" style="color:var(--bad)" title="you: needs work">✗</span>' : ''}${p.rejected ? `<span class="mark" style="color:var(--bad)" title="changes you rejected">−${p.rejected}</span>` : ''}</span></div>`).join('');
+  $('#list').innerHTML = visible().map(p => `<div class="p ${p.xdid === sel ? 'sel' : ''}" data-x="${p.xdid}"><span>${p.grade ? `<span class="gdot g-${p.grade}" title="${GRADE_NAME[p.grade]}"></span>` : ''}${esc(p.xdid)}<br><span class="muted" style="font-size:12px">${HELPER ? (p.eyes ? `${p.eyes} checked it` : 'needs eyes') : p.updated ? ago(p.updated) : ''}</span></span><span>${HELPER ? hchip(p) : chip(p.status)}${HELPER ? '' : p.verdict === 'looks-right' ? '<span class="mark" style="color:var(--ok)" title="you: looks right">✓</span>' : p.verdict === 'needs-work' ? '<span class="mark" style="color:var(--bad)" title="you: needs work">✗</span>' : ''}${p.rejected ? `<span class="mark" style="color:var(--bad)" title="changes you rejected">−${p.rejected}</span>` : ''}</span></div>`).join('');
   document.querySelectorAll('.p').forEach(el => el.onclick = () => { sel = el.dataset.x; $('#follow').checked = false; hot = null; focusCrops = null; focusCard = null; peek = null; pinned = false; load(true); });
 }
 
@@ -647,7 +667,19 @@ function previewHtml() {
 
 // Things a checker should know before looking at anything else: a grid the reviewer changed (rare, and it changes
 // the numbering) and a puzzle with no answer key (the answers can't be checked).
+function checkupHtml() {
+  const cu = P.review.checkup, ws = cu.warnings || [], big = ws.filter(w => w.level !== 'info'), notes = ws.filter(w => w.level === 'info');
+  const item = it => /^(clue:)?[AD]\d+$/.test(it) || /^r\d+c\d+$/.test(it) || /^(grid|cell|entry):/.test(it)
+    ? `<a class="sq" href="#" data-hot="${esc(/^[AD]\d+$/.test(it) ? 'clue:' + it : /^r\d+c\d+$/.test(it) ? 'grid:' + it : it)}">${esc(it.replace(/^clue:/, ''))}</a>` : '';
+  const row = w => `<div class="fact ${w.level}">${esc(w.text)} ${(w.items || []).slice(0, 8).map(item).join(' ')}</div>`;
+  return `<div class="checkup"><div class="gh"><span class="chip g-${cu.grade}"><span class="gdot"></span>${GRADE_NAME[cu.grade]}</span>`
+    + `<span class="muted">${big.length ? `${big.length} thing${big.length === 1 ? '' : 's'} to know before you start` : 'nothing unusual'}</span></div>`
+    + big.map(row).join('')
+    + (notes.length ? `<details><summary>${notes.length} note${notes.length === 1 ? '' : 's'}</summary>${notes.map(row).join('')}</details>` : '') + `</div>`;
+}
+
 function factsHtml() {
+  if (P.review.checkup) return checkupHtml();
   const o = O(), fx = P.review.corrections || {}, out = [];
   const was0 = k => { const m = /^grid:r(\d+)c(\d+)$/.exec(k); return ((o.grid[m[1] - 1] || '')[m[2] - 1]) || '.'; };
   // only squares the reviewer really changed (a correction equal to what the OCR read changes nothing)
@@ -733,6 +765,12 @@ function renderMain() {
   document.querySelectorAll('[data-verdict]').forEach(b => b.onclick = () =>
     decide({verdict: D().verdict === b.dataset.verdict ? '' : b.dataset.verdict, note: $('#vnote').value}));
   bindReactions();
+  document.querySelectorAll('[data-hot]').forEach(a => a.onclick = e => {
+    e.preventDefault();
+    if (tab !== 'review') { tab = 'review'; renderMain(); }
+    const it = a.dataset.hot; setHot(it, it.startsWith('clue:'));
+    const gi = !it.startsWith('clue:') && document.getElementById('gridimg'); if (gi) gi.scrollIntoView({block: 'center'});
+  });
   document.querySelectorAll('[data-gridfix]').forEach(a => a.onclick = e => {
     e.preventDefault();
     if (tab !== 'review') { tab = 'review'; renderMain(); }

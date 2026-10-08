@@ -13,7 +13,7 @@ import re
 from pathlib import Path
 
 from .crops import TARGET
-from .packet import (TEXT_FLAGS, _MERGED, entries, grid_fix_check, is_notice, load, odd_words, proposals, proposed_text,
+from .packet import (TEXT_FLAGS, _MERGED, checkup, entries, grid_fix_check, is_notice, load, odd_words, proposals, proposed_text,
                      structural_checks, title_check)
 
 MAX_CROPS = 60
@@ -223,6 +223,7 @@ def finish(ocr: dict, draft: dict, seen: list[str]) -> tuple[dict, list[str]]:
         review["from_text_md"] = sorted(proposed)
     if ignored:
         review["note"] = (review["note"] + " Ignored (not a valid correction): " + "; ".join(ignored)).strip()
+    review["checkup"] = checkup(ocr, review)
     return review, ignored
 
 

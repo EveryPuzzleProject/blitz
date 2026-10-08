@@ -344,3 +344,38 @@ def test_grid_fix_check_flags_a_fix_that_makes_the_numbering_worse():
     chk = grid_fix_check(ocr, {"grid:r1c5": "#", "clue:A2": NO_CLUE})
     assert chk == {"before": [], "after": ["A2"], "created": ["A2"], "covered": ["A2"]}
     assert grid_fix_check(ocr, {"clue:A1": "z"}) is None  # no grid fix, nothing to check
+
+
+def test_checkup_grades_and_warnings():
+    from blitz.packet import NO_CLUE, checkup
+
+    # a 3x3 open grid has one Across (1), one Down (1) and, with a black centre, ... keep it simple: one row
+    ocr = {"grid": ["...#..."], "clues": {"A1": {"text": "x"}, "A2": {"text": "y"}}, "answers": ["abc#def"]}
+    ids = lambda c: [(w["id"], w["level"]) for w in c["warnings"]]
+    clean = checkup(ocr, {"ready": True, "corrections": {}})
+    assert clean["grade"] == "clean" and clean["warnings"] == []
+    # no answer key: worth a look, not a problem
+    c = checkup({**ocr, "answers": None}, {"ready": True, "corrections": {}})
+    assert c["grade"] == "look" and ids(c) == [("no-answers", "medium")]
+    # an entry without a clue, and a clue without an entry
+    c = checkup({**ocr, "clues": {"A1": {"text": "x"}, "A3": {"text": "z"}}}, {"ready": True, "corrections": {}})
+    assert c["grade"] == "check" and {i for i, _ in ids(c)} == {"missing-clues", "extra-clues"}
+    # the magazine printed no clue: recorded, so just a note
+    c = checkup({**ocr, "clues": {"A1": {"text": "x"}}}, {"ready": True, "corrections": {"clue:A2": NO_CLUE}})
+    assert c["grade"] == "clean" and ids(c) == [("no-clue-printed", "info")]
+    # a clue printed blank on purpose (as_printed) is a note; an unexplained empty one is not
+    ocr2 = {**ocr, "clues": {"A1": {"text": ""}, "A2": {"text": "y"}}}
+    assert checkup(ocr2, {"ready": True, "corrections": {}, "as_printed": {"A1": "blank on purpose"}})["grade"] == "clean"
+    assert checkup(ocr2, {"ready": True, "corrections": {}})["grade"] == "check"
+    # the reviewer changed the grid: check closely, with the square named
+    c = checkup(ocr, {"ready": True, "corrections": {"grid:r1c2": "#"}})
+    assert c["grade"] == "check" and ("grid-changed", "high") in ids(c)
+    # a correction equal to what the OCR read changes nothing
+    assert checkup(ocr, {"ready": True, "corrections": {"grid:r1c4": "#"}})["grade"] == "clean"
+    # unsure about punctuation is a smaller worry than unsure about letters
+    c = checkup(ocr, {"ready": True, "corrections": {}, "unsure": {"clue:A1": "punctuation"}})
+    assert c["grade"] == "look" and ids(c) == [("unsure-punctuation", "medium")]
+    c = checkup(ocr, {"ready": True, "corrections": {}, "unsure": {"clue:A1": "letters"}})
+    assert c["grade"] == "check"
+    # escalated or not ready: check closely
+    assert checkup(ocr, {"ready": False, "corrections": {}, "escalate": "needs the next page"})["grade"] == "check"
