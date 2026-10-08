@@ -76,9 +76,11 @@ def _rest(method: str, path: str, body=None, prefer: str = ""):
     return json.loads(text) if text.strip() else None
 
 
-def publish(folder: Path, batch: str = "", dry_run: bool = False) -> list[str]:
-    """Put a folder's reviewed puzzles on the site. Returns the puzzles published."""
-    packets = [d for d in sorted(folder.iterdir()) if (d / "review.json").exists() and (d / "ocr.json").exists()]
+def publish(folder: Path, batch: str = "", dry_run: bool = False, skip: tuple[str, ...] = ()) -> list[str]:
+    """Put a folder's reviewed puzzles on the site (except the puzzles in skip: e.g. ones already imported).
+    Returns the puzzles published."""
+    packets = [d for d in sorted(folder.iterdir())
+               if (d / "review.json").exists() and (d / "ocr.json").exists() and d.name not in skip]
     if not packets:
         raise Stop(f"No reviewed puzzles (with review.json) in {folder}.")
     if dry_run:

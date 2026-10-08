@@ -213,7 +213,7 @@ def cmd_site_build(a) -> None:
 def cmd_site_publish(a) -> None:
     from .site import publish
 
-    done = publish(Path(a.folder), a.batch or "", a.dry_run)
+    done = publish(Path(a.folder), a.batch or "", a.dry_run, tuple(a.skip or ()))
     print(f"{'would publish' if a.dry_run else 'published'} {len(done)} puzzles")
 
 
@@ -304,6 +304,7 @@ def main(argv=None) -> None:
     q.add_argument("folder")
     q.add_argument("--batch", help="a name for this batch (default: the folder's name)")
     q.add_argument("--dry-run", action="store_true", help="list what would be published")
+    q.add_argument("--skip", nargs="+", metavar="PUZZLE", help="leave these puzzles out (e.g. already imported ones)")
     q.set_defaults(fn=cmd_site_publish)
     q = sub.add_parser("site-import", help="what helpers decided on the site, for xword-ocr import-reviews --decisions")
     q.add_argument("-o", "--out")
