@@ -776,8 +776,8 @@ const TOUR = [
   {h: 'Check each change', tab: 'review', sel: ['#cardspanel'], html: () => `<p>Each card is one change the AI made. Click a card to find it on the scan, then press
       <b>✓</b> if the scan agrees or <b>✗</b> if it doesn't (and say what you see).</p>
     <p>Keyboard: <kbd>J</kbd>/<kbd>K</kbd> next or previous, <kbd>A</kbd> accept, <kbd>R</kbd> reject, <kbd>U</kbd> undo.</p>`},
-  {h: 'Look over the result', tab: 'preview', sel: ['.preview'], html: () => `<p>This is the <b>result</b> tab: the finished grid and clue list with the changes applied
-      (and below, the xd file the project keeps). Changed squares and clues are shaded. A quick sanity check: does it read like a crossword?</p>`},
+  {h: 'Look over the result', tab: 'preview', sel: ['.tabs button[data-tab="preview"]'], html: () => `<p>The highlighted <b>result</b> tab (it's showing now) is the finished grid and clue list with the changes applied,
+      and below them the xd file the project keeps. Changed squares and clues are shaded. A quick sanity check: does it read like a crossword?</p>`},
   {h: 'Pass judgement', sel: ['.verdict button.good', '.verdict button.bad'], html: () => `<p>When you've been through the changes, mark the puzzle <b>Looks right</b> or <b>Needs work</b>.
       Not sure? Leave it. Someone else will take a look.</p>`},
   {h: 'Add a note or a reaction', sel: ['.verdict .rx', '#vnote'], html: () => `<p>Leave a note if there's something we should know, and a reaction if a puzzle made you smile
