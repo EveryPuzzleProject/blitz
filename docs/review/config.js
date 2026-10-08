@@ -3,7 +3,7 @@
 // allows what the database's row-level security allows. Never put the service key here.
 window.BLITZ_SITE = {
   name: "blitz",
-  googleClientId: "",  // Google Cloud > Credentials > your OAuth client ID (public): Google's own button, so it shows this site
+  googleClientId: "384816690252-e4953vak7smtm8fo1bps4tqtbpse52e8.apps.googleusercontent.com",  // Google Cloud > Credentials > your OAuth client ID (public): Google's own button, so it shows this site
   providers: ["google", "github", "discord"],                      // sign-in buttons: those enabled in Supabase > Sign In / Providers
   supabaseUrl: "https://gvvgqyyutekmxkttxhzd.supabase.co",   // Supabase: Project Settings > API > Project URL
   supabaseAnonKey: "sb_publishable_B_NPnAXFett7uk33ex1_mQ_ulAjxrMA",                   // Supabase: Project Settings > API > anon public key
