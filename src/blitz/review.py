@@ -13,35 +13,58 @@ import re
 from pathlib import Path
 
 from .crops import TARGET
-from .packet import TEXT_FLAGS, entries, load, odd_words, structural_checks
+from .packet import (TEXT_FLAGS, _MERGED, entries, is_notice, load, odd_words, proposals, proposed_text,
+                     structural_checks, title_check)
 
 MAX_CROPS = 60
 FEW_DISPUTED = 4  # more disputed squares than this get one whole-grid crop instead
+UNRELIABLE = ('number-corrected', 'text-moved', 'line-recovered', 'low-ocr-score', 'missing', 'no-text')
+MAX_BOX_H = 400  # a box: crop taller than this isn't a look at one clue
 ITEM_OK = re.compile(r"clue:[AD]\d+|cell:r\d+c\d+|grid:r\d+c\d+|other:\d+|meta:(title|author|byline|puzzle_number)")
 
 
-def covered(item: str, seen: list[str], ocr: dict) -> bool:
-    """Was this item on a crop the reviewer saw?"""
+def _in_clue_area(ocr: dict, r: tuple) -> bool:
+    """Does the region overlap the area the OCR found clues in (not the grid or the title)?"""
+    boxes = [v["box"] for v in ocr["clues"].values() if v.get("box")]
+    if not boxes:
+        return True
+    x0, y0 = min(b[0] for b in boxes), min(b[1] for b in boxes)
+    x1, y1 = max(b[2] for b in boxes), max(b[3] for b in boxes)
+    return r[0] < x1 and x0 < r[2] and r[1] < y1 and y0 < r[3]
+
+
+def covered(item: str, seen: list[str], ocr: dict, regions: dict | None = None) -> bool:
+    """Was this item on a crop the reviewer saw? `regions` is the draft's
+    {"clue:D56": [x0, y0, x1, y1]}: where the reviewer says a clue really is."""
     try:
-        return _covered(item, seen, ocr)
+        return _covered(item, seen, ocr, regions)
     except (ValueError, IndexError):
         return False
 
 
-def _covered(item: str, seen: list[str], ocr: dict) -> bool:
+def _covered(item: str, seen: list[str], ocr: dict, regions: dict | None = None) -> bool:
     kind, _, key = item.partition(":")
     if kind in ("meta", "other"):
         return True  # title, byline and captions are always shown
     if kind == "clue":
         if f"clue:{key}" in seen:
             return True
-        b = (ocr["clues"].get(key) or {}).get("box")
+        clue = ocr["clues"].get(key) or {}
+        b = clue.get("box")
+        # Where the OCR put this clue can't be trusted when it flagged the clue itself (renumbered, text
+        # moved in, low score, merged with the next one): then any clue-sized box: crop counts as a look.
+        shaky = any(f.split(":")[0] in UNRELIABLE for f in clue.get("flags") or []) or bool(_MERGED.search(clue.get("text", "")))
+        region = (regions or {}).get(f"clue:{key}")
         for t in seen:
             if t.startswith("box:"):
                 if not b:  # the OCR never found this clue: the reviewer's own box crop is the evidence
                     return True
                 x0, y0, x1, y1 = (float(v) for v in t[4:].split(","))
                 if b[0] < x1 and x0 < b[2] and b[1] < y1 and y0 < b[3]:
+                    return True
+                if region and region[0] < x1 and x0 < region[2] and region[1] < y1 and y0 < region[3]:
+                    return True  # the reviewer said where the clue really is, and looked there
+                if shaky and y1 - y0 <= MAX_BOX_H and _in_clue_area(ocr, (x0, y0, x1, y1)):
                     return True
         return False
     if kind in ("cell", "grid"):
@@ -71,11 +94,16 @@ def choose_targets(ocr: dict, asked: list[str]) -> list[str]:
         m = TARGET.fullmatch(t.strip())
         if m and m.group(0) not in targets:
             targets.append(m.group(0))
-    targets = (["meta:title", "meta:byline"] + [f"caption:{k}" for k in ocr.get("captions") or {}]
+    caps = [k for k, t in (ocr.get("captions") or {}).items() if not is_notice(t)]  # the recurring notice needs no look
+    top = ["meta:top"] if title_check(ocr) or "meta:top" in targets else []  # the page-top band, for a title that may be wrong
+    targets = (["meta:title", "meta:byline"] + top + [f"caption:{k}" for k in caps]
+               + [t for t in targets if t.startswith("caption:") and t[8:] not in caps]  # asked for by name
                + [t for t in targets if not t.startswith(("meta:", "caption:"))])
+    props = proposals(ocr)
     for k, v in ocr["clues"].items():
-        rough = odd_words(v.get("text", "")) or any(f.split(":")[0] in TEXT_FLAGS for f in v.get("flags") or [])
-        if rough and f"clue:{k}" not in targets:
+        rough = (odd_words(v.get("text", "")) or k in props
+                 or any(f.split(":")[0] in TEXT_FLAGS for f in v.get("flags") or []))
+        if rough and v.get("box") and f"clue:{k}" not in targets:  # no box, no crop: the text says it's missing
             targets.append(f"clue:{k}")
     checks = structural_checks(ocr)
     disputed = checks.get("black squares differ from the answer key", []) + [
@@ -89,7 +117,7 @@ def choose_targets(ocr: dict, asked: list[str]) -> list[str]:
     for cell in ocr.get("answers_low_confidence") or []:
         if not covered("cell:" + cell, targets, ocr):
             targets.append("cell:" + cell)
-    return targets[:MAX_CROPS + 2 + len(ocr.get("captions") or {})]
+    return targets[:MAX_CROPS + 3 + len(ocr.get("captions") or {})]
 
 
 def _as_list(v, key: str = "item") -> list[dict]:
@@ -111,6 +139,7 @@ def finish(ocr: dict, draft: dict, seen: list[str]) -> tuple[dict, list[str]]:
     corrections, ignored = {}, []
     unsure = {i["item"]: i["value"] for i in _as_list(draft.get("unsure"))}
     fixes = _as_list(draft.get("corrections"))
+    regions = draft.get("regions") if isinstance(draft.get("regions"), dict) else {}
     for a in _as_list(draft.get("answers"), "entry"):  # a corrected word -> the squares that change
         word, sq = ent.get(a["entry"].strip().removeprefix("entry:"), ("", []))
         value = a["value"].strip().upper()
@@ -130,10 +159,24 @@ def finish(ocr: dict, draft: dict, seen: list[str]) -> tuple[dict, list[str]]:
                     and not re.fullmatch(r"[A-Z ]+", clue_text))):  # an answer word put in a clue
             ignored.append(f"{item}={value}")
             continue
-        if covered(item, seen, ocr):
+        if covered(item, seen, ocr, regions):
             corrections[item] = value
         else:
             unsure[item] = f"not checked against the scan (proposed: {value})"
+    # What text.md showed as the tools' proposal (page number, "Solution of..." heading, broken clue number
+    # taken off) is the reviewer's text for that clue unless they gave their own.
+    proposed = {}
+    for k, (text, _) in proposals(ocr).items():
+        item = f"clue:{k}"
+        if item in corrections or item in unsure or any(c["item"].strip() == item for c in fixes):
+            continue
+        if covered(item, seen, ocr, regions):
+            corrections[item] = proposed[item] = text
+        else:
+            unsure[item] = f"not checked against the scan (proposed: {text})"
+    for k, t in (ocr.get("captions") or {}).items():  # the magazine's recurring notice is never part of a puzzle
+        if is_notice(t) and f"other:{k}" not in corrections and not any(c["item"].strip() == f"other:{k}" for c in fixes):
+            corrections[f"other:{k}"] = proposed[f"other:{k}"] = ""
     escalate = draft.get("escalate") or ""
     review = {
         "escalate": escalate, "ready": bool(draft.get("ready")) and not escalate,
@@ -157,6 +200,21 @@ def finish(ocr: dict, draft: dict, seen: list[str]) -> tuple[dict, list[str]]:
         review["as_printed"] = _as_dict(draft["as_printed"])
     if left:
         review["odd_left"] = left
+    junk = {}  # a page number or heading still on a clue the reviewer typed out
+    for item, value in corrections.items():
+        k = item[5:]
+        if item.startswith("clue:") and item not in proposed and k in ocr["clues"] and value:
+            again, notes = proposed_text({**ocr, "clues": {**ocr["clues"], k: {**ocr["clues"][k], "text": value}}}, k)
+            if notes and again != value and not all(n.startswith("put back") for n in notes):
+                junk[k] = notes
+    if junk:
+        review["junk_left"] = junk
+    final_title = corrections.get("meta:title", ocr.get("title", ""))
+    bad = title_check(ocr, final_title)
+    if bad and "meta:title" not in review["confirm"]:
+        review["title_left"] = {"title": final_title, "why": bad[0], "probably": bad[1]}
+    if proposed:
+        review["from_text_md"] = sorted(proposed)
     if ignored:
         review["note"] = (review["note"] + " Ignored (not a valid correction): " + "; ".join(ignored)).strip()
     return review, ignored

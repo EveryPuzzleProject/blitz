@@ -4,6 +4,8 @@ Targets (what a reviewer can ask to see):
 - clue:A14            the clue's printed text, outlined, with a line above and below
 - box:x0,y0,x1,y1     any region, in the pixels the clue boxes use (page.jpg's)
 - meta:title, meta:byline, caption:2
+- meta:top            the band across the whole top of the page down to just below the title
+                      (for a title that picked up an ad or the next column's heading)
 - entry:A14           that answer in the printed answer key
 - cell:r5c7           a key square and its neighbours; row:5, col:7; cell:all for the whole key
 - grid:r5c7           the empty puzzle grid around a square; grid:all for the whole grid
@@ -25,7 +27,7 @@ SHEET_W, SHEET_H = 1000, 1400  # a contact sheet stays under the size a model wo
 ORANGE = (230, 160, 0)
 
 TARGET = re.compile(r"(clue:[AD]\d+|entry:[AD]\d+|cell:r\d+c\d+|grid:r\d+c\d+|cell:all|grid:all|row:\d+|col:\d+"
-                    r"|box:\d+(\.\d+)?,\d+(\.\d+)?,\d+(\.\d+)?,\d+(\.\d+)?|meta:(title|byline)|caption:\d+)")
+                    r"|box:\d+(\.\d+)?,\d+(\.\d+)?,\d+(\.\d+)?,\d+(\.\d+)?|meta:(title|byline|top)|caption:\d+)")
 
 
 def _page(packet: Path, ocr: dict, name: str) -> tuple[Image.Image, float]:
@@ -46,6 +48,9 @@ def crop(packet: Path, target: str, ocr: dict | None = None) -> Image.Image | st
         img, f = _page(packet, ocr, name)
         if kind == "clue":
             box = (ocr["clues"].get(key) or {}).get("box")
+        elif kind == "meta" and key == "top":  # the page's top band, full width, down below the title box
+            tb = (ocr.get("meta_boxes") or {}).get("title") or [0, 0, 0, 200]
+            box = [0, max(0, tb[1] - 250), img.width / f, tb[3] + 60]
         elif kind in ("meta", "caption"):
             box = (ocr.get("meta_boxes") or {}).get(key if kind == "meta" else f"other{key}")
         else:
@@ -159,6 +164,7 @@ def make_sheets(packet: Path, targets: list[str], fresh: bool = False) -> dict:
     state = json.loads(state_file.read_text(encoding="utf-8")) if state_file.exists() else {"shown": [], "sheets": []}
     ocr = load(packet)
     tiles, missed, already = [], [], []
+    before = set(state.get("missed", []))  # targets that had no crop on an earlier call
     where = {c: Path(sh["file"]).name for sh in state["sheets"] for c in sh["crops"]}
     for t in targets:
         if t in state["shown"]:
@@ -177,5 +183,6 @@ def make_sheets(packet: Path, targets: list[str], fresh: bool = False) -> dict:
         state["sheets"].append(entry)
         state["shown"] += labels
         made.append(entry)
+    state["missed"] = sorted(before | {t for t, _ in missed})
     state_file.write_text(json.dumps(state, indent=1), encoding="utf-8")
-    return {"sheets": made, "missed": missed, "already": already}
+    return {"sheets": made, "missed": missed, "already": already, "told": before}
