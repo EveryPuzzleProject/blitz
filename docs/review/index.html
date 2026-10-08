@@ -770,14 +770,14 @@ const TOUR = [
     <p class="muted">Here's a quick tour of how it works.</p>`},
   {h: 'Pick a puzzle', sel: ['nav'], html: () => `<p>Choose a puzzle from the list on the left${$('#yf').hidden ? '' : ' (the year menu on top narrows it)'}.
       <b>needs eyes</b> means nobody has checked it yet. The tag on each row shows where you are with it. We open the puzzles with the fewest checks first, and a second opinion on one someone has already checked is just as welcome.</p>`},
-  {h: 'Look at the scan', sel: ['#scanpanel'], html: () => `<p>This is the original scanned page. <b style="color:var(--look)">Blue</b> boxes are what the AI looked at,
+  {h: 'Look at the scan', tab: 'review', sel: ['#scanpanel'], html: () => `<p>This is the original scanned page. <b style="color:var(--look)">Blue</b> boxes are what the AI looked at,
       <b style="color:var(--fix)">orange</b> boxes are what it corrected.</p>
     <p>Scroll to zoom and drag to move. Point at any clue to see how it was read; click it to report a mistake nobody caught.</p>`},
-  {h: 'Check each change', sel: ['#cardspanel'], html: () => `<p>Each card is one change the AI made. Click a card to find it on the scan, then press
+  {h: 'Check each change', tab: 'review', sel: ['#cardspanel'], html: () => `<p>Each card is one change the AI made. Click a card to find it on the scan, then press
       <b>✓</b> if the scan agrees or <b>✗</b> if it doesn't (and say what you see).</p>
     <p>Keyboard: <kbd>J</kbd>/<kbd>K</kbd> next or previous, <kbd>A</kbd> accept, <kbd>R</kbd> reject, <kbd>U</kbd> undo.</p>`},
-  {h: 'Look over the result', sel: ['.tabs button[data-tab="preview"]'], html: () => `<p>The <b>result</b> tab shows the finished grid and clue list with the changes applied
-      (and the xd file the project keeps). A quick sanity check: does it read like a crossword?</p>`},
+  {h: 'Look over the result', tab: 'preview', sel: ['.preview'], html: () => `<p>This is the <b>result</b> tab: the finished grid and clue list with the changes applied
+      (and below, the xd file the project keeps). Changed squares and clues are shaded. A quick sanity check: does it read like a crossword?</p>`},
   {h: 'Pass judgement', sel: ['.verdict button.good', '.verdict button.bad'], html: () => `<p>When you've been through the changes, mark the puzzle <b>Looks right</b> or <b>Needs work</b>.
       Not sure? Leave it. Someone else will take a look.</p>`},
   {h: 'Add a note or a reaction', sel: ['.verdict .rx', '#vnote'], html: () => `<p>Leave a note if there's something we should know, and a reaction if a puzzle made you smile
@@ -819,6 +819,7 @@ function placeTour() {
 }
 function showTour() {
   const st = TOUR[tourI], n = TOUR.length, first = tourI === 0, last = tourI === n - 1;
+  if (P && st.tab && tab !== st.tab) { tab = st.tab; renderMain(); }  // the scan and change steps show the review, the result step the result; later steps stay put
   tourEl.innerHTML = `<i class="dm" id="dmt"></i><i class="dm" id="dmb"></i><i class="dm" id="dml"></i><i class="dm" id="dmr"></i><div class="hole none" id="thole"></div><div class="tcard" id="tcard">
     <div class="step">${first || last ? 'Every Puzzle Project' : `Step ${tourI} of ${n - 2}`}</div><h2 id="tourh">${esc(st.h)}</h2>${st.html()}
     <div class="dots">${TOUR.map((_, i) => `<i class="${i === tourI ? 'on' : ''}"></i>`).join('')}</div>
