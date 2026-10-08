@@ -122,8 +122,13 @@ def cmd_sheets(a) -> None:
     extra = [c for s in made["sheets"] for c in s["crops"] if c not in asked]
     if extra:
         print(f"also added (always shown: title, byline, captions, odd words, flags, unsure letters): {', '.join(extra)}")
-    for t, why in made["missed"]:
-        print(f"no crop for {t}: {why}")
+    why_targets: dict[str, list[str]] = {}
+    for t, why in made["missed"]:  # one line per reason; a target already reported isn't, unless asked for again
+        if t in asked or t not in made["told"]:
+            why_targets.setdefault("no box" if why.startswith("no box for clue:") else why, []).append(t)
+    for why, ts in why_targets.items():
+        print(f"no crop for {', '.join(ts)}: "
+              + ("the OCR found no box for them: crop where they are printed with box:" if why == "no box" else why))
     if bad:
         print(f"not a target: {', '.join(bad)}")
     mine = [(t, f) for t, f in made["already"] if t in asked]
@@ -132,6 +137,7 @@ def cmd_sheets(a) -> None:
 
 
 def cmd_finish(a) -> None:
+    from .packet import load, structural_checks
     from .review import finish_packet
 
     model = a.model or (work.load_session(_root()) or {}).get("model", "")
@@ -145,6 +151,18 @@ def cmd_finish(a) -> None:
               + (f" (not on a sheet, so not applied: {', '.join(unchecked)})" if unchecked else "")
               + (f"; ignored: {'; '.join(ignored)}" if ignored else "")
               + (f"; escalated: {rv['escalate']}" if rv["escalate"] else ""))
+        if rv.get("from_text_md"):
+            print("  From text.md's proposals (you gave no text of your own): " + ", ".join(rv["from_text_md"]) + ".")
+        if rv.get("junk_left"):
+            print("  A page number or heading is still in your text for: "
+                  + "; ".join(f"{k} ({n[0]})" for k, n in rv["junk_left"].items()) + ".")
+        if rv.get("title_left"):
+            t = rv["title_left"]
+            print(f"  The title still looks wrong ({t['why']}): {t['title']!r}"
+                  + (f"; probably {t['probably']!r}" if t["probably"] else "")
+                  + ". Correct meta:title (look at meta:top), or put meta:title in \"confirm\".")
+        if structural_checks(load(d)).get("clue list continues on another page") and not rv["escalate"]:
+            print("  text.md says the clue list continues on another page: set \"escalate\" (the packet lacks that page).")
         if rv.get("odd_left"):
             print("  Still odd after your review (OCR slips left in?): "
                   + "; ".join(f"{k} {' '.join(w)}" for k, w in rv["odd_left"].items())
@@ -225,7 +243,18 @@ def cmd_drop(a) -> None:
     print(f"Dropped {s['pr']}; its claims expire after 48 hours." if s else "No run to drop.")
 
 
+def _utf8_output() -> None:
+    """Reports quote OCR text and reviewers' notes (theta, accents, euro signs); a Windows console
+    (cp1252) can't print those and `blitz feedback` died on one. Write UTF-8 instead."""
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
+
+
 def main(argv=None) -> None:
+    _utf8_output()
     p = argparse.ArgumentParser(prog="blitz", description=__doc__.split("\n\n")[0],
                                 formatter_class=argparse.RawDescriptionHelpFormatter,
                                 epilog=__doc__.split("\n\n", 1)[1])

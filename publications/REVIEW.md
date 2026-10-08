@@ -72,7 +72,11 @@ every call re-reads the whole conversation.
      grid or answer key
    - box:x0,y0,x1,y1  any region, in the same pixels as the clue boxes listed with the text; use it when a
      clue's text runs past its box (e.g. widen it by a line or two) or to see where a list continues
-   The title, byline and caption crops are always included.
+   - meta:top  the band across the whole top of the page, down to just below the title; text.md says
+     "[suspect: ...]" beside a title that picked up an ad or the next column's heading, and the band is then
+     included for you
+   The title, byline and caption crops are always included (the magazine's recurring notice, "Judge pays $10
+   for each puzzle printed", is not: `finish` removes it from the captions).
    Each crop is labelled with its target. One more `sheets` call is fine if a crop shows you
    need something else (e.g. a wider box for a clue that runs on); it adds to the sheets you
    have (only the new ones are listed). A clue the OCR never found has no clue: crop; crop its
@@ -113,6 +117,14 @@ fine.
 settled: corrected, kept under "sic", or listed under "as_printed". "Confirm" doesn't settle an
 odd word, because it's easy to confirm a clue for one reason (its text belongs there) and miss a
 misread word in it. Settle them and run finish again.
+
+text.md already shows some clues with the junk taken off: a page number ("30") or "Solution of Last Week's
+Puzzle" heading (with its garbled repeat) run in at the end of a column's last clue, or a broken clue number read
+as a euro sign at the start. The line says what was removed ("tool: removed ..."). Check it on the crop like
+anything else; `finish` puts that text in your review unless you give the clue's text yourself (a page number or
+heading you leave in is reported). A clue ending in a bare number is flagged but left as it is. A spell flag marked
+"(spell-doubt)" changed a word that may be what's printed: the crop decides. "number-cut-off" is the old
+"number-missing" where the box merely starts right of the printed number: ignore it.
 
 When you take text out of one clue because it belongs to another (merged clues), check the other
 clue's own text too: it has usually been read separately, with its own slips.

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import re
+from difflib import SequenceMatcher
 from functools import lru_cache
 from pathlib import Path
 
@@ -73,7 +74,11 @@ def structural_checks(ocr: dict) -> dict[str, list[str]]:
     """Whole-puzzle problems, each with the items involved."""
     found: dict[str, list[str]] = {}
     clues = ocr["clues"]
-    empty = [k for k, v in clues.items() if not v.get("text", "").strip()]
+    cont = list_continues(ocr)
+    if cont:
+        found["clue list continues on another page"] = list(cont.values())
+    gone = {k for lab in cont for k in entries(ocr) if k[0] == lab}  # reported once, above
+    empty = [k for k, v in clues.items() if not v.get("text", "").strip() and k not in gone]
     if empty:
         found["clue text missing"] = empty
     # The same text on two neighbouring clues is a reading slip (a list that
@@ -99,6 +104,32 @@ def structural_checks(ocr: dict) -> dict[str, list[str]]:
         if diff:
             found["black squares differ from the answer key"] = diff
     return found
+
+
+CONTINUES_MIN = 10  # a list with at least this many clues without text ...
+CONTINUES_SHARE = 0.5  # ... and at least this share of its entries probably goes on elsewhere
+
+
+def list_continues(ocr: dict) -> dict[str, str]:
+    """Across or Down lists that probably go on in a place the packet doesn't
+    have (a page not scanned). The sign: more than half the list's entries
+    (and ten or more) have no text at all. A clue the OCR merely missed or
+    swallowed is a handful (at most about a quarter of a list in 520 puzzles);
+    a list cut off at the foot of a column has most of its clues missing.
+    Returns {"A" or "D": a sentence for text.md}."""
+    ent, clues, out = entries(ocr), ocr["clues"], {}
+    for d, name in (("A", "Across"), ("D", "Down")):
+        labs = [k for k in ent if k[0] == d]
+        gone = [k for k in labs if not (clues.get(k) or {}).get("text", "").strip()]
+        if len(gone) >= CONTINUES_MIN and len(gone) >= CONTINUES_SHARE * len(labs):
+            have = [k for k in labs if k not in gone]
+            out[d] = (f"{name}: only {len(have)} of {len(labs)} clues have text ({', '.join(have[:6])}"
+                      f"{'...' if len(have) > 6 else ''}); {gone[0]}..{gone[-1]} are missing. The list "
+                      f"probably goes on in a page that isn't in this packet (look for an ad or a rule where it "
+                      f"stops) - escalate, don't restore the clues one by one"
+                      + ("" if have == labs[:len(have)] else
+                         "; the few clues that have text are probably misnumbered (they belong to the first numbers)"))
+    return out
 
 
 @lru_cache(maxsize=None)
@@ -134,7 +165,7 @@ def odd_words(text: str) -> list[str]:
     """Words a proofreader would stop at: not plausible English (OCR slips like
     "intoxieating"), or a letter-digit mix."""
     out = []
-    for m in re.finditer(r"[A-Za-z0-9]+(?:-[A-Za-z]+)*(?:'[a-z]+)?", text):
+    for m in re.finditer(r"[^\W_ºª]+(?:-[^\W_ºª]+)*(?:'[a-z]+)?", text):
         whole = m.group(0)
         parts = whole.split("-")
         if len(parts) > 1 and _plausible("".join(parts)):  # demi-tasse
@@ -148,12 +179,207 @@ def odd_words(text: str) -> list[str]:
     return out
 
 
-TEXT_FLAGS = ("spell", "low-ocr-score", "text-moved", "missing", "line-recovered", "no-text")
+# ---- what the OCR ran into a clue from beside it, and what the tools propose ----
+# The page number and "Solution of Last Week's Puzzle" printed under a clue
+# column are read into the column's last clue; a broken clue number becomes a
+# euro sign; the spell step "fixes" real words. Each is detected here and
+# proposed: text.md shows the proposed text and says what changed, and
+# `finish` applies it unless the reviewer wrote their own text for that clue.
+_HEADINGS = ("solution of last week's puzzle", "solution of puzzle no", "solution to puzzle no",
+             "solution to last month's puzzle", "solution of last month's puzzle")
+_PAGE_TAIL = re.compile(r"(?<=[.!?\"”’')\]])\s+(\d{2,3}(?:\s+\d{2,3})?)\s*$")
+_BARE_NUMBER_TAIL = re.compile(r"\s(\d{2})\s*$")
+_LEAD_JUNK = re.compile(r"^(?:[€θ%$£]\s*\d{0,2}|\d{1,2}\s*[€θ])\s*\.\s+(?=\S)")
+_NUMBER_SLOT = re.compile(r"\s(\S{1,3})\.(?=\s)")
+SPELL_SURE = 1.0  # wordfreq knows a word this well: probably a word, not a misread
+
+
+def _sim(a: str, b: str) -> float:
+    return SequenceMatcher(None, a, b).ratio()
+
+
+def heading_start(text: str, last: bool = True) -> int | None:
+    """Where a run-in "Solution of Last Week's Puzzle" / "Solution of Puzzle No. N"
+    heading starts (OCR-garbled spellings included), or None. It must end the
+    text; unless the clue is the last of its column the match has to be close."""
+    toks = [(m.start(), m.group(0)) for m in re.finditer(r"\S+", text)]
+    for i, (pos, t) in enumerate(toks):
+        w = re.sub(r"[^a-z]", "", t.lower())
+        if len(w) < 6 or _sim(w, "solution") < 0.7 or len(text) - pos > 90:
+            continue
+        window = " ".join(x for _, x in toks[i:i + 5]).lower()
+        best = max(_sim(window[:len(h)], h) for h in _HEADINGS)
+        if best >= (0.6 if last else 0.75):
+            return pos
+    return None
+
+
+def last_in_column(ocr: dict, label: str) -> bool:
+    """No other clue box sits below this one in its column (so a page number
+    printed under the column would be read into it). False when it has no box."""
+    b = (ocr["clues"].get(label) or {}).get("box")
+    if not b:
+        return False
+    for k, v in ocr["clues"].items():
+        c = v.get("box")
+        if k == label or not c:
+            continue
+        overlap = min(b[2], c[2]) - max(b[0], c[0])
+        if overlap >= 0.5 * min(b[2] - b[0], c[2] - c[0]) and abs(b[0] - c[0]) < 60 and c[1] > b[1] + 5:
+            return False
+    return True
+
+
+def _repeat_cut(text: str) -> int | None:
+    """Where a garbled repeat of the clue starts ("... (abbr.). 39. A not potato
+    (abbr.).": its own number, then a bad second reading of the same words)."""
+    for m in _NUMBER_SLOT.finditer(text):
+        tok = m.group(1)
+        if not (any(ch.isdigit() for ch in tok) or (len(tok) <= 2 and _zipf(tok.lower()) < 5.5)):
+            continue  # a garbled number (39, ss, 5o), not a word like "it" or "red"
+        a, b = text[:m.start()].strip(), text[m.end():].strip()
+        if len(a) >= 8 and a[-1] in ".!?)\"'" and len(b) >= 8 and _sim(b.lower(), a.lower()[-(len(b) + 3):]) >= 0.6:
+            return m.start()
+    return None
+
+
+def _kind(flag: str) -> tuple:
+    """What a `spell:x>y` fix substituted: ((seen, meant), ...)."""
+    x, _, y = flag.partition(":")[2].partition(">")
+    x, y = x.lower(), y.lower()
+    if len(x) == len(y):  # substitutions in place (foree > force is one e read for c)
+        return tuple((a, b) for a, b in zip(x, y) if a != b)
+    return tuple((x[i1:i2], y[j1:j2]) for op, i1, i2, j1, j2 in SequenceMatcher(None, x, y).get_opcodes() if op != "equal")
+
+
+def spell_doubt(flag: str) -> bool:
+    """Is this `spell:x>y` fix one to doubt? The fix that is nearly always right
+    in Judge is e->c (the press's broken c: "elean" for "clean"). Any other
+    substitution, on a word x that wordfreq knows at all (dratted, Haled,
+    middie: rare but real), is as likely a printed word as a misread; a short
+    word changed in two places (ycu>yen, a broken 'you') is too."""
+    x, _, y = flag.partition(":")[2].partition(">")
+    if not (x and y):
+        return False
+    kind = _kind(flag)
+    if all(k == ("e", "c") for k in kind):
+        return False
+    return (len(x) <= 4 and sum(max(len(a), len(b)) for a, b in kind) > 1) or _zipf(x.lower()) >= SPELL_SURE
+
+
+def proposed_text(ocr: dict, label: str) -> tuple[str, list[str]]:
+    """The clue's text with the run-in junk taken off, and what was taken off
+    (no notes: nothing proposed). Never proposes an empty clue."""
+    clue = ocr["clues"][label]
+    flags = clue.get("flags") or []
+    last = last_in_column(ocr, label)
+    new, notes = clue.get("text", ""), []
+    pos = heading_start(new, last or any(f.split(":")[0] in ("low-ocr-score", "text-moved") for f in flags))
+    if pos is not None:
+        cut = new[:pos].rstrip()
+        if len(cut) >= 3:
+            notes.append(f'removed the "Solution of..." heading that ends the column: "{new[pos:][:60]}"')
+            new = cut
+            r = _repeat_cut(new)
+            if r is not None:
+                notes.append(f'removed a garbled repeat of the clue: "{new[r:].strip()[:60]}"')
+                new = new[:r].rstrip()
+    m = _PAGE_TAIL.search(new) if last else None
+    if m and len(new[:m.start()].strip()) >= 3:
+        notes.append(f"removed the page number {m.group(1)!r} printed under the column")
+        new = new[:m.start()].rstrip()
+    m = _LEAD_JUNK.match(new)
+    if m:
+        notes.append(f"removed {m.group(0).strip()!r} from the start (a broken clue number)")
+        new = new[m.end():]
+    return new, notes
+
+
+def proposals(ocr: dict) -> dict[str, tuple[str, list[str]]]:
+    """Every clue whose text the tools propose to change: label -> (text, why)."""
+    out = {}
+    for k in ocr["clues"]:
+        text, notes = proposed_text(ocr, k)
+        if notes and text != ocr["clues"][k].get("text", ""):
+            out[k] = (text, notes)
+    return out
+
+
+def tail_number_hint(ocr: dict, label: str) -> str:
+    """A last-of-column clue ending in a bare number (no sentence end before it):
+    probably the page number, but it could be part of the clue. Flag, don't cut."""
+    t = ocr["clues"][label].get("text", "")
+    m = _BARE_NUMBER_TAIL.search(t)
+    if m and last_in_column(ocr, label) and not _PAGE_TAIL.search(t):
+        return f"ends in {m.group(1)!r}: the page number run in?"
+    return ""
+
+
+_NOTICES = ("judge pays $10 for each puzzle printed.",
+            "judge will run a crossword puzzle every week and will pay $25 for each puzzle accepted")
+
+
+def _squash(t: str) -> str:
+    return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9$ ]", " ", t.lower())).strip()
+
+
+def is_notice(caption: str) -> bool:
+    """The magazine's recurring "Judge pays $10 for each puzzle printed", however garbled."""
+    t = _squash(caption)
+    return any(_sim(t[:len(_squash(n))], _squash(n)) >= 0.8 for n in _NOTICES)
+
+
+JUDGE_TITLE = re.compile(r"((?:The\s+)?Judge['’]?s?\s*\.?\s*Cross\s?-?word(?:\s+Puzzle)?(?:\s+No\.?)?\s*\d{0,4})", re.I)
+
+
+def title_check(ocr: dict, title: str | None = None) -> tuple[str, str] | None:
+    """(why, proposed title or "") when the title looks like it picked up a
+    neighbouring column's heading or an ad, else None. Only Judge's usual
+    heading is known, so other publications' titles are never questioned."""
+    title = (ocr.get("title") if title is None else title) or ""
+    title = title.strip()
+    xdid = str(ocr.get("xdid", ""))
+    if not xdid.startswith("judge"):
+        return None
+    m = JUDGE_TITLE.search(title)
+    if m:
+        extra = (title[:m.start()] + " " + title[m.end():]).strip(" ,.-")
+        if extra:
+            return f'extra words "{extra}" (a column heading or ad beside the title?)', m.group(1).strip()
+        return None
+    if xdid[5:9] >= "1928":
+        return "doesn't look like Judge's puzzle heading (an ad or another column's heading?)", ""
+    return None
+
+
+CUT_OFF = 12  # a box starting this many pixels right of its column-mates' started after the printed number
+
+
+def number_cut_off(ocr: dict, label: str) -> bool:
+    """A clue flagged number-missing whose box starts well right of the other
+    clues' boxes in its column: the box began after the printed number, which
+    is there (201 of 253 such flags in batch 9 were this, by reviewers' notes)."""
+    cl = ocr["clues"]
+    box = (cl.get(label) or {}).get("box")
+    if not box:
+        return False
+    peers = sorted(w["box"][0] for k, w in cl.items()
+                   if k != label and w.get("box") and abs(w["box"][0] - box[0]) < 80
+                   and not any(f == "number-missing" or f.startswith("number-corrected") for f in w.get("flags") or []))
+    return bool(peers) and box[0] - peers[len(peers) // 2] >= CUT_OFF
+
+
+TEXT_FLAGS = ("spell", "spell-hint", "low-ocr-score", "text-moved", "missing", "line-recovered", "no-text")
 FLAG_HELP = {  # what the OCR's clue flags mean, for text.md
     "spell": "(spell:x>y) the OCR read x and the pipeline already changed it to y (the text shows y). "
              "Usually right; check that y is what's printed, since a real misprint must stay as printed.",
-    "number-missing": "the OCR didn't read the clue's printed number (usually the box cut it off; often a "
-                      "false alarm).",
+    "number-missing": "the OCR didn't read the clue's printed number and the box starts where the other boxes "
+                      "do: look at the clue crop (it is sometimes a missing clue, sometimes just a smudge).",
+    "number-cut-off": "(was number-missing) the clue's box starts to the right of the printed number, which is "
+                      "there: ignore.",
+    "spell-hint": "(spell-hint:x>y) the OCR read x; the pipeline did NOT change it, but y may be what's printed.",
+    "spell-doubt": "(on a spell flag) the pipeline changed a word the dictionary half-knows (dratted>drafted): "
+                   "the original may be what's printed. The crop decides.",
     "number-corrected": "(number-corrected:N) the OCR read the number as N and the pipeline renumbered the clue "
                         "to fit the grid.",
     "low-ocr-score": "the OCR wasn't confident about this line.",
@@ -186,12 +412,16 @@ def text_view(ocr: dict) -> str:
     """The packet as text: what a proofreader reads before looking at the scan."""
     ent = entries(ocr)
     has_key = bool(ocr.get("answers"))
+    bad_title = title_check(ocr)
     lines = [f"# {ocr['xdid']}", "",
-             f"Title: {ocr.get('title', '')}",
+             f"Title: {ocr.get('title', '')}"
+             + (f"  [suspect: {bad_title[0]}{'; probably ' + repr(bad_title[1]) if bad_title[1] else ''}. "
+                f"Look at meta:top, the band across the top of the page]" if bad_title else ""),
              f"Byline: {ocr.get('byline', '')}",
              f"Author: {ocr.get('author', '')}"]
     for k, t in (ocr.get("captions") or {}).items():
-        lines.append(f"Caption {k}: {t}")
+        lines.append(f"Caption {k}: {t}" + (f"  [the magazine's recurring notice, not part of the puzzle: "
+                                            f"other:{k} is \"\" and `finish` removes it]" if is_notice(t) else ""))
     lines += ["", "## Answer key" if has_key else "## Grid (no answer key linked)",
               "Lowercase = the letter reader wasn't sure; '.' = unreadable; '#' = black square.", "```"]
     rows = ocr["answers"] if has_key else ocr["grid"]
@@ -206,8 +436,23 @@ def text_view(ocr: dict) -> str:
     merged = [k for k, v in ocr["clues"].items() if _MERGED.search(v.get("text", ""))]
     if merged:
         lines += ["", f"Clue text that seems to run into another clue: {', '.join(merged)}"]
+    props = proposals(ocr)
+    cut = {k for k, v in ocr["clues"].items() if "number-missing" in (v.get("flags") or []) and number_cut_off(ocr, k)}
+    doubt = {k for k, v in ocr["clues"].items() if any(f.startswith("spell:") and spell_doubt(f) for f in v.get("flags") or [])}
     used = {f.split(":")[0] for v in ocr["clues"].values() for f in v.get("flags") or []}
+    if cut:
+        used.add("number-cut-off")
+    if any("number-missing" in (v.get("flags") or []) for k, v in ocr["clues"].items() if k not in cut):
+        used.add("number-missing")
+    else:
+        used.discard("number-missing")
+    if doubt:
+        used.add("spell-doubt")
     legend = [f"- {k}: {FLAG_HELP[k]}" for k in FLAG_HELP if k in used]
+    if props:
+        legend.append("- tool: the text shown for that clue is already the tools' proposal (the run-in page number, "
+                      "\"Solution of...\" heading or broken clue number taken off); `finish` puts it in your review "
+                      "unless you give the clue's text yourself.")
     if legend:
         lines += ["", "Flags on the clues below:"] + legend
     for d, name in (("A", "Across"), ("D", "Down")):
@@ -216,12 +461,19 @@ def text_view(ocr: dict) -> str:
             if k[0] != d:
                 continue
             word = ent.get(k, ("", []))[0]
-            notes = list(v.get("flags") or [])
-            odd = odd_words(v.get("text", ""))
+            text = props[k][0] if k in props else v.get("text", "")
+            notes = ["number-cut-off" if f == "number-missing" and k in cut else
+                     f + " (spell-doubt)" if f.startswith("spell:") and k in doubt and spell_doubt(f) else f
+                     for f in v.get("flags") or []]
+            odd = odd_words(text)
             if odd:
                 notes.append("odd: " + " ".join(odd))
+            if k in props:
+                notes += ["tool: " + n for n in props[k][1]]
+            elif tail_number_hint(ocr, k):
+                notes.append(tail_number_hint(ocr, k))
             flags = f"  [{'; '.join(notes)}]" if notes else ""
-            lines.append(f"{k:<5} {word or '?':<16} {v.get('text', '')}{flags}")
+            lines.append(f"{k:<5} {word or '?':<16} {text}{flags}")
     boxes = [f"{k} {','.join(str(round(x)) for x in v['box'])}" for k, v in ocr["clues"].items() if v.get("box")]
     if boxes:  # for box: crops, e.g. widening a clue whose text runs past its box
         lines += ["", "## Clue boxes (x0,y0,x1,y1 in scan pixels)", "  ".join(boxes)]
