@@ -46,6 +46,30 @@ def _env(*names: str) -> list[str]:
     return [os.environ[n] for n in names]
 
 
+SITE = "https://blitz.xwordapp.com"
+REVIEW_DESC = ("Check an AI's transcriptions of 1920s-30s Judge crosswords against the scanned pages. "
+               "Part of the Every Puzzle Project, which is turning early crosswords into searchable, preserved records.")
+CARD_ALT = "Judge magazine's November 15, 1924 cover, a full-page crossword, beside the words: Bringing old crosswords back"
+FAVICON = '<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 3 3%27%3E%3Crect width=%273%27 height=%273%27 fill=%27%23fff%27/%3E%3Crect width=%271%27 height=%271%27 fill=%27%231d1b17%27/%3E%3Crect x=%272%27 y=%272%27 width=%271%27 height=%271%27 fill=%27%231d1b17%27/%3E%3C/svg%3E">'
+# Link previews (Slack, Discord, iMessage, social): the title, a description and the project's card.
+REVIEW_HEAD = chr(10).join([
+    "<title>Check old crosswords: Every Puzzle Project</title>",
+    f'<meta name="description" content="{REVIEW_DESC}">',
+    '<meta property="og:type" content="website">',
+    '<meta property="og:site_name" content="Every Puzzle Project">',
+    '<meta property="og:title" content="Help check old crosswords">',
+    f'<meta property="og:description" content="{REVIEW_DESC}">',
+    f'<meta property="og:url" content="{SITE}/review/">',
+    f'<meta property="og:image" content="{SITE}/img/social-card.png">',
+    '<meta property="og:image:width" content="1200">',
+    '<meta property="og:image:height" content="630">',
+    f'<meta property="og:image:alt" content="{CARD_ALT}">',
+    '<meta name="twitter:card" content="summary_large_image">',
+    '<meta name="theme-color" content="#f7f5f0">',
+    FAVICON,
+])
+
+
 def build(root: Path) -> Path:
     """docs/review/: the page, its adapter, and (once) a config to fill in."""
     out = root / "docs" / "review"
@@ -57,7 +81,7 @@ def build(root: Path) -> Path:
                              f'<script src="{SUPABASE_JS}"></script>\n'
                              '<script src="site.js"></script>\n'
                              '<script src="../puzzle.js"></script>')
-    page = page.replace("<title>Review watch</title>", "<title>Check old crosswords</title>")
+    page = page.replace("<title>Review watch</title>", REVIEW_HEAD)
     (out / "index.html").write_text(page, encoding="utf-8", newline="\n")
     shutil.copy2(root / "site" / "site.js", out / "site.js")
     if not (out / "config.js").exists():
