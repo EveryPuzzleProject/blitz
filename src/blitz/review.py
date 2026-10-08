@@ -13,7 +13,7 @@ import re
 from pathlib import Path
 
 from .crops import TARGET
-from .packet import (TEXT_FLAGS, _MERGED, entries, is_notice, load, odd_words, proposals, proposed_text,
+from .packet import (TEXT_FLAGS, _MERGED, entries, grid_fix_check, is_notice, load, odd_words, proposals, proposed_text,
                      structural_checks, title_check)
 
 MAX_CROPS = 60
@@ -216,6 +216,9 @@ def finish(ocr: dict, draft: dict, seen: list[str]) -> tuple[dict, list[str]]:
     bad = title_check(ocr, final_title)
     if bad and "meta:title" not in review["confirm"]:
         review["title_left"] = {"title": final_title, "why": bad[0], "probably": bad[1]}
+    gfc = grid_fix_check(ocr, corrections)
+    if gfc and "grid:fix" not in review["confirm"]:
+        review["grid_check"] = gfc
     if proposed:
         review["from_text_md"] = sorted(proposed)
     if ignored:

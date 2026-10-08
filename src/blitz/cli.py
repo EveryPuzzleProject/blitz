@@ -157,6 +157,13 @@ def cmd_finish(a) -> None:
         if rv.get("junk_left"):
             print("  A page number or heading is still in your text for: "
                   + "; ".join(f"{k} ({n[0]})" for k, n in rv["junk_left"].items()) + ".")
+        if rv.get("grid_check"):
+            g = rv["grid_check"]
+            print(f"  YOUR GRID FIX MAKES THE NUMBERING WORSE: {len(g['before'])} entries disagreed with the printed clue list before, "
+                  f"{len(g['after'])} now" + (f"; it creates {', '.join(g['created'])}, which have no printed clue" if g["created"] else "")
+                  + (f", and you marked {', '.join(g['covered'])} as '[no clue printed]'" if g["covered"] else "") + "." + chr(10) +
+                  "  Look at grid:all and the numbers printed on the grid itself: if the numbering fits the scan as the OCR read it, "
+                  "the grid fix is probably wrong. If it really is right, put \"grid:fix\" in \"confirm\".")
         if rv.get("title_left"):
             t = rv["title_left"]
             print(f"  The title still looks wrong ({t['why']}): {t['title']!r}"

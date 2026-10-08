@@ -55,6 +55,33 @@ def number_grid(grid: list[str]) -> list[tuple[str, int, int, int]]:
     return out
 
 
+def grid_fix_check(ocr: dict, corrections: dict) -> dict | None:
+    """A reviewer's grid fixes (grid:r1c5 = "#") change which squares get numbers. Compare how the grid's entries
+    line up with the clue list the magazine printed (as the OCR read it) before and after the fixes. Returns None
+    if there are no grid fixes or the numbering is no worse; otherwise what got worse: the entries the fix created
+    that have no printed clue ("created"), and any of those the reviewer then marked "[no clue printed]"
+    ("covered"). A grid fix that fits the printed numbers makes the two lists agree better, not worse."""
+    fixes = {k[5:]: v for k, v in corrections.items() if k.startswith("grid:") and re.fullmatch(r"r\d+c\d+", k[5:])}
+    if not fixes or not ocr.get("grid"):
+        return None
+    grid = [list(r) for r in ocr["grid"]]
+    for sq, v in fixes.items():
+        r, c = (int(x) for x in sq[1:].split("c"))
+        if 0 < r <= len(grid) and 0 < c <= len(grid[0]):
+            grid[r - 1][c - 1] = "#" if v == "#" else "."
+    printed = set(ocr["clues"])
+    labels = lambda g: {lab for lab, *_ in number_grid(["".join(row) for row in g])}
+    before, after = sorted(labels(ocr["grid"]) ^ printed), sorted(labels(grid) ^ printed)
+    if len(after) <= len(before):
+        return None
+    created = sorted((labels(grid) - labels(ocr["grid"])) - printed)
+    covered = [k for k in created if corrections.get(f"clue:{k}") == NO_CLUE]
+    return {"before": before, "after": after, "created": created, "covered": covered}
+
+
+NO_CLUE = "[no clue printed]"  # how the log records a clue the magazine never printed
+
+
 def entries(ocr: dict) -> dict[str, tuple[str, list[tuple[int, int]]]]:
     """Clue label -> (answer as read from the key, its squares). Letters the
     reader wasn't sure of are lowercase; '.' is unreadable. Empty words without a key."""

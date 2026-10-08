@@ -329,3 +329,18 @@ def test_consensus_agreed_disputed_single_none():
     assert consensus({"a": "looks-right", "b": "needs-work"}, {})["agreement"] == "disputed"
     # a lone reject with no one to disagree is not a conflict
     assert consensus({"a": "looks-right", "b": "looks-right"}, {"clue:A1": {"a": "reject"}})["agreement"] == "agreed"
+
+
+def test_grid_fix_check_flags_a_fix_that_makes_the_numbering_worse():
+    from blitz.packet import NO_CLUE, grid_fix_check
+
+    # The magazine printed clues 1 and 2 across, and the OCR read the row as one run: a fix that adds the black
+    # square the clue list implies makes the numbering fit better, so there is nothing to say.
+    ocr = {"grid": ["........."], "clues": {"A1": {"text": "x"}, "A2": {"text": "y"}}}
+    assert grid_fix_check(ocr, {"grid:r1c5": "#"}) is None
+    # The OCR grid already agrees with the clue list: a black square that splits an entry creates one nobody printed
+    # a clue for, and "[no clue printed]" for it is the reviewer covering their own fix.
+    ocr = {"grid": ["........."], "clues": {"A1": {"text": "x"}}}
+    chk = grid_fix_check(ocr, {"grid:r1c5": "#", "clue:A2": NO_CLUE})
+    assert chk == {"before": [], "after": ["A2"], "created": ["A2"], "covered": ["A2"]}
+    assert grid_fix_check(ocr, {"clue:A1": "z"}) is None  # no grid fix, nothing to check

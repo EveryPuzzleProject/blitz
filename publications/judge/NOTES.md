@@ -27,6 +27,13 @@ entry comes out once the tools are fixed. Last updated after batch 9,
   Crop its place with box: before deciding. In 1930 the Down list is often
   on another page the packet doesn't have: text.md says "clue list continues
   on another page"; escalate it.
+- **Changing the grid:** change a square (grid:rNcM) only when the scan clearly shows
+  the OCR got it wrong, and check the numbers printed in the grid itself (grid:all)
+  against the numbering you get: the printed numbers are the proof. A fix that
+  invents an entry nobody printed a clue for (and "[no clue printed]" to
+  cover it) is almost always a wrong grid fix. `finish` compares the numbering
+  before and after your fix and warns when it gets worse (1931-05-02 and
+  1934-12-01b each got a black square the scan doesn't have).
 - **Shapes:** a few puzzles are not rectangles (a heart, a diamond), and some
   1929 grids really are asymmetric. Check the whole grid (grid:all) before
   calling either a reading error.

@@ -101,6 +101,11 @@ pre.xd{background:var(--panel);border:1px solid var(--line);border-radius:6px;pa
 .tip .rep{display:flex;gap:6px;margin-top:6px}.tip .rep input{flex:1;font:inherit;font-size:12px;padding:2px 5px;border:1px solid var(--line);border-radius:4px;background:var(--bg);color:var(--ink)}
 .tip .rep button{font:inherit;font-size:12px;border:1px solid var(--accent);background:var(--bg);color:var(--ink);border-radius:4px;cursor:pointer}
 .tip .reported{font-size:12px;color:var(--warn);margin-top:4px}
+/* facts about this puzzle that a checker needs up front */
+.fact{margin:8px 0;padding:7px 11px;border:1px solid var(--line);border-left:5px solid var(--warn);border-radius:6px;background:var(--panel);font-size:13px}
+.fact.info{border-left-color:var(--look)}.fact.bad{border-left-color:var(--bad)}
+.fact b.t{font-weight:700}.fact .sq{display:inline-block;margin:0 2px;padding:0 6px;border:1px solid var(--warn);border-radius:9px;text-decoration:none;color:var(--ink);cursor:pointer}
+.fact .sq:hover{background:color-mix(in srgb,var(--hot) 25%,transparent)}
 /* year filter at the top of the list */
 .yf{position:sticky;top:0;z-index:2;display:flex;gap:6px;align-items:center;padding:7px 12px;background:var(--bg);border-bottom:1px solid var(--line);font-size:12px;color:var(--muted)}
 .yf select{flex:1;min-width:0;font:inherit;font-size:13px;padding:2px 4px;border:1px solid var(--line);border-radius:5px;background:var(--panel);color:var(--ink)}
@@ -277,7 +282,7 @@ function places(item) {
 function boxesFor(name) {
   const fixed = new Set(Object.keys(P.review.corrections || {}));
   const hotSet = new Set(hot ? places(hot) : []);
-  const want = [...new Set(P.shown.concat([...hotSet]).concat(focusCrops || []))];
+  const want = [...new Set(P.shown.concat([...hotSet]).concat(focusCrops || []).concat([...fixed].filter(k => k.startsWith('grid:'))))];
   const out = [];
   for (const t of want) {
     let cls = hotSet.has(t) ? 'hot' : fixed.has(t) ? 'fix' : '';
@@ -640,6 +645,28 @@ function previewHtml() {
     <h3>xd</h3><pre class="xd">${esc(xdText(Z))}</pre>`;
 }
 
+// Things a checker should know before looking at anything else: a grid the reviewer changed (rare, and it changes
+// the numbering) and a puzzle with no answer key (the answers can't be checked).
+function factsHtml() {
+  const o = O(), fx = P.review.corrections || {}, out = [];
+  const was0 = k => { const m = /^grid:r(\d+)c(\d+)$/.exec(k); return ((o.grid[m[1] - 1] || '')[m[2] - 1]) || '.'; };
+  // only squares the reviewer really changed (a correction equal to what the OCR read changes nothing)
+  const g = Object.keys(fx).filter(k => /^grid:r\d+c\d+$/.test(k) && (was0(k) === '#') !== (fx[k] === '#'));
+  if (g.length) {
+    const sq = g.map(k => {
+      const m = /^grid:r(\d+)c(\d+)$/.exec(k), was = ((o.grid[m[1] - 1] || '')[m[2] - 1]) || '.';
+      return `<a class="sq" href="#" data-gridfix="${esc(k)}" title="show this square">r${m[1]}c${m[2]}: ${was === '#' ? 'black' : 'white'} → ${fx[k] === '#' ? 'black' : 'white'}</a>`;
+    }).join(' ');
+    const gc = P.review.grid_check;
+    out.push(`<div class="fact ${gc ? 'bad' : ''}"><b class="t">The reviewer changed the grid:</b> ${sq}. That is rare and it changes the numbering, so check each square against the scan
+      (the numbers printed in the grid should line up with the entries).${gc ? ` <b style="color:var(--bad)">The numbering gets worse with this fix: ${esc((gc.created || []).join(', '))}
+      would have no printed clue.</b>` : ''}</div>`);
+  }
+  if (!o.answers) out.push(`<div class="fact info"><b class="t">No answer key.</b> The answers for this puzzle weren't found (they were often printed in a later issue),
+    so they can't be checked: only the clues, the grid and the numbering are here.</div>`);
+  return out.join('');
+}
+
 function renderMain() {
   if (!P) return;
   const rv = P.review, o = O();
@@ -657,6 +684,7 @@ function renderMain() {
     <span class="muted">${esc(P.xdid)} · ${esc(o.byline || '')} · ${o.grid.length}x${o.grid[0].length}</span></div>${HELPER ? hchip({verdict: (P.decisions || {}).verdict}) : chip(P.status)}</div>
     ${rv.escalate ? `<p style="color:var(--bad)"><b>Escalated:</b> ${esc(rv.escalate)}</p>` : ''}
     ${rv.note ? `<p class="muted" style="margin:6px 0">${esc(rv.note)}</p>` : ''}
+    ${factsHtml()}
     ${['ready','needs a person','escalated'].includes(P.status) ? `<div class="verdict"><span class="muted">Your check:</span>`
       + `<button data-verdict="looks-right" class="good ${D().verdict === 'looks-right' ? 'on' : ''}">✓ Looks right</button>`
       + `<button data-verdict="needs-work" class="bad ${D().verdict === 'needs-work' ? 'on' : ''}">✗ Needs work</button>`
@@ -705,6 +733,12 @@ function renderMain() {
   document.querySelectorAll('[data-verdict]').forEach(b => b.onclick = () =>
     decide({verdict: D().verdict === b.dataset.verdict ? '' : b.dataset.verdict, note: $('#vnote').value}));
   bindReactions();
+  document.querySelectorAll('[data-gridfix]').forEach(a => a.onclick = e => {
+    e.preventDefault();
+    if (tab !== 'review') { tab = 'review'; renderMain(); }
+    setHot(a.dataset.gridfix, false);
+    const gi = document.getElementById('gridimg'); if (gi) gi.scrollIntoView({block: 'center'});
+  });
   if ($('#nextbtn')) $('#nextbtn').onclick = () => {
     const n = pickToCheck(P.xdid); if (!n) { $('#nextbtn').textContent = 'No more to check here'; return; }
     sel = n.xdid; hot = null; focusCrops = null; focusCard = null; peek = null; pinned = false; load(true);
