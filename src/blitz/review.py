@@ -23,9 +23,9 @@ MAX_BOX_H = 400  # a box: crop taller than this isn't a look at one clue
 ITEM_OK = re.compile(r"clue:[AD]\d+|cell:r\d+c\d+|grid:r\d+c\d+|other:\d+|meta:(title|author|byline|puzzle_number)")
 
 
-def _in_clue_area(ocr: dict, r: tuple) -> bool:
+def _in_clue_area(ocr: dict, r: tuple, image: str | None = None) -> bool:
     """Does the region overlap the area the OCR found clues in (not the grid or the title)?"""
-    boxes = [v["box"] for v in ocr["clues"].values() if v.get("box")]
+    boxes = [v["box"] for v in ocr["clues"].values() if v.get("box") and v.get("image") == image]
     if not boxes:
         return True
     x0, y0 = min(b[0] for b in boxes), min(b[1] for b in boxes)
@@ -55,16 +55,19 @@ def _covered(item: str, seen: list[str], ocr: dict, regions: dict | None = None)
         # moved in, low score, merged with the next one): then any clue-sized box: crop counts as a look.
         shaky = any(f.split(":")[0] in UNRELIABLE for f in clue.get("flags") or []) or bool(_MERGED.search(clue.get("text", "")))
         region = (regions or {}).get(f"clue:{key}")
+        img = clue.get("image")  # a clue printed on the next page (continued_page.jpg): next: crops
         for t in seen:
-            if t.startswith("box:"):
+            if t.startswith(("box:", "next:")):
                 if not b:  # the OCR never found this clue: the reviewer's own box crop is the evidence
                     return True
-                x0, y0, x1, y1 = (float(v) for v in t[4:].split(","))
+                if t.startswith("next:") != bool(img):
+                    continue  # a crop of the other page
+                x0, y0, x1, y1 = (float(v) for v in t.partition(":")[2].split(","))
                 if b[0] < x1 and x0 < b[2] and b[1] < y1 and y0 < b[3]:
                     return True
                 if region and region[0] < x1 and x0 < region[2] and region[1] < y1 and y0 < region[3]:
                     return True  # the reviewer said where the clue really is, and looked there
-                if shaky and y1 - y0 <= MAX_BOX_H and _in_clue_area(ocr, (x0, y0, x1, y1)):
+                if shaky and y1 - y0 <= MAX_BOX_H and _in_clue_area(ocr, (x0, y0, x1, y1), img):
                     return True
         return False
     if kind in ("cell", "grid"):

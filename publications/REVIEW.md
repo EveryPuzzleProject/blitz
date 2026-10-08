@@ -72,6 +72,9 @@ every call re-reads the whole conversation.
      grid or answer key
    - box:x0,y0,x1,y1  any region, in the same pixels as the clue boxes listed with the text; use it when a
      clue's text runs past its box (e.g. widen it by a line or two) or to see where a list continues
+   - next:x0,y0,x1,y1  the same on continued_page.jpg, when text.md has "Clues on the next page" (the list
+     goes on to another page of the issue; those clues are marked [next page] and their boxes are in that
+     page's pixels)
    - meta:top  the band across the whole top of the page, down to just below the title; text.md says
      "[suspect: ...]" beside a title that picked up an ad or the next column's heading, and the band is then
      included for you

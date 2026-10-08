@@ -3,6 +3,8 @@
 Targets (what a reviewer can ask to see):
 - clue:A14            the clue's printed text, outlined, with a line above and below
 - box:x0,y0,x1,y1     any region, in the pixels the clue boxes use (page.jpg's)
+- next:x0,y0,x1,y1    a region of continued_page.jpg, the page a clue list goes on to (its clues'
+                      boxes, marked "next page" in text.md, are in its pixels)
 - meta:title, meta:byline, caption:2
 - meta:top            the band across the whole top of the page down to just below the title
                       (for a title that picked up an ad or the next column's heading)
@@ -27,7 +29,7 @@ SHEET_W, SHEET_H = 1000, 1400  # a contact sheet stays under the size a model wo
 ORANGE = (230, 160, 0)
 
 TARGET = re.compile(r"(clue:[AD]\d+|entry:[AD]\d+|cell:r\d+c\d+|grid:r\d+c\d+|cell:all|grid:all|row:\d+|col:\d+"
-                    r"|box:\d+(\.\d+)?,\d+(\.\d+)?,\d+(\.\d+)?,\d+(\.\d+)?|meta:(title|byline|top)|caption:\d+)")
+                    r"|(?:box|next):\d+(\.\d+)?,\d+(\.\d+)?,\d+(\.\d+)?,\d+(\.\d+)?|meta:(title|byline|top)|caption:\d+)")
 
 
 def _page(packet: Path, ocr: dict, name: str) -> tuple[Image.Image, float]:
@@ -43,8 +45,14 @@ def crop(packet: Path, target: str, ocr: dict | None = None) -> Image.Image | st
     """One target's crop, or a string saying why there is none."""
     ocr = ocr or load(packet)
     kind, _, key = target.partition(":")
-    if kind in ("clue", "box", "meta", "caption"):
+    if kind in ("clue", "box", "next", "meta", "caption"):
         name = "page.jpg" if kind in ("meta", "caption") else ocr.get("clue_image", "page.jpg")
+        if kind == "clue":  # a clue printed on the page its list goes on to names that page
+            name = (ocr["clues"].get(key) or {}).get("image") or name
+        elif kind == "next":
+            name = (ocr.get("continued_page") or {}).get("image") or ""
+            if not name:
+                return "this packet has no continued_page.jpg: use box:"
         img, f = _page(packet, ocr, name)
         if kind == "clue":
             box = (ocr["clues"].get(key) or {}).get("box")
@@ -60,10 +68,11 @@ def crop(packet: Path, target: str, ocr: dict | None = None) -> Image.Image | st
                     else f"this packet has no box for {target}: look at page.jpg, or crop the place with box:")
         if kind == "clue":  # show the whole line: OCR boxes often stop short (or cover only the number)
             h = box[3] - box[1]
-            col = [b["box"] for b in ocr["clues"].values() if b.get("box") and abs(b["box"][0] - box[0]) < 3 * max(h, 12)]
+            col = [b["box"] for b in ocr["clues"].values() if b.get("box") and abs(b["box"][0] - box[0]) < 3 * max(h, 12)
+                   and b.get("image") == (ocr["clues"].get(key) or {}).get("image")]
             box = [box[0], box[1], max([box[2]] + [b[2] for b in col]), box[3]]
         x0, y0, x1, y1 = (v * f for v in box)
-        line = max(12.0, (y1 - y0) if kind != "box" else 30.0)
+        line = max(12.0, (y1 - y0) if kind not in ("box", "next") else 30.0)
         if kind == "clue":
             line = min(line, 60.0)
         m = line if kind == "clue" else 0.0  # a clue gets a line of context above and below
