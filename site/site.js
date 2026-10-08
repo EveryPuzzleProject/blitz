@@ -27,6 +27,14 @@
     return d;
   }
 
+  async function reactionsOf(x) {  // how many people reacted with what, and which of those are mine
+    const [all, mine] = await Promise.all([
+      sb.from('puzzle_reactions').select('emoji,n').eq('xdid', x),
+      user ? sb.from('reactions').select('emoji').eq('xdid', x) : Promise.resolve({data: []})]);
+    if (all.error) return null;
+    return {counts: Object.fromEntries((all.data || []).map(r => [r.emoji, r.n])), mine: (mine.data || []).map(r => r.emoji)};
+  }
+
   const box = 'font:inherit;font-size:13px;padding:2px 6px;border:1px solid var(--line);border-radius:5px;background:var(--panel);color:var(--ink)';
 
   async function ensureUser() {  // a guest identity on the first decision: nothing to fill in
@@ -197,6 +205,21 @@
       }
       if (res && res.error) { alertBar(`Couldn't save: ${res.error.message}`); return null; }
       return decisionsOf(x);
+    },
+
+    // Emoji reactions to a puzzle (schema-3-reactions.sql). null when that table isn't set up: the page then hides them.
+    reactions: {
+      get: reactionsOf,
+      async toggle(x, emoji) {
+        if (!(await ensureUser())) return null;
+        const cur = await reactionsOf(x);
+        if (!cur) return null;
+        const res = cur.mine.includes(emoji)
+          ? await sb.from('reactions').delete().eq('xdid', x).eq('emoji', emoji)
+          : await sb.from('reactions').upsert({xdid: x, emoji, user_id: user.id, at: new Date().toISOString()});
+        if (res && res.error) { alertBar(`Couldn't save: ${res.error.message}`); return null; }
+        return reactionsOf(x);
+      },
     },
 
     file: (x, path) => `${base(x)}/${path}`,
