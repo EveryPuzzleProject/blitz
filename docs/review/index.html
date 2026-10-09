@@ -65,7 +65,15 @@ button.good:disabled, button.bad:disabled { opacity: .4; cursor: default; }
 h2 .quick { margin-left: 8px; font-size: 12px; padding: 2px 10px; }
 #summary table { width: 100%; border-collapse: collapse; font-size: 13px; }
 #summary td { padding: 7px 14px; border-bottom: 1px solid #f1ede6; vertical-align: top; }
-#summary td.st { width: 34px; font-size: 16px; }
+#summary td.st { width: 72px; white-space: nowrap; }
+#summary td.st button { width: 28px; height: 26px; border-radius: 6px; font: 600 14px/1 var(--sans); cursor: pointer; background: #fff; margin-right: 4px; }
+#summary td.st .sg { border: 1px solid #9cc79f; color: var(--ok); }
+#summary td.st .sb { border: 1px solid #e3a49e; color: var(--bad); }
+#summary td.st .sg.on { background: var(--ok); border-color: var(--ok); color: #fff; }
+#summary td.st .sb.on { background: var(--bad); border-color: var(--bad); color: #fff; }
+#summary tr.noterow td { background: var(--badbg); }
+#summary tr.noterow textarea { margin: 0 0 6px; border-color: var(--bad); }
+#summary tr.noterow .acts { display: flex; gap: 8px; justify-content: flex-end; }
 #summary td.nm a { color: inherit; font-weight: 600; }
 #summary tr[data-go] { cursor: pointer; }
 #summary tr[data-go]:hover { background: #f6f1e7; }
@@ -635,13 +643,32 @@ function paintSummary() {
   const parts = [...document.querySelectorAll('section[data-sec]')];
   s.querySelector('table').innerHTML = parts.map(p => {
     const id = p.dataset.sec, st = cur.status[id], n = myEdits(id), c = myComments(id);
-    const icon = st ? (st.v === 'ok' ? '<span style="color:var(--ok)">✓</span>' : '<span style="color:var(--bad)">✗</span>') : '<span style="color:#bbb">○</span>';
+    const icon = `<button class="sg${st?.v === 'ok' ? ' on' : ''}" data-set="ok" title="${esc(goodLabel(id).slice(2))}">✓</button>` +
+      `<button class="sb${st?.v === 'bad' ? ' on' : ''}" data-set="bad" title="There's a problem in the ${esc(PART[id].name)} I couldn't fix">✗</button>`;
     const said = st ? (st.v === 'ok' ? 'looks good' + (st.auto ? ' <span style="color:var(--muted)">(marked when you chose Ready)</span>'
       : st.was === 'bad' ? ` <span style="color:var(--muted)">(you'd noted: ${esc(st.note || 'a problem')})</span>` : '')
       : `<span style="color:var(--bad)">problem: ${esc(st.note || '(no note)')}</span>`) : '<span style="color:var(--muted)">not reviewed yet</span>';
     return `<tr data-go="${id}" title="Go back to the ${esc(PART[id].name)}"><td class="st">${icon}</td><td class="nm"><a>${esc(PART[id].name[0].toUpperCase() + PART[id].name.slice(1))}</a> · ${said}</td><td class="ct">${plural(n, 'edit')}, ${plural(c, 'comment')}</td><td class="go">go back ↑</td></tr>`;
   }).join('');
-  s.querySelectorAll('[data-go]').forEach(a => a.onclick = () => { const t = document.querySelector(`section[data-sec="${a.dataset.go}"]`); t.style.display = ''; t.scrollIntoView({block: 'start'}); scrollBy(0, -70); });
+  s.querySelectorAll('[data-go]').forEach(a => a.onclick = e => {
+    if (e.target.closest('td.st')) return;   // the ✓ / ✗ buttons set the part here; the rest of the row goes back to it
+    const t = document.querySelector(`section[data-sec="${a.dataset.go}"]`); t.style.display = ''; t.scrollIntoView({block: 'start'}); scrollBy(0, -70);
+  });
+  // ✓ marks the part good, ✗ asks what's wrong (in a row below); clicking the chosen one again clears it
+  s.querySelectorAll('td.st button').forEach(b => b.onclick = () => {
+    const tr = b.closest('tr'), id = tr.dataset.go, st = cur.status[id];
+    s.querySelector('tr.noterow')?.remove();
+    if (st?.v === b.dataset.set) { delete cur.status[id]; save(); progress(); return; }
+    if (b.dataset.set === 'ok') { cur.status[id] = {v: 'ok'}; save(); progress(); return; }
+    tr.insertAdjacentHTML('afterend', `<tr class="noterow"><td></td><td colspan="3">
+      <textarea placeholder="What's wrong in the ${esc(PART[id].name)}? The next reviewer will see this."></textarea>
+      <div class="acts"><button class="plain">Cancel</button><button class="bad solid">Save: there's a problem</button></div></td></tr>`);
+    const row = tr.nextElementSibling, ta = row.querySelector('textarea');
+    ta.focus();
+    row.querySelector('.plain').onclick = () => row.remove();
+    row.querySelector('.solid').onclick = () => { cur.status[id] = {v: 'bad', note: ta.value.trim()}; save(); progress(); };
+    ta.onkeydown = e => { if (e.key === 'Escape') row.remove(); };
+  });
   const n = Object.keys(cur.edits).length, imp = implied(), d = decision();
   const todo = parts.filter(p => !cur.status[p.dataset.sec]).length, bad = parts.filter(p => cur.status[p.dataset.sec]?.v === 'bad').length;
   const r = s.querySelector('.ready'), nr = s.querySelector('.notready');
