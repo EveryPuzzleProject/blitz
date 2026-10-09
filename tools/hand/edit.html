@@ -48,7 +48,7 @@ kbd{font:600 11px ui-monospace,monospace;border:1px solid var(--line);border-rad
 <div class="intro"><h1 id="h1">Review by hand</h1>
 <p class="muted">Compare what the OCR read with the scan, and fix what it got wrong. Transcribe exactly as printed: keep odd spellings and
 misprints (mark a misprint with <b>Misprint</b> rather than correcting it). Click any clue or square to see it on the scan at right.
-Everything saves in this browser as you go. When you're done, press <b>Save review</b> and run <code>tools/hand.sh submit</code>.
+Everything saves in this browser as you go. When you're done, press <b>Save review</b> and run <code>uv run blitz submit</code> with the puzzle id.
 The full rules are in <a id="rules" href="#">INSTRUCTIONS.md</a>.</p></div>
 <div class="layout"><div id="main"></div>
 <div class="scan"><div class="scanbar" id="scanbar"></div><div class="scanview" id="scanview"><div class="pagewrap"><img id="scanimg" alt="scan"><div class="hlbox" id="hl" hidden></div></div></div></div></div>
@@ -293,7 +293,7 @@ document.getElementById('save').onclick = () => {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([JSON.stringify(out, null, 2) + '\n'], {type: 'application/json'}));
   a.download = `${X}.review.json`; a.click();
-  msg(`Saved ${X}.review.json to your downloads. Now run: tools/hand.sh submit ${X}`);
+  msg(`Saved ${X}.review.json to your downloads. Now run: uv run blitz submit ${X}`);
 };
 render(); show('page.jpg');
 </script>

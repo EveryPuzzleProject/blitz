@@ -17,11 +17,12 @@ the same toward restoring each magazine.
 ## Once: get the repository
 
 ```
-gh repo fork EveryPuzzleProject/blitz --clone --default-branch-only -- blitz
+gh repo clone EveryPuzzleProject/blitz
 cd blitz
 ```
 
-If you forked it before, `gh` says so and clones your fork anyway.
+That's the tools. Each magazine has its own repository, where reviews go:
+`blitz start` forks it into a folder beside `blitz` the first time.
 
 ## Each time
 
@@ -55,7 +56,8 @@ square to see it there.
 - **Finish:** say whether it's ready to publish, and anything left over.
 
 The editor saves as you go, in your browser, so you can close it and come
-back. The magazine's full rules are in `publications/<magazine>/INSTRUCTIONS.md`.
+back. The full rules are in `publications/INSTRUCTIONS.md`, and what's particular to
+the magazine in its repository's `review-notes.md` (`uv run blitz instructions <magazine>` prints both).
 
 **3. Save and send.** Press **Save review**. It goes to your Downloads folder
 as `<puzzle>.review.json`. Then:

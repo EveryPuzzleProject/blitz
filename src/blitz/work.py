@@ -1,10 +1,12 @@
 """Claiming puzzles, downloading them, and sending reviews back: the git and
 GitHub side of a blitz run.
 
-A run is one branch and one draft pull request. Its state is kept in
-`../blitz-work/session.json` (beside the checkout, never in it): the branch,
-the pull request, who reviews (Claude or a person by hand), the model, and
-the puzzles claimed.
+A run is one publication, one branch and one draft pull request, in that
+publication's own repo (EveryPuzzleProject/<pub>, checked out or forked beside
+blitz as ../<pub>). Reviews go into its reviews/<xdid>/; packets come from its
+releases. The run's state is kept in `../blitz-work/session.json` (beside the
+checkouts, never in them): the publication, the branch, the pull request, who
+reviews (Claude or a person by hand), the model, and the puzzles claimed.
 """
 
 from __future__ import annotations
@@ -17,7 +19,8 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-REPO = "EveryPuzzleProject/blitz"
+ORG = "EveryPuzzleProject"
+REPO = f"{ORG}/blitz"
 SITE = "https://everypuzzleproject.github.io/blitz"
 CLAIM_HOURS = 48
 
@@ -50,13 +53,10 @@ def work_dir(root: Path) -> Path:
 def publication_notes(root: Path, pub: str) -> str:
     """What reviewers need to know about one publication: review-notes.md in its
     own repo (EveryPuzzleProject/<pub>), from a checkout beside blitz or else
-    from GitHub; for a publication without a repo yet, publications/<pub>/NOTES.md."""
+    from GitHub."""
     local = root.parent / pub / "review-notes.md"
     if local.exists():
         return local.read_text(encoding="utf-8")
-    old = root / "publications" / pub / "NOTES.md"
-    if old.exists():
-        return old.read_text(encoding="utf-8")
     import urllib.request
 
     try:
@@ -83,44 +83,61 @@ def doctor(root: Path) -> list[str]:
             problems.append(f"Install {tool}: {hint}")
     if shutil.which("gh") and subprocess.run(["gh", "auth", "status"], capture_output=True).returncode:
         problems.append("Log in to GitHub: gh auth login")
-    if shutil.which("git") and "upstream" not in run("git", "remote", cwd=root, check=False).split():
-        problems.append(f"Add the main repository as 'upstream': git remote add upstream https://github.com/{REPO}.git")
     return problems
 
 
-def _puzzles(root: Path, pub: str) -> list[dict]:
-    lines = (root / "publications" / pub / "puzzles.tsv").read_text(encoding="utf-8").replace("\r", "").splitlines()
+def pub_dir(root: Path, pub: str) -> Path:
+    """The publication's checkout, beside blitz."""
+    return root.parent / pub
+
+
+def pub_checkout(root: Path, pub: str) -> tuple[Path, str]:
+    """The publication's checkout and the remote that is EveryPuzzleProject/<pub>:
+    'upstream' in a volunteer's fork (forked and cloned here the first time),
+    'origin' in a maintainer's clone of the repo itself."""
+    d = pub_dir(root, pub)
+    if not (d / ".git").exists():
+        print(f"Forking {ORG}/{pub} into {d} ...", flush=True)
+        run("gh", "repo", "fork", f"{ORG}/{pub}", "--clone", "--remote", cwd=root.parent)
+    remotes = run("git", "remote", "-v", cwd=d)
+    up = "upstream" if "upstream\t" in remotes else "origin"
+    run("git", "fetch", "-q", up, cwd=d)
+    return d, up
+
+
+def _puzzles(d: Path, up: str) -> list[dict]:
+    lines = run("git", "show", f"{up}/main:puzzles.tsv", cwd=d).replace("\r", "").splitlines()
     cols = lines[0].split("\t")
     return [dict(zip(cols, l.split("\t"))) for l in lines[1:] if l.strip()]
 
 
-def pick(root: Path, n: int, only: str = "") -> list[tuple[str, str, str]]:
-    """The next n open puzzles, oldest first: (pub, xdid, release tag). Open =
-    released, not reviewed on upstream main, and not named in an open pull
-    request updated in the last 48 hours."""
-    prs = json.loads(run("gh", "pr", "list", "--repo", REPO, "--state", "open", "--limit", "200",
+def pick(root: Path, pub: str, n: int) -> list[tuple[str, str, str]]:
+    """The next n open puzzles of one publication, oldest first: (pub, xdid,
+    release tag). Open = released, not reviewed on its main branch, and not named
+    in an open pull request updated in the last 48 hours."""
+    d, up = pub_checkout(root, pub)
+    prs = json.loads(run("gh", "pr", "list", "--repo", f"{ORG}/{pub}", "--state", "open", "--limit", "200",
                          "--json", "updatedAt,body") or "[]")
     cutoff = time.time() - CLAIM_HOURS * 3600
     claimed = " ".join(p["body"] or "" for p in prs
                        if datetime.fromisoformat(p["updatedAt"].replace("Z", "+00:00")).timestamp() > cutoff)
-    reviewed = {Path(f).parent.name for f in run("git", "ls-tree", "-r", "--name-only", "upstream/main", "publications",
-                                                 cwd=root).splitlines() if f.endswith("/review.json")}
+    reviewed = {Path(f).parent.name for f in run("git", "ls-tree", "-r", "--name-only", f"{up}/main", "reviews",
+                                                 cwd=d).splitlines() if f.endswith("/review.json")}
     out = []
-    for pub in (root / "publications" / "ORDER").read_text(encoding="utf-8").split():
-        if only and pub != only:
-            continue
-        for p in _puzzles(root, pub):
-            if p.get("state") == "open" and p["xdid"] not in reviewed and p["xdid"] not in claimed:
-                out.append((pub, p["xdid"], p.get("packet", "")))
-                if len(out) == n:
-                    return out
+    for p in _puzzles(d, up):
+        if p.get("state") == "open" and p["xdid"] not in reviewed and p["xdid"] not in claimed:
+            out.append((pub, p["xdid"], p.get("packet", "")))
+            if len(out) == n:
+                break
     return out
 
 
 def download(root: Path, pub: str, xdid: str, tag: str) -> Path:
-    """Fetch and unpack a puzzle's packet into ../blitz-work/<xdid>/."""
+    """Fetch and unpack a puzzle's packet (a release asset of the publication's
+    repo) into ../blitz-work/<xdid>/."""
     work = work_dir(root)
-    run("gh", "release", "download", tag, "--repo", REPO, "--pattern", f"{xdid}.tar.gz", "--dir", str(work), "--clobber")
+    run("gh", "release", "download", tag, "--repo", f"{ORG}/{pub}", "--pattern", f"{xdid}.tar.gz", "--dir", str(work),
+        "--clobber")
     with tarfile.open(work / f"{xdid}.tar.gz") as t:
         try:
             t.extractall(work, filter="data")
@@ -140,37 +157,43 @@ def start(root: Path, n: int, pub: str = "", by: str = "claude", model: str = ""
     if old and any(not p.get("sent") for p in old["puzzles"]):
         raise Stop(f"You have puzzles from {old['pr']} still to send (blitz status). Finish or drop that run "
                    f"first (blitz drop).")
-    run("git", "fetch", "-q", "upstream", cwd=root)
-    run("git", "checkout", "-q", "--detach", "upstream/main", cwd=root)
-    picks = pick(root, n, pub)
+    pubs = [pub] if pub else (root / "publications" / "ORDER").read_text(encoding="utf-8").split()
+    picks = []
+    for pub in pubs:  # the first publication in ORDER with open puzzles
+        picks = pick(root, pub, n)
+        if picks:
+            break
     if not picks:
-        raise Stop(f"Every open puzzle{' of ' + pub if pub else ''} is taken right now. Thanks for offering! "
-                   f"Try again in a day or two.")
+        raise Stop(f"Every open puzzle{' of ' + pub if len(pubs) == 1 else ''} is taken right now. Thanks for "
+                   f"offering! Try again in a day or two.")
+    repo, up = pub_checkout(root, pub)
     user = run("gh", "api", "user", "--jq", ".login").strip()
     branch = f"{'hand' if by == 'hand' else 'review'}-{user}-{datetime.now():%Y%m%d-%H%M}"
-    run("git", "checkout", "-q", "-b", branch, "upstream/main", cwd=root)
+    run("git", "checkout", "-q", "-b", branch, f"{up}/main", cwd=repo)
     puzzles = []
     for p, x, tag in picks:
         print(f"Getting {x} ...", flush=True)
         d = download(root, p, x, tag)
-        (root / "publications" / p / "reviews" / x).mkdir(parents=True, exist_ok=True)
-        shutil.copy2(d / "ocr.json", root / "publications" / p / "reviews" / x / "ocr.json")
+        (repo / "reviews" / x).mkdir(parents=True, exist_ok=True)
+        shutil.copy2(d / "ocr.json", repo / "reviews" / x / "ocr.json")
         lane, why = write_text(d)
         if by == "hand":
             _hand_editor(root, p, d)
         puzzles.append({"pub": p, "xdid": x, "lane": lane, "why": why, "sent": False})
-    if list_me and not (root / "contributors" / user).exists():
-        (root / "contributors" / user).write_text("", encoding="utf-8")
+    if list_me and not (repo / "contributors" / user).exists():
+        (repo / "contributors").mkdir(exist_ok=True)
+        (repo / "contributors" / user).write_text("", encoding="utf-8")
     xdids = " ".join(p["xdid"] for p in puzzles)
-    run("git", "add", "publications", "contributors", cwd=root)
-    run("git", "commit", "-q", "-m", f"Claim {xdids}", cwd=root)
-    run("git", "push", "-q", "-u", "origin", "HEAD", cwd=root)
-    s = {"branch": branch, "user": user, "by": by, "model": model, "pr": "", "puzzles": puzzles}
+    run("git", "add", "reviews", *(["contributors"] if (repo / "contributors").exists() else []), cwd=repo)
+    run("git", "commit", "-q", "-m", f"Claim {xdids}", cwd=repo)
+    run("git", "push", "-q", "-u", "origin", "HEAD", cwd=repo)
+    s = {"pub": pub, "repo": str(repo), "branch": branch, "user": user, "by": by, "model": model, "pr": "",
+         "puzzles": puzzles}
     body = work_dir(root) / f"pr-{branch}.md"
     body.write_text(_body(s), encoding="utf-8")
-    s["pr"] = run("gh", "pr", "create", "--draft", "--repo", REPO, "--title",
+    s["pr"] = run("gh", "pr", "create", "--draft", "--repo", f"{ORG}/{pub}", "--title",
                   f"Review {xdids}{' (by hand)' if by == 'hand' else ''}", "--body-file", str(body),
-                  cwd=root).strip().splitlines()[-1]
+                  cwd=repo).strip().splitlines()[-1]
     save_session(root, s)
     return s
 
@@ -186,7 +209,7 @@ def _hand_editor(root: Path, pub: str, d: Path) -> None:
     ocr = (d / "ocr.json").read_text(encoding="utf-8")
     (d / "data.js").write_text(
         f'window.PUZZLE = {{"ocr": {ocr}, "images": {json.dumps(images)}, '
-        f'"instructions": "https://github.com/{REPO}/blob/main/publications/{pub}/INSTRUCTIONS.md"}};\n',
+        f'"instructions": "https://github.com/{REPO}/blob/main/publications/INSTRUCTIONS.md"}};\n',
         encoding="utf-8")
 
 
@@ -216,23 +239,25 @@ def submit(root: Path, xdid: str) -> dict:
     rv = apply_decisions(json.loads(review.read_text(encoding="utf-8")), d, s["user"])
     if s["by"] == "hand":
         rv["by"] = "hand"
-    if run("git", "branch", "--show-current", cwd=root).strip() != s["branch"]:
-        run("git", "checkout", "-q", s["branch"], cwd=root)
-    dest = root / "publications" / p["pub"] / "reviews" / xdid / "review.json"
+    repo = Path(s["repo"])
+    if run("git", "branch", "--show-current", cwd=repo).strip() != s["branch"]:
+        run("git", "checkout", "-q", s["branch"], cwd=repo)
+    dest = repo / "reviews" / xdid / "review.json"
     dest.write_text(json.dumps(rv, indent=1, ensure_ascii=False), encoding="utf-8")
     import sys
 
-    check = subprocess.run([sys.executable, "tools/check_reviews.py"], cwd=root, capture_output=True, text=True)
+    check = subprocess.run([sys.executable, str(root / "tools" / "check_reviews.py"), str(repo)],
+                           capture_output=True, text=True)
     if check.returncode:
         raise Stop(f"That review isn't well-formed:\n{check.stdout.strip()}")
-    run("git", "add", str(dest.relative_to(root)), cwd=root)
-    run("git", "commit", "-q", "-m", f"Review {xdid}{' (by hand)' if s['by'] == 'hand' else ''}", cwd=root)
-    run("git", "push", "-q", cwd=root)
+    run("git", "add", str(dest.relative_to(repo)), cwd=repo)
+    run("git", "commit", "-q", "-m", f"Review {xdid}{' (by hand)' if s['by'] == 'hand' else ''}", cwd=repo)
+    run("git", "push", "-q", cwd=repo)
     p["sent"] = True
     save_session(root, s)
     body = work_dir(root) / f"pr-{s['branch']}.md"
     body.write_text(_body(s), encoding="utf-8")
-    run("gh", "pr", "edit", s["pr"], "--repo", REPO, "--body-file", str(body), cwd=root)
+    run("gh", "pr", "edit", s["pr"], "--repo", f"{ORG}/{s['pub']}", "--body-file", str(body), cwd=repo)
     # A private copy to solve, as a souvenir: stays in the work folder, never pushed.
     for f in ("tools/local-solver/solve.html", "docs/puzzle.js", "docs/style.css"):
         if (root / f).exists():
@@ -241,7 +266,7 @@ def submit(root: Path, xdid: str) -> dict:
                                f'"review": {json.dumps(rv, ensure_ascii=False)}}};\n', encoding="utf-8")
     done = all(q["sent"] for q in s["puzzles"])
     if done:
-        run("gh", "pr", "ready", s["pr"], "--repo", REPO, cwd=root)
+        run("gh", "pr", "ready", s["pr"], "--repo", f"{ORG}/{s['pub']}", cwd=repo)
     return {"record": f"{SITE}/view.html?p={p['pub']}/{xdid}&from={s['user']}:{s['branch']}",
             "solve": str((d / "solve.html").resolve()), "pr": s["pr"], "all_sent": done, "review": rv}
 

@@ -104,14 +104,18 @@ const STATES = [
   ['later', 'Not open yet', 'st-later'],
   ['missing', 'Missing', 'st-missing'],
 ];
-const api = p => fetch(`https://api.github.com/repos/${REPO}/${p}`).then(r => r.ok ? r.json() : Promise.reject(new Error(r.status)));
+const api = (repo, p) => fetch(`https://api.github.com/repos/${repo}/${p}`).then(r => r.ok ? r.json() : Promise.reject(new Error(r.status)));
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
 const label = r => `${r.number ? `No. ${r.number} · ` : ''}${puzzleDate(r.date)}`;
 
 (async () => {
-  const [tree, pulls] = await Promise.all([api('git/trees/main?recursive=1'), api('pulls?state=open&per_page=100').catch(() => [])]);
-  const paths = tree.tree.map(t => t.path);
-  const reviewed = new Set(paths.map(p => p.match(/^publications\/[^/]+\/reviews\/([^/]+)\/review\.json$/)?.[1]).filter(Boolean));
+  // Each publication's repo: reviews merged (reviews/<puzzle>/review.json), claims (open pull
+  // requests), and volunteers who asked to be listed (contributors/<login>).
+  const repos = await Promise.all(PUBS.map(pub => Promise.all([
+    api(`EveryPuzzleProject/${pub.id}`, 'git/trees/main?recursive=1').then(t => t.tree.map(x => x.path)).catch(() => []),
+    api(`EveryPuzzleProject/${pub.id}`, 'pulls?state=open&per_page=100').catch(() => [])])));
+  const paths = repos.flatMap(([p]) => p), pulls = repos.flatMap(([, p]) => p);
+  const reviewed = new Set(paths.map(p => p.match(/^reviews\/([^/]+)\/review\.json$/)?.[1]).filter(Boolean));
   const fresh = Date.now() - 48 * 3600e3, claimed = new Set();
   for (const p of pulls) if (Date.parse(p.updated_at) > fresh) for (const m of (p.body || '').matchAll(/\b[a-z]+\d{4}-\d\d-\d\d[a-z]?\b/g)) claimed.add(m[0]);
 
@@ -170,7 +174,7 @@ const label = r => `${r.number ? `No. ${r.number} · ` : ''}${puzzleDate(r.date)
   document.getElementById('pubs').innerHTML = `<h2>Progress</h2>${html}`;
 
   // Only volunteers who asked to be listed: an empty file contributors/<login> on main.
-  const people = paths.map(p => p.match(/^contributors\/([A-Za-z0-9-]+)$/)?.[1]).filter(Boolean);
+  const people = [...new Set(paths.map(p => p.match(/^contributors\/([A-Za-z0-9-]+)$/)?.[1]).filter(Boolean))];
   document.getElementById('people').innerHTML = people.length ? people.map(u =>
     `<a href="https://github.com/${esc(u)}"><img src="https://github.com/${esc(u)}.png?size=56" alt="">${esc(u)}</a>`).join('')
     : '<span class="muted">You could be first.</span>';

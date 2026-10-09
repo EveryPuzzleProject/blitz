@@ -3,29 +3,20 @@
 
 const REPO = 'EveryPuzzleProject/blitz';
 
-// from: "owner:branch" (a fork named blitz), "owner/repo:branch", or empty for main here.
-function rawBase(from) {
-  if (from === 'local') return '..';  // testing: the repo root served locally
-  if (!from)return `https://raw.githubusercontent.com/${REPO}/main`;
+// Each publication has its own repo, EveryPuzzleProject/<pub>, with puzzles.tsv, xd/ and
+// reviews/ at its root.
+// from: "owner:branch" (a volunteer's fork of the publication's repo), "owner/repo:branch",
+// "local" (testing: the publication's checkout beside blitz), or empty for its main branch.
+function pubRoot(pub, from) {
+  if (from === 'local') return `../../${pub}`;
+  if (!from) return `https://raw.githubusercontent.com/EveryPuzzleProject/${pub}/main`;
   let [who, branch] = from.split(':');
-  if (!who.includes('/')) who += '/blitz';
+  if (!who.includes('/')) who += `/${pub}`;
   return `https://raw.githubusercontent.com/${who}/${branch || 'main'}`;
 }
 
-// Publications that have their own repo (EveryPuzzleProject/<pub>) keep puzzles.tsv, xd/ and
-// reviews/ at its root; the rest are still under publications/<pub> here. When every
-// publication has moved, this set and the old path go.
-const OWN_REPO = new Set(['judge']);
-
-function pubRoot(pub, from) {
-  if (!OWN_REPO.has(pub)) return `${rawBase(from)}/publications/${pub}`;
-  if (from === 'local') return `../../${pub}`;  // testing: the publication's checkout beside blitz
-  return `https://raw.githubusercontent.com/EveryPuzzleProject/${pub}/main`;
-}
-
 function pubBlob(pub, path) {
-  return OWN_REPO.has(pub) ? `https://github.com/EveryPuzzleProject/${pub}/blob/main/${path}`
-    : `https://github.com/${REPO}/blob/main/publications/${pub}/${path}`;
+  return `https://github.com/EveryPuzzleProject/${pub}/blob/main/${path}`;
 }
 
 // The published .xd (every correction so far, a person's included) when there

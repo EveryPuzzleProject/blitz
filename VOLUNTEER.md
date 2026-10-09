@@ -50,24 +50,21 @@ Don't go further until all three work.
 
 ## 2. Get the repository
 
+blitz is the tools; each magazine has its own repository
+(`EveryPuzzleProject/judge`, `EveryPuzzleProject/games`), where the reviews go.
 If there's no `blitz` folder here yet:
 
 ```
-gh repo fork EveryPuzzleProject/blitz --clone --default-branch-only -- blitz
-```
-
-If they forked it before, this says the fork already exists (it may have an
-older name, such as `puzzle-review`) and clones it into `blitz` anyway. Then:
-
-```
+gh repo clone EveryPuzzleProject/blitz
 cd blitz
-git remote get-url upstream || git remote add upstream https://github.com/EveryPuzzleProject/blitz.git
 uv run blitz doctor
 ```
 
-`doctor` says what's missing, if anything. All later commands run inside
-`blitz`. Puzzle files go in a work folder beside it, `../blitz-work`, never
-inside the repository.
+If there is one, `cd blitz` and `git pull`. `doctor` says what's missing, if
+anything. All later commands run inside `blitz`. `blitz start` forks the
+magazine's repository into a folder beside it (`../games`) the first time.
+Puzzle files go in a work folder beside it too, `../blitz-work`, never inside a
+repository.
 
 ## 3. Claim the puzzles
 
@@ -77,7 +74,7 @@ uv run blitz start <budget> [judge|games] --model <model> [--list-me]
 
 Leave out the magazine if they had no preference; add `--list-me` only if
 they asked to be listed. This claims the next open puzzles with a draft pull
-request (so nobody else takes them), downloads their scans to
+request to the magazine's repository (so nobody else takes them), downloads their scans to
 `../blitz-work/<puzzle>/`, and writes each one's `text.md`. It prints the
 pull request and the puzzles. A puzzle marked "expect a whole-puzzle problem"
 is still yours to review: the reviewer escalates what it can't settle.

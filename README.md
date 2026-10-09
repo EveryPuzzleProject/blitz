@@ -219,7 +219,7 @@ Volunteers work through these in order, or pick one:
 | Publication | Years | Notes |
 |---|---|---|
 | [*Judge*](https://github.com/EveryPuzzleProject/judge) | 1924–1939 scanned | A humor magazine with a crossword from 1924: weekly, then monthly from August 1932, often two a month. All 511 found puzzles reviewed; helpers check them on the [review site](https://blitz.xwordapp.com/review/). |
-| [*GAMES*](publications/games/) | 1977–1999 scanned | A puzzle magazine whose Pencilwise pages were edited by Will Shortz. 1977 through 1979 open now. |
+| [*GAMES*](https://github.com/EveryPuzzleProject/games) | 1977–1999 scanned | A puzzle magazine whose Pencilwise pages were edited by Will Shortz. 1977 through 1979 open now. |
 
 Know of a scanned crossword that should be here?
 [Request a blitz](https://github.com/EveryPuzzleProject/blitz/issues/new?template=request-blitz.yml).
@@ -232,14 +232,14 @@ Know of a publication that ran crosswords? Add it to the
 - `src/blitz/`: the `blitz` command (`uv run blitz --help`): claiming puzzles, the
   review tools (text view, scan crops, finishing a review), a live page to
   watch reviews, and sending them.
-- `publications/REVIEW.md`: how to review a puzzle, text first. What earlier reviews learned about a
-  publication's pages is in its own repo (`review-notes.md`), or `publications/<pub>/NOTES.md` for one without a repo yet.
-- `publications/<pub>/INSTRUCTIONS.md`: how to review that publication's puzzles.
-- `publications/<pub>/puzzles.tsv`: every puzzle, its state (restored, needs a person, open, not open yet, missing) and where its packet is.
-- `publications/<pub>/xd/`: the current xd file of every reviewed puzzle.
-- `publications/<pub>/reviews/<puzzle>/`: the OCR reading (`ocr.json`) and the review (`review.json`).
-- A publication with its own repo (so far [judge](https://github.com/EveryPuzzleProject/judge)) keeps its
-  `puzzles.tsv`, `xd/`, `reviews/` and notes there instead; see `design/restructure.md`.
-- Puzzle packets (scan crops) are release assets, not in the repository.
-- `contributors/`: one empty file per volunteer who asked to be listed.
+- `publications/REVIEW.md`: how to review a puzzle, text first; `publications/INSTRUCTIONS.md`: the full
+  review's rules. `publications/ORDER`: the publications open to volunteers, in order.
+- `tools/check_reviews.py`: the check each publication repo runs on review pull requests.
+- `design/restructure.md`: how the project's repositories fit together.
+
+Each publication has its own repository (`EveryPuzzleProject/<pub>`): `puzzles.tsv` (every
+puzzle and its state), `xd/` (every reviewed puzzle), `reviews/<puzzle>/` (reviews sent as pull
+requests), `review-notes.md` (what reviewers need to know about it), `fixes/` (hand fixes and the
+corrections ledger), `contributors/` (volunteers who asked to be listed), and its review packets
+as release assets.
 - `docs/`: the website, including a record page for each puzzle.

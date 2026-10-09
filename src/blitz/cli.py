@@ -63,7 +63,7 @@ def _packets(names: list[str]) -> list[Path]:
 
 def cmd_doctor(a) -> None:
     problems = work.doctor(_root())
-    print("\n".join(problems) or "Ready: git, gh (logged in) and the upstream remote are all set.")
+    print("\n".join(problems) or "Ready: git and gh (logged in) are set.")
 
 
 def cmd_start(a) -> None:
