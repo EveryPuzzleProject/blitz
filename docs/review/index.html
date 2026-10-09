@@ -979,9 +979,12 @@ function commentsFor(key) {
 
 // an inline comment box in a margin; after an edit it asks why (optional)
 function compose(m, key, why) {
+  if (why && !(key in cur.edits)) { closeWhy(key); return; }   // the change put it back as it was: nothing to explain
   m.querySelector('.compose')?.remove();
   const box = document.createElement('div');
   box.className = 'compose';
+  box.dataset.key = key;
+  if (why) box.dataset.why = '1';
   box.innerHTML = `<div class="q">${why ? 'You changed this. Say why? (optional)' : 'Comment for the next reviewer'}</div>
     ${why ? `<div class="chips"><button>That's what the scan says</button><button>Hard to read: best guess</button><button>Printed wrong in the original</button></div>` : ''}
     <textarea></textarea><div class="acts"><button class="skip">${why ? 'Skip' : 'Cancel'}</button><button class="save">Save</button></div>`;
@@ -1001,6 +1004,11 @@ function compose(m, key, why) {
   if (!why) ta.focus();
 }
 
+// an open "say why" box for a change that's gone (undone, or set back as it was) closes
+function closeWhy(key) {
+  document.querySelectorAll('.compose[data-why]').forEach(b => { if (b.dataset.key === key) b.remove(); });
+}
+
 // ---- edits, with undo/redo ----
 function setEdit(key, value, record) {
   const prev = key in cur.edits ? cur.edits[key] : undefined;
@@ -1008,9 +1016,13 @@ function setEdit(key, value, record) {
   if (prev === next) return;
   if (next === undefined) delete cur.edits[key]; else cur.edits[key] = next;
   if (record) { undoStack.push({key, from: prev, to: next}); redoStack.length = 0; }
+  if (next === undefined) closeWhy(key);
   save(); refresh(key);
 }
-function apply(key, v) { if (v === undefined) delete cur.edits[key]; else cur.edits[key] = v; save(); refresh(key); }
+function apply(key, v) {
+  if (v === undefined) { delete cur.edits[key]; closeWhy(key); } else cur.edits[key] = v;
+  save(); refresh(key);
+}
 function undo() { const op = undoStack.pop(); if (!op) return; apply(op.key, op.from); redoStack.push(op); historyButtons(); jumpTo(op.key); }
 function redo() { const op = redoStack.pop(); if (!op) return; apply(op.key, op.to); undoStack.push(op); historyButtons(); jumpTo(op.key); }
 function historyButtons() {
