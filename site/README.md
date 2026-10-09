@@ -1,14 +1,45 @@
 # The public review site
 
-People without Claude can help: they open a link and check what an agent's review changed in each
-puzzle, against the scan. No sign-up: their first click makes them a guest (kept in their browser),
-so their work hangs together; they can add a name for the leaderboard, and sign in with Google or
-GitHub to keep their progress on any device (their guest work moves to the account). It's the same page as `blitz watch`, in
-helper mode (try it locally: `blitz watch` and open `/?helper`).
+People without Claude can help: they open a link and check a puzzle, as it now stands after the
+agent's review, against the scan. No sign-up: submitting a review makes them a guest (kept in their
+browser).
 
-- **The page:** `docs/review/` on GitHub Pages (`blitz site-build` writes it).
-- **Who did what:** Supabase (guest sign-in; decisions, verdicts, reports; leaderboard).
+- **The page:** `docs/review/` on GitHub Pages (`blitz site-build` writes it from `src/blitz/proof.html`).
+- **Who did what:** Supabase (guest sign-in; proofs, verdicts).
 - **The scans and packets:** a Cloudflare R2 bucket, public read (`blitz site-publish` fills it).
+
+## The review page (since 2026-10-09)
+
+The page proofs the finished puzzle rather than listing the agent's changes. Part by part (title and
+byline, answer key, Across, Down; the blank grid only when there's no answer key), each printed line sits
+above our text, each answer's scanned squares above our letters. Reviewers' edits show as tracked
+changes and their notes as comments, with layers to hide them; a helper edits in place and can comment.
+Each part ends with "looks good" (with my N edits) or "there's a problem I couldn't fix", and the page
+ends with a summary and one decision, Ready or Not ready.
+
+On Submit it writes the whole review to `proofs` (run `site/schema-5-proofs.sql` once), which anyone can
+read, so the next helper sees earlier helpers' edits and comments; and a row in `verdicts` for the progress
+counts and the importer: `looks-right` only when Ready with no edits, otherwise `needs-work` (edits aren't
+applied on import yet). `site-import` puts each puzzle's proofs under `proofs`.
+
+### Not brought forward from the old page
+
+The earlier change-by-change page is kept at `/review-old/` (`docs/review-old/`, built from
+`src/blitz/review.html`, which is also `blitz watch`). These parts of it aren't in the new page yet:
+
+- **Sign-in and accounts:** Google / GitHub / Discord sign-in, "keep my progress" (a guest's work moving to
+  an account, `schema-2-sign-in.sql`), and the name shown with it. The new page has a free-text name
+  that's saved with each review, but no profile.
+- **Leaderboard:** the `profiles` table and `leaderboard` view are untouched, but nothing on the new page
+  shows or fills them. (Its verdicts still count towards `puzzle_progress`.)
+- **Welcome tour.**
+- **Puzzle list sidebar** with year and grade filters, sorts (most in need, fewest checks first), checkup
+  grade dots and per-puzzle progress; the new page has a picker and Next puzzle (in date order).
+- **Checkup panel** (the grade and warnings above the tabs).
+- **Per-change accept/reject** (`decisions`): helpers now fix the line instead. The importer's
+  rejected-change path still reads `decisions`, so it simply gets none from the new page.
+- **Reactions** (`schema-3-reactions.sql`).
+- **Reports** (pointing at a clue on the scan): replaced by comments and edits on the line.
 
 ## Set up once
 
@@ -46,7 +77,7 @@ helper mode (try it locally: `blitz watch` and open `/?helper`).
    `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`,
    `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_PUBLIC_URL`.
 
-## Welcome tour, year filter, reactions
+## Welcome tour, year filter, reactions (old page, /review-old/)
 
 - **Welcome tour.** The first thing a helper sees: what the project is, then how to pick a puzzle, read the
   scan, check each change, look at the result, pass judgement and leave a note. Its "Show this every time"

@@ -162,8 +162,8 @@ footer button:disabled { opacity: .4; cursor: default; }
 </head>
 <body class="show-changes show-notes show-marks">
 <div id="sitebar" hidden>
-  <b>A preview of the new review page.</b> Your work here is saved only in this browser for now.
-  The current review page is <a href="../review/">here</a>.
+  <b>Help check old crosswords.</b> Compare our text with the printed scan, line by line; fix what's wrong,
+  then say whether each part looks good. <a href="../review-old/">The old review page</a>
   <span class="pickgrp">Puzzle <select id="pick"></select> <button class="t" id="nextpz">Next puzzle →</button></span>
 </div>
 <header>
@@ -185,7 +185,7 @@ footer button:disabled { opacity: .4; cursor: default; }
     <button class="t" id="undo" title="Undo (Ctrl+Z)">↶ Undo</button>
     <button class="t" id="redo" title="Redo (Ctrl+Y)">↷ Redo</button>
   </div>
-  <div class="grp"><span>You are</span><input id="who"></div>
+  <div class="grp"><span>You are</span><input id="who" placeholder="your name (optional)"></div>
   <div class="grp"><button class="t" id="pagebtn">Whole page</button> <button class="t" id="blankbtn">Blank grid</button> <a class="ctxbtn" id="scanlink" target="_blank">Original scan ↗</a> <a class="ctxbtn" id="srclink" target="_blank">archive.org ↗</a></div>
   <div class="progress" id="progress"></div>
   <div class="legend" id="legend"></div>
@@ -227,9 +227,32 @@ async function pickPuzzle() {
   document.getElementById('nextpz').onclick = () => go(list[(i + 1) % list.length].xdid);
   document.getElementById('sitebar').hidden = false;
 }
+// the site's database: everyone's submitted proofs are readable; each helper writes their own
+const sb = SITE && window.supabase ? window.supabase.createClient(SITE.supabaseUrl, SITE.supabaseAnonKey) : null;
+let remote = [];
+async function loadProofs() {
+  remote = [];
+  if (!sb) return;
+  const {data: {session}} = await sb.auth.getSession();
+  const me = session?.user?.id;
+  const {data, error} = await sb.from('proofs').select('user_id,who,decision,review,at').eq('xdid', ID).order('at');
+  if (error) { console.warn('proofs:', error.message); return; }
+  for (const p of data) {
+    const r = p.review || {};
+    if (p.user_id === me) {
+      if (!store.cur) store.cur = {who: p.who, edits: r.edits || {}, comments: r.comments || [], status: r.status || {},
+        note: r.note || '', decision: p.decision, submitted: p.at};
+      continue;
+    }
+    const bad = Object.entries(r.status || {}).filter(([, x]) => x.v === 'bad').map(([id, x]) => `Problem in the ${PART[id]?.name || id}: ${x.note || ''}`);
+    remote.push({who: p.who || 'A helper', edits: r.edits || {}, comments: r.comments || [],
+      summary: [p.decision === 'ready' ? 'Said ready.' : 'Said not ready.', ...bad, r.note].filter(Boolean).join(' ')});
+  }
+}
 async function start() {
   await pickPuzzle();
   restore();
+  await loadProofs();
   await load();
 }
 let images = {}, ansImg = null, ocr, rev, page, rounds, cur, rows = [], focus = -1, NUM;
@@ -253,12 +276,13 @@ async function load() {
   for (const [k, v] of Object.entries(rev.unsure || {})) agent.comments.push({key: k, text: 'Not sure: ' + v});
   for (const [k, v] of Object.entries(rev.sic || {})) agent.comments.push({key: k, text: 'Printed this way, kept as printed: ' + v});
   agent.looked = rev.confirm || [];
-  if (!store.cur) store.cur = {who: 'Reviewer ' + (store.past.length + 2), edits: {}, comments: [], status: {}};
-  rounds = [agent, ...store.past, store.cur];
+  if (!store.cur) store.cur = {who: SITE ? '' : 'Reviewer ' + (store.past.length + 2), edits: {}, comments: [], status: {}};
+  rounds = [agent, ...remote, ...store.past, store.cur];
   cur = store.cur;
   cur.status = cur.status || {};
   rounds.forEach((r, i) => r.color = i === rounds.length - 1 ? COLORS[4] : COLORS[i % 4]);
   document.getElementById('who').value = cur.who;
+  if (!cur.who) cur.who = 'You';
   render();
 }
 
@@ -465,16 +489,47 @@ function summarySection() {
   ta.oninput = () => { cur.note = ta.value; save(); };
   s.querySelector('.ready').onclick = () => { cur.decision = 'ready'; save(); paintSummary(); };
   s.querySelector('.notready').onclick = () => { cur.decision = 'notready'; save(); paintSummary(); };
-  s.querySelector('#submit').onclick = () => {
-    cur.submitted = new Date().toISOString(); save();
-    const d = decision();
-    s.querySelector('#after').innerHTML = `<div class="submitted" style="margin-top:10px"><b>Thanks: your review is saved</b>
-      (${d === 'ready' ? 'ready' : 'not ready'}, ${plural(Object.keys(cur.edits).length, 'edit')}, ${plural(cur.comments.length, 'comment')}).
-      The next reviewer will see your edits as yours and your comments in the margin. <i>Prototype: nothing is sent.</i>
-      <div style="margin-top:6px"><button class="plain" id="asnext">See this puzzle as the next reviewer will</button></div></div>`;
-    s.querySelector('#asnext').onclick = handOn;
+  s.querySelector('#submit').onclick = async () => {
+    const btn = s.querySelector('#submit'), after = s.querySelector('#after'), d = decision();
+    const counts = `${d === 'ready' ? 'ready' : 'not ready'}, ${plural(Object.keys(cur.edits).length, 'edit')}, ${plural(cur.comments.length, 'comment')}`;
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      if (sb) await submitReview(d);
+      cur.submitted = new Date().toISOString(); save();
+      after.innerHTML = sb
+        ? `<div class="submitted" style="margin-top:10px"><b>Thanks: your review is saved</b> (${counts}).
+            The next person to check this puzzle will see your edits and comments.
+            <div style="margin-top:6px"><button class="good" id="nextafter">Next puzzle →</button></div></div>`
+        : `<div class="submitted" style="margin-top:10px"><b>Saved in this browser</b> (${counts}). <i>Local copy: nothing is sent.</i>
+            <div style="margin-top:6px"><button class="plain" id="asnext">See this puzzle as the next reviewer will</button></div></div>`;
+      after.querySelector('#nextafter')?.addEventListener('click', () => document.getElementById('nextpz').click());
+      after.querySelector('#asnext')?.addEventListener('click', handOn);
+    } catch (e) {
+      after.innerHTML = `<div class="submitted" style="margin-top:10px;background:var(--badbg);border-color:#e9b4ae"><b>Couldn't save your review:</b> ${esc(e.message || e)}. Your work is still kept in this browser; try again in a moment.</div>`;
+    }
+    btn.textContent = 'Submit my review'; paintSummary();
   };
   return s;
+}
+// the whole review into proofs, and a verdict for the progress counts and the importer: "looks-right" only
+// when ready with no edits, since edits aren't applied on import yet
+async function submitReview(d) {
+  let {data: {session}} = await sb.auth.getSession();
+  if (!session) {
+    const r = await sb.auth.signInAnonymously();
+    if (r.error) throw r.error;
+    session = r.data.session;
+  }
+  const uid = session.user.id, at = new Date().toISOString(), n = Object.keys(cur.edits).length;
+  const who = (cur.who === 'You' ? '' : cur.who || '').slice(0, 40);
+  const review = {edits: cur.edits, comments: cur.comments, status: cur.status, note: cur.note || ''};
+  const p = await sb.from('proofs').upsert({xdid: ID, user_id: uid, who, decision: d, review, at});
+  if (p.error) throw p.error;
+  const bad = Object.entries(cur.status).filter(([, x]) => x.v === 'bad').map(([id, x]) => `${PART[id]?.name || id}: ${x.note || 'a problem'}`);
+  const note = [d === 'ready' ? (n ? `Ready with ${plural(n, 'edit')} (see proofs)` : 'Ready') : 'Not ready', ...bad, cur.note || '']
+    .filter(Boolean).join('; ').slice(0, 500);
+  const v = await sb.from('verdicts').upsert({xdid: ID, user_id: uid, verdict: d === 'ready' && !n ? 'looks-right' : 'needs-work', note, at});
+  if (v.error) throw v.error;
 }
 // what the parts say: 'ready' if all are good, 'notready' if any has a problem, null while some aren't reviewed
 function implied() {

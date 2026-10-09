@@ -129,9 +129,12 @@ def test_site_import_combines_helpers(monkeypatch):
             {"xdid": "p1", "user_id": uid["a"], "verdict": "looks-right", "note": ""},
             {"xdid": "p1", "user_id": uid["b"], "verdict": "needs-work", "note": "A1"}],
         "reports?select=*&order=at": [{"xdid": "p1", "target": "clue:D2", "user_id": uid["a"], "text": "Long tune."}],
+        "proofs?select=*&order=at": [{"xdid": "p1", "user_id": uid["b"], "who": "Bo", "decision": "ready", "at": "t",
+                                      "review": {"edits": {"clue:A1": "Feline."}, "status": {"A": {"v": "ok"}}}}],
     }
     monkeypatch.setattr(site, "_rest", lambda method, path, *a, **k: data[path])
     p = site.fetch_decisions()["puzzles"]["p1"]
     assert p["items"] == {"clue:A1": "reject"} and p["notes"]["clue:A1"] == "a helper: scan says Feline."
     assert p["verdict"] == "needs-work" and p["reports"] == {"clue:D2": "Ann: Long tune."}
     assert p["by"]["Ann"] == {"clue:A1": "accept", "verdict": "looks-right"}
+    assert p["proofs"]["Bo"]["edits"] == {"clue:A1": "Feline."} and p["proofs"]["Bo"]["decision"] == "ready"

@@ -1,5 +1,8 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Check old crosswords: Every Puzzle Project</title>
 <meta name="description" content="Check an AI's transcriptions of 1920s-30s Judge crosswords against the scanned pages. Part of the Every Puzzle Project, which is turning early crosswords into searchable, preserved records.">
 <meta property="og:type" content="website">
@@ -15,1005 +18,1126 @@
 <meta name="theme-color" content="#f7f5f0">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 3 3%27%3E%3Crect width=%273%27 height=%273%27 fill=%27%23fff%27/%3E%3Crect width=%271%27 height=%271%27 fill=%27%231d1b17%27/%3E%3Crect x=%272%27 y=%272%27 width=%271%27 height=%271%27 fill=%27%231d1b17%27/%3E%3C/svg%3E">
 <style>
-:root{--bg:#f7f5f0;--panel:#fff;--ink:#1d1d1b;--muted:#6b6860;--line:#e2ded4;--accent:#b4501e;--look:#1f6fd1;--fix:#c2410c;--hot:#d97706;--ok:#15803d;--warn:#b45309;--bad:#b91c1c}
-@media (prefers-color-scheme:dark){:root{--bg:#171614;--panel:#211f1c;--ink:#ece8df;--muted:#a19c90;--line:#38342e;--accent:#e08a5a;--look:#6aa8ff;--fix:#fb923c;--hot:#facc15;--ok:#4ade80;--warn:#fbbf24;--bad:#f87171}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,sans-serif}
-header{display:flex;gap:16px;align-items:baseline;padding:10px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
-h1{font-size:17px;margin:0}.muted{color:var(--muted)}.counts span{margin-right:10px}
-.wrap{display:grid;grid-template-columns:220px 1fr;height:calc(100vh - 46px)}
-@media (max-width:800px){.wrap{grid-template-columns:1fr;height:auto}}
-nav{border-right:1px solid var(--line);overflow:auto}
-.p{display:flex;justify-content:space-between;gap:8px;padding:7px 12px;border-bottom:1px solid var(--line);cursor:pointer}
-.p:hover{background:var(--panel)}.p.sel{background:var(--panel);box-shadow:inset 3px 0 var(--accent)}
-.chip{font-size:11px;padding:1px 7px;border-radius:9px;border:1px solid currentColor;white-space:nowrap;height:fit-content}
-.s-to{color:var(--warn)}.s-checked{color:var(--ok)}.s-flagged{color:var(--bad)}
-.s-waiting{color:var(--muted)}.s-looking{color:var(--look)}.s-writing{color:var(--warn)}.s-ready{color:var(--ok)}.s-needs{color:var(--warn)}.s-escalated{color:var(--bad)}
-.live::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:currentColor;margin-right:5px;animation:pulse 1.2s infinite}
-@keyframes pulse{50%{opacity:.25}}
-main{overflow:auto;padding:12px 16px}
-.top{display:flex;justify-content:space-between;gap:12px;align-items:baseline;flex-wrap:wrap}
-.tabs{display:flex;gap:4px;margin:10px 0 8px;border-bottom:1px solid var(--line)}
-.tabs button{border:0;background:none;color:var(--muted);padding:6px 12px;cursor:pointer;font:inherit;border-bottom:2px solid transparent}
-.tabs button.on{color:var(--ink);border-color:var(--accent)}
-.cols{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:14px}
-@media (max-width:1100px){.cols{grid-template-columns:1fr}}
-.panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:8px}
-.lbl{font-size:12px;color:var(--muted);margin-bottom:4px;display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap}
-.lbl button{font:inherit;font-size:12px;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:4px;padding:1px 7px;cursor:pointer}
-.lbl button.on{border-color:var(--accent)}
-.viewer{position:relative;overflow:hidden;height:70vh;min-height:360px;background:#888;border-radius:4px;cursor:grab;touch-action:none}
-.viewer.drag{cursor:grabbing}
-.hl.peek{border:2px dashed var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent);z-index:3}
-.ctx{position:absolute;left:8px;right:8px;bottom:8px;z-index:6;max-height:48%;overflow:auto;background:var(--panel);color:var(--ink);border:1px solid var(--accent);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.3);padding:8px 12px;font-size:13px;cursor:default}
-.ctx h4{margin:0 0 6px;font-size:13px;display:flex;justify-content:space-between;gap:8px}.ctx h4 span{font-weight:400;color:var(--muted);font-size:12px}
-.ctx .row{display:grid;grid-template-columns:44px 1fr auto;gap:8px;padding:4px 6px;border-radius:4px;align-items:baseline}
-.ctx .row.me{background:color-mix(in srgb,var(--hot) 22%,transparent)}.ctx .row .id{font-weight:600}
-.ctx .row .st{font-size:11px;color:var(--muted);white-space:nowrap}.ctx .row .st.ok{color:var(--ok)}.ctx .row .st.warn{color:var(--warn)}.ctx .row .st.bad{color:var(--bad)}
-.card .acts button.ctxb{color:var(--muted)}
-.tip{position:absolute;z-index:5;max-width:360px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:6px;box-shadow:0 4px 14px rgba(0,0,0,.25);padding:6px 9px;font-size:13px;pointer-events:none}
-.tip.pinned{pointer-events:auto;border-color:var(--accent)}
-.tip .st{font-size:11px;color:var(--muted);margin-top:3px}.tip .st.ok{color:var(--ok)}.tip .st.warn{color:var(--warn)}.tip .st.bad{color:var(--bad)}
-.moved{font-size:12px;margin-top:3px;color:var(--ok)}.moved.warn{color:var(--warn);font-weight:600}.moved.meh{color:var(--muted)}
-.stage{position:absolute;left:0;top:0;transform-origin:0 0}
-.stage img{display:block;width:100%;user-select:none;-webkit-user-drag:none}
-.small{position:relative}.small img{display:block;width:100%}
-.hl{position:absolute;border:2px solid var(--look);background:color-mix(in srgb,var(--look) 12%,transparent);pointer-events:none;border-radius:2px}
-.hl.fix{border-color:var(--fix);background:color-mix(in srgb,var(--fix) 15%,transparent)}
-.hl.hot{border-color:var(--hot);border-width:3px;background:color-mix(in srgb,var(--hot) 30%,transparent);box-shadow:0 0 0 3px color-mix(in srgb,var(--hot) 40%,transparent);z-index:2}
-.hl.dim{opacity:.15}
-.cards{display:flex;flex-direction:column;gap:6px;max-height:36vh;overflow:auto}
-.card{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:6px 9px;cursor:pointer}
-.card:hover{border-color:var(--hot)}
-.card.sel{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 45%,transparent)}
-.card b{font-size:12px;color:var(--muted);font-weight:600}
-.card .acts{float:right;display:flex;gap:4px}.card .acts button{font:inherit;font-size:12px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:4px;padding:0 7px;cursor:pointer}
-.card .acts button.on.ok{border-color:var(--ok);color:var(--ok)}.card .acts button.on.no{border-color:var(--bad);color:var(--bad);font-weight:700}
-.card.acc{border-left:4px solid var(--ok)}.card.rej{border-color:var(--bad);border-left:4px solid var(--bad)}.card.rej .body{text-decoration:line-through;opacity:.7}
-.card .why{width:100%;margin-top:4px;font:inherit;font-size:12px;padding:2px 5px;border:1px solid var(--bad);border-radius:4px;background:var(--panel);color:var(--ink)}
-.verdict{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0 2px;font-size:13px}.verdict button{font:inherit;font-size:13px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:5px;padding:3px 10px;cursor:pointer}
-.verdict button.on.good{border-color:var(--ok);color:var(--ok);font-weight:600}.verdict button.on.bad{border-color:var(--bad);color:var(--bad);font-weight:600}.verdict input{flex:1;min-width:180px;font:inherit;font-size:13px;padding:3px 6px;border:1px solid var(--line);border-radius:5px;background:var(--panel);color:var(--ink)}
-.mark{font-size:12px;margin-left:4px}
-.answ{font:600 12px/1 ui-monospace,Consolas,monospace;letter-spacing:.08em;background:var(--panel);border:1px solid var(--line);border-radius:3px;padding:1px 4px;margin-left:4px;color:var(--ink)}
-.answ ins{text-decoration:none;color:var(--ok)}
-.small .hl.hot{background:color-mix(in srgb,var(--hot) 55%,transparent)}
-del{color:var(--bad)}ins{color:var(--ok);text-decoration:none;font-weight:600}
-.sheets{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px}
-.sheets img{height:150px;border:1px solid var(--line);border-radius:4px;cursor:zoom-in;background:#fff}
-.feed{font-size:13px;margin:0;padding-left:0;list-style:none}.feed li{margin:2px 0;padding:3px 6px;border-radius:4px}
-.feed li[data-ev]{cursor:default}.feed li[data-ev]:hover{background:color-mix(in srgb,var(--hot) 20%,transparent)}
-h3{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:14px 0 6px}
-.zoom{position:fixed;inset:0;background:rgba(0,0,0,.8);display:none;align-items:center;justify-content:center;z-index:9;cursor:zoom-out}
-.zoom img{max-width:95vw;max-height:95vh;background:#fff}
-label{font-size:13px}
-.board{display:grid;grid-template-columns:repeat(var(--cols),1fr);border:2px solid #111;width:min(100%,520px);aspect-ratio:var(--cols)/var(--rows);background:#111;gap:1px}
-.cell{background:#fff;color:#111;position:relative;display:flex;align-items:flex-end;justify-content:center;font:600 clamp(9px,1.6vw,17px)/1 Georgia,serif;padding-bottom:6%}
-.cell.blk{background:#111}.cell .num{position:absolute;left:2px;top:1px;font:9px/1 system-ui,sans-serif;color:#444}
-.cell.chg{background:#fde7c7}.cell .unk{color:#999}
-.preview{display:grid;grid-template-columns:minmax(0,520px) minmax(0,1fr);gap:18px}
-@media (max-width:1100px){.preview{grid-template-columns:1fr}}
-.cl{columns:2 260px;font-size:13px}.cl h4{margin:0 0 4px}.cl ol{list-style:none;margin:0 0 10px;padding:0}.cl li{margin:1px 0;break-inside:avoid}
-.cl li.chg{background:color-mix(in srgb,var(--hot) 22%,transparent);border-radius:3px}.cl .n{display:inline-block;min-width:26px;font-weight:600}
-.cl .ans{color:var(--muted);font-size:11px;margin-left:6px;letter-spacing:.04em}
-pre.xd{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:10px;overflow:auto;max-height:60vh;font-size:12px;white-space:pre}
-.hint{font-size:12px;color:var(--muted)}
-#auth input:disabled{opacity:.4;cursor:not-allowed;background:var(--bg)}
-.howto{padding:8px 16px;border-bottom:1px solid var(--line);font-size:13px;background:var(--panel)}.howto b{font-weight:600}
-.tip .rep{display:flex;gap:6px;margin-top:6px}.tip .rep input{flex:1;font:inherit;font-size:12px;padding:2px 5px;border:1px solid var(--line);border-radius:4px;background:var(--bg);color:var(--ink)}
-.tip .rep button{font:inherit;font-size:12px;border:1px solid var(--accent);background:var(--bg);color:var(--ink);border-radius:4px;cursor:pointer}
-.tip .reported{font-size:12px;color:var(--warn);margin-top:4px}
-/* the checkup: grade and warnings */
-.g-check{color:var(--bad)}.g-look{color:var(--warn)}.g-clean{color:var(--ok)}
-.gdot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;background:currentColor;vertical-align:middle}
-.checkup{margin:8px 0}.checkup .gh{display:flex;gap:8px;align-items:center;margin-bottom:4px;font-size:13px}
-.checkup .fact.high{border-left-color:var(--bad)}.checkup .fact.medium{border-left-color:var(--warn)}.checkup .fact.info{border-left-color:var(--look)}
-.checkup details{margin:4px 0;font-size:13px}.checkup summary{cursor:pointer;color:var(--muted)}
-.checkup .fact .sq{border-color:currentColor;font-size:12px}
-/* facts about this puzzle that a checker needs up front */
-.fact{margin:8px 0;padding:7px 11px;border:1px solid var(--line);border-left:5px solid var(--warn);border-radius:6px;background:var(--panel);font-size:13px}
-.fact.info{border-left-color:var(--look)}.fact.bad{border-left-color:var(--bad)}
-.fact b.t{font-weight:700}.fact .sq{display:inline-block;margin:0 2px;padding:0 6px;border:1px solid var(--warn);border-radius:9px;text-decoration:none;color:var(--ink);cursor:pointer}
-.fact .sq:hover{background:color-mix(in srgb,var(--hot) 25%,transparent)}
-/* year filter at the top of the list */
-.yf{position:sticky;top:0;z-index:2;display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:7px 12px;background:var(--bg);border-bottom:1px solid var(--line);font-size:12px;color:var(--muted)}
-.yf select{flex:1 1 40%;min-width:0;font:inherit;font-size:13px;padding:2px 4px;border:1px solid var(--line);border-radius:5px;background:var(--panel);color:var(--ink)}
-.yf #year{flex:1 1 60%}
-/* reactions */
-.rx{position:relative;display:inline-flex;gap:4px;align-items:center;flex-wrap:wrap}
-.rx button{font:inherit;font-size:13px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:999px;padding:1px 8px;cursor:pointer;line-height:1.5}
-.rx button:hover{border-color:var(--accent)}.rx button.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 16%,var(--panel))}
-.rx .rxchip{animation:rxpop .25s ease-out}
-@keyframes rxpop{0%{transform:scale(.6)}60%{transform:scale(1.15)}100%{transform:scale(1)}}
-.rxpal{position:absolute;left:0;top:100%;margin-top:4px;z-index:8;display:grid;grid-template-columns:repeat(6,auto);gap:2px;padding:6px;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.3)}
-.rxpal[hidden]{display:none}
-.rx .rxpal button{border:0;border-radius:6px;background:none;font-size:20px;padding:3px 6px}.rx .rxpal button:hover{background:color-mix(in srgb,var(--accent) 18%,transparent)}
-/* the welcome tour */
-#tourbtn{font:inherit;font-size:12px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:999px;padding:1px 10px;cursor:pointer}
-#tour{position:fixed;inset:0;z-index:20}
-#tour .dm{position:fixed;background:rgba(0,0,0,.6)}
-#tour .hole{position:fixed;border-radius:8px;outline:3px solid var(--accent);pointer-events:none}
-#tour .hole.none{outline:0;left:50%;top:50%;width:0;height:0}
-#tour .tcard{position:fixed;width:min(400px,calc(100vw - 24px));background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.45);padding:16px 18px;font-size:14px}
-#tour h2{margin:0 0 6px;font-size:17px}#tour p{margin:6px 0}#tour .step{font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
-#tour .foot{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px}
-#tour .foot .btns{display:flex;gap:8px;margin-left:auto}
-#tour .foot label{font-size:12px;color:var(--muted);display:inline-flex;gap:5px;align-items:center}
-#tour .foot button{font:inherit;font-size:13px;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:6px;padding:4px 12px;cursor:pointer}
-#tour .foot button.go{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
-#tour .dots{display:flex;gap:5px;margin:10px 0 0}#tour .dots i{width:7px;height:7px;border-radius:50%;background:var(--line)}#tour .dots i.on{background:var(--accent)}
-#tour kbd{font:12px ui-monospace,Consolas,monospace;border:1px solid var(--line);border-radius:4px;padding:0 4px;background:var(--bg)}
-</style></head><body>
-<header><h1 id="h1">Review watch: <span id="root"></span></h1><span class="counts" id="counts"></span>
-<label id="followl"><input type="checkbox" id="follow" checked> follow the latest activity</label><button id="tourbtn" type="button" hidden title="Show the welcome tour">? Tour</button><span id="auth" style="margin-left:auto"></span></header>
-<div id="howto" class="howto" hidden></div>
-<div class="wrap"><nav><div class="yf" id="yf" hidden></div><div id="list"></div></nav><main id="main"><p class="muted">Waiting for reviews…</p></main></div>
-<div class="zoom" id="zoom"><img alt="contact sheet"></div>
+:root {
+  --bg: #f6f3ee; --paper: #fffdf9; --ink: #222; --muted: #777; --line: #e3ddd3;
+  --flag: #c77700; --flagbg: #fff2d9; --ok: #2e7d32;
+  --note: #fffbe0; --noteborder: #e9dc8a;
+  --sans: system-ui, 'Segoe UI', Arial, sans-serif; --serif: Georgia, 'Times New Roman', serif;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.4 var(--sans); }
+header { position: sticky; top: 0; z-index: 5; background: var(--paper); border-bottom: 1px solid var(--line);
+  padding: 8px 16px; display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+header h1 { font-size: 16px; margin: 0; }
+.grp { display: flex; gap: 4px; align-items: center; }
+.grp > span { color: var(--muted); font-size: 12px; margin-right: 2px; }
+button.t { border: 1px solid var(--line); background: #fff; border-radius: 14px; padding: 3px 10px; cursor: pointer; font: inherit; font-size: 13px; }
+button.t.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+button.t:disabled { opacity: .35; cursor: default; }
+#who { font: inherit; font-size: 13px; padding: 2px 6px; width: 110px; border: 1px solid var(--line); border-radius: 4px; }
+.progress { margin-left: auto; font-size: 13px; color: var(--muted); }
+.legend { flex-basis: 100%; font-size: 12px; color: var(--muted); display: flex; gap: 12px; flex-wrap: wrap; }
+body:not(.show-changes) .legend { display: none; }
+.sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: -1px; margin-right: 3px; }
+#sitebar { background: #fff6dc; border-bottom: 1px solid #ecd9a0; padding: 6px 16px; font-size: 13px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+#sitebar[hidden] { display: none; }
+#sitebar .pickgrp { margin-left: auto; }
+#sitebar select { font: inherit; font-size: 13px; max-width: 320px; }
+main { max-width: 1220px; margin: 0 auto; padding: 16px; }
+section { background: var(--paper); border: 1px solid var(--line); border-radius: 8px; margin-bottom: 18px; }
+section > h2 { font-size: 15px; margin: 0; padding: 10px 14px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 10px; }
+section > h2 .hint { font-weight: normal; color: var(--muted); font-size: 12px; }
+section > h2 button { margin-left: auto; }
+:root { --bad: #b3261e; --badbg: #fdeceb; --okbg: #eef7ef; }
+.secfoot { padding: 10px 14px; border-top: 1px solid var(--line); display: flex; gap: 8px; justify-content: flex-end; align-items: center; flex-wrap: wrap; }
+.secfoot .said { margin-right: auto; font-size: 13px; }
+.secfoot textarea { flex-basis: 100%; font: inherit; font-size: 13px; min-height: 52px; border: 1px solid var(--bad); border-radius: 5px; padding: 6px; }
+section.st-ok > h2, section.st-ok .secfoot { background: var(--okbg); }
+section.st-bad > h2, section.st-bad .secfoot { background: var(--badbg); }
+button.good, button.bad, button.plain { font: inherit; font-size: 13px; border-radius: 6px; padding: 6px 14px; cursor: pointer; }
+button.good { background: var(--ok); color: #fff; border: 1px solid var(--ok); }
+button.bad { background: #fff; color: var(--bad); border: 1px solid var(--bad); }
+button.bad.solid { background: var(--bad); color: #fff; }
+button.plain { background: #fff; border: 1px solid var(--line); }
+button.good:disabled, button.bad:disabled { opacity: .4; cursor: default; }
+.chip { font-size: 12px; font-weight: 600; border-radius: 10px; padding: 1px 9px; margin-left: auto; }
+.chip.ok { background: var(--ok); color: #fff; } .chip.bad { background: var(--bad); color: #fff; } .chip.none { color: var(--muted); font-weight: normal; }
+h2 .quick { margin-left: 8px; font-size: 12px; padding: 2px 10px; }
+#summary table { width: 100%; border-collapse: collapse; font-size: 13px; }
+#summary td { padding: 7px 14px; border-bottom: 1px solid #f1ede6; vertical-align: top; }
+#summary td.st { width: 34px; font-size: 16px; }
+#summary td.nm a { color: inherit; font-weight: 600; }
+#summary tr[data-go] { cursor: pointer; }
+#summary tr[data-go]:hover { background: #f6f1e7; }
+#summary tr[data-go]:hover td.nm a { text-decoration: underline; }
+#summary td.go { width: 90px; color: #1f5fbf; font-size: 12px; white-space: nowrap; text-align: right; }
+#summary td.ct { color: var(--muted); white-space: nowrap; text-align: right; }
+#summary .body { padding: 12px 14px; }
+#summary textarea { width: 100%; font: inherit; font-size: 13px; min-height: 44px; border: 1px solid var(--line); border-radius: 5px; padding: 6px; margin: 4px 0 12px; }
+.decide button { display: block; width: 100%; text-align: left; font: inherit; font-size: 15px; padding: 10px 14px; border: 2px solid; border-radius: 8px; margin-bottom: 8px; background: #fff; cursor: pointer; }
+.decide button small { display: block; font-size: 12px; opacity: .85; }
+.decide .ready { border-color: var(--ok); color: var(--ok); } .decide .ready.sel { background: var(--ok); color: #fff; }
+.decide .notready { border-color: var(--bad); color: var(--bad); } .decide .notready.sel { background: var(--bad); color: #fff; }
+.decide button:disabled { opacity: .4; cursor: default; }
+.submitted { background: var(--okbg); border: 1px solid #b9dcbc; border-radius: 6px; padding: 10px 12px; font-size: 13px; }
+
+/* a proof row: scan strip over the typed line, comments in the margin */
+.row { display: grid; grid-template-columns: 58px minmax(0, 1fr) var(--aw, 360px) 250px; gap: 0 12px; padding: 6px 14px; border-bottom: 1px solid #f1ede6; }
+.row.focus { background: #fbf7ef; box-shadow: inset 3px 0 0 var(--ink); }
+.lab { font-weight: 600; font-size: 13px; padding-top: 2px; }
+.abox { padding-top: 2px; }
+.row .scan, .row .lab { cursor: zoom-in; }
+.row .scan.wide { cursor: zoom-out; }
+#pagepanel .pagewrap > p { max-width: 760px; }
+.ctxbtn { border: 0; background: none; color: var(--muted); font: inherit; font-size: 11px; cursor: pointer; padding: 0; text-align: left; }
+.ctxbtn:hover { color: var(--ink); text-decoration: underline; }
+.ctxbtn.why { color: var(--flag); }
+.pagewrap { padding: 12px 14px; }
+.pagewrap canvas { max-width: 640px; width: 100%; height: auto; display: block; border: 1px solid var(--line); cursor: pointer; }
+.pagewrap p { margin: 0 0 8px; font-size: 13px; }
+.pagewrap.big canvas { max-width: none; }
+.reasons { margin: 0; padding: 10px 14px 0 32px; font-size: 13px; }
+.typedgrid .n { position: absolute; top: 1px; left: 2px; font: 600 9px/1 var(--sans); }
+.typedgrid.bk div { position: relative; }
+.typedgrid.bk.over div { color: rgba(220, 20, 60, .9); }
+.typedgrid.bk.over div.blk { background: rgba(220, 20, 60, .35); }
+.abox canvas { display: block; height: 24px; }
+.acells { display: flex; margin-top: 3px; }
+.acells span { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font: 600 15px/1 var(--sans);
+  border: .5px solid #ccc; background: #fff; cursor: pointer; }
+.acells span.cur { background: #e2ecfb; }
+.abox .dir { font-size: 10px; color: var(--muted); }
+.lab .ans { display: block; font: 600 12px/1.2 var(--sans); color: var(--muted); letter-spacing: .5px; margin-top: 2px; word-break: break-all; }
+.strip { display: block; max-width: 100%; height: auto; }
+.nocrop { font-size: 12px; color: var(--muted); border: 1px dashed #ccc; border-radius: 4px; padding: 4px 8px; display: inline-block; }
+.typed { font: 17px/1.35 var(--serif); padding: 2px 4px 2px 0; margin-top: 2px; display: flex; }
+.typed .num { flex: none; width: 2.6em; text-align: right; padding-right: .45em; color: #555; user-select: none; }
+.typed .num.odd { color: var(--flag); }
+.typed .txt { flex: 1; outline: none; white-space: pre-wrap; border-radius: 3px; padding: 0 3px; min-height: 1.35em; }
+.typed .txt:hover { background: #f4efe6; cursor: text; }
+.typed .txt:focus { background: #fff; box-shadow: 0 0 0 2px #1f5fbf; }
+.typed .txt:empty::before { content: '(no text)'; color: #aaa; font-style: italic; }
+ins { text-decoration: none; border-bottom: 2px solid currentColor; }
+del { text-decoration: line-through; opacity: .8; }
+.was { font-size: 12px; color: var(--muted); margin: 2px 0 0 2.6em; padding-left: 3px; }
+.was q { font-family: var(--serif); font-size: 13px; color: #555; }
+body:not(.show-changes) .chg, body:not(.show-changes) .was { display: none; }
+body.show-changes .plain { display: none; }
+.marks { font-size: 11px; display: flex; gap: 4px; flex-wrap: wrap; margin: 3px 0 0 2.6em; padding-left: 3px; }
+.marks:empty { display: none; }
+.marks b { font-weight: 600; border-radius: 8px; padding: 0 6px; }
+.m-flag { background: var(--flagbg); color: var(--flag); }
+.m-ok { background: #e8f3e9; color: var(--ok); }
+body:not(.show-marks) .marks { display: none; }
+.margin { font-size: 12px; }
+.note { background: var(--note); border: 1px solid var(--noteborder); border-left-width: 3px; border-radius: 5px; padding: 4px 8px; margin-bottom: 4px; }
+.note .by { font-weight: 600; font-size: 11px; display: block; }
+.note .by i { font-weight: normal; color: var(--muted); }
+body:not(.show-notes) .margin .note { display: none; }
+.addc { border: 0; background: none; color: var(--muted); cursor: pointer; font: inherit; font-size: 12px; padding: 0; visibility: hidden; }
+.row:hover .addc, .row.focus .addc { visibility: visible; }
+.compose { background: #fff; border: 1px solid #1f5fbf; border-radius: 5px; padding: 6px; margin-bottom: 4px; }
+.compose .q { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+.compose textarea { width: 100%; font: inherit; font-size: 12px; border: 1px solid var(--line); border-radius: 3px; resize: vertical; min-height: 34px; }
+.compose .chips { display: flex; gap: 4px; flex-wrap: wrap; margin: 4px 0; }
+.compose .chips button, .compose .acts button { font: inherit; font-size: 11px; border: 1px solid var(--line); background: #faf8f4; border-radius: 10px; padding: 1px 7px; cursor: pointer; }
+.compose .acts { display: flex; gap: 4px; justify-content: flex-end; }
+.compose .acts .save { background: #1f5fbf; color: #fff; border-color: #1f5fbf; }
+
+body.side .row .body { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+body.side .typed { margin-top: 0; }
+
+/* the answer key: always sans-serif, like the printed keys */
+.gridwrap { display: flex; gap: 24px; padding: 14px; flex-wrap: wrap; align-items: flex-start; }
+.gridbox { position: relative; width: 420px; height: 420px; flex: none; }
+.gridbox img { width: 100%; height: 100%; display: block; }
+.typedgrid { position: absolute; inset: 0; display: grid; }
+.typedgrid div { display: flex; align-items: center; justify-content: center; font: 600 21px/1 var(--sans); cursor: pointer; }
+.typedgrid.solo { background: #fff; outline: 1px solid #999; }
+.typedgrid.solo div { border: .5px solid #bbb; }
+.typedgrid.solo div.blk { background: #222; }
+.typedgrid.over div { color: rgba(220, 20, 60, .85); }
+.typedgrid.over div.blk { background: transparent; }
+.typedgrid div.unsure { box-shadow: inset 0 0 0 2px var(--flag); }
+.typedgrid div.cur { background: #e2ecfb !important; }
+.gridside { flex: 1; min-width: 240px; font-size: 13px; }
+.gridside p { margin: 0 0 8px; }
+.gridside .margin { margin-top: 10px; }
+kbd { border: 1px solid #ccc; border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; font-size: 11px; background: #fff; }
+.blinking .typedgrid { animation: blink .9s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+footer { max-width: 1220px; margin: 0 auto 40px; padding: 0 16px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+footer button { font: inherit; padding: 8px 16px; border-radius: 6px; cursor: pointer; border: 1px solid var(--line); background: #fff; }
+footer button.primary { background: var(--ok); color: #fff; border-color: var(--ok); }
+footer button:disabled { opacity: .4; cursor: default; }
+#help { font-size: 12px; color: var(--muted); flex-basis: 100%; }
+</style>
+</head>
+<body class="show-changes show-notes show-marks">
+<div id="sitebar" hidden>
+  <b>Help check old crosswords.</b> Compare our text with the printed scan, line by line; fix what's wrong,
+  then say whether each part looks good. <a href="../review-old/">The old review page</a>
+  <span class="pickgrp">Puzzle <select id="pick"></select> <button class="t" id="nextpz">Next puzzle →</button></span>
+</div>
+<header>
+  <h1 id="title">…</h1>
+  <div class="grp"><span>Layers</span>
+    <button class="t on" data-layer="changes" title="C">Changes</button>
+    <button class="t on" data-layer="notes" title="N">Comments</button>
+    <button class="t on" data-layer="marks">Markers</button>
+  </div>
+  <div class="grp"><span>Compare</span>
+    <button class="t on" data-cmp="stack">Stacked</button>
+    <button class="t" data-cmp="side">Side by side</button>
+  </div>
+  <div class="grp"><span>Show</span>
+    <button class="t on" data-show="all">Everything</button>
+    <button class="t" data-show="look">Look here first</button>
+  </div>
+  <div class="grp">
+    <button class="t" id="undo" title="Undo (Ctrl+Z)">↶ Undo</button>
+    <button class="t" id="redo" title="Redo (Ctrl+Y)">↷ Redo</button>
+  </div>
+  <div class="grp"><span>You are</span><input id="who" placeholder="your name (optional)"></div>
+  <div class="grp"><button class="t" id="pagebtn">Whole page</button> <button class="t" id="blankbtn">Blank grid</button> <a class="ctxbtn" id="scanlink" target="_blank">Original scan ↗</a> <a class="ctxbtn" id="srclink" target="_blank">archive.org ↗</a></div>
+  <div class="progress" id="progress"></div>
+  <div class="legend" id="legend"></div>
+</header>
+<main id="main"></main>
+<footer>
+  <span id="help"><kbd>J</kbd>/<kbd>K</kbd> next/previous line · <kbd>E</kbd> edit · <kbd>Enter</kbd>/<kbd>Esc</kbd> stop editing · <kbd>Z</kbd> or click the scan: more of the page · <kbd>M</kbd> comment · <kbd>Ctrl+Z</kbd>/<kbd>Ctrl+Y</kbd> undo/redo · <kbd>C</kbd> changes · <kbd>N</kbd> comments · hold <kbd>Space</kbd> on the answer key to put our letters on the scan</span>
+</footer>
+
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="site.js"></script>
-<script src="../puzzle.js"></script>
 <script>
-const $ = s => document.querySelector(s);
+const params = new URLSearchParams(location.search);
+// on the site (config.js sets BLITZ_SITE) the puzzles come from the site's list; locally from ?p= and ?base=
+const SITE = window.BLITZ_SITE;
+let ID = params.get('p') || 'judge1931-10-03';
+let dir = (params.get('base') || '/blitz-work/') + ID + '/';
+const COLORS = ['#1d7a3a', '#7b3fb5', '#0f7c86', '#a0522d', '#1f5fbf'];
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-// Where the data comes from. Local (blitz watch): the watch server's API. The public site sets
-// window.BLITZ_API (site.js) before this script: puzzles from storage, decisions to the database.
-const API = window.BLITZ_API || {
-  mode: 'local', pollMs: 2000,
-  state: async () => (await fetch('api/state')).json(),
-  puzzle: async x => (await fetch('api/puzzle?x=' + encodeURIComponent(x))).json(),
-  decide: async (x, payload) => {
-    const r = await fetch('api/decide', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({x, ...payload})});
-    return r.ok ? r.json() : null;
-  },
-  file: (x, path) => `${x}/${path}`,
-};
-// A helper checking the review sees no agent internals. ?helper on the local page shows that view.
-const HELPER = API.mode === 'site' || new URLSearchParams(location.search).has('helper');
-const HOWTO = `<b>How to help:</b> an AI read each of these 1920s–30s crosswords from a scanned page and
-      corrected what it could. Check its work against the scan: for each change on the right, press
-      <b>✓</b> if the scan agrees, <b>✗</b> if it doesn't (and say what the scan shows). Point at any clue on the
-      scan to see how it was transcribed; click it to report a mistake nobody caught. When you've been through the
-      changes, mark the puzzle <b>Looks right</b> or <b>Needs work</b>. Keys: J/K next/previous, A accept, R reject. We open the puzzles that have had the fewest checks first: a second opinion is as welcome as a first.`;
-let S = null, sel = null, P = null, tab = 'review', pageImg = 'page.jpg', hot = null, focusCrops = null;
-const view = {};  // per puzzle and page: {s, x, y, fit}
-const ago = t => { const s = Math.max(0, Math.round(S.now - t)); return s < 60 ? `${s}s ago` : s < 3600 ? `${Math.round(s/60)} min ago` : `${Math.round(s/3600)} h ago`; };
-const chip = st => `<span class="chip s-${st.split(' ')[0]} ${['looking','writing'].includes(st) ? 'live' : ''}">${esc(st)}</span>`;
-// A helper's view of a puzzle: is it theirs to check, or done? (The agent's own status is for the
-// maintainer's page: its "ready" means the agent thinks the puzzle is ready to publish.)
-const HSTATES = {'to check': 's-to', 'checked ✓': 's-checked', 'needs work': 's-flagged'};
-const helperState = p => p.verdict === 'looks-right' ? 'checked ✓' : p.verdict === 'needs-work' ? 'needs work' : 'to check';
-const hchip = p => { const st = helperState(p); return `<span class="chip ${HSTATES[st]}">${esc(st)}</span>`; };
-const label = it => it.replace(/^clue:/, '').replace(/^cell:/, 'key square ').replace(/^grid:/, 'grid square ').replace(/^meta:/, '').replace(/^other:/, 'caption ');
 
-// The runs of words a change took out of a clue (e.g. text that belongs to another clue).
-function removedRuns(a, b) {
-  const A = a.split(/\s+/).filter(Boolean), B = b.split(/\s+/).filter(Boolean), n = A.length, m = B.length;
-  const L = Array.from({length: n + 1}, () => new Array(m + 1).fill(0));
-  for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) L[i][j] = A[i] === B[j] ? L[i+1][j+1] + 1 : Math.max(L[i+1][j], L[i][j+1]);
-  // Walk the diff, pairing each run of deleted words with the words inserted in its place. A run
-  // replaced by about as many words is a misread fixed in place ("algo" -> "also"), not removed text.
-  const runs = []; let i = 0, j = 0, del = [], ins = [];
-  const flush = () => { if (del.length) runs.push({run: del.join(' '), words: del.length, swapped: ins.length >= del.length - 1 && ins.length > 0}); del = []; ins = []; };
-  while (i < n || j < m) {
-    if (i < n && j < m && A[i] === B[j]) { flush(); i++; j++; }
-    else if (j < m && (i >= n || L[i][j+1] >= L[i+1][j])) { ins.push(B[j]); j++; }
-    else { del.push(A[i]); i++; }
-  }
-  flush();
-  return runs;
-}
-const norm = t => ' ' + String(t).toLowerCase().split(/\s+/).filter(w => !/\d/.test(w)).join(' ')
-  .replace(/[^a-z]+/g, ' ').replace(/ +/g, ' ').trim() + ' ';
-function finalText(id) {  // a clue as it will be published: the OCR's text with the review's (accepted) fix
-  const k = 'clue:' + id, fx = P.review.corrections || {};
-  return k in fx && !rejected(k) ? fx[k] : ((O().clues[id] || {}).text || '');
-}
-const STOP = new Set(('the and for you this that with what are was his her its not but from your they them have has had who how when where will would can one '
-  + 'some also very more most just like only than then been into over much such each other about after before were there their these those').split(' '));
-function whereItWent(id, was, now) {
-  const out = [];
-  for (const {run, words, swapped} of removedRuns(was, now)) {
-    const n = norm(run);
-    if (norm(run).trim().length < 3 && !/\d/.test(run)) continue;  // punctuation, a stray letter
-    if (!n.trim()) { out.push(`<div class="moved meh">“${esc(run)}” removed (a page or clue number)</div>`); continue; }
-    if (/solution|last week/.test(n)) { out.push(`<div class="moved meh">“${esc(run)}” removed (a heading)</div>`); continue; }
-    // Moved text is often still misread where it was cut from ("deuees", "bold" for "boid"):
-    // a clue holds it when it has most of its words, as corrected or as the OCR read them.
-    const toks = n.trim().split(' ').filter(w => w.length > 2 && !STOP.has(w));
-    const holds = k => {
-      const ws = new Set((norm(finalText(k)) + norm((O().clues[k] || {}).text || '')).trim().split(' '));
-      return toks.length === 1 ? toks[0].length >= 4 && ws.has(toks[0])
-        : toks.filter(w => ws.has(w)).length >= Math.max(2, Math.ceil(0.6 * toks.length));
-    };
-    const hits = toks.length ? Object.keys(O().clues).filter(k => k !== id && holds(k)) : [];
-    if (hits.length) out.push(`<div class="moved">“${esc(run)}” is in ${hits.map(esc).join(', ')}</div>`);
-    else if (!swapped) out.push(`<div class="moved warn">“${esc(run)}” was taken out and isn't in any other clue: lost text?</div>`);
-  }
-  return out.join('');
-}
-function wordDiff(a, b) {
-  const A = a.split(/(\s+)/), B = b.split(/(\s+)/), n = A.length, m = B.length;
-  const L = Array.from({length: n + 1}, () => new Array(m + 1).fill(0));
-  for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) L[i][j] = A[i] === B[j] ? L[i+1][j+1] + 1 : Math.max(L[i+1][j], L[i][j+1]);
-  let i = 0, j = 0, out = '';
-  while (i < n || j < m) {
-    if (i < n && j < m && A[i] === B[j]) { out += esc(A[i]); i++; j++; }
-    else if (j < m && (i >= n || L[i][j+1] >= L[i+1][j])) { out += B[j].trim() ? `<ins>${esc(B[j])}</ins>` : esc(B[j]); j++; }
-    else { out += A[i].trim() ? `<del>${esc(A[i])}</del>` : esc(A[i]); i++; }
-  }
-  return out;
+// ---- reviews as rounds: the OCR is round 0; every reviewer after it, agent or person, is a round ----
+// a round: {who, edits: {key: value}, comments: [{key, text, why}], status: {part: {v: 'ok'|'bad', note}}, note, decision}
+let store;
+const save = () => { try { localStorage.setItem('proof2-' + ID, JSON.stringify(store)); } catch (e) {} };
+function restore() {
+  try { store = JSON.parse(localStorage.getItem('proof2-' + ID) || 'null'); } catch (e) {}
+  store = store || {past: [], cur: null};
 }
 
-// ---- where a target or a change sits on the images ----
-const O = () => P.ocr;
-function pageBox(t) {  // [image name, box in that image's packet pixels] or null
-  const i = t.indexOf(':'), k = t.slice(0, i), v = t.slice(i + 1), ci = O().clue_image || 'page.jpg';
-  if (k === 'clue') { const c = O().clues[v]; return c && c.box ? [ci, c.box] : null; }
-  if (k === 'box') return [ci, v.split(',').map(Number)];
-  if (k === 'meta') { const b = (O().meta_boxes || {})[v === 'author' ? 'byline' : v]; return b ? ['page.jpg', b] : null; }
-  if (k === 'caption' || k === 'other') { const b = (O().meta_boxes || {})['other' + v]; return b ? ['page.jpg', b] : null; }
-  return null;
+// the site's open puzzles, a picker in the header, and which one to show
+async function pickPuzzle() {
+  if (!SITE) return;
+  const h = {apikey: SITE.supabaseAnonKey, Authorization: 'Bearer ' + SITE.supabaseAnonKey};
+  const list = await fetch(`${SITE.supabaseUrl}/rest/v1/puzzles?select=xdid,title,base_url&open=eq.true&order=xdid`, {headers: h}).then(r => r.json());
+  const want = params.get('p'), i = Math.max(0, list.findIndex(p => p.xdid === want));
+  ID = list[i].xdid; dir = list[i].base_url + '/';
+  const go = x => { const u = new URL(location.href); u.searchParams.set('p', x); location.href = u.href; };
+  const sel = document.getElementById('pick');
+  sel.innerHTML = list.map(p => `<option value="${esc(p.xdid)}"${p.xdid === ID ? ' selected' : ''}>${esc(p.xdid)}: ${esc((p.title || '').replace(/^Judge's Crossword Puzzle /, ''))}</option>`).join('');
+  sel.onchange = () => go(sel.value);
+  document.getElementById('nextpz').onclick = () => go(list[(i + 1) % list.length].xdid);
+  document.getElementById('sitebar').hidden = false;
 }
-function entrySquares(id) {
-  const g = O().grid, R = g.length, C = g[0].length, white = (r, c) => r >= 0 && c >= 0 && r < R && c < C && g[r][c] !== '#';
-  let n = 0;
-  for (let r = 0; r < R; r++) for (let c = 0; c < C; c++) {
-    if (!white(r, c)) continue;
-    const a = !white(r, c - 1) && white(r, c + 1), d = !white(r - 1, c) && white(r + 1, c);
-    if (!(a || d)) continue; n++;
-    if (id === 'A' + n && a) { const sq = []; for (let cc = c; white(r, cc); cc++) sq.push([r, cc]); return sq; }
-    if (id === 'D' + n && d) { const sq = []; for (let rr = r; white(rr, c); rr++) sq.push([rr, c]); return sq; }
-  }
-  return [];
-}
-function squares(t) {  // [image, [[r0, c0, h, w]]] on grid.png or answers.png
-  const i = t.indexOf(':'), k = t.slice(0, i), v = t.slice(i + 1), R = O().grid.length, C = O().grid[0].length;
-  if (!['cell','grid','row','col','entry'].includes(k)) return null;
-  const img = k === 'grid' ? 'grid.png' : 'answers.png';
-  if (v === 'all') return [img, [[0, 0, R, C]]];
-  const m = /^r(\d+)c(\d+)$/.exec(v);
-  if (m) return [img, [[+m[1]-1, +m[2]-1, 1, 1]]];
-  if (k === 'row') return [img, [[+v-1, 0, 1, C]]];
-  if (k === 'col') return [img, [[0, +v-1, R, 1]]];
-  const sq = entrySquares(v); if (!sq.length) return null;
-  const r = sq.map(s => s[0]), c = sq.map(s => s[1]);
-  return [img, [[Math.min(...r), Math.min(...c), Math.max(...r) - Math.min(...r) + 1, Math.max(...c) - Math.min(...c) + 1]]];
-}
-// The places a change shows up: a clue fix also lights its answer in the key, a key fix its grid square.
-function places(item) {
-  const out = [item];
-  if (item.startsWith('clue:')) out.push('entry:' + item.slice(5));
-  if (item.startsWith('cell:')) out.push('grid:' + item.slice(5));
-  return out;
-}
-
-// ---- overlays ----
-function boxesFor(name) {
-  const fixed = new Set(Object.keys(P.review.corrections || {}));
-  const hotSet = new Set(hot ? places(hot) : []);
-  const want = [...new Set(P.shown.concat([...hotSet]).concat(focusCrops || []).concat([...fixed].filter(k => k.startsWith('grid:'))))];
-  const out = [];
-  for (const t of want) {
-    let cls = hotSet.has(t) ? 'hot' : fixed.has(t) ? 'fix' : '';
-    if (focusCrops && !focusCrops.includes(t) && cls !== 'hot') cls += ' dim';
-    const pb = pageBox(t);
-    if (pb && pb[0] === name) { const [x0, y0, x1, y1] = pb[1]; out.push({t, x: x0 - 3, y: y0 - 3, w: x1 - x0 + 6, h: y1 - y0 + 6, cls}); }
-    const sq = squares(t);
-    if (sq && sq[0] === name) for (const s of sq[1]) out.push({t, sq: s, cls});
-  }
-  return out;
-}
-function drawSmall(id, name) {
-  const im = document.getElementById(id); if (!im || !im.naturalWidth) return;
-  const wrap = im.parentElement; wrap.querySelectorAll('.hl').forEach(e => e.remove());
-  const R = O().grid.length, C = O().grid[0].length, k = im.clientWidth / im.naturalWidth, cw = im.naturalWidth / C, ch = im.naturalHeight / R;
-  for (const b of boxesFor(name)) {
-    if (!b.sq) continue;
-    const [r, c, h, w] = b.sq, d = document.createElement('div');
-    d.className = 'hl ' + b.cls; d.title = b.t;
-    Object.assign(d.style, {left: c * cw * k + 'px', top: r * ch * k + 'px', width: w * cw * k + 'px', height: h * ch * k + 'px'});
-    wrap.appendChild(d);
-  }
-}
-
-// ---- the zoomable page ----
-let pageW = 0;  // the page's width in packet pixels (the boxes' units)
-function cur() {
-  const key = P.xdid + pageImg, vw = $('#viewer');
-  if (!view[key] && vw && pageW && vw.clientWidth) { const s = vw.clientWidth / pageW; view[key] = {s, x: 0, y: 0, fit: s, w: vw.clientWidth}; }
-  const v = view[key];
-  if (v && vw && pageW && vw.clientWidth && Math.abs(vw.clientWidth - v.w) > 2) {  // the panel changed width (layout, window)
-    const k = vw.clientWidth / v.w;  // keep the same view, scaled with the panel
-    v.s *= k; v.x *= k; v.y *= k; v.fit = vw.clientWidth / pageW; v.w = vw.clientWidth;
-  }
-  return v || {s: 1, x: 0, y: 0, fit: 1};
-}
-function applyView() {
-  const v = cur(), st = $('#stage'); if (!st) return;
-  st.style.transform = `translate(${v.x}px,${v.y}px) scale(${v.s})`;
-  if (peek) setTimeout(drawPeek, 0);
-  st.querySelectorAll('.hl').forEach(d => d.style.borderWidth = (d.classList.contains('hot') ? 3 : 2) / v.s + 'px');
-}
-function drawPage() {
-  const st = $('#stage'), im = $('#pageimg'); if (!st || !im || !im.naturalWidth) return;
-  pageW = im.naturalWidth * (P.src[pageImg] ? ((O().scales || {})[pageImg] || 1) : 1);
-  st.style.width = pageW + 'px';
-  st.querySelectorAll('.hl').forEach(e => e.remove());
-  for (const b of boxesFor(pageImg)) {
-    if (b.sq) continue;
-    const d = document.createElement('div'); d.className = 'hl ' + b.cls; d.title = b.t;
-    Object.assign(d.style, {left: b.x + 'px', top: b.y + 'px', width: b.w + 'px', height: b.h + 'px'});
-    st.appendChild(d);
-  }
-  applyView();
-}
-function zoomAt(px, py, f) {
-  const v = cur(), s = Math.min(Math.max(v.s * f, v.fit * 0.8), v.fit * 12);
-  v.x = px - (px - v.x) * s / v.s; v.y = py - (py - v.y) * s / v.s; v.s = s; applyView();
-}
-function zoomTo(box) {  // a box (packet pixels) in the middle of the viewer, large enough to read
-  const vw = $('#viewer'); if (!vw || !pageW) return; const v = cur();
-  // the context panel covers the lower part of the scan: centre the box in what's left above it
-  const [x0, y0, x1, y1] = box, W = vw.clientWidth, H = ctxOpen ? vw.clientHeight * 0.5 : vw.clientHeight;
-  v.s = Math.max(v.fit, Math.min(W / ((x1 - x0) + 200), H / ((y1 - y0) + 300), v.fit * 8));
-  v.x = W / 2 - (x0 + x1) / 2 * v.s; v.y = H / 2 - (y0 + y1) / 2 * v.s; applyView();
-}
-let viewerSize = null;
-function bindViewer() {
-  const vw = $('#viewer'); if (!vw) return;
-  if (window.ResizeObserver) {  // the panel settles its width after the first draw: follow it
-    if (viewerSize) viewerSize.disconnect();
-    viewerSize = new ResizeObserver(() => { if (pageW) { applyView(); drawPeek(); } });
-    viewerSize.observe(vw);
-  }
-  vw.onwheel = e => { e.preventDefault(); const r = vw.getBoundingClientRect(); zoomAt(e.clientX - r.left, e.clientY - r.top, e.deltaY < 0 ? 1.2 : 1 / 1.2); };
-  let drag = null, moved = 0;
-  const at = e => { const r = vw.getBoundingClientRect(), v = cur(); return [(e.clientX - r.left - v.x) / v.s, (e.clientY - r.top - v.y) / v.s]; };
-  vw.onpointerdown = e => { drag = {x: e.clientX, y: e.clientY}; moved = 0; vw.classList.add('drag'); vw.setPointerCapture(e.pointerId); };
-  vw.onpointermove = e => {
-    if (drag) { const v = cur(); moved += Math.abs(e.clientX - drag.x) + Math.abs(e.clientY - drag.y);
-      v.x += e.clientX - drag.x; v.y += e.clientY - drag.y; drag = {x: e.clientX, y: e.clientY}; applyView(); drawPeek(); return; }
-    if (pinned) return;
-    const hit = clueAt(...at(e));
-    if ((hit && hit[0]) !== (peek && peek[0])) { peek = hit; drawPeek(); }
-  };
-  vw.onpointerup = e => {
-    drag = null; vw.classList.remove('drag');
-    if (moved < 5) { const hit = clueAt(...at(e)); pinned = !!hit && !(pinned && peek && hit[0] === peek[0]); peek = hit; drawPeek(); }
-  };
-  vw.onpointerleave = () => { if (!pinned && peek) { peek = null; drawPeek(); } };
-  vw.ondblclick = e => { const r = vw.getBoundingClientRect(); zoomAt(e.clientX - r.left, e.clientY - r.top, 2); };
-}
-function redraw() { drawPage(); drawSmall('gridimg', 'grid.png'); drawSmall('ansimg', 'answers.png'); drawPeek(); }
-
-// Which clue a point on the page (packet pixels) falls on: its box, widened to its column.
-function clueAt(x, y) {
-  if ((O().clue_image || 'page.jpg') !== pageImg) return null;
-  const cl = O().clues;
-  let best = null;  // boxes can overlap (a clue the OCR ran into the next line): the smallest one wins
-  for (const [k, v] of Object.entries(cl)) {
-    const b = v.box; if (!b) continue;
-    const h = b[3] - b[1];
-    const x1 = Math.max(b[2], ...Object.values(cl).filter(o => o.box && Math.abs(o.box[0] - b[0]) < 3 * Math.max(h, 12)).map(o => o.box[2]));
-    if (x >= b[0] - 4 && x <= x1 && y >= b[1] - 2 && y <= b[3] + 2 && (!best || h < best[2])) best = [k, [b[0], b[1], x1, b[3]], h];
-  }
-  return best && best.slice(0, 2);
-}
-let peek = null, pinned = false;  // [clue id, box] under the pointer, or pinned by a click
-function clueStatus(id) {  // gray: the OCR's text, untouched; green: the reviewer looked (✓) or edited (✎)
-  const k = 'clue:' + id, rv = P.review;
-  if (k in (rv.corrections || {})) return rejected(k) ? ['✎ edited, but you rejected the edit', 'bad'] : ['✎ edited', 'ok'];
-  if (id in (rv.sic || {})) return ['✓ reviewed, kept as printed (sic): meant ' + rv.sic[id], 'ok'];
-  if (k in (rv.unsure || {})) return ['? unsure: ' + rv.unsure[k], 'warn'];
-  if ((rv.confirm || []).includes(k)) return ['✓ OCR text, reviewed', 'ok'];
-  if (P.shown.includes(k) || P.shown.some(t => t.startsWith('box:') && (() => { const [x0, y0, x1, y1] = t.slice(4).split(',').map(Number), b = O().clues[id].box;
-      return b && b[0] < x1 && x0 < b[2] && b[1] < y1 && y0 < b[3]; })())) return ['✓ OCR text, reviewed', 'ok'];
-  return ['OCR text (not reviewed)', ''];
-}
-function drawPeek() {
-  const st = $('#stage'), vw = $('#viewer'); if (!st || !vw) return;
-  st.querySelectorAll('.hl.peek').forEach(e => e.remove());
-  vw.querySelectorAll('.tip').forEach(e => e.remove());
-  if (!peek) return;
-  const [id, b] = peek, v = cur();
-  const d = document.createElement('div'); d.className = 'hl peek';
-  Object.assign(d.style, {left: b[0] - 4 + 'px', top: b[1] - 3 + 'px', width: b[2] - b[0] + 8 + 'px', height: b[3] - b[1] + 6 + 'px', borderWidth: 2 / v.s + 'px'});
-  st.appendChild(d);
-  const was = (O().clues[id] || {}).text || '', now = finalText(id), [st1, cls] = clueStatus(id);
-  const tip = document.createElement('div'); tip.className = 'tip' + (pinned ? ' pinned' : '');
-  const reported = ((P.decisions || {}).reports || {})['clue:' + id];
-  tip.innerHTML = `<b>${esc(id)}</b>${answerHtml(id)}<br>${now === was ? esc(now) : wordDiff(was, now)}<div class="st ${cls}">${esc(st1)}${pinned ? ' · click elsewhere to unpin' : ' · click to pin, or to report a problem'}</div>`
-    + (reported !== undefined ? `<div class="reported">You reported: ${esc(reported || '(a problem)')}</div>` : '')
-    + (pinned ? `<div class="rep"><input data-rep placeholder="Something wrong here? What does the scan say?" value="${esc(reported || '')}"><button data-repgo>${reported !== undefined ? 'Update' : 'Report'}</button></div>` : '');
-  if (pinned) {
-    ['pointerdown', 'pointerup', 'wheel', 'dblclick'].forEach(ev => tip.addEventListener(ev, e => e.stopPropagation()));
-    const send = () => decide({report: 'clue:' + id, text: tip.querySelector('[data-rep]').value});
-    tip.querySelector('[data-repgo]').onclick = send;
-    tip.querySelector('[data-rep]').onkeydown = e => { if (e.key === 'Enter') send(); };
-  }
-  const W = vw.clientWidth, y = b[3] * v.s + v.y + 8, x = Math.min(Math.max(4, b[0] * v.s + v.x), W - 370);
-  Object.assign(tip.style, {left: x + 'px', top: (y + 90 > vw.clientHeight ? b[1] * v.s + v.y - 90 : y) + 'px'});
-  vw.appendChild(tip);
-}
-
-function setHot(item, zoom) {
-  hot = item;
-
-  if (item && zoom) {
-    const pb = places(item).map(pageBox).find(Boolean);
-    if (pb) {
-      if (pb[0] !== pageImg && P.has[pb[0]]) { pageImg = pb[0]; renderMain(); hot = item; const im = $('#pageimg'); im.onload = () => { drawPage(); zoomTo(pb[1]); }; return; }
-      zoomTo(pb[1]);
+// the site's database: everyone's submitted proofs are readable; each helper writes their own
+const sb = SITE && window.supabase ? window.supabase.createClient(SITE.supabaseUrl, SITE.supabaseAnonKey) : null;
+let remote = [];
+async function loadProofs() {
+  remote = [];
+  if (!sb) return;
+  const {data: {session}} = await sb.auth.getSession();
+  const me = session?.user?.id;
+  const {data, error} = await sb.from('proofs').select('user_id,who,decision,review,at').eq('xdid', ID).order('at');
+  if (error) { console.warn('proofs:', error.message); return; }
+  for (const p of data) {
+    const r = p.review || {};
+    if (p.user_id === me) {
+      if (!store.cur) store.cur = {who: p.who, edits: r.edits || {}, comments: r.comments || [], status: r.status || {},
+        note: r.note || '', decision: p.decision, submitted: p.at};
+      continue;
     }
+    const bad = Object.entries(r.status || {}).filter(([, x]) => x.v === 'bad').map(([id, x]) => `Problem in the ${PART[id]?.name || id}: ${x.note || ''}`);
+    remote.push({who: p.who || 'A helper', edits: r.edits || {}, comments: r.comments || [],
+      summary: [p.decision === 'ready' ? 'Said ready.' : 'Said not ready.', ...bad, r.note].filter(Boolean).join(' ')});
   }
-  redraw();
+}
+async function start() {
+  await pickPuzzle();
+  restore();
+  await loadProofs();
+  await load();
+}
+let images = {}, ansImg = null, ocr, rev, page, rounds, cur, rows = [], focus = -1, NUM;
+const undoStack = [], redoStack = [];
+const MAIN = () => ocr.clue_image || 'page.jpg';
+const scaleOf = im => 1 / (ocr.scales[im || MAIN()] || 1);
+
+async function load() {
+  [ocr, rev] = await Promise.all([dir + 'ocr.json', dir + 'review.json'].map(u => fetch(u).then(r => r.json())));
+  const names = new Set([MAIN(), ...Object.values(ocr.clues).map(c => c.image).filter(Boolean)]);
+  images = {};
+  await Promise.all([...names].map(n => new Promise((ok, bad) => {
+    const im = new Image(); im.onload = () => { images[n] = im; ok(); }; im.onerror = bad; im.src = dir + '_src/' + n;
+  })));
+  page = images[MAIN()];
+  const a = new Image();
+  ansImg = await new Promise(ok => { a.onload = () => ok(a); a.onerror = () => ok(null); a.src = dir + 'answers.png'; });
+  const agent = {who: (rev.model || 'agent').replace(/^claude-/, '').replace(/-\d.*$/, '').replace(/^./, c => c.toUpperCase()),
+    edits: {...rev.corrections}, comments: [], summary: rev.note};
+  for (const t of rev.tool_notes || []) if (t.target !== 'other') agent.comments.push({key: t.target, text: t.note});
+  for (const [k, v] of Object.entries(rev.unsure || {})) agent.comments.push({key: k, text: 'Not sure: ' + v});
+  for (const [k, v] of Object.entries(rev.sic || {})) agent.comments.push({key: k, text: 'Printed this way, kept as printed: ' + v});
+  agent.looked = rev.confirm || [];
+  if (!store.cur) store.cur = {who: SITE ? '' : 'Reviewer ' + (store.past.length + 2), edits: {}, comments: [], status: {}};
+  rounds = [agent, ...remote, ...store.past, store.cur];
+  cur = store.cur;
+  cur.status = cur.status || {};
+  rounds.forEach((r, i) => r.color = i === rounds.length - 1 ? COLORS[4] : COLORS[i % 4]);
+  document.getElementById('who').value = cur.who;
+  if (!cur.who) cur.who = 'You';
+  render();
 }
 
-// ---- rendering ----
-// ---- the year filter at the top of the list ----
-const yearOf = x => (/(\d{4})-\d\d/.exec(x) || [])[1] || '';
-let yearSel = '', gradeSel = '', sortSel = '';
-try { gradeSel = localStorage.getItem('blitz-grade') || ''; sortSel = localStorage.getItem('blitz-sort') || ''; } catch (e) {}
-const GRADE_RANK = {check: 0, look: 1, clean: 2};
-const GRADE_NAME = {check: 'check closely', look: 'worth a look', clean: 'looks clean'};
-try { yearSel = localStorage.getItem('blitz-year') || ''; } catch (e) {}
-// The puzzle that most needs a helper's eyes: one they haven't checked, by the fewest people so far, then in date order.
-function pickToCheck(skip) {
-  return visible().filter(p => !p.verdict && p.xdid !== skip).reduce((b, p) => !b || (p.eyes || 0) < (b.eyes || 0) || ((p.eyes || 0) === (b.eyes || 0) && (GRADE_RANK[p.grade] ?? 3) < (GRADE_RANK[b.grade] ?? 3)) ? p : b, null);
+// what a field held before any reviewer: the OCR's reading
+function base(key) {
+  const gm = /^grid:r(\d+)c(\d+)$/.exec(key);
+  if (gm) return ocr.grid[gm[1] - 1][gm[2] - 1];
+  const m = /^cell:r(\d+)c(\d+)$/.exec(key);
+  if (m) return ocr.answers ? ocr.answers[m[1] - 1][m[2] - 1] : '';
+  if (key.startsWith('meta:')) return ocr[key.slice(5)] || '';
+  return ocr.clues[key.slice(5)]?.text ?? '';
 }
-// The list in the chosen order. Puzzles you've already checked sink in the two "need" orders, so the top is what to do next.
-function ordered(list) {
-  if (!sortSel) return list;
-  const g = p => GRADE_RANK[p.grade] ?? 3, e = p => p.eyes || 0, mine = p => p.verdict ? 1 : 0;
-  const key = sortSel === 'need' ? p => [mine(p), g(p), e(p)] : p => [mine(p), e(p), g(p)];
-  return [...list].sort((a, b) => {
-    const ka = key(a), kb = key(b);
-    for (let i = 0; i < ka.length; i++) if (ka[i] !== kb[i]) return ka[i] - kb[i];
-    return a.xdid < b.xdid ? -1 : a.xdid > b.xdid ? 1 : 0;
-  });
+function valueAt(key, i) {
+  for (let j = i; j >= 0; j--) if (key in rounds[j].edits) return rounds[j].edits[key];
+  return base(key);
 }
-function visible() {
-  return S.puzzles.filter(p => (!yearSel || yearOf(p.xdid) === yearSel)
-    && (!gradeSel || (gradeSel === 'check' ? p.grade === 'check' : p.grade === 'check' || p.grade === 'look')));
+const final = key => valueAt(key, rounds.length - 1);
+const G = () => ocr.grid.map((row, r) => [...row].map((ch, c) => final(`grid:r${r+1}c${c+1}`)).join(''));
+const hasKey = () => !!(ansImg && ocr.answers);
+// every version a field went through: [{who, color, value}], starting with the OCR
+function history(key, start = base(key)) {
+  const h = [{who: 'OCR', value: start}];
+  rounds.forEach(r => { if (key in r.edits && r.edits[key] !== h[h.length - 1].value) h.push({who: r.who, color: r.color, value: r.edits[key]}); });
+  return h;
 }
-function renderYears() {
-  const by = {};
-  S.puzzles.forEach(p => { const y = yearOf(p.xdid); if (y) by[y] = (by[y] || 0) + 1; });
-  const years = Object.keys(by).sort();
-  const box = $('#yf');
-  if (years.length < 2) { box.hidden = true; return; }
-  if (yearSel && !by[yearSel]) yearSel = '';
-  const sig = years.map(y => y + by[y]).join(',') + '|' + S.puzzles.length + '|' + S.puzzles.some(p => p.grade);
-  if (box.dataset.sig !== sig) {
-    box.dataset.sig = sig;
-    box.innerHTML = `<label for="year">Year</label><select id="year"><option value="">All years (${S.puzzles.length})</option>`
-      + years.map(y => `<option value="${y}">${y} (${by[y]})</option>`).join('') + `</select>`
-      + (S.puzzles.some(p => p.grade) ? `<select id="gradef" title="Show only puzzles that need a closer look"><option value="">any grade</option>`
-        + `<option value="look">worth a look+</option><option value="check">check closely</option></select>` : '')
-      + `<select id="sortf" title="Order of the list"><option value="">by date</option>`
-      + (S.puzzles.some(p => p.grade) ? `<option value="need">most in need first</option>` : '')
-      + `<option value="eyes">fewest checks first</option></select>`;
-    $('#sortf').onchange = e => {
-      sortSel = e.target.value; try { sortSel ? localStorage.setItem('blitz-sort', sortSel) : localStorage.removeItem('blitz-sort'); } catch (er) {}
-      renderList();
-    };
-    if ($('#gradef')) $('#gradef').onchange = e => {
-      gradeSel = e.target.value; try { gradeSel ? localStorage.setItem('blitz-grade', gradeSel) : localStorage.removeItem('blitz-grade'); } catch (er) {}
-      renderList();
-    };
-    $('#year').onchange = e => {
-      yearSel = e.target.value;
-      try { yearSel ? localStorage.setItem('blitz-year', yearSel) : localStorage.removeItem('blitz-year'); } catch (e) {}
-      const v = visible();
-      if (v.length && !v.some(p => p.xdid === sel)) {  // the open puzzle isn't in this year: open the first one to check
-        sel = (pickToCheck() || v[0]).xdid; hot = null; focusCrops = null; focusCard = null; peek = null; pinned = false;
-        renderList(); load(true); return;
+
+// LCS edit script over two token lists: [['=', t] | ['-', t] | ['+', t]], removals first
+function lcs(A, B) {
+  const n = A.length, m = B.length, L = Array.from({length: n + 1}, () => new Int16Array(m + 1));
+  for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--)
+    L[i][j] = A[i] === B[j] ? L[i+1][j+1] + 1 : Math.max(L[i+1][j], L[i][j+1]);
+  const out = []; let i = 0, j = 0;
+  while (i < n || j < m) {
+    if (i < n && j < m && A[i] === B[j]) { out.push(['=', A[i]]); i++; j++; }
+    else if (i < n && (j === m || L[i+1][j] >= L[i][j+1])) { out.push(['-', A[i]]); i++; }
+    else { out.push(['+', B[j]]); j++; }
+  }
+  return out;
+}
+// diff -> html: added underlined, removed struck, in the changer's colour; a word changed by a
+// letter or two shows just those letters
+function diff(a, b, who, color) {
+  const st = `style="color:${color}"`, I = t => `<ins ${st} title="added by ${esc(who)}">${esc(t)}</ins>`,
+    D = t => `<del ${st} title="removed by ${esc(who)}">${esc(t)}</del>`;
+  const ops = lcs(a.split(/(?<=\s)/), b.split(/(?<=\s)/));
+  let out = '', added = 0, removed = 0, words = 0;
+  for (let k = 0; k < ops.length; k++) {
+    const [op, t] = ops[k];
+    if (op === '=') { out += esc(t); continue; }
+    const nx = ops[k + 1];
+    if (op === '-' && nx && nx[0] === '+') {
+      const cs = lcs([...t], [...nx[1]]), same = cs.filter(c => c[0] === '=').length;
+      if (same >= Math.max(t.length, nx[1].length) * 0.6) {
+        let run = '', kind = '';
+        const flush = () => { if (run) out += kind === '=' ? esc(run) : kind === '-' ? D(run) : I(run); run = ''; };
+        for (const [o, c] of cs) { if (o !== kind) { flush(); kind = o; } run += c; if (o === '+') added++; if (o === '-') removed++; }
+        flush(); k++; continue;
       }
-      renderList();
-    };
+    }
+    words++;
+    if (op === '+') { out += I(t); added++; } else { out += D(t); removed++; }
   }
-  box.hidden = false;
-  $('#year').value = yearSel;
-  if ($('#gradef')) $('#gradef').value = gradeSel;
-  if ($('#sortf')) $('#sortf').value = [...$('#sortf').options].some(o => o.value === sortSel) ? sortSel : '';
-}
-function renderList() {
-  const counts = {};
-  S.puzzles.forEach(p => counts[p.status] = (counts[p.status] || 0) + 1);
-  if (HELPER) {
-    const hc = {};
-    S.puzzles.forEach(p => hc[helperState(p)] = (hc[helperState(p)] || 0) + 1);
-    $('#counts').innerHTML = Object.keys(HSTATES).filter(s => hc[s]).map(s => `<span><span class="chip ${HSTATES[s]}">${esc(s)}</span> ${hc[s]}</span>`).join('');
-  } else
-  $('#counts').innerHTML = ['waiting','looking','writing','ready','needs a person','escalated'].filter(s => counts[s]).map(s => `<span>${chip(s)} ${counts[s]}</span>`).join('');
-  renderYears();
-  $('#list').innerHTML = ordered(visible()).map(p => `<div class="p ${p.xdid === sel ? 'sel' : ''}" data-x="${p.xdid}"><span>${p.grade ? `<span class="gdot g-${p.grade}" title="${GRADE_NAME[p.grade]}"></span>` : ''}${esc(p.xdid)}<br><span class="muted" style="font-size:12px">${HELPER ? (p.eyes ? `${p.eyes} checked it` : 'needs eyes') : p.updated ? ago(p.updated) : ''}</span></span><span>${HELPER ? hchip(p) : chip(p.status)}${HELPER ? '' : p.verdict === 'looks-right' ? '<span class="mark" style="color:var(--ok)" title="you: looks right">✓</span>' : p.verdict === 'needs-work' ? '<span class="mark" style="color:var(--bad)" title="you: needs work">✗</span>' : ''}${p.rejected ? `<span class="mark" style="color:var(--bad)" title="changes you rejected">−${p.rejected}</span>` : ''}</span></div>`).join('');
-  document.querySelectorAll('.p').forEach(el => el.onclick = () => { sel = el.dataset.x; $('#follow').checked = false; hot = null; focusCrops = null; focusCard = null; peek = null; pinned = false; load(true); });
+  return {html: out, kind: !words ? 'fixed letters' : added && removed ? 'changed words' : added ? 'added words' : 'removed words'};
 }
 
-const D = () => P.decisions || {items: {}, notes: {}};
-const rejected = key => D().items[key] === 'reject';
-const accepted = key => D().items[key] === 'accept';
-function card(item, key, title, body) {  // key: what a decision is about, as the importer names it
-  const r = rejected(key), a = accepted(key);
-  return `<div class="card ${r ? 'rej' : a ? 'acc' : ''}" data-item="${esc(item)}" data-key="${esc(key)}"><span class="acts">`
-    + `<button class="ctxb" data-act="context" title="Context: the clues around it (Enter)">↕</button><button class="ok ${a ? 'on' : ''}" data-act="accept" title="${a ? 'Accepted: click again to undo (U)' : 'Accept (A)'}">✓</button><button class="no ${r ? 'on' : ''}" data-act="reject" title="${r ? 'Rejected: click again to undo (U)' : 'Reject (R)'}">✗</button></span>`
-    + `<b>${esc(title)}</b>${item.startsWith('clue:') ? answerHtml(item.slice(5)) : ''}<br><span class="body">${body}</span>`
-    + (r ? `<input class="why" data-note="${esc(key)}" placeholder="Rejected. Why? What does the scan show? (optional; Enter to save)" value="${esc(D().notes[key] || '')}">` : '')
-    + `</div>`;
+// crop a box (clue_image coordinates) from the full-res scan
+function strip(box, im) {
+  if (!box) { const d = document.createElement('span'); d.className = 'nocrop'; d.textContent = 'No crop: the OCR didn\'t find this clue on the page'; return d; }
+  const s = scaleOf(im), [x0, y0, x1, y1] = box.map(v => v * s);
+  const px = 4 * s, py = -1.5 * s, w = x1 - x0 + 2 * px, h = y1 - y0 + 2 * py;
+  const cv = document.createElement('canvas');
+  cv.width = Math.round(w); cv.height = Math.round(h);
+  cv.getContext('2d').drawImage(images[im || MAIN()], x0 - px, y0 - py, w, h, 0, 0, w, h);
+  cv.className = 'strip';
+  const lines = Math.max(1, Math.round((y1 - y0) / (13.5 * s)));
+  cv.style.width = Math.min(w / h * Math.min(lines * 22 + 2, 44), 760) + 'px';
+  return cv;
 }
-function answerHtml(id) {  // the clue's answer as the corrected key reads it
-  const o = O(); if (!o.answers) return '';
-  const sq = entrySquares(id); if (!sq.length) return '';
-  const fixes = P.review.corrections || {};
-  const letters = sq.map(([r, c]) => {
-    const k = `cell:r${r + 1}c${c + 1}`, fixed = k in fixes && !rejected(k);
-    const ch = fixed ? fixes[k] : ((o.answers[r] || '')[c] || '.');
-    return fixed ? `<ins>${esc(ch)}</ins>` : esc(ch === '.' ? '·' : ch.toUpperCase());
-  }).join('');
-  return ` <span class="answ" title="its answer in the key">${letters}</span>`;
-}
-function progress() {
-  const keys = [...document.querySelectorAll('.card[data-key]')].map(c => c.dataset.key);
-  const done = keys.filter(k => D().items[k]).length;
-  return keys.length ? `${done} of ${keys.length} checked` : '';
-}
-async function decide(payload) {
-  const d = await API.decide(P.xdid, payload);
-  if (d) {
-    P.decisions = d; lastKey = renderKey(P); renderMain();
-    const row = S && S.puzzles.find(p => p.xdid === P.xdid);  // the list shows it now, not at the next refresh
-    if (row) {
-      if (!row.verdict !== !d.verdict) row.eyes = Math.max(0, (row.eyes || 0) + (d.verdict ? 1 : -1));
-      row.verdict = d.verdict || '';
-      row.rejected = Object.values(d.items || {}).filter(v => v === 'reject').length;
-      renderList();
-    }
+
+function render() {
+  document.getElementById('title').textContent = `${ocr.title} · ${ID}`;
+  document.title = 'Proof ' + ID;
+  document.getElementById('scanlink').href = dir + '_src/page.jpg';
+  document.getElementById('srclink').href = ocr.source || '#';
+  legend();
+  const main = document.getElementById('main');
+  main.innerHTML = '';
+  rows = [];
+  NUM = numbering();
+  document.body.style.setProperty('--aw', ocr.grid[0].length * 24 + 4 + 'px');
+
+  const summaries = rounds.filter(r => r.summary);
+  if (summaries.length) {
+    const s = document.createElement('section');
+    s.innerHTML = `<h2>What earlier reviewers said</h2><div style="padding:10px 14px" class="margin">` +
+      summaries.map(r => noteHtml(r, r.summary)).join('') + '</div>';
+    main.append(s);
   }
+
+  main.append(pageSection());
+  const hs = sec('meta', 'Title and byline', 'the title and byline', 'the words around the puzzle');
+  for (const k of Object.keys(ocr.meta_boxes || {})) addRow(hs, 'meta:' + k, k, ocr.meta_boxes[k]);
+  main.append(hs);
+  const why = blankReasons();
+  main.append(blankSection(why, hasKey()));
+  if (hasKey()) main.append(gridSection());
+  for (const [d, name] of [['A', 'Across'], ['D', 'Down']]) {
+    const s = sec(d, name + ' clues', `the ${name} clues`, 'printed line above, our text below; the label says where the clue sits in our grid');
+    const keys = Object.keys(ocr.clues).filter(k => k[0] === d).sort((a, b) => +a.slice(1) - +b.slice(1));
+    for (const k of keys) {
+      const src = sourceFor(k);
+      addRow(s, 'clue:' + k, k, src.box, ocr.clues[k].flags || [], src);
+    }
+    main.append(s);
+  }
+  for (const s of main.querySelectorAll('section[data-sec]')) s.append(s.foot);
+  main.append(summarySection());
+  applyShow(); progress(); historyButtons();
 }
-async function decideCard(el, act) {
-  if (act === 'context') { const i = [...document.querySelectorAll('.card')].indexOf(el);
-    const on = !(ctxOpen && focusCard === i); moveFocus(i); setCtx(on); return; }
-  const key = el.dataset.key; if (!key) return;
-  const i = [...document.querySelectorAll('.card')].indexOf(el);
-  const now = D().items[key];
-  if (act === 'clear' || (act === 'accept' && now === 'accept') || (act === 'reject' && now === 'reject')) {
-    await decide({item: key, decision: 'clear'});  // back to unchecked
-    moveFocus(i);
+
+function legend() {
+  document.getElementById('legend').innerHTML = 'Changes: <span><u>underlined</u> = added, <s>struck</s> = removed, coloured by who made them:</span>' +
+    rounds.map(r => `<span><i class="sw" style="background:${r.color}"></i>${esc(r.who)}${r === cur ? ' (you)' : ''}</span>`).join('');
+}
+
+// the parts of a puzzle, how to talk about them, and which fields belong to each
+const PART = {
+  meta: {name: 'title and byline', plural: true, has: k => k.startsWith('meta:')},
+  page: {name: 'whole page', has: () => false},
+  blank: {name: 'blank grid', has: k => k.startsWith('grid:')},
+  grid: {name: 'answer key', has: k => k.startsWith('cell:')},
+  A: {name: 'Across clues', plural: true, has: k => k.startsWith('clue:A')},
+  D: {name: 'Down clues', plural: true, has: k => k.startsWith('clue:D')},
+};
+const myEdits = id => Object.keys(cur.edits).filter(PART[id].has).length;
+const myComments = id => cur.comments.filter(c => PART[id].has(c.key)).length;
+const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+function goodLabel(id) {
+  const P = PART[id], n = myEdits(id), look = P.plural ? 'look' : 'looks';
+  return `✓ The ${P.name} ${look} good ${n ? `with my ${plural(n, 'edit')}` : 'as is'}`;
+}
+
+function sec(id, title, what, hint) {
+  const s = document.createElement('section');
+  s.dataset.sec = id;
+  s.innerHTML = `<h2>${esc(title)} <span class="hint">${esc(hint)}</span><span class="chip"></span></h2>`;
+  s.foot = document.createElement('div');
+  s.foot.className = 'secfoot';
+  s.paint = () => paintPart(s, id);
+  s.paint();
+  return s;
+}
+function paintPart(s, id, writing) {
+  const st = cur.status[id], P = PART[id], n = myEdits(id);
+  s.classList.toggle('st-ok', st?.v === 'ok');
+  s.classList.toggle('st-bad', st?.v === 'bad');
+  const chip = s.querySelector('h2 .chip');
+  chip.className = 'chip ' + (st ? st.v : 'none');
+  chip.textContent = st ? (st.v === 'ok' ? '✓ looks good' : '✗ problem') : 'not reviewed yet';
+  const f = s.foot;
+  if (writing) {
+    f.innerHTML = `<span class="said">What's wrong in the ${esc(P.name)}? The next reviewer will see this.</span>
+      <textarea placeholder="e.g. D23 is cut off on the scan; I can't read the last word"></textarea>
+      <button class="plain">Cancel</button><button class="bad solid">Save: there's a problem</button>`;
+    const ta = f.querySelector('textarea');
+    ta.value = st?.v === 'bad' ? st.note : '';
+    ta.focus();
+    f.querySelector('.plain').onclick = () => paintPart(s, id);
+    f.querySelector('.solid').onclick = () => {
+      cur.status[id] = {v: 'bad', note: ta.value.trim()}; save(); paintPart(s, id); progress(); next(s);
+    };
     return;
   }
-  if (act === 'reject') {
-    await decide({item: key, decision: 'reject', note: D().notes[key] || ''});
-    focusCard = i;
-    const box = document.querySelector(`[data-note="${CSS.escape(key)}"]`);
-    if (box) box.focus();  // type a note, or press Esc / J to move on
-  } else {
-    await decide({item: key, decision: 'accept'});
-    moveFocus(i + 1);
+  if (st) {
+    f.innerHTML = st.v === 'ok'
+      ? `<span class="said">✓ You said the ${esc(P.name)} ${P.plural ? 'look' : 'looks'} good${n ? ` with your ${plural(n, 'edit')}` : ''}.</span><button class="plain">Change</button>`
+      : `<span class="said" style="color:var(--bad)">✗ You said there's a problem: ${esc(st.note || '(no note)')}</span><button class="plain">Change</button>`;
+    f.querySelector('.plain').onclick = () => { delete cur.status[id]; save(); paintPart(s, id); progress(); };
+    return;
   }
+  f.innerHTML = `<button class="bad">✗ There's a problem in the ${esc(P.name)} I couldn't fix</button><button class="good">${esc(goodLabel(id))}</button>`;
+  f.querySelector('.good').onclick = () => { cur.status[id] = {v: 'ok'}; save(); paintPart(s, id); progress(); next(s); };
+  f.querySelector('.bad').onclick = () => paintPart(s, id, true);
 }
-let ctxOpen = true;  // on by default; Enter or Hide turns it off (remembered in this browser)
-try { ctxOpen = localStorage.getItem('watch-context') !== 'off'; } catch (e) {}
-function setCtx(on) { ctxOpen = on; try { localStorage.setItem('watch-context', on ? 'on' : 'off'); } catch (e) {} showContext(); }
-function ctxRow(id, me) {
-  const was = (O().clues[id] || {}).text || '', now = finalText(id), [st, cls] = clueStatus(id);
-  return `<div class="row ${me ? 'me' : ''}"><span class="id">${esc(id)}</span><span>${now === was ? esc(now || '(no text)') : wordDiff(was, now)}${answerHtml(id)}</span><span class="st ${cls}">${esc(st)}</span></div>`;
-}
-const HIDE = '<span>J/K next change · <a href="#" data-hide>Hide</a> (Enter shows it again)</span>';
-function contextHtml(item) {
-  const i = item.indexOf(':'), kind = item.slice(0, i), key = item.slice(i + 1), cl = O().clues;
-  if (kind === 'clue' && cl[key] !== undefined) {  // the clues printed around it
-    const ids = Object.keys(cl).filter(k => k[0] === key[0]).sort((a, b) => +a.slice(1) - +b.slice(1)), at = ids.indexOf(key);
-    return `<h4>${esc(key)} and the clues around it ${HIDE}</h4>`
-      + ids.slice(Math.max(0, at - 2), at + 3).map(k => ctxRow(k, k === key)).join('');
-  }
-  const m = /^r(\d+)c(\d+)$/.exec(key);
-  if ((kind === 'cell' || kind === 'grid') && m) {  // the entries that cross the square
-    const r = +m[1] - 1, c = +m[2] - 1;
-    const ids = Object.keys(cl).filter(k => entrySquares(k).some(([rr, cc]) => rr === r && cc === c));
-    return `<h4>The entries through square ${esc(key)} ${HIDE}</h4>`
-      + (ids.length ? ids.map(k => ctxRow(k, false)).join('') : '<p class="muted">No entry crosses this square (a black square).</p>');
-  }
-  return `<h4>${esc(label(item))} ${HIDE}</h4><p class="muted">No clue context for this change.</p>`;
-}
-function showContext() {
-  const vw = $('#viewer'); if (!vw) return;
-  vw.querySelectorAll('.ctx').forEach(e => e.remove());
-  const cs = [...document.querySelectorAll('.card')];
-  if (!ctxOpen || focusCard === null || !cs[focusCard]) return;
-  const d = document.createElement('div'); d.className = 'ctx';
-  d.innerHTML = contextHtml(cs[focusCard].dataset.item);
-  ['pointerdown', 'wheel', 'dblclick'].forEach(ev => d.addEventListener(ev, e => e.stopPropagation()));
-  d.querySelector('[data-hide]')?.addEventListener('click', e => { e.preventDefault(); setCtx(false); });
-  vw.appendChild(d);
-}
-function moveFocus(i) {
-  const cs = [...document.querySelectorAll('.card')];
-  if (!cs.length) return;
-  focusCard = Math.min(cs.length - 1, Math.max(0, i));
-  cs.forEach(c => c.classList.remove('sel'));
-  cs[focusCard].classList.add('sel');
-  cs[focusCard].scrollIntoView({block: 'nearest'});
-  setHot(cs[focusCard].dataset.item, true);
-  showContext();
-}
-function changesHtml() {
-  const rv = P.review, o = O(), cards = [];
-  for (const [item, now] of Object.entries(rv.corrections || {})) {
-    const i = item.indexOf(':'), kind = item.slice(0, i), key = item.slice(i + 1);
-    let was = '';
-    if (kind === 'clue') was = (o.clues[key] || {}).text || '';
-    else if (kind === 'meta') was = o[key] || '';
-    else if (kind === 'other') was = (o.captions || {})[key] || '';
-    else if (kind === 'cell') { const m = /r(\d+)c(\d+)/.exec(key); was = m && o.answers ? (o.answers[m[1]-1] || '')[m[2]-1] || '' : ''; }
-    else if (kind === 'grid') { const m = /r(\d+)c(\d+)/.exec(key); was = m ? (o.grid[m[1]-1] || '')[m[2]-1] || '' : ''; }
-    const body = kind === 'cell' || kind === 'grid' ? `<del>${esc(was || '?')}</del> → <ins>${esc(now)}</ins>`
-      : now === '' ? `<del>${esc(was || '(removed)')}</del> <span class="muted">(removed)</span>` : wordDiff(was, now)
-        + (kind === 'clue' && was ? whereItWent(key, was, now) : '');
-    cards.push(card(item, item, label(item), body));
-  }
-  for (const [k, v] of Object.entries(rv.sic || {})) cards.push(card('clue:' + k, 'sic:' + k, k + ': kept as printed (sic)', 'meant: ' + esc(v)));
-  for (const [k, v] of Object.entries(rv.unsure || {})) cards.push(`<div class="card" data-item="${esc(k)}"><b>${esc(label(k))}: unsure</b><br>${esc(v)}</div>`);
-  return cards.join('');
+// on to the next part (or the summary)
+function next(s) {
+  let n = s.nextElementSibling;
+  while (n && n.style.display === 'none') n = n.nextElementSibling;
+  if (n) { n.scrollIntoView({block: 'start', behavior: 'smooth'}); setTimeout(() => scrollBy(0, -70), 400); }
 }
 
-function xdText(Z) {  // the corrected puzzle as xd (a preview: the archive's own export is made upstream)
-  const m = /(\d{4}-\d\d-\d\d)/.exec(Z.id), head = [['Title', Z.title], ['Author', Z.author], ['Byline', Z.byline], ['Date', m ? m[1] : ''], ['Source', Z.source]];
-  const grid = Z.cells.map(row => row.map(x => !x ? '#' : x.sol || '.').join(''));
-  const ans = w => w.cells.map(([r, c]) => (Z.cells[r][c] || {}).sol || '.').join('');
-  const list = d => Z.words.filter(w => w.dir === d).map(w => `${d}${w.n}. ${w.text} ~ ${ans(w)}`).join('\n');
-  return head.filter(h => h[1]).map(h => `${h[0]}: ${h[1]}`).join('\n') + '\n\n\n' + grid.join('\n') + '\n\n\n' + list('A') + '\n\n' + list('D') + '\n';
-}
-
-function previewHtml() {
-  if (typeof buildPuzzle !== 'function') return '<p class="muted">The preview needs docs/puzzle.js from the blitz repository.</p>';
-  const rv = {...P.review, corrections: Object.fromEntries(Object.entries(P.review.corrections || {}).filter(([k]) => !rejected(k))),
-              sic: Object.fromEntries(Object.entries(P.review.sic || {}).filter(([k]) => !rejected('sic:' + k)))};
-  const Z = buildPuzzle(O(), rv);
-  if (!Z) return '<p class="muted">No preview.</p>';
-  const corr = Object.keys(rv.corrections);
-  const changedSq = new Set(corr.filter(k => k.startsWith('cell:') || k.startsWith('grid:')).map(k => k.slice(5)));
-  const changedClue = new Set(corr.filter(k => k.startsWith('clue:')).map(k => k.slice(5)));
-  const board = Z.cells.map((row, r) => row.map((x, c) => !x ? '<div class="cell blk"></div>'
-    : `<div class="cell ${changedSq.has(`r${r+1}c${c+1}`) ? 'chg' : ''}">${x.num ? `<span class="num">${x.num}</span>` : ''}${x.sol ? esc(x.sol) : '<span class="unk">·</span>'}</div>`).join('')).join('');
-  const ans = w => w.cells.map(([r, c]) => (Z.cells[r][c] || {}).sol || '·').join('');
-  const list = d => Z.words.filter(w => w.dir === d).map(w => `<li class="${changedClue.has(w.id) ? 'chg' : ''}"><span class="n">${w.n}</span>${esc(w.text)}<span class="ans">${esc(ans(w))}</span></li>`).join('');
-  return `<p class="hint">${P.review._draft ? 'From the draft (not finished yet). ' : ''}The puzzle with this review applied (less any change you rejected), as its record page will show it. Changed squares and clues are tinted.</p>
-    <div class="preview"><div><h2 style="margin:0 0 2px;font:600 20px Georgia,serif">${esc(Z.title)}</h2>
-      <div class="muted" style="margin-bottom:8px">${esc(Z.byline || Z.author)} · ${esc(Z.date)}</div>
-      <div class="board" style="--cols:${Z.C};--rows:${Z.R}">${board}</div></div>
-      <div class="cl"><h4>Across</h4><ol>${list('A')}</ol><h4>Down</h4><ol>${list('D')}</ol></div></div>
-    <h3>xd</h3><pre class="xd">${esc(xdText(Z))}</pre>`;
-}
-
-// Things a checker should know before looking at anything else: a grid the reviewer changed (rare, and it changes
-// the numbering) and a puzzle with no answer key (the answers can't be checked).
-function checkupHtml() {
-  const cu = P.review.checkup, ws = cu.warnings || [], big = ws.filter(w => w.level !== 'info'), notes = ws.filter(w => w.level === 'info');
-  const item = it => /^(clue:)?[AD]\d+$/.test(it) || /^r\d+c\d+$/.test(it) || /^(grid|cell|entry):/.test(it)
-    ? `<a class="sq" href="#" data-hot="${esc(/^[AD]\d+$/.test(it) ? 'clue:' + it : /^r\d+c\d+$/.test(it) ? 'grid:' + it : it)}">${esc(it.replace(/^clue:/, ''))}</a>` : '';
-  const row = w => `<div class="fact ${w.level}">${esc(w.text)} ${(w.items || []).slice(0, 8).map(item).join(' ')}</div>`;
-  return `<div class="checkup"><div class="gh"><span class="chip g-${cu.grade}"><span class="gdot"></span>${GRADE_NAME[cu.grade]}</span>`
-    + `<span class="muted">${big.length ? `${big.length} thing${big.length === 1 ? '' : 's'} to know before you start` : 'nothing unusual'}</span></div>`
-    + big.map(row).join('')
-    + (notes.length ? `<details><summary>${notes.length} note${notes.length === 1 ? '' : 's'}</summary>${notes.map(row).join('')}</details>` : '') + `</div>`;
-}
-
-function factsHtml() {
-  if (P.review.checkup) return checkupHtml();
-  const o = O(), fx = P.review.corrections || {}, out = [];
-  const was0 = k => { const m = /^grid:r(\d+)c(\d+)$/.exec(k); return ((o.grid[m[1] - 1] || '')[m[2] - 1]) || '.'; };
-  // only squares the reviewer really changed (a correction equal to what the OCR read changes nothing)
-  const g = Object.keys(fx).filter(k => /^grid:r\d+c\d+$/.test(k) && (was0(k) === '#') !== (fx[k] === '#'));
-  if (g.length) {
-    const sq = g.map(k => {
-      const m = /^grid:r(\d+)c(\d+)$/.exec(k), was = ((o.grid[m[1] - 1] || '')[m[2] - 1]) || '.';
-      return `<a class="sq" href="#" data-gridfix="${esc(k)}" title="show this square">r${m[1]}c${m[2]}: ${was === '#' ? 'black' : 'white'} → ${fx[k] === '#' ? 'black' : 'white'}</a>`;
-    }).join(' ');
-    const gc = P.review.grid_check;
-    out.push(`<div class="fact ${gc ? 'bad' : ''}"><b class="t">The reviewer changed the grid:</b> ${sq}. That is rare and it changes the numbering, so check each square against the scan
-      (the numbers printed in the grid should line up with the entries).${gc ? ` <b style="color:var(--bad)">The numbering gets worse with this fix: ${esc((gc.created || []).join(', '))}
-      would have no printed clue.</b>` : ''}</div>`);
-  }
-  if (!o.answers) out.push(`<div class="fact info"><b class="t">No answer key.</b> The answers for this puzzle weren't found (they were often printed in a later issue),
-    so they can't be checked: only the clues, the grid and the numbering are here.</div>`);
-  return out.join('');
-}
-
-function renderMain() {
-  if (!P) return;
-  const rv = P.review, o = O();
-  const title = (rv.corrections || {})['meta:title'] || o.title || P.xdid;
-  const ev = P.events.map((e, i) => e.what === 'sheet'
-    ? `<li data-ev="${i}">${ago(e.t)}: looked at ${e.crops.length} crop${e.crops.length === 1 ? '' : 's'}: ${esc(e.crops.join(', '))}</li>`
-    : `<li>${ago(e.t)}: ${e.what === 'draft' ? 'wrote its verdict (draft.json)' : 'finished (review.json)'}</li>`).reverse().join('');
-  const notes = (rv.tool_notes || []).map(n => typeof n === 'string' ? n : `${n.kind}${n.target ? ' ' + n.target : ''}: ${n.note}`).map(n => `<li>${esc(n)}</li>`).join('');
-  const sheets = P.events.filter(e => e.what === 'sheet').map(e => `<img src="${esc(API.file(P.xdid, e.file.slice(e.file.indexOf('/') + 1)))}?t=${e.t}" title="${esc(e.crops.join(', '))}" alt="contact sheet">`).join('');
-  const pages = ['page.jpg', 'clue_page.jpg'].filter(n => P.has[n]);
-  if (!P.has[pageImg]) pageImg = 'page.jpg';
-  const imgSrc = n => API.file(P.xdid, (P.src[n] ? '_src/' : '') + n);
-  const cards = changesHtml();
-  $('#main').innerHTML = `<div class="top"><div><h2 style="margin:0;font-size:18px">${esc(title)}</h2>
-    <span class="muted">${esc(P.xdid)} · ${esc(o.byline || '')} · ${o.grid.length}x${o.grid[0].length}</span></div>${HELPER ? hchip({verdict: (P.decisions || {}).verdict}) : chip(P.status)}</div>
-    ${rv.escalate ? `<p style="color:var(--bad)"><b>Escalated:</b> ${esc(rv.escalate)}</p>` : ''}
-    ${rv.note ? `<p class="muted" style="margin:6px 0">${esc(rv.note)}</p>` : ''}
-    ${factsHtml()}
-    ${['ready','needs a person','escalated'].includes(P.status) ? `<div class="verdict"><span class="muted">Your check:</span>`
-      + `<button data-verdict="looks-right" class="good ${D().verdict === 'looks-right' ? 'on' : ''}">✓ Looks right</button>`
-      + `<button data-verdict="needs-work" class="bad ${D().verdict === 'needs-work' ? 'on' : ''}">✗ Needs work</button>`
-      + rxHtml()
-      + `<input id="vnote" placeholder="note (optional)" value="${esc(D().note || '')}">`
-      + (HELPER ? `<button id="nextbtn" title="Open the puzzle that has had the fewest checks so far">Next puzzle →</button>` : '')
-      + `<span class="hint">J/K next/previous change · A accept · R reject (then type why) · U undo · Enter: show or hide the context</span></div>` : ''}
-    <div class="tabs"><button data-tab="review" class="${tab === 'review' ? 'on' : ''}">The review</button><button data-tab="preview" class="${tab === 'preview' ? 'on' : ''}">The result (grid and xd)</button></div>
-    ${tab === 'preview' ? previewHtml() : `
-    <div class="cols"><div class="panel" id="scanpanel"><div class="lbl"><span><span style="color:var(--look)">■</span> looked at · <span style="color:var(--fix)">■</span> corrected · <span style="color:var(--hot)">■</span> selected · point at any clue to see its transcription, click to pin · scroll to zoom, drag to move</span>
-        <span>${pages.length > 1 ? pages.map(n => `<button data-page="${n}" class="${n === pageImg ? 'on' : ''}">${n === 'page.jpg' ? 'Page' : 'Clue page'}</button>`).join(' ') : ''} <button id="fit">Fit</button></span></div>
-        <div class="viewer" id="viewer"><div class="stage" id="stage"><img id="pageimg" src="${esc(imgSrc(pageImg))}" alt="scanned page" draggable="false"></div></div></div>
-      <div style="display:flex;flex-direction:column;gap:10px">
-        <div class="panel" id="cardspanel"><div class="lbl"><span>What it changed${rv._draft ? ' (draft)' : ''}: hover to find it, click to zoom there</span><span id="progress"></span></div>
-          ${cards && Object.keys(D().items || {}).length ? `<div class="hint" style="margin-top:6px;text-align:right"><a href="#" data-clearall>Clear my checks on this puzzle</a></div>` : ''}
-          ${cards ? `<div class="cards">${cards}</div>` : `<p class="muted">${['waiting','looking'].includes(P.status) ? 'Nothing yet.' : 'No changes.'}</p>`}</div>
-        ${P.has['answers.png'] ? `<div class="panel"><div class="lbl">Answer key</div><div class="small"><img id="ansimg" src="${esc(API.file(P.xdid, 'answers.png'))}" alt="answer key"></div></div>` : ''}
-        ${P.has['grid.png'] ? `<div class="panel"><div class="lbl">Grid</div><div class="small"><img id="gridimg" src="${esc(API.file(P.xdid, 'grid.png'))}" alt="puzzle grid"></div></div>` : ''}
-      </div></div>
-    ${HELPER ? '' : `<h3>Activity: hover a step to see what it looked at</h3>${ev ? `<ul class="feed">${ev}</ul>` : '<p class="muted">Not started.</p>'}
-    <h3>Contact sheets it read</h3>${sheets ? `<div class="sheets">${sheets}</div>` : '<p class="muted">None yet.</p>'}
-    ${notes ? `<h3>Notes on the tools</h3><ul class="feed">${notes}</ul>` : ''}`}`}`;
-  document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => { tab = b.dataset.tab; renderMain(); });
-  document.querySelectorAll('[data-page]').forEach(b => b.onclick = () => { pageImg = b.dataset.page; renderMain(); });
-  if ($('#fit')) $('#fit').onclick = () => { const v = cur(); v.s = v.fit; v.x = 0; v.y = 0; applyView(); };
-  document.querySelectorAll('.card').forEach((c, i) => {
-    c.onmouseenter = () => setHot(c.dataset.item, false);
-    c.onmouseleave = () => {  // back to the selected change on the scan
-      const cs = document.querySelectorAll('.card');
-      setHot(focusCard !== null && cs[focusCard] ? cs[focusCard].dataset.item : null, false);
-    };
-    c.onclick = e => {
-      focusCard = i;
-      const b = e.target.closest('button[data-act]');
-      if (b) decideCard(c, b.dataset.act); else moveFocus(i);  // select it: outline, scan, context
-    };
-  });
-  const ca = document.querySelector('[data-clearall]');
-  if (ca) ca.onclick = async e => {
-    e.preventDefault();
-    if (!ca.dataset.sure) { ca.dataset.sure = '1'; ca.textContent = 'Clear all your ✓ and ✗ here? Click again to confirm'; return; }
-    for (const key of Object.keys(D().items || {})) await API.decide(P.xdid, {item: key, decision: 'clear'});
-    if (D().verdict) await API.decide(P.xdid, {verdict: '', note: ''});
-    await decide({item: '', decision: 'noop'});
-  };
-  document.querySelectorAll('[data-verdict]').forEach(b => b.onclick = () =>
-    decide({verdict: D().verdict === b.dataset.verdict ? '' : b.dataset.verdict, note: $('#vnote').value}));
-  bindReactions();
-  document.querySelectorAll('[data-hot]').forEach(a => a.onclick = e => {
-    e.preventDefault();
-    if (tab !== 'review') { tab = 'review'; renderMain(); }
-    const it = a.dataset.hot; setHot(it, it.startsWith('clue:'));
-    const gi = !it.startsWith('clue:') && document.getElementById('gridimg'); if (gi) gi.scrollIntoView({block: 'center'});
-  });
-  document.querySelectorAll('[data-gridfix]').forEach(a => a.onclick = e => {
-    e.preventDefault();
-    if (tab !== 'review') { tab = 'review'; renderMain(); }
-    setHot(a.dataset.gridfix, false);
-    const gi = document.getElementById('gridimg'); if (gi) gi.scrollIntoView({block: 'center'});
-  });
-  if ($('#nextbtn')) $('#nextbtn').onclick = () => {
-    const n = pickToCheck(P.xdid); if (!n) { $('#nextbtn').textContent = 'No more to check here'; return; }
-    sel = n.xdid; hot = null; focusCrops = null; focusCard = null; peek = null; pinned = false; load(true);
-  };
-  if ($('#vnote')) $('#vnote').onchange = () => decide({verdict: D().verdict || '', note: $('#vnote').value});
-  document.querySelectorAll('input[data-note]').forEach(box => {
-    box.onclick = e => e.stopPropagation();
-    box.onkeydown = e => {
-      if (e.key === 'Enter' || e.key === 'Escape') {
-        e.preventDefault();
-        const i = [...document.querySelectorAll('.card')].indexOf(box.closest('.card'));
-        const save = e.key === 'Enter' && box.value !== (D().notes[box.dataset.note] || '');
-        (save ? decide({item: box.dataset.note, decision: 'reject', note: box.value}) : Promise.resolve()).then(() => moveFocus(i + 1));
-      }
-    };
-    box.onchange = () => decide({item: box.dataset.note, decision: 'reject', note: box.value});
-  });
-  const cs = document.querySelectorAll('.card');
-  if (focusCard !== null && cs[focusCard]) cs[focusCard].classList.add('sel');
-  const pg = document.getElementById('progress'); if (pg) pg.textContent = progress();
-  showContext();
-  document.querySelectorAll('.feed li[data-ev]').forEach(li => {
-    const e = P.events[+li.dataset.ev];
-    li.onmouseenter = () => { focusCrops = e.crops || null; redraw(); };
-    li.onmouseleave = () => { focusCrops = null; redraw(); };
-  });
-  document.querySelectorAll('.sheets img').forEach(im => im.onclick = () => { $('#zoom img').src = im.src; $('#zoom').style.display = 'flex'; });
-  for (const [id, fn] of [['pageimg', drawPage], ['gridimg', () => drawSmall('gridimg', 'grid.png')], ['ansimg', () => drawSmall('ansimg', 'answers.png')]]) {
-    const im = document.getElementById(id); if (im) { if (im.complete) fn(); else im.onload = fn; }
-  }
-  bindViewer();
-}
-
-
-// ---- reactions: a little emoji on a puzzle, like Slack or Discord (helper mode) ----
-const RX_EMOJI = ['👍', '🎉', '😄', '🤔', '😮', '🧩', '🕰️', '🤓', '🔥', '❤️', '🙈', '👀'];
-const LOCAL_RX = {  // no database (a local preview): kept in this browser, so the counts are just yours
-  read() { try { return JSON.parse(localStorage.getItem('blitz-rx') || '{}'); } catch (e) { return {}; } },
-  async get(x) { const mine = this.read()[x] || []; return {counts: Object.fromEntries(mine.map(e => [e, 1])), mine}; },
-  async toggle(x, e) {
-    const all = this.read(), m = new Set(all[x] || []);
-    m.has(e) ? m.delete(e) : m.add(e); all[x] = [...m];
-    try { localStorage.setItem('blitz-rx', JSON.stringify(all)); } catch (er) {}
-    return this.get(x);
-  },
-};
-const RX = API.reactions || LOCAL_RX;
-function rxHtml() {  // between the verdict buttons and the note
-  const r = P.reactions; if (!HELPER || !r) return '';
-  const seen = RX_EMOJI.concat(Object.keys(r.counts).filter(e => !RX_EMOJI.includes(e))).filter(e => r.counts[e] > 0);
-  return `<span class="rx">${seen.map(e => `<button class="rxchip ${r.mine.includes(e) ? 'on' : ''}" data-rx="${esc(e)}" `
-    + `title="${r.mine.includes(e) ? 'You reacted: click to take it back' : 'React too'}">${e} ${r.counts[e]}</button>`).join('')}`
-    + `<button id="rxadd" title="Add a reaction" aria-label="Add a reaction">☺＋</button>`
-    + `<span class="rxpal" id="rxpal" hidden>${RX_EMOJI.map(e => `<button data-rx="${esc(e)}">${e}</button>`).join('')}</span></span>`;
-}
-function bindReactions() {
-  const add = $('#rxadd'); if (!add) return;
-  add.onclick = e => { e.stopPropagation(); $('#rxpal').hidden = !$('#rxpal').hidden; };
-  document.querySelectorAll('.rx [data-rx]').forEach(b => b.onclick = async e => {
-    e.stopPropagation();
-    const r = await RX.toggle(P.xdid, b.dataset.rx);
-    if (r) { P.reactions = r; lastKey = renderKey(P); renderMain(); }
-  });
-}
-document.addEventListener('click', e => { const pal = $('#rxpal'); if (pal && !pal.hidden && !e.target.closest('.rx')) pal.hidden = true; });
-
-// ---- the welcome tour (helper mode): shown on every visit until they untick "Show this every time" ----
-const TOUR_KEY = 'blitz-tour';  // 'off' once they've turned it off
-const tourWanted = () => { try { return localStorage.getItem(TOUR_KEY) !== 'off'; } catch (e) { return true; } };
-const tourWant = on => { try { on ? localStorage.removeItem(TOUR_KEY) : localStorage.setItem(TOUR_KEY, 'off'); } catch (e) {} };
-const TOUR = [
-  {h: 'Welcome to the Every Puzzle Project', html: () => `<p>Thousands of old newspaper and magazine crosswords survive only as scanned pages. We're turning them into
-      <b>searchable records</b>, so they can be discovered, studied and preserved.</p>
-    <p>An AI has already read these 1920s–30s <i>Judge</i> puzzles from the scans and corrected what it could.
-      <b>Your part is to check its work against the scan.</b> A puzzle takes a few minutes, and you don't need an account.</p>
-    <p class="muted">Here's a quick tour of how it works.</p>`},
-  {h: 'Pick a puzzle', sel: ['nav'], html: () => `<p>Choose a puzzle from the list on the left${$('#yf').hidden ? '' : ' (the year menu on top narrows it)'}.
-      <b>needs eyes</b> means nobody has checked it yet. The tag on each row shows where you are with it. We open the puzzles with the fewest checks first, and a second opinion on one someone has already checked is just as welcome.</p>`},
-  {h: 'Look at the scan', tab: 'review', sel: ['#scanpanel'], html: () => `<p>This is the original scanned page. <b style="color:var(--look)">Blue</b> boxes are what the AI looked at,
-      <b style="color:var(--fix)">orange</b> boxes are what it corrected.</p>
-    <p>Scroll to zoom and drag to move. Point at any clue to see how it was read; click it to report a mistake nobody caught.</p>`},
-  {h: 'Check each change', tab: 'review', sel: ['#cardspanel'], html: () => `<p>Each card is one change the AI made. Click a card to find it on the scan, then press
-      <b>✓</b> if the scan agrees or <b>✗</b> if it doesn't (and say what you see).</p>
-    <p>Keyboard: <kbd>J</kbd>/<kbd>K</kbd> next or previous, <kbd>A</kbd> accept, <kbd>R</kbd> reject, <kbd>U</kbd> undo.</p>`},
-  {h: 'Look over the result', tab: 'preview', sel: ['.tabs button[data-tab="preview"]'], html: () => `<p>The highlighted <b>result</b> tab (it's showing now) is the finished grid and clue list with the changes applied,
-      and below them the xd file the project keeps. Changed squares and clues are shaded. A quick sanity check: does it read like a crossword?</p>`},
-  {h: 'Pass judgement', sel: ['.verdict button.good', '.verdict button.bad'], html: () => `<p>When you've been through the changes, mark the puzzle <b>Looks right</b> or <b>Needs work</b>.
-      Not sure? Leave it. Someone else will take a look.</p>`},
-  {h: 'Add a note or a reaction', sel: ['.verdict .rx', '#vnote'], html: () => `<p>Leave a note if there's something we should know, and a reaction if a puzzle made you smile
-      (😄 🧩 🕰️). Both are optional.</p>`},
-  {h: "That's it. Thank you!", html: () => `<p>Every check helps. You can bring this tour back any time with the <b>? Tour</b> button at the top.
-      Your work is saved as you go; sign in (top right) to keep it on any device.</p>`},
-];
-let tourI = 0, tourEl = null, tourAuto = false, tourBack = null;
-function tourRect(st) {
-  const els = (st.sel || []).map(s => document.querySelector(s)).filter(e => e && (e.offsetWidth || e.offsetHeight));
-  if (!els.length) return null;
-  els[0].scrollIntoView({block: 'center', inline: 'nearest'});
-  const rs = els.map(e => e.getBoundingClientRect()), pad = 6;
-  return {left: Math.min(...rs.map(r => r.left)) - pad, top: Math.min(...rs.map(r => r.top)) - pad,
-          right: Math.max(...rs.map(r => r.right)) + pad, bottom: Math.max(...rs.map(r => r.bottom)) + pad};
-}
-function placeTour() {
-  if (!tourEl) return;
-  const hole = $('#thole'), card = $('#tcard'), r = tourRect(TOUR[tourI]), W = innerWidth, H = innerHeight;
-  const cw = card.offsetWidth, ch = card.offsetHeight, clamp = (v, a, b) => Math.max(a, Math.min(v, b));
-  let left, top;
-  const dim = (el, x, y, w, h) => Object.assign(el.style, {left: x + 'px', top: y + 'px', width: Math.max(0, w) + 'px', height: Math.max(0, h) + 'px'});
-  const [dt, db, dl, dr] = ['dmt', 'dmb', 'dml', 'dmr'].map(i => document.getElementById(i));
-  if (!r) {
-    hole.className = 'hole none'; hole.removeAttribute('style');
-    dim(dt, 0, 0, W, H); dim(db, 0, 0, 0, 0); dim(dl, 0, 0, 0, 0); dim(dr, 0, 0, 0, 0);
-    left = (W - cw) / 2; top = (H - ch) / 2.4;
-  } else {
-    hole.className = 'hole';
-    Object.assign(hole.style, {left: r.left + 'px', top: r.top + 'px', width: r.right - r.left + 'px', height: r.bottom - r.top + 'px'});
-    const x0 = Math.max(0, r.left), y0 = Math.max(0, r.top), x1 = Math.min(W, r.right), y1 = Math.min(H, r.bottom);  // dim all around it
-    dim(dt, 0, 0, W, y0); dim(db, 0, y1, W, H - y1); dim(dl, 0, y0, x0, y1 - y0); dim(dr, x1, y0, W - x1, y1 - y0);
-    if (r.bottom + 12 + ch <= H) { top = r.bottom + 12; left = clamp(r.left, 12, W - cw - 12); }       // below it
-    else if (r.top - 12 - ch >= 0) { top = r.top - 12 - ch; left = clamp(r.left, 12, W - cw - 12); }    // above it
-    else if (r.right + 12 + cw <= W) { left = r.right + 12; top = clamp(r.top, 12, H - ch - 12); }      // beside it
-    else { left = (W - cw) / 2; top = clamp(H - ch - 16, 12, H); }
-  }
-  card.style.left = Math.round(left) + 'px'; card.style.top = Math.round(top) + 'px';
-}
-function showTour() {
-  const st = TOUR[tourI], n = TOUR.length, first = tourI === 0, last = tourI === n - 1;
-  if (P && st.tab && tab !== st.tab) { tab = st.tab; renderMain(); }  // the scan and change steps show the review, the result step the result; later steps stay put
-  tourEl.innerHTML = `<i class="dm" id="dmt"></i><i class="dm" id="dmb"></i><i class="dm" id="dml"></i><i class="dm" id="dmr"></i><div class="hole none" id="thole"></div><div class="tcard" id="tcard">
-    <div class="step">${first || last ? 'Every Puzzle Project' : `Step ${tourI} of ${n - 2}`}</div><h2 id="tourh">${esc(st.h)}</h2>${st.html()}
-    <div class="dots">${TOUR.map((_, i) => `<i class="${i === tourI ? 'on' : ''}"></i>`).join('')}</div>
-    <div class="foot"><label><input type="checkbox" id="tourevery" ${tourWanted() ? 'checked' : ''}> Show this every time</label>
-      <span class="btns">${first ? '' : '<button id="tback">Back</button>'}${last ? '' : '<button id="tskip">Skip</button>'}
-      <button class="go" id="tnext">${last ? 'Done' : first ? 'Start the tour' : 'Next'}</button></span></div></div>`;
-  $('#tourevery').onchange = e => tourWant(e.target.checked);
-  if ($('#tback')) $('#tback').onclick = () => { tourI--; showTour(); };
-  if ($('#tskip')) $('#tskip').onclick = endTour;
-  $('#tnext').onclick = () => { if (last) endTour(); else { tourI++; showTour(); } };
-  placeTour(); requestAnimationFrame(placeTour);
-  $('#tnext').focus({preventScroll: true});
-}
-function tourKey(e) {
-  if (!tourEl) return;
-  if (e.key === 'Escape') { e.preventDefault(); endTour(); }
-  else if (e.key === 'ArrowRight' && tourI < TOUR.length - 1) { e.preventDefault(); tourI++; showTour(); }
-  else if (e.key === 'ArrowLeft' && tourI > 0) { e.preventDefault(); tourI--; showTour(); }
-  e.stopPropagation();  // the page's own shortcuts wait until the tour is closed
-}
-function startTour() {
-  if (tourEl) return;
-  tourBack = document.activeElement;
-  if (P && tab !== 'review') { tab = 'review'; renderMain(); }
-  tourI = 0; window.tourOpen = true;
-  tourEl = document.createElement('div'); tourEl.id = 'tour';
-  tourEl.setAttribute('role', 'dialog'); tourEl.setAttribute('aria-modal', 'true'); tourEl.setAttribute('aria-labelledby', 'tourh');
-  document.body.appendChild(tourEl);
-  window.addEventListener('resize', placeTour); window.addEventListener('keydown', tourKey, true);
-  showTour();
-}
-function endTour() {
-  if (!tourEl) return;
-  tourEl.remove(); tourEl = null; window.tourOpen = false;
-  window.removeEventListener('resize', placeTour); window.removeEventListener('keydown', tourKey, true);
-  if (tourBack && tourBack.focus) tourBack.focus({preventScroll: true});
-}
-
-let focusCard = null;
-document.addEventListener('keydown', e => {
-  if (!P || window.tourOpen || tab !== 'review' || e.target.matches?.('input, textarea') || e.ctrlKey || e.metaKey || e.altKey) return;
-  const cs = [...document.querySelectorAll('.card')];
-  if (!cs.length) return;
-  const k = e.key.toLowerCase();
-  if (k === 'enter') { e.preventDefault(); if (focusCard === null) { moveFocus(0); setCtx(true); } else setCtx(!ctxOpen); }
-  else if (k === 'escape' && ctxOpen) setCtx(false);
-  else if (k === 'j' || k === 'k') moveFocus(focusCard === null ? 0 : focusCard + (k === 'j' ? 1 : -1));
-  else if (k === 'a' || k === 'r') { e.preventDefault(); decideCard(cs[focusCard === null ? 0 : focusCard], k === 'a' ? 'accept' : 'reject'); }
-  else if (k === 'u' && focusCard !== null && cs[focusCard]) { e.preventDefault(); decideCard(cs[focusCard], 'clear'); }
-});
-let lastKey = '';
-const renderKey = p => p.xdid + JSON.stringify([p.status, p.shown.length, Object.keys(p.review.corrections || {}).length,
-                                                p.events.length, p.decisions, p.reactions]);
-async function load(force) {
-  const p = await API.puzzle(sel);
-  const key = renderKey(p);
-  const typing = document.activeElement && document.activeElement.matches('input, textarea');
-  if (!force && typing) { renderList(); return; }  // don't wipe a note being typed
-  if (HELPER) p.reactions = await RX.get(sel).catch(() => null);
-  P = p;
-  if (force || key !== lastKey) { lastKey = key; renderMain(); }
-  renderList();
-}
-let pollTimer = null;
-async function poll() {
-  clearTimeout(pollTimer);
-  try {
-    S = await API.state();
-    if ($('#root')) $('#root').textContent = S.root;
-    if (!HELPER && $('#follow').checked || !sel) {
-      const live = S.puzzles.filter(p => p.updated).sort((a, b) => b.updated - a.updated)[0];
-      const vis = visible(), next = HELPER ? (pickToCheck() || vis[0])?.xdid : live ? live.xdid : vis[0]?.xdid;
-      if (next !== sel) { sel = next; hot = null; focusCrops = null; }
+// ---- the end: every part's status, then one decision, pre-filled from the parts ----
+function summarySection() {
+  const s = document.createElement('section');
+  s.id = 'summary';
+  s.innerHTML = `<h2>Your review</h2><table></table><div class="body">
+    <div style="font-size:13px">Anything else the next reviewer should know? <span style="color:var(--muted)">(optional)</span></div>
+    <textarea id="overall"></textarea>
+    <div class="decide"><button class="ready"></button><button class="notready"></button></div>
+    <div style="display:flex;justify-content:flex-end"><button class="good" id="submit">Submit my review</button></div>
+    <div id="after"></div></div>`;
+  const ta = s.querySelector('#overall');
+  ta.value = cur.note || '';
+  ta.oninput = () => { cur.note = ta.value; save(); };
+  s.querySelector('.ready').onclick = () => { cur.decision = 'ready'; save(); paintSummary(); };
+  s.querySelector('.notready').onclick = () => { cur.decision = 'notready'; save(); paintSummary(); };
+  s.querySelector('#submit').onclick = async () => {
+    const btn = s.querySelector('#submit'), after = s.querySelector('#after'), d = decision();
+    const counts = `${d === 'ready' ? 'ready' : 'not ready'}, ${plural(Object.keys(cur.edits).length, 'edit')}, ${plural(cur.comments.length, 'comment')}`;
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      if (sb) await submitReview(d);
+      cur.submitted = new Date().toISOString(); save();
+      after.innerHTML = sb
+        ? `<div class="submitted" style="margin-top:10px"><b>Thanks: your review is saved</b> (${counts}).
+            The next person to check this puzzle will see your edits and comments.
+            <div style="margin-top:6px"><button class="good" id="nextafter">Next puzzle →</button></div></div>`
+        : `<div class="submitted" style="margin-top:10px"><b>Saved in this browser</b> (${counts}). <i>Local copy: nothing is sent.</i>
+            <div style="margin-top:6px"><button class="plain" id="asnext">See this puzzle as the next reviewer will</button></div></div>`;
+      after.querySelector('#nextafter')?.addEventListener('click', () => document.getElementById('nextpz').click());
+      after.querySelector('#asnext')?.addEventListener('click', handOn);
+    } catch (e) {
+      after.innerHTML = `<div class="submitted" style="margin-top:10px;background:var(--badbg);border-color:#e9b4ae"><b>Couldn't save your review:</b> ${esc(e.message || e)}. Your work is still kept in this browser; try again in a moment.</div>`;
     }
-    renderList();
-    if (sel) await load(false);
-    if (HELPER && !tourAuto) { tourAuto = true; if (tourWanted()) startTour(); }
-  } catch (e) { console.error('refresh failed', e); }
-  pollTimer = setTimeout(poll, API.pollMs || 2000);
+    btn.textContent = 'Submit my review'; paintSummary();
+  };
+  return s;
 }
-$('#zoom').onclick = () => $('#zoom').style.display = 'none';
-window.addEventListener('blitz-refresh', () => { lastKey = ''; poll(); });  // e.g. after signing in
-if (HELPER) {
-  $('#h1').textContent = API.title || 'Help check old crosswords';
-  $('#followl').hidden = true;
-  $('#howto').innerHTML = API.howto || HOWTO; $('#howto').hidden = false;
-  $('#tourbtn').hidden = false; $('#tourbtn').onclick = () => startTour();
-  if (API.renderAuth) API.renderAuth($('#auth'));
+// the whole review into proofs, and a verdict for the progress counts and the importer: "looks-right" only
+// when ready with no edits, since edits aren't applied on import yet
+async function submitReview(d) {
+  let {data: {session}} = await sb.auth.getSession();
+  if (!session) {
+    const r = await sb.auth.signInAnonymously();
+    if (r.error) throw r.error;
+    session = r.data.session;
+  }
+  const uid = session.user.id, at = new Date().toISOString(), n = Object.keys(cur.edits).length;
+  const who = (cur.who === 'You' ? '' : cur.who || '').slice(0, 40);
+  const review = {edits: cur.edits, comments: cur.comments, status: cur.status, note: cur.note || ''};
+  const p = await sb.from('proofs').upsert({xdid: ID, user_id: uid, who, decision: d, review, at});
+  if (p.error) throw p.error;
+  const bad = Object.entries(cur.status).filter(([, x]) => x.v === 'bad').map(([id, x]) => `${PART[id]?.name || id}: ${x.note || 'a problem'}`);
+  const note = [d === 'ready' ? (n ? `Ready with ${plural(n, 'edit')} (see proofs)` : 'Ready') : 'Not ready', ...bad, cur.note || '']
+    .filter(Boolean).join('; ').slice(0, 500);
+  const v = await sb.from('verdicts').upsert({xdid: ID, user_id: uid, verdict: d === 'ready' && !n ? 'looks-right' : 'needs-work', note, at});
+  if (v.error) throw v.error;
 }
-window.onresize = () => P && redraw();
-poll();
-</script></body></html>
+// what the parts say: 'ready' if all are good, 'notready' if any has a problem, null while some aren't reviewed
+function implied() {
+  const ids = [...document.querySelectorAll('section[data-sec]')].map(x => x.dataset.sec);
+  if (ids.some(id => cur.status[id]?.v === 'bad')) return 'notready';
+  return ids.every(id => cur.status[id]?.v === 'ok') ? 'ready' : null;
+}
+// the reviewer's own pick wins, except that "ready" can't stand next to a part with a problem
+function decision() {
+  const imp = implied();
+  if (imp === 'notready') return 'notready';
+  return cur.decision || imp;
+}
+function paintSummary() {
+  const s = document.getElementById('summary'); if (!s) return;
+  const parts = [...document.querySelectorAll('section[data-sec]')];
+  s.querySelector('table').innerHTML = parts.map(p => {
+    const id = p.dataset.sec, st = cur.status[id], n = myEdits(id), c = myComments(id);
+    const icon = st ? (st.v === 'ok' ? '<span style="color:var(--ok)">✓</span>' : '<span style="color:var(--bad)">✗</span>') : '<span style="color:#bbb">○</span>';
+    const said = st ? (st.v === 'ok' ? 'looks good' : `<span style="color:var(--bad)">problem: ${esc(st.note || '(no note)')}</span>`) : '<span style="color:var(--muted)">not reviewed yet</span>';
+    return `<tr data-go="${id}" title="Go back to the ${esc(PART[id].name)}"><td class="st">${icon}</td><td class="nm"><a>${esc(PART[id].name[0].toUpperCase() + PART[id].name.slice(1))}</a> · ${said}</td><td class="ct">${plural(n, 'edit')}, ${plural(c, 'comment')}</td><td class="go">go back ↑</td></tr>`;
+  }).join('');
+  s.querySelectorAll('[data-go]').forEach(a => a.onclick = () => { const t = document.querySelector(`section[data-sec="${a.dataset.go}"]`); t.style.display = ''; t.scrollIntoView({block: 'start'}); scrollBy(0, -70); });
+  const n = Object.keys(cur.edits).length, imp = implied(), d = decision();
+  const todo = parts.filter(p => !cur.status[p.dataset.sec]).length, bad = parts.filter(p => cur.status[p.dataset.sec]?.v === 'bad').length;
+  const r = s.querySelector('.ready'), nr = s.querySelector('.notready');
+  r.innerHTML = `✓ Ready: the puzzle matches the scan${n ? ' as edited' : ''}<small>${n ? `with my ${plural(n, 'edit')}` : 'no edits needed'}${todo ? ` · first, review the ${plural(todo, 'part')} still open above` : ''}</small>`;
+  nr.innerHTML = `✗ Not ready: something's wrong I couldn't fix<small>${bad ? `you marked ${plural(bad, 'part')} with a problem` : 'say what in the box above'}</small>`;
+  r.disabled = todo > 0 || imp === 'notready';
+  r.classList.toggle('sel', d === 'ready' && !r.disabled);
+  nr.classList.toggle('sel', d === 'notready');
+  s.querySelector('#submit').disabled = !(d === 'notready' || (d === 'ready' && !r.disabled));
+}
+
+// our grid numbering, so each clue can show its answer and we can tell when print numbers differ
+function numbering() {
+  const g = G(), H = g.length, W = g[0].length, at = {};
+  let n = 0;
+  for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) {
+    if (g[r][c] === '#') continue;
+    const a = (c === 0 || g[r][c-1] === '#') && c + 1 < W && g[r][c+1] !== '#';
+    const d = (r === 0 || g[r-1][c] === '#') && r + 1 < H && g[r+1][c] !== '#';
+    if (a || d) { n++; if (a) at['A' + n] = [r, c, 0, 1]; if (d) at['D' + n] = [r, c, 1, 0]; }
+  }
+  return at;
+}
+function answerFor(k) {
+  const s = NUM[k]; if (!s) return '';
+  let [r, c, dr, dc] = s, out = '';
+  const g = G();
+  while (r < g.length && c < g[0].length && g[r][c] !== '#') { out += final(`cell:r${r+1}c${c+1}`) || '·'; r += dr; c += dc; }
+  return out;
+}
+function entryCells(k) {
+  const s = NUM[k]; if (!s) return [];
+  let [r, c, dr, dc] = s; const out = [];
+  const g = G();
+  while (r < g.length && c < g[0].length && g[r][c] !== '#') { out.push([r, c]); r += dr; c += dc; }
+  return out;
+}
+// the entry's squares cut from the scanned answer key, laid in a row (Down too)
+function answerStrip(k) {
+  const cs = entryCells(k); if (!hasKey() || !cs.length) return null;
+  const cw = ansImg.naturalWidth / ocr.grid[0].length, ch = ansImg.naturalHeight / ocr.grid.length;
+  const cv = document.createElement('canvas');
+  cv.width = Math.round(cs.length * cw); cv.height = Math.round(ch);
+  const g = cv.getContext('2d');
+  cs.forEach(([r, c], i) => g.drawImage(ansImg, c * cw, r * ch, cw, ch, i * cw, 0, cw, ch));
+  cv.style.width = cs.length * 24 + 'px';
+  return cv;
+}
+// the number printed beside the clue, as the OCR read it
+function printedNumber(k, flags) {
+  const f = flags.find(f => f.startsWith('number-corrected:'));
+  return f ? f.split(':')[1] : k.slice(1);
+}
+
+// when a reviewer moved a clue's text to another entry, the printed line moves with it: find the
+// clue whose OCR reading the final text matches best (word overlap), if it isn't this clue's own
+const words = t => new Set(t.toLowerCase().match(/[a-z0-9']+/g) || []);
+function overlap(a, b) { const A = words(a), B = words(b); let n = 0; for (const w of A) if (B.has(w)) n++; return n / Math.max(1, Math.max(A.size, B.size)); }
+function contained(fin, t) { const A = words(fin), B = words(t); let n = 0; for (const w of A) if (B.has(w)) n++; return A.size >= 3 ? n / A.size : 0; }
+function sourceFor(label) {
+  const own = ocr.clues[label], fin = final('clue:' + label);
+  if (fin === own.text) return {label, ...own};
+  // how well a crop's OCR reading backs our text: alike as a whole, or our words all inside it (a merged crop)
+  const fit = t => Math.max(overlap(fin, t), contained(fin, t) >= 0.85 ? 0.85 : 0);
+  let best = label, score = own.text && own.box ? fit(own.text) : 0;
+  for (const [k, c] of Object.entries(ocr.clues)) if (k !== label && c.box && c.text) {
+    const sc = fit(c.text); if (sc > score) { best = k; score = sc; }
+  }
+  return score >= 0.6 ? {label: best, ...ocr.clues[best]} : {label, ...own};
+}
+
+// the backstop: the original scan, full size, in a new tab
+function scanLink(im) {
+  const a = document.createElement('a');
+  a.className = 'ctxbtn'; a.style.marginLeft = '10px';
+  a.href = dir + '_src/' + (im || MAIN()); a.target = '_blank'; a.textContent = 'open the scan ↗';
+  return a;
+}
+// the clue boxes in the same printed column as this box
+function column(box, im) {
+  const same = Object.values(ocr.clues).filter(c => c.box && (c.image || MAIN()) === (im || MAIN()) && Math.abs(c.box[0] - box[0]) < 25).map(c => c.box);
+  const x0 = Math.min(box[0], ...same.map(b => b[0])), x1 = Math.max(box[2], ...same.map(b => b[2]));
+  return [x0, x1 - x0 < 120 ? box[0] + 300 : x1];
+}
+// a crop that may not show our current text, and why (naming the reviewer whose edit raised it)
+function suspectCrop(box, ocrText, fin, who, im) {
+  ocrText = (ocrText || '').trim(); fin = (fin || '').trim();
+  if (!fin) return '';
+  if (ocrText.length < 6 && fin.length >= 6)
+    return who ? `${who} filled in text the OCR couldn't read here` : 'the OCR read almost nothing here';
+  if (fin !== ocrText && overlap(fin, ocrText) < 0.3)
+    return who ? `${who} replaced the text, so this crop may not show it` : 'the current text may not be in this crop';
+  const [x0, x1] = column(box, im), need = Math.min(x1 - x0, fin.length * 5.4);
+  if (box[2] - box[0] < need * 0.45) return 'the crop looks too small for the current text';
+  return '';
+}
+// the line with a few lines above and below, full column width, the line itself outlined
+function contextStrip(box, doubt, im) {
+  const s = scaleOf(im), [cx0, cx1] = column(box, im);
+  const X0 = (cx0 - 6) * s, X1 = (cx1 + 6) * s, Y0 = (box[1] - 30) * s, Y1 = (box[3] + 30) * s;
+  const w = X1 - X0, h = Y1 - Y0, cv = document.createElement('canvas');
+  cv.width = Math.round(w); cv.height = Math.round(h);
+  const g = cv.getContext('2d');
+  g.drawImage(images[im || MAIN()], X0, Y0, w, h, 0, 0, w, h);
+  const bx = box[0] * s - X0 - 3 * s, by = box[1] * s - Y0 - 2 * s, bw = (box[2] - box[0] + 6) * s, bh = (box[3] - box[1] + 4) * s;
+  if (doubt) {
+    g.setLineDash([4 * s, 3 * s]); g.strokeStyle = 'rgba(199,119,0,.45)'; g.lineWidth = 1 * s;
+  } else {
+    g.fillStyle = 'rgba(255,255,255,.4)';
+    g.fillRect(0, 0, w, by); g.fillRect(0, by + bh, w, h - by - bh); g.fillRect(0, by, bx, bh); g.fillRect(bx + bw, by, w - bx - bw, bh);
+    g.strokeStyle = 'rgba(199,119,0,.8)'; g.lineWidth = 1.5 * s;
+  }
+  g.strokeRect(bx, by, bw, bh);
+  cv.className = 'strip';
+  cv.style.width = Math.min(w * 22 / (13.5 * s), 760) + 'px';
+  return cv;
+}
+
+// ---- the whole page: a backup for when something big looks wrong ----
+// In the flow (as a part to check) only when many clues are missing; otherwise hidden until asked for.
+function pageTrouble() {
+  const all = Object.entries(ocr.clues), lost = all.filter(([, c]) => !c.box).map(([k]) => k);
+  const empty = ['A', 'D'].filter(d => !all.some(([k, c]) => k[0] === d && c.box));
+  if (empty.length) return `The OCR found no ${empty.map(d => d === 'A' ? 'Across' : 'Down').join(' or ')} clues on the page.`;
+  if (lost.length >= Math.max(4, all.length * 0.15)) return `The OCR didn't find ${lost.length} of the ${all.length} clues on the page (${lost.slice(0, 10).join(', ')}${lost.length > 10 ? '…' : ''}).`;
+  return '';
+}
+function pageSection() {
+  const trouble = pageTrouble();
+  const s = trouble ? sec('page', 'The whole page', 'the whole page', 'what the OCR read, shaded') : document.createElement('section');
+  s.id = 'pagepanel';
+  if (!trouble) {
+    s.innerHTML = `<h2>The whole page <span class="hint">for when something big looks wrong</span><button class="t">Hide</button></h2>`;
+    s.querySelector('h2 button').onclick = () => { s.style.display = 'none'; };
+    s.style.display = 'none';
+  }
+  const boxes = [...Object.entries(ocr.clues).filter(([, c]) => c.box && !c.image).map(([k, c]) => ['clue:' + k, c.box]),
+    ...Object.entries(ocr.meta_boxes || {}).map(([k, b]) => ['meta:' + k, b])];
+  const sc = scaleOf(), all = boxes.map(b => b[1]), M = 50;
+  const X0 = Math.max(0, Math.min(...all.map(b => b[0])) - M) * sc, Y0 = Math.max(0, Math.min(...all.map(b => b[1])) - M) * sc;
+  const X1 = Math.min(page.naturalWidth, (Math.max(...all.map(b => b[2])) + M) * sc), Y1 = Math.min(page.naturalHeight, (Math.max(...all.map(b => b[3])) + M) * sc);
+  const k = Math.min(1, 1400 / (X1 - X0)), cv = document.createElement('canvas');
+  cv.width = Math.round((X1 - X0) * k); cv.height = Math.round((Y1 - Y0) * k);
+  const g = cv.getContext('2d');
+  const R = b => [(b[0] * sc - X0) * k, (b[1] * sc - Y0) * k, (b[2] - b[0]) * sc * k, (b[3] - b[1]) * sc * k];
+  const draw = hl => {
+    g.setLineDash([]);
+    g.drawImage(page, X0, Y0, X1 - X0, Y1 - Y0, 0, 0, cv.width, cv.height);
+    g.fillStyle = 'rgba(46,125,50,.16)'; g.strokeStyle = 'rgba(46,125,50,.55)'; g.lineWidth = 1;
+    for (const [, b] of boxes) { const [x, y, w, h] = R(b); g.fillRect(x, y, w, h); g.strokeRect(x, y, w, h); }
+    const h = boxes.find(b => b[0] === hl);
+    if (h) { const [x, y, w, hh] = R(h[1]); g.strokeStyle = '#1f5fbf'; g.lineWidth = 3; g.strokeRect(x - 3, y - 3, w + 6, hh + 6); }
+  };
+  draw();
+  s.highlight = key => draw(key);
+  const hit = e => {
+    const r = cv.getBoundingClientRect(), x = (e.clientX - r.left) * cv.width / r.width, y = (e.clientY - r.top) * cv.height / r.height;
+    return boxes.find(([, b]) => { const [bx, by, bw, bh] = R(b); return x >= bx && x <= bx + bw && y >= by && y <= by + bh; });
+  };
+  cv.onmousemove = e => { const h = hit(e); cv.title = h ? `${h[0].replace(/^\w+:/, '')}: OCR read "${base(h[0])}"` : ''; };
+  cv.onclick = e => { const h = hit(e); if (h) jumpTo(h[0]); };
+  const missing = Object.entries(ocr.clues).filter(([, c]) => !c.box).map(([k]) => k);
+  const w = document.createElement('div');
+  w.className = 'pagewrap';
+  w.innerHTML = (trouble ? `<p class="m-flag" style="padding:4px 8px;border-radius:6px"><b>Why you're seeing this:</b> ${esc(trouble)} Look at the page to see what happened.</p>` : '') +
+    `<p>This is the page as the OCR saw it. <b>Shaded</b> are the lines it read as clues, plus the title and byline; click one to go to it. ` +
+    `Headings like <i>Horizontal</i> and <i>Vertical</i>, the grids, and notes such as <i>Solution of last week's puzzle</i> aren't clues, so they aren't shaded.</p>` +
+    (missing.length ? `<p>The OCR didn't find ${missing.join(', ')}${trouble ? '' : '; a reviewer may have filled them in since'}.</p>` : '');
+  const big = document.createElement('button');
+  big.className = 't'; big.textContent = 'Bigger'; big.style.marginBottom = '8px';
+  big.onclick = () => { w.classList.toggle('big'); big.textContent = w.classList.contains('big') ? 'Smaller' : 'Bigger'; };
+  w.append(big, cv);
+  s.append(w);
+  return s;
+}
+function showBlank() {
+  const s = document.getElementById('blankpanel');
+  s.style.display = ''; s.scrollIntoView({block: 'start'}); scrollBy(0, -70);
+}
+function showPage(key) {
+  const s = document.getElementById('pagepanel');
+  s.style.display = '';
+  s.highlight(key);
+  s.scrollIntoView({block: 'start'}); scrollBy(0, -70);
+}
+
+// ---- the blank grid: only when the black squares or numbering need checking ----
+function blankReasons() {
+  const out = [];
+  if (!hasKey()) out.push('There is no answer key, so our black squares and numbering rest on reading this grid.');
+  if (ocr.answers) {
+    const d = [];
+    ocr.grid.forEach((row, r) => [...row].forEach((ch, c) => { if ((ch === '#') !== (ocr.answers[r][c] === '#')) d.push(`r${r+1}c${c+1}`); }));
+    if (d.length) out.push(`The blank grid and the answer key disagree about black squares at ${d.join(', ')}.`);
+  }
+  if ((ocr.grid_asymmetric_squares || []).length) out.push(`The grid isn't symmetric (${ocr.grid_asymmetric_squares.join(', ')}): check it's printed that way.`);
+  const fixes = rounds.flatMap(r => Object.keys(r.edits).filter(k => k.startsWith('grid:')).map(k => `${k.slice(5)} (${r.who})`));
+  if (fixes.length) out.push(`A reviewer changed black squares: ${fixes.join(', ')}.`);
+  const N = numbering(), odd = Object.entries(ocr.clues).filter(([k, c]) => !N[k] || printedNumber(k, c.flags || []) !== k.slice(1)).map(([k]) => k);
+  if (odd.length) out.push(`Some printed clue numbers don't match our numbering (${odd.slice(0, 8).join(', ')}${odd.length > 8 ? '…' : ''}).`);
+  return out;
+}
+let bMode = 'over';
+// a required step when there's no answer key; otherwise an optional panel, opened from the header
+// or from the answer key step when the checks give a reason to look
+function blankSection(why, optional) {
+  let s;
+  if (optional) {
+    s = document.createElement('section');
+    s.innerHTML = `<h2>Blank grid <span class="hint">optional: the answer key already shows the black squares</span><button class="t">Hide</button></h2>`;
+    s.querySelector('h2 button').onclick = () => { s.style.display = 'none'; };
+    s.style.display = 'none';
+  } else s = sec('blank', 'Blank grid', 'the blank grid', 'black squares and numbers');
+  s.id = 'blankpanel';
+  if (optional && !why.length) why = ['Nothing flagged: the checks found the blank grid agrees with the answer key.'];
+  s.insertAdjacentHTML('beforeend', `<p style="margin:10px 14px 0;font-size:13px"><b>${optional ? 'What the checks found:' : "Why you're seeing this:"}</b></p><ul class="reasons">${why.map(w => `<li>${esc(w)}</li>`).join('')}</ul>
+    <div class="gridwrap">
+    <div class="gridbox" id="bscan"><img src="${dir}grid.png" alt="blank grid scan"></div>
+    <div class="gridbox" id="btyped"></div>
+    <div class="gridside">
+      <p><b>Spot the difference.</b> Our black squares (red) and our numbers (small red) on the printed grid:</p>
+      <p><button class="t" data-b="side">Side by side</button> <button class="t" data-b="over">On the scan</button> <button class="t" data-b="blink">Blink</button></p>
+      <p>Every printed black square should be red, and every small red number should sit on the printed one. Click a square to make it black or white.</p>
+      <div class="margin" id="bnotes"></div>
+    </div></div>`);
+  s.querySelectorAll('[data-b]').forEach(b => b.onclick = () => { bMode = b.dataset.b; drawBlank(s); });
+  drawBlank(s);
+  return s;
+}
+function blankCells(cls) {
+  const g = G(), N = numbering(), H = g.length, W = g[0].length, nums = {};
+  for (const [k, [r, c]] of Object.entries(N)) nums[`${r},${c}`] = k.slice(1);
+  const d = document.createElement('div');
+  d.className = 'typedgrid bk ' + cls;
+  d.style.gridTemplate = `repeat(${H}, 1fr) / repeat(${W}, 1fr)`;
+  for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) {
+    const k = `grid:r${r+1}c${c+1}`, h = history(k), x = document.createElement('div');
+    if (g[r][c] === '#') x.className = 'blk';
+    if (nums[`${r},${c}`]) x.innerHTML = `<span class="n">${nums[`${r},${c}`]}</span>`;
+    if (h.length > 1) { x.style.boxShadow = `inset 0 0 0 2.5px ${h[h.length-1].color}`; x.title = `r${r+1}c${c+1}: ` + h.map(v => `${v.who} ${v.value === '#' ? 'black' : 'white'}`).join(' → '); }
+    x.onclick = () => { setEdit(k, g[r][c] === '#' ? '.' : '#', true); compose(document.querySelector('#bnotes'), k, true); };
+    d.append(x);
+  }
+  return d;
+}
+function drawBlank(s) {
+  s.querySelectorAll('[data-b]').forEach(x => x.classList.toggle('on', x.dataset.b === bMode));
+  const scan = s.querySelector('#bscan'), typed = s.querySelector('#btyped');
+  s.querySelectorAll('.typedgrid').forEach(x => x.remove());
+  scan.classList.toggle('blinking', bMode === 'blink');
+  typed.style.display = bMode === 'side' ? '' : 'none';
+  if (bMode === 'side') typed.append(blankCells('solo'));
+  else scan.append(blankCells(bMode === 'over' ? 'over' : 'solo'));
+  const g = s.querySelector('#bnotes'), open = g.querySelector('.compose');
+  g.innerHTML = rounds.flatMap(r => r.comments.filter(c => c.key.startsWith('grid:')).map(c => `<b>${esc(c.key.slice(5))}</b> ` + noteHtml(r, c.text, c.why))).join('');
+  if (open) g.prepend(open);
+}
+
+function noteHtml(r, text, why) {
+  return `<div class="note" style="border-left-color:${r.color}"><span class="by" style="color:${r.color}">${esc(r.who)}${r === cur ? ' (you)' : ''}${why ? ' <i>on their edit</i>' : ''}</span>${esc(text)}</div>`;
+}
+
+function addRow(s, key, label, box, flags = [], src = null) {
+  const row = document.createElement('div');
+  row.className = 'row';
+  row.dataset.key = key;
+  const isClue = key.startsWith('clue:');
+  const moved = src && src.label !== label;
+  const pn = isClue ? (src ? printedNumber(src.label, src.flags || []) : printedNumber(label, flags)) : '';
+  const odd = isClue && (pn !== label.slice(1) || !NUM[label]);
+  row.innerHTML = `<div class="lab">${esc(label)}</div>
+    <div class="body"><div class="scan"></div><div>
+      <div class="typed">${isClue ? `<span class="num${odd ? ' odd' : ''}" title="the number printed beside this clue">${esc(pn)}.</span>` : ''}<span class="txt" spellcheck="false"></span></div>
+      <div class="was"></div><div class="marks"></div></div></div>
+    <div class="abox"></div>
+    <div class="margin"></div>`;
+  const im = src ? src.image : null;
+  const sc = row.querySelector('.scan'), tight = strip(box, im);
+  sc.append(tight);
+  const btn = document.createElement('button');
+  btn.className = 'ctxbtn';
+  if (box) {
+    const hh = history(key), who = hh.length > 1 ? hh[hh.length - 1].who : '';
+    const why = suspectCrop(box, src ? src.text : base(key), final(key), who, im);
+    let wide = null;
+    const show = on => {
+      if (on && !wide) { wide = contextStrip(box, !!why, im); sc.insertBefore(wide, btn); }
+      tight.style.display = on ? 'none' : ''; if (wide) wide.style.display = on ? '' : 'none';
+      sc.classList.toggle('wide', on);
+      btn.textContent = on ? (why ? `⤡ wider view: ${why}` : '⤡ just the line') : '⤢ more of the page';
+      btn.classList.toggle('why', !!(on && why));
+      btn.dataset.on = on ? '1' : '';
+    };
+    row.toggleWide = () => show(!btn.dataset.on);
+    btn.onclick = e => { e.stopPropagation(); row.toggleWide(); };
+    sc.append(btn, scanLink(im));
+    show(!!why);
+    if (why) row.suspect = true;
+    const nm = row.querySelector('.num');
+    if (nm && why.includes('may not show it')) { nm.textContent = '?.'; nm.classList.add('odd'); nm.title = "this crop isn't this text's, so we don't know the printed number"; }
+  } else {
+    btn.textContent = 'look for it on the whole page';
+    btn.onclick = e => { e.stopPropagation(); showPage(); };
+    sc.append(document.createElement('br'), btn, scanLink());
+  }
+  const ab = row.querySelector('.abox'), as = isClue && answerStrip(label);
+  if (as) {
+    ab.append(as);
+    const ac = document.createElement('div');
+    ac.className = 'acells';
+    ac.title = label[0] === 'D' ? 'Down answer, laid out across' : 'Across answer';
+    for (const [r, c] of entryCells(label)) {
+      const x = document.createElement('span');
+      x.dataset.cell = `${r},${c}`;
+      x.onclick = () => { selCell = [r, c]; regrid(); markSel(); };
+      ac.append(x);
+    }
+    ab.append(ac);
+    if (label[0] === 'D') ab.insertAdjacentHTML('beforeend', '<div class="dir">↓ Down, laid out across</div>');
+  } else if (isClue) ab.innerHTML = `<div class="dir">${hasKey() ? '' : 'no answer key to check against'}</div>`;
+  const txt = row.querySelector('.txt');
+  row.paint = () => {
+    row.querySelectorAll('.acells span').forEach(x => {
+      const [r, c] = x.dataset.cell.split(',').map(Number), k = `cell:r${r+1}c${c+1}`, hh = history(k);
+      x.textContent = final(k);
+      x.style.boxShadow = hh.length > 1 ? `inset 0 0 0 2px ${hh[hh.length-1].color}` : '';
+      x.title = hh.length > 1 ? hh.map(v => `${v.who} ${v.value}`).join(' → ') : '';
+    });
+    const h = moved ? history(key, src.text) : history(key), fin = h[h.length - 1].value;
+    row.look = row.suspect || h.length > 1 || flags.length || odd || commentsFor(key).length;
+    let kind = '';
+    if (h.length > 1) {
+      const last = h[h.length - 1], d = diff(h[h.length - 2].value, last.value, last.who, last.color);
+      kind = `${last.who}${last.who === cur.who ? ' (you)' : ''} ${d.kind}`;
+      if (document.activeElement !== txt) txt.innerHTML = `<span class="plain">${esc(fin)}</span><span class="chg">${d.html}</span>`;
+    } else if (document.activeElement !== txt) txt.textContent = fin;
+    // the earlier versions, oldest first, so it's clear what was there before
+    row.querySelector('.was').innerHTML = h.length > 1 ? h.slice(0, -1).map((v, i) =>
+      `${i ? ' → ' : ''}${v.who === 'OCR' ? 'OCR read' : esc(v.who) + ' made it'} <q>${esc(v.value) || '(nothing)'}</q>`).join('') +
+      ` → <b style="color:${h[h.length-1].color}">${esc(kind)}</b>` : '';
+    const looked = rounds.filter(r => (r.looked || []).includes(key)).map(r => r.who);
+    row.querySelector('.marks').innerHTML =
+      (isClue && !NUM[label] ? `<b class="m-flag">no ${esc(label)} in our grid</b>` : '') +
+      (isClue && NUM[label] && pn !== label.slice(1) ? `<b class="m-flag">printed as ${esc(pn)}, sits at ${esc(label)} in our grid</b>` : '') +
+      (moved ? `<b class="m-flag" title="the reviewer moved this text from where the OCR put it; the scan line came with it">printed line found in ${esc(src.label)}'s crop</b>` : '') +
+      flags.filter(f => !f.startsWith('number-corrected')).map(f => `<b class="m-flag" title="${esc(f)}">${esc(f.split(':')[0])}</b>`).join('') +
+      looked.map(w => `<b class="m-ok" title="${esc(w)} looked at this line and kept it">${esc(w)} looked</b>`).join('');
+    const m = row.querySelector('.margin'), open = m.querySelector('.compose');
+    const cellNotes = isClue ? entryCells(label).flatMap(([r, c]) => commentsFor(`cell:r${r+1}c${c+1}`).map(x => [...x, `r${r+1}c${c+1}`])) : [];
+    m.innerHTML = commentsFor(key).map(([r, c]) => noteHtml(r, c.text, c.why)).join('') +
+      cellNotes.map(([r, c, at]) => noteHtml(r, `(square ${at}) ${c.text}`, c.why)).join('') + '<button class="addc">💬 Comment</button>';
+    if (open) m.prepend(open);
+    m.querySelector('.addc').onclick = () => compose(m, key, false);
+  };
+  txt.contentEditable = 'true';
+  txt.onfocus = () => { txt.textContent = final(key); setFocus(rows.indexOf(row)); };
+  txt.onblur = () => {
+    const v = txt.textContent.trim();
+    if (v !== final(key)) { setEdit(key, v, true); compose(row.querySelector('.margin'), key, true); }
+    else row.paint();
+  };
+  txt.onkeydown = e => { if (e.key === 'Escape' || e.key === 'Enter') { e.preventDefault(); txt.blur(); } };
+  row.onclick = e => {
+    if (e.target.closest('.txt, .margin, .abox, .compose, a, button, input, textarea')) return;
+    setFocus(rows.indexOf(row));
+    row.toggleWide?.();
+  };
+  row.paint();
+  rows.push(row);
+  s.append(row);
+}
+
+function commentsFor(key) {
+  const out = [];
+  for (const r of rounds) for (const c of r.comments) if (c.key === key) out.push([r, c]);
+  return out;
+}
+
+// an inline comment box in a margin; after an edit it asks why (optional)
+function compose(m, key, why) {
+  m.querySelector('.compose')?.remove();
+  const box = document.createElement('div');
+  box.className = 'compose';
+  box.innerHTML = `<div class="q">${why ? 'You changed this. Say why? (optional)' : 'Comment for the next reviewer'}</div>
+    ${why ? `<div class="chips"><button>That's what the scan says</button><button>Hard to read: best guess</button><button>Printed wrong in the original</button></div>` : ''}
+    <textarea></textarea><div class="acts"><button class="skip">${why ? 'Skip' : 'Cancel'}</button><button class="save">Save</button></div>`;
+  m.prepend(box);
+  const ta = box.querySelector('textarea');
+  box.querySelectorAll('.chips button').forEach(b => b.onclick = () => { ta.value = (ta.value ? ta.value + ' ' : '') + b.textContent + '.'; ta.focus(); });
+  const done = keep => {
+    if (keep && ta.value.trim()) { cur.comments.push({key, text: ta.value.trim(), why}); save(); }
+    box.remove(); refresh(key);
+  };
+  box.querySelector('.save').onclick = () => done(true);
+  box.querySelector('.skip').onclick = () => done(false);
+  ta.onkeydown = e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); done(true); }
+    if (e.key === 'Escape') { e.preventDefault(); done(false); }
+  };
+  if (!why) ta.focus();
+}
+
+// ---- edits, with undo/redo ----
+function setEdit(key, value, record) {
+  const prev = key in cur.edits ? cur.edits[key] : undefined;
+  const next = value === valueAt(key, rounds.length - 2) ? undefined : value;
+  if (prev === next) return;
+  if (next === undefined) delete cur.edits[key]; else cur.edits[key] = next;
+  if (record) { undoStack.push({key, from: prev, to: next}); redoStack.length = 0; }
+  save(); refresh(key);
+}
+function apply(key, v) { if (v === undefined) delete cur.edits[key]; else cur.edits[key] = v; save(); refresh(key); }
+function undo() { const op = undoStack.pop(); if (!op) return; apply(op.key, op.from); redoStack.push(op); historyButtons(); jumpTo(op.key); }
+function redo() { const op = redoStack.pop(); if (!op) return; apply(op.key, op.to); undoStack.push(op); historyButtons(); jumpTo(op.key); }
+function historyButtons() {
+  document.getElementById('undo').disabled = !undoStack.length;
+  document.getElementById('redo').disabled = !redoStack.length;
+}
+function refresh(key) {
+  if (key.startsWith('grid:')) { const y = scrollY; render(); scrollTo(0, y); return; }
+  if (key.startsWith('cell:')) { regrid(); rows.forEach(r => r.paint()); }
+  else rows.find(r => r.dataset.key === key)?.paint();
+  progress(); historyButtons();
+}
+function jumpTo(key) {
+  const i = rows.findIndex(r => r.dataset.key === key);
+  if (i >= 0) setFocus(i); else document.querySelector('section[data-sec=grid]')?.scrollIntoView({block: 'center'});
+}
+
+// ---- the answer key ----
+let selCell = null, gridMode = 'side';
+function gridSection() {
+  const s = sec('grid', 'Answer key', 'the answer key', 'scan on the left, our letters on the right');
+  s.insertAdjacentHTML('beforeend', `<div class="gridwrap">
+    <div class="gridbox" id="gscan"><img src="${dir}answers.png" alt="answer key scan"></div>
+    <div class="gridbox" id="gtyped"></div>
+    <div class="gridside">
+      <p><b>Spot the difference.</b> Look from one grid to the other, or put our letters <i>on</i> the scan:</p>
+      <p><button class="t" data-g="side">Side by side</button> <button class="t" data-g="over">On the scan</button> <button class="t" data-g="blink">Blink</button></p>
+      <p>On the scan, a red letter sitting squarely on the printed one is a match; a doubled or smeared letter is a difference. Blink flips between them: differences jump.</p>
+      <p>Click a square and type a letter to fix it. A coloured outline means a reviewer changed it (hover to see what it was).</p>
+      ${blankReasons().length ? `<p class="m-flag" style="padding:4px 8px;border-radius:6px">The blank grid may be worth a look: ${esc(blankReasons().join(' '))} <button class="ctxbtn" onclick="showBlank()">Open the blank grid</button></p>` : ''}
+      <div class="margin" id="gnotes"></div>
+    </div></div>`);
+  s.querySelectorAll('[data-g]').forEach(b => b.onclick = () => { gridMode = b.dataset.g; drawGrid(s); });
+  drawGrid(s);
+  return s;
+}
+function cells(cls) {
+  const g = ocr.answers, H = g.length, W = g[0].length;
+  const low = new Set(ocr.answers_low_confidence || []);
+  const d = document.createElement('div');
+  d.className = 'typedgrid ' + cls;
+  d.style.gridTemplate = `repeat(${H}, 1fr) / repeat(${W}, 1fr)`;
+  for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) {
+    const k = `cell:r${r+1}c${c+1}`, ch = final(k), h = history(k), x = document.createElement('div');
+    if (ch === '#') x.className = 'blk'; else x.textContent = ch;
+    if (h.length > 1) { x.style.boxShadow = `inset 0 0 0 2.5px ${h[h.length-1].color}`; x.title = `r${r+1}c${c+1}: ` + h.map(v => `${v.who} ${v.value}`).join(' → '); }
+    else if (low.has(`r${r+1}c${c+1}`)) { x.classList.add('unsure'); x.title = 'the OCR was unsure of this letter'; }
+    if (selCell && selCell[0] === r && selCell[1] === c) x.classList.add('cur');
+    x.onclick = () => { selCell = [r, c]; regrid(); };
+    d.append(x);
+  }
+  return d;
+}
+function drawGrid(s) {
+  s.querySelectorAll('[data-g]').forEach(x => x.classList.toggle('on', x.dataset.g === gridMode));
+  const scanBox = s.querySelector('#gscan'), typedBox = s.querySelector('#gtyped');
+  s.querySelectorAll('.typedgrid').forEach(x => x.remove());
+  scanBox.classList.toggle('blinking', gridMode === 'blink');
+  typedBox.style.display = gridMode === 'side' ? '' : 'none';
+  if (gridMode === 'side') typedBox.append(cells('solo'));
+  else scanBox.append(cells(gridMode === 'over' ? 'over' : 'solo'));
+  const g = s.querySelector('#gnotes'), open = g.querySelector('.compose');
+  const notes = [];
+  for (const r of rounds) for (const c of r.comments) if (c.key.startsWith('cell:')) notes.push(`<b>${esc(c.key.slice(5))}</b> ` + noteHtml(r, c.text, c.why));
+  g.innerHTML = notes.join('');
+  if (open) g.prepend(open);
+}
+function regrid() { const s = document.querySelector('section[data-sec=grid]'); if (s) drawGrid(s); markSel(); }
+function markSel() {
+  const id = selCell ? selCell.join(',') : '';
+  document.querySelectorAll('.acells span').forEach(x => x.classList.toggle('cur', x.dataset.cell === id));
+}
+
+function setFocus(i) {
+  rows.forEach(r => r.classList.remove('focus'));
+  focus = Math.max(0, Math.min(rows.length - 1, i));
+  const r = rows[focus]; if (!r) return;
+  r.classList.add('focus');
+  const b = r.getBoundingClientRect();
+  if (b.top < 90 || b.bottom > innerHeight - 20) r.scrollIntoView({block: 'center'});
+}
+
+function progress() {
+  const secs = [...document.querySelectorAll('section[data-sec]')];
+  const done = secs.filter(s => cur.status[s.dataset.sec]).length;
+  const n = Object.keys(cur.edits).length, c = cur.comments.length;
+  document.getElementById('progress').textContent = `${done} of ${secs.length} parts reviewed · ${plural(n, 'edit')}, ${plural(c, 'comment')} of yours`;
+  secs.forEach(s => { if (!s.foot.querySelector('textarea')) s.paint(); });
+  paintSummary();
+}
+
+function applyShow() {
+  const look = document.querySelector('[data-show=look]').classList.contains('on');
+  rows.forEach(r => r.style.display = look && !r.look ? 'none' : '');
+}
+
+document.querySelectorAll('[data-layer]').forEach(b => b.onclick = () => {
+  b.classList.toggle('on'); document.body.classList.toggle('show-' + b.dataset.layer, b.classList.contains('on'));
+});
+document.querySelectorAll('[data-cmp]').forEach(b => b.onclick = () => {
+  document.querySelectorAll('[data-cmp]').forEach(x => x.classList.toggle('on', x === b));
+  document.body.classList.toggle('side', b.dataset.cmp === 'side');
+});
+document.querySelectorAll('[data-show]').forEach(b => b.onclick = () => {
+  document.querySelectorAll('[data-show]').forEach(x => x.classList.toggle('on', x === b)); applyShow();
+});
+document.getElementById('undo').onclick = undo;
+document.getElementById('blankbtn').onclick = () => showBlank();
+document.getElementById('pagebtn').onclick = () => showPage(rows[focus]?.dataset.key);
+document.getElementById('redo').onclick = redo;
+document.getElementById('who').onchange = e => { cur.who = e.target.value.trim() || cur.who; save(); render(); };
+// prototype only: freeze this review as a finished round, so the page shows it the way the next reviewer will
+function handOn() {
+  const {status, ...round} = cur;
+  store.past.push(round); store.cur = null; save();
+  undoStack.length = redoStack.length = 0;
+  load().then(() => { scrollTo(0, 0); say(`You're now ${store.cur.who}; ${round.who}'s edits and comments show as theirs.`); });
+}
+function say(t) { document.getElementById('help').textContent = t + ' (prototype: nothing is sent)'; }
+
+addEventListener('keydown', e => {
+  const t = e.target;
+  if (t.isContentEditable || t.tagName === 'TEXTAREA' || t.tagName === 'INPUT') return;
+  const k = e.key.toLowerCase();
+  if ((e.ctrlKey || e.metaKey) && k === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
+  if ((e.ctrlKey || e.metaKey) && k === 'y') { e.preventDefault(); redo(); return; }
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (selCell && /^[a-z]$/.test(k)) {
+    const [r, c] = selCell, key = `cell:r${r+1}c${c+1}`;
+    if (final(key) === '#') return;
+    if (k.toUpperCase() !== final(key)) {
+      setEdit(key, k.toUpperCase(), true);
+      const inRow = document.querySelector('.acells span.cur')?.closest('.row');
+      compose(inRow ? inRow.querySelector('.margin') : document.querySelector('#gnotes'), key, true);
+    }
+    return;
+  }
+  if (k === 'j') setFocus(focus + 1);
+  else if (k === 'k') setFocus(focus - 1);
+  else if (k === 'e' && rows[focus]) { e.preventDefault(); rows[focus].querySelector('.txt').focus(); }
+  else if (k === 'z' && rows[focus]) rows[focus].toggleWide?.();
+  else if (k === 'm' && rows[focus]) { e.preventDefault(); compose(rows[focus].querySelector('.margin'), rows[focus].dataset.key, false); }
+  else if (k === 'c') document.querySelector('[data-layer=changes]').click();
+  else if (k === 'n') document.querySelector('[data-layer=notes]').click();
+  else if (k === 'escape') { selCell = null; regrid(); }
+  else if (k === ' ' && !e.repeat) {
+    const sb = document.querySelector('#gscan'), b = sb?.getBoundingClientRect();
+    if (b && b.top < innerHeight && b.bottom > 0) { e.preventDefault(); sb.dataset.back = gridMode; gridMode = 'over'; regrid(); }
+  }
+});
+addEventListener('keyup', e => {
+  const sb = document.querySelector('#gscan');
+  if (e.key === ' ' && sb?.dataset.back) { gridMode = sb.dataset.back; delete sb.dataset.back; regrid(); }
+});
+// clicking outside the answer key stops typing into it
+addEventListener('mousedown', e => { if (selCell && !e.target.closest('.typedgrid, .acells, .compose')) { selCell = null; regrid(); } });
+
+start().catch(e => document.getElementById('main').textContent = 'Could not load ' + dir + ': ' + e);
+</script>
+</body>
+</html>
