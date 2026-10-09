@@ -173,6 +173,12 @@ the publication repo instead of `blitz/publications/`.
 1a. ~~Judge's fixes and ledger into `judge/fixes/`~~ (done 2026-10-09). xword-ocr finds
    `../<pub>/fixes/fixes.toml` when the record repo is beside it; GAMES still uses
    `xword-ocr/fixes/games.toml` until `games` exists.
+1b. ~~Judge's `puzzles.tsv`, `xd/`, `reviews/` and notes (`review-notes.md`) into `judge`~~
+   (done 2026-10-09, judge 05f672c, blitz 8f5706a). volunteer-sync writes there; the status
+   page builds from it; `blitz instructions judge` and the site's pages read it. Judge's
+   PR flow is paused (Judge left `publications/ORDER`) until step 1c.
+1c. **Next:** rebuild the volunteer PR flow (`blitz start`, `hand.sh`, `pick.sh`, the PR check,
+   `pr-check`/`pr-import`) against publication repos, and create `games` the same way.
 1. **The record repos.** Move fixes/ledger/notes/xd/puzzles.tsv into `judge`;
    create `games` the same way. Tools find a publication's repos as siblings
    (`../judge`, `../judge-scans`) through a registry in blitz
