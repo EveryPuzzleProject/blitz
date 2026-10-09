@@ -75,10 +75,11 @@ judge/
   series.tsv           (exists)
   funnies.tsv          (exists)
   review-notes.md      reviewer guidance (from blitz publications/judge/NOTES.md + INSTRUCTIONS.md's Judge part)
-  fixes.toml           hand fixes (from xword-ocr/fixes/judge.toml)
-  corrections.jsonl    the ledger, append-only (from xword-ocr/fixes/judge.corrections.jsonl)
-  corrections.rejected.jsonl
-  tool-notes.jsonl
+  fixes/               (done 2026-10-09, judge 223800a)
+    fixes.toml         hand fixes (was xword-ocr/fixes/judge.toml)
+    corrections.jsonl  the ledger, append-only
+    corrections.rejected.jsonl
+    tool-notes.jsonl
   provenance.jsonl     per xdid: grid / clue / solution scan URLs, how it was made, who reviewed, review link
   xd/YYYY/*.xd         the export: puzzle-only, what goes to gxd (replaces blitz publications/judge/xd/)
   reviews/<xdid>.json  the final review of each puzzle (doubts, sic, notes), for the record
@@ -169,6 +170,9 @@ the publication repo instead of `blitz/publications/`.
 ## Order
 
 0. ~~Review code out of xword-ocr~~ (done 2026-10-09).
+1a. ~~Judge's fixes and ledger into `judge/fixes/`~~ (done 2026-10-09). xword-ocr finds
+   `../<pub>/fixes/fixes.toml` when the record repo is beside it; GAMES still uses
+   `xword-ocr/fixes/games.toml` until `games` exists.
 1. **The record repos.** Move fixes/ledger/notes/xd/puzzles.tsv into `judge`;
    create `games` the same way. Tools find a publication's repos as siblings
    (`../judge`, `../judge-scans`) through a registry in blitz
