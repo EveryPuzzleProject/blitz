@@ -42,7 +42,7 @@ body:not(.show-changes) .legend { display: none; }
 #sitebar { background: #fff6dc; border-bottom: 1px solid #ecd9a0; padding: 6px 16px; font-size: 13px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 #sitebar[hidden] { display: none; }
 #sitebar .pickgrp { margin-left: auto; }
-#sitebar select { font: inherit; font-size: 13px; max-width: 320px; }
+#sitebar select { font: inherit; font-size: 13px; max-width: 420px; }
 main { max-width: 1220px; margin: 0 auto; padding: 16px; }
 section { background: var(--paper); border: 1px solid var(--line); border-radius: 8px; margin-bottom: 18px; }
 section > h2 { font-size: 15px; margin: 0; padding: 10px 14px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 10px; }
@@ -190,7 +190,7 @@ footer button:disabled { opacity: .4; cursor: default; }
 <div id="sitebar" hidden>
   <b>Help check old crosswords.</b> Compare our text with the printed scan, line by line; fix what's wrong,
   then say whether each part looks good. <a href="../review-old/">The old review page</a>
-  <span class="pickgrp">Puzzle <select id="pick"></select> <button class="t" id="nextpz">Next puzzle →</button></span>
+  <span class="pickgrp"><select id="order" title="Which puzzles come first"><option value="date">By date</option><option value="worst">Worst first</option></select> Puzzle <select id="pick"></select> <button class="t" id="nextpz">Next puzzle →</button></span>
 </div>
 <header>
   <h1 id="title">…</h1>
@@ -241,17 +241,43 @@ function restore() {
   store = store || {past: [], cur: null};
 }
 
-// the site's open puzzles, a picker in the header, and which one to show
+// the site's open puzzles, a picker in the header (by date, or worst first), and which one to show
+const GRADE = {check: 'check closely', look: 'worth a look', clean: 'clean'};
 async function pickPuzzle() {
   if (!SITE) return;
   const h = {apikey: SITE.supabaseAnonKey, Authorization: 'Bearer ' + SITE.supabaseAnonKey};
-  const list = await fetch(`${SITE.supabaseUrl}/rest/v1/puzzles?select=xdid,title,base_url&open=eq.true&order=xdid`, {headers: h}).then(r => r.json());
+  const get = q => fetch(`${SITE.supabaseUrl}/rest/v1/${q}`, {headers: h}).then(r => r.ok ? r.json() : []);
+  let [list, said] = await Promise.all([get('puzzles?select=xdid,title,base_url,checkup&open=eq.true&order=xdid'),
+                                        get('proofs?select=xdid,decision')]);
+  if (!list.length) list = await get('puzzles?select=xdid,title,base_url&open=eq.true&order=xdid');  // no checkup column
+  const reviews = {}, notReady = {};
+  for (const r of said) { reviews[r.xdid] = (reviews[r.xdid] || 0) + 1; if (r.decision === 'notready') notReady[r.xdid] = (notReady[r.xdid] || 0) + 1; }
+  // worst first: a helper said Not ready, then the checkup's grade (check closely, worth a look, clean),
+  // then its serious and medium warnings; ties by date
+  let order = params.get('order');
+  try { order = order || localStorage.getItem('proof-order') || 'date'; } catch (e) { order = order || 'date'; }
+  const g = p => ({check: 0, look: 1, clean: 2})[p.checkup?.grade] ?? 3;
+  if (order === 'worst') list.sort((a, b) => (notReady[b.xdid] || 0) - (notReady[a.xdid] || 0) || g(a) - g(b)
+    || (b.checkup?.high || 0) - (a.checkup?.high || 0) || (b.checkup?.medium || 0) - (a.checkup?.medium || 0) || (a.xdid < b.xdid ? -1 : 1));
   const want = params.get('p'), i = Math.max(0, list.findIndex(p => p.xdid === want));
   ID = list[i].xdid; dir = list[i].base_url + '/';
-  const go = x => { const u = new URL(location.href); u.searchParams.set('p', x); location.href = u.href; };
+  const go = (x, o = order) => { const u = new URL(location.href); u.searchParams.set('p', x); u.searchParams.set('order', o); location.href = u.href; };
+  const label = p => {
+    const c = p.checkup || {}, bits = [];
+    if (notReady[p.xdid]) bits.push(`said not ready by ${notReady[p.xdid]}`);
+    if (c.grade && c.grade !== 'clean') bits.push(GRADE[c.grade] + (c.high ? ` (${c.high} serious)` : ''));
+    if (reviews[p.xdid]) bits.push(`${reviews[p.xdid]} review${reviews[p.xdid] > 1 ? 's' : ''}`);
+    return `${p.xdid}: ${(p.title || '').replace(/^Judge's Crossword Puzzle /, '')}${bits.length ? ' · ' + bits.join(' · ') : ''}`;
+  };
   const sel = document.getElementById('pick');
-  sel.innerHTML = list.map(p => `<option value="${esc(p.xdid)}"${p.xdid === ID ? ' selected' : ''}>${esc(p.xdid)}: ${esc((p.title || '').replace(/^Judge's Crossword Puzzle /, ''))}</option>`).join('');
+  sel.innerHTML = list.map(p => `<option value="${esc(p.xdid)}"${p.xdid === ID ? ' selected' : ''}>${esc(label(p))}</option>`).join('');
   sel.onchange = () => go(sel.value);
+  const os = document.getElementById('order');
+  os.value = order;
+  os.onchange = () => {
+    try { localStorage.setItem('proof-order', os.value); } catch (e) {}
+    const u = new URL(location.href); u.searchParams.delete('p'); u.searchParams.set('order', os.value); location.href = u.href;
+  };
   document.getElementById('nextpz').onclick = () => go(list[(i + 1) % list.length].xdid);
   document.getElementById('sitebar').hidden = false;
 }
