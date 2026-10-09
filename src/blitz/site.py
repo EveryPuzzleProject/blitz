@@ -87,6 +87,23 @@ def build(root: Path) -> Path:
     shutil.copy2(root / "site" / "site.js", out / "site.js")
     if not (out / "config.js").exists():
         shutil.copy2(root / "site" / "config.example.js", out / "config.js")
+    build_proof(root)
+    return out
+
+
+def build_proof(root: Path) -> Path:
+    """docs/review2/: the proof page (check the finished puzzle against the scan), a preview beside
+    /review/. It shares /review/'s config.js for the puzzle list and the files' address."""
+    out = root / "docs" / "review2"
+    out.mkdir(parents=True, exist_ok=True)
+    page = (Path(__file__).parent / "proof.html").read_text(encoding="utf-8")
+    old = "<script>\nconst params"
+    assert old in page
+    page = page.replace(old, '<script src="../review/config.js"></script>\n' + old)
+    page = page.replace("<title>Proof a puzzle</title>",
+                        '<title>Check old crosswords (preview): Every Puzzle Project</title>\n'
+                        '<meta name="robots" content="noindex">')
+    (out / "index.html").write_text(page, encoding="utf-8", newline="\n")
     return out
 
 
