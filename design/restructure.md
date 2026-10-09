@@ -194,8 +194,13 @@ the publication repo instead of `blitz/publications/`.
    (done 2026-10-09, judge 05f672c, blitz 8f5706a). volunteer-sync writes there; the status
    page builds from it; `blitz instructions judge` and the site's pages read it. Judge's
    PR flow is paused (Judge left `publications/ORDER`) until step 1c.
-1c. **Next:** rebuild the volunteer PR flow (`blitz start`, `hand.sh`, `pick.sh`, the PR check,
-   `pr-check`/`pr-import`) against publication repos, and create `games` the same way.
+1c. ~~Volunteer PRs go to the publication repo; `games` created~~ (done 2026-10-09). `blitz start`
+   forks/uses `../<pub>`, claims with a draft PR there, packets from its releases (both releases
+   copied from blitz); `submit` writes `reviews/<xdid>/`; each publication repo runs
+   `check_reviews.py` on PRs; xword-ocr `pr-check`/`pr-import` read the publication repo; the site
+   reads every publication from its repo. blitz `publications/` is now only ORDER, REVIEW.md and
+   the shared INSTRUCTIONS.md. Not yet exercised: a real volunteer fork + PR end to end.
+   **Next: step 2, the code move.**
 1. **The record repos.** Move fixes/ledger/notes/xd/puzzles.tsv into `judge`;
    create `games` the same way. Tools find a publication's repos as siblings
    (`../judge`, `../judge-scans`) through a registry in blitz
