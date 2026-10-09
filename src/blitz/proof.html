@@ -73,6 +73,12 @@ h2 .quick { margin-left: 8px; font-size: 12px; padding: 2px 10px; }
 .row.focus { background: #fbf7ef; box-shadow: inset 3px 0 0 var(--ink); }
 .lab { font-weight: 600; font-size: 13px; padding-top: 2px; }
 .abox { padding-top: 2px; }
+.keep { margin: 4px 0 0 3px; font-size: 12px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.keep > span { color: var(--muted); }
+.keep button { border: 1px solid var(--line); background: #fff; border-radius: 12px; padding: 2px 10px; font: inherit; cursor: pointer; }
+.keep button.on.k1 { background: var(--ok); border-color: var(--ok); color: #fff; }
+.keep button.on.k0 { background: #6b6b6b; border-color: #6b6b6b; color: #fff; }
+.txt.out { text-decoration: line-through; color: #9a9a9a; }
 .row .scan, .row .lab { cursor: zoom-in; }
 .row .scan.wide { cursor: zoom-out; }
 #pagepanel .pagewrap > p { max-width: 760px; }
@@ -293,6 +299,7 @@ function base(key) {
   const m = /^cell:r(\d+)c(\d+)$/.exec(key);
   if (m) return ocr.answers ? ocr.answers[m[1] - 1][m[2] - 1] : '';
   if (key.startsWith('meta:')) return ocr[key.slice(5)] || '';
+  if (key.startsWith('other:')) return (ocr.captions || {})[key.slice(6)] || '';
   return ocr.clues[key.slice(5)]?.text ?? '';
 }
 function valueAt(key, i) {
@@ -350,7 +357,7 @@ function diff(a, b, who, color) {
 
 // crop a box (clue_image coordinates) from the full-res scan
 function strip(box, im) {
-  if (!box) { const d = document.createElement('span'); d.className = 'nocrop'; d.textContent = 'No crop: the OCR didn\'t find this clue on the page'; return d; }
+  if (!box) { const d = document.createElement('span'); d.className = 'nocrop'; d.textContent = 'No crop: the OCR didn\'t find this on the page'; return d; }
   const s = scaleOf(im), [x0, y0, x1, y1] = box.map(v => v * s);
   const px = 4 * s, py = -1.5 * s, w = x1 - x0 + 2 * px, h = y1 - y0 + 2 * py;
   const cv = document.createElement('canvas');
@@ -383,8 +390,12 @@ function render() {
   }
 
   main.append(pageSection());
-  const hs = sec('meta', 'Title and byline', 'the title and byline', 'the words around the puzzle');
-  for (const k of Object.keys(ocr.meta_boxes || {})) addRow(hs, 'meta:' + k, k, ocr.meta_boxes[k]);
+  const hs = sec('meta', 'Title, byline and nearby lines', 'the title, byline and nearby lines', 'the words around the puzzle');
+  for (const k of Object.keys(ocr.meta_boxes || {})) {
+    const m = /^other(\d+)$/.exec(k);
+    addRow(hs, m ? 'other:' + m[1] : 'meta:' + k, m ? 'printed nearby' : k, ocr.meta_boxes[k]);
+  }
+  for (const n of Object.keys(ocr.captions || {})) if (!(('other' + n) in (ocr.meta_boxes || {}))) addRow(hs, 'other:' + n, 'printed nearby', null);
   main.append(hs);
   const why = blankReasons();
   main.append(blankSection(why, hasKey()));
@@ -405,12 +416,12 @@ function render() {
 
 function legend() {
   document.getElementById('legend').innerHTML = 'Changes: <span><u>underlined</u> = added, <s>struck</s> = removed, coloured by who made them:</span>' +
-    rounds.map(r => `<span><i class="sw" style="background:${r.color}"></i>${esc(r.who)}${r === cur ? ' (you)' : ''}</span>`).join('');
+    rounds.map(r => `<span><i class="sw" style="background:${r.color}"></i>${esc(r.who)}${r === cur && r.who !== 'You' ? ' (you)' : ''}</span>`).join('');
 }
 
 // the parts of a puzzle, how to talk about them, and which fields belong to each
 const PART = {
-  meta: {name: 'title and byline', plural: true, has: k => k.startsWith('meta:')},
+  meta: {name: 'title, byline and nearby lines', plural: true, has: k => k.startsWith('meta:') || k.startsWith('other:')},
   page: {name: 'whole page', has: () => false},
   blank: {name: 'blank grid', has: k => k.startsWith('grid:')},
   grid: {name: 'answer key', has: k => k.startsWith('cell:')},
@@ -812,7 +823,7 @@ function drawBlank(s) {
 }
 
 function noteHtml(r, text, why) {
-  return `<div class="note" style="border-left-color:${r.color}"><span class="by" style="color:${r.color}">${esc(r.who)}${r === cur ? ' (you)' : ''}${why ? ' <i>on their edit</i>' : ''}</span>${esc(text)}</div>`;
+  return `<div class="note" style="border-left-color:${r.color}"><span class="by" style="color:${r.color}">${esc(r.who)}${r === cur && r.who !== 'You' ? ' (you)' : ''}${why ? ' <i>on their edit</i>' : ''}</span>${esc(text)}</div>`;
 }
 
 function addRow(s, key, label, box, flags = [], src = null) {
@@ -826,6 +837,9 @@ function addRow(s, key, label, box, flags = [], src = null) {
   row.innerHTML = `<div class="lab">${esc(label)}</div>
     <div class="body"><div class="scan"></div><div>
       <div class="typed">${isClue ? `<span class="num${odd ? ' odd' : ''}" title="the number printed beside this clue">${esc(pn)}.</span>` : ''}<span class="txt" spellcheck="false"></span></div>
+      ${key.startsWith('other:') ? `<div class="keep"><span>Part of this puzzle's record?</span>
+        <button class="k1" title="Keep this line with the puzzle">★ Important: keep it</button>
+        <button class="k0" title="Leave it out: a notice or ad, not part of the puzzle">Not important: leave it out</button></div>` : ''}
       <div class="was"></div><div class="marks"></div></div></div>
     <div class="abox"></div>
     <div class="margin"></div>`;
@@ -884,14 +898,26 @@ function addRow(s, key, label, box, flags = [], src = null) {
     const h = moved ? history(key, src.text) : history(key), fin = h[h.length - 1].value;
     row.look = row.suspect || h.length > 1 || flags.length || odd || commentsFor(key).length;
     let kind = '';
+    const nearby = key.startsWith('other:'), out = nearby && fin === '';
+    const text = [...h].reverse().find(v => v.value)?.value || '';   // the line itself, even when left out
+    if (nearby) {
+      row.querySelector('.k1').classList.toggle('on', !out);
+      row.querySelector('.k0').classList.toggle('on', out);
+      txt.classList.toggle('out', out);
+      txt.contentEditable = out ? 'false' : 'true';
+      txt.title = out ? 'Left out of the puzzle; choose Important to keep it' : '';
+    }
     if (h.length > 1) {
-      const last = h[h.length - 1], d = diff(h[h.length - 2].value, last.value, last.who, last.color);
-      kind = `${last.who}${last.who === cur.who ? ' (you)' : ''} ${d.kind}`;
-      if (document.activeElement !== txt) txt.innerHTML = `<span class="plain">${esc(fin)}</span><span class="chg">${d.html}</span>`;
+      const last = h[h.length - 1], prev = h[h.length - 2], d = diff(prev.value, last.value, last.who, last.color);
+      const me = `${last.who}${last.who === cur.who && cur.who !== 'You' ? ' (you)' : ''}`;
+      kind = nearby && !last.value ? `${me} marked it not important`
+        : nearby && !prev.value ? `${me} marked it important` : `${me} ${d.kind}`;
+      if (document.activeElement !== txt)
+        txt.innerHTML = out ? esc(text) : `<span class="plain">${esc(fin)}</span><span class="chg">${nearby && !prev.value ? esc(fin) : d.html}</span>`;
     } else if (document.activeElement !== txt) txt.textContent = fin;
     // the earlier versions, oldest first, so it's clear what was there before
     row.querySelector('.was').innerHTML = h.length > 1 ? h.slice(0, -1).map((v, i) =>
-      `${i ? ' → ' : ''}${v.who === 'OCR' ? 'OCR read' : esc(v.who) + ' made it'} <q>${esc(v.value) || '(nothing)'}</q>`).join('') +
+      `${i ? ' → ' : ''}${v.who === 'OCR' ? `OCR read <q>${esc(v.value) || '(nothing)'}</q>` : nearby && !v.value ? esc(v.who) + ' left it out' : `${esc(v.who)} made it <q>${esc(v.value) || '(nothing)'}</q>`}`).join('') +
       ` → <b style="color:${h[h.length-1].color}">${esc(kind)}</b>` : '';
     const looked = rounds.filter(r => (r.looked || []).includes(key)).map(r => r.who);
     row.querySelector('.marks').innerHTML =
@@ -908,6 +934,11 @@ function addRow(s, key, label, box, flags = [], src = null) {
     m.querySelector('.addc').onclick = () => compose(m, key, false);
   };
   txt.contentEditable = 'true';
+  if (key.startsWith('other:')) {
+    const lastText = () => [...history(key)].reverse().find(v => v.value)?.value || '';
+    row.querySelector('.k1').onclick = () => { if (final(key) === '') { setEdit(key, lastText(), true); compose(row.querySelector('.margin'), key, true); } };
+    row.querySelector('.k0').onclick = () => { if (final(key) !== '') { setEdit(key, '', true); compose(row.querySelector('.margin'), key, true); } };
+  }
   txt.onfocus = () => { txt.textContent = final(key); setFocus(rows.indexOf(row)); };
   txt.onblur = () => {
     const v = txt.textContent.trim();
