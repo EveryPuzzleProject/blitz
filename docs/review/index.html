@@ -597,14 +597,25 @@ async function submitReview(d) {
   const p = await sb.from('proofs').upsert({xdid: ID, user_id: uid, who, decision: d, review, at});
   if (p.error) throw p.error;
   const bad = Object.entries(cur.status).filter(([, x]) => x.v === 'bad').map(([id, x]) => `${PART[id]?.name || id}: ${x.note || 'a problem'}`);
-  const note = [d === 'ready' ? (n ? `Ready with ${plural(n, 'edit')} (see proofs)` : 'Ready') : 'Not ready', ...bad, cur.note || '']
+  const known = knownIssues().filter(k => cur.status[k.id]?.v === 'ok').map(k => `known issue acknowledged: ${k.name}`);
+  const note = [d === 'ready' ? (n ? `Ready with ${plural(n, 'edit')} (see proofs)` : 'Ready') : 'Not ready', ...bad, ...known, cur.note || '']
     .filter(Boolean).join('; ').slice(0, 500);
   const v = await sb.from('verdicts').upsert({xdid: ID, user_id: uid, verdict: d === 'ready' && !n ? 'looks-right' : 'needs-work', note, at});
   if (v.error) throw v.error;
 }
+// known issues: true of the puzzle, not mistakes in our transcription; the reviewer acknowledges each one
+function knownIssues() {
+  const out = [];
+  if (!hasKey()) out.push({id: 'known:no-answers', name: 'no answer key',
+    text: "No answer key: the answers weren't printed with this puzzle (often they ran in a later issue), so our letters can't be checked against them."});
+  return out;
+}
+// everything the summary asks about: the parts on the page, then the known issues
+const reviewIds = () => [...[...document.querySelectorAll('section[data-sec]')].map(p => p.dataset.sec), ...knownIssues().map(k => k.id)];
+const nameOf = id => PART[id]?.name || knownIssues().find(k => k.id === id)?.name || id;
 // what the parts say: 'ready' if all are good, 'notready' if any has a problem, null while some aren't reviewed
 function implied() {
-  const ids = [...document.querySelectorAll('section[data-sec]')].map(x => x.dataset.sec);
+  const ids = reviewIds();
   if (ids.some(id => cur.status[id]?.v === 'bad')) return 'notready';
   return ids.every(id => cur.status[id]?.v === 'ok') ? 'ready' : null;
 }
@@ -615,7 +626,7 @@ function decision() {
 }
 // Ready with parts still open, or with a part marked as a problem: ask in place, never block
 function readyClicked() {
-  const ids = [...document.querySelectorAll('section[data-sec]')].map(p => p.dataset.sec);
+  const ids = reviewIds();
   const open = ids.filter(id => !cur.status[id]), bad = ids.filter(id => cur.status[id]?.v === 'bad');
   const box = document.getElementById('askready');
   const ready = () => {
@@ -624,18 +635,21 @@ function readyClicked() {
     cur.decision = 'ready'; askDone(); save(); progress();
   };
   if (!open.length && !bad.length) return ready();
-  const name = id => `<b>${esc(PART[id].name)}</b>`, list = xs => xs.map(name).join(xs.length > 2 ? ', ' : ' and ');
+  const name = id => `<b>${esc(nameOf(id))}</b>`, list = xs => xs.map(name).join(xs.length > 2 ? ', ' : ' and ');
   let html = '';
   if (bad.length) html += `<p>You said there's a problem in the ${bad.map(id => name(id) + (cur.status[id].note ? ` ("${esc(cur.status[id].note)}")` : '')).join(' and ')}. Is the puzzle ready anyway?</p>`;
-  if (open.length) html += `<p>${bad.length ? 'And you' : 'You'} haven't marked the ${list(open)} yet. ${bad.length ? '' : 'Mark ' + (open.length > 1 ? 'them all' : 'it') + ' as looking good?'}</p>`;
+  const openParts = open.filter(id => PART[id]), openKnown = open.filter(id => !PART[id]);
+  const ackText = openKnown.length ? `acknowledge the known issue${openKnown.length > 1 ? 's' : ''} (${openKnown.map(id => esc(nameOf(id))).join(', ')})` : '';
+  if (openParts.length) html += `<p>${bad.length ? 'And you' : 'You'} haven't marked the ${list(openParts)} yet.${bad.length ? '' : ` Mark ${openParts.length > 1 ? 'them all' : 'it'} as looking good${ackText ? ' and ' + ackText : ''}?`}</p>`;
+  else if (openKnown.length) html += `<p>${bad.length ? 'And you' : 'You'} haven't acknowledged the known issue${openKnown.length > 1 ? 's' : ''} yet: ${openKnown.map(name).join(', ')}.${bad.length ? '' : ' ' + ackText[0].toUpperCase() + ackText.slice(1) + '?'}</p>`;
   const go = bad[0] || open[0];
-  html += `<div class="acts"><button class="plain" data-a="back">Go back to the ${esc(PART[go].name)}</button>` +
+  html += `<div class="acts">${PART[go] ? `<button class="plain" data-a="back">Go back to the ${esc(PART[go].name)}</button>` : ''}` +
     (bad.length ? `<button class="bad" data-a="no">No, it's not ready</button>` : '') +
-    `<button class="good" data-a="yes">${bad.length ? "Yes, it's ready" : `Mark ${open.length > 1 ? 'all' : 'it'} good and choose Ready`}</button></div>`;
+    `<button class="good" data-a="yes">${bad.length ? "Yes, it's ready" : openParts.length ? `Mark ${openParts.length > 1 ? 'all' : 'it'} good${openKnown.length ? ', acknowledge' : ''} and choose Ready` : 'Acknowledge and choose Ready'}</button></div>`;
   box.innerHTML = `<div class="ask">${html}</div>`;
   box.querySelector('[data-a=yes]').onclick = ready;
   box.querySelector('[data-a=no]')?.addEventListener('click', () => { cur.decision = 'notready'; askDone(); save(); paintSummary(); });
-  box.querySelector('[data-a=back]').onclick = () => {
+  if (box.querySelector('[data-a=back]')) box.querySelector('[data-a=back]').onclick = () => {
     askDone();
     const t = document.querySelector(`section[data-sec="${go}"]`);
     t.scrollIntoView({block: 'start'}); scrollBy(0, -70);
@@ -653,13 +667,22 @@ function paintSummary() {
       : st.was === 'bad' ? ` <span style="color:var(--muted)">(you'd noted: ${esc(st.note || 'a problem')})</span>` : '')
       : `<span style="color:var(--bad)">problem: ${esc(st.note || '(no note)')}</span>`) : '<span style="color:var(--muted)">not reviewed yet</span>';
     return `<tr data-go="${id}" title="Go back to the ${esc(PART[id].name)}"><td class="st">${icon}</td><td class="nm"><a>${esc(PART[id].name[0].toUpperCase() + PART[id].name.slice(1))}</a> · ${said}</td><td class="ct">${plural(n, 'edit')}, ${plural(c, 'comment')}</td><td class="go">go back ↑</td></tr>`;
+  }).join('') + knownIssues().map(k => {
+    const ack = cur.status[k.id]?.v === 'ok';
+    return `<tr class="known"><td class="st"><button class="sg${ack ? ' on' : ''}" data-known="${k.id}" title="I've seen this: it's not a mistake in the transcription">✓</button></td>` +
+      `<td class="nm" colspan="3"><b>Known issue</b> · ${esc(k.text)} <span style="color:var(--muted)">${ack ? '(acknowledged)' : '(tick to acknowledge)'}</span></td></tr>`;
   }).join('');
+  s.querySelectorAll('[data-known]').forEach(b => b.onclick = () => {
+    const id = b.dataset.known;
+    if (cur.status[id]) delete cur.status[id]; else cur.status[id] = {v: 'ok'};
+    save(); progress();
+  });
   s.querySelectorAll('[data-go]').forEach(a => a.onclick = e => {
     if (e.target.closest('td.st')) return;   // the ✓ / ✗ buttons set the part here; the rest of the row goes back to it
     const t = document.querySelector(`section[data-sec="${a.dataset.go}"]`); t.style.display = ''; t.scrollIntoView({block: 'start'}); scrollBy(0, -70);
   });
   // ✓ marks the part good, ✗ asks what's wrong (in a row below); clicking the chosen one again clears it
-  s.querySelectorAll('td.st button').forEach(b => b.onclick = () => {
+  s.querySelectorAll('td.st button[data-set]').forEach(b => b.onclick = () => {
     const tr = b.closest('tr'), id = tr.dataset.go, st = cur.status[id];
     s.querySelector('tr.noterow')?.remove();
     if (st?.v === b.dataset.set) { delete cur.status[id]; save(); progress(); return; }
@@ -674,9 +697,9 @@ function paintSummary() {
     ta.onkeydown = e => { if (e.key === 'Escape') row.remove(); };
   });
   const n = Object.keys(cur.edits).length, imp = implied(), d = decision();
-  const todo = parts.filter(p => !cur.status[p.dataset.sec]).length, bad = parts.filter(p => cur.status[p.dataset.sec]?.v === 'bad').length;
+  const todo = reviewIds().filter(id => !cur.status[id]).length, bad = parts.filter(p => cur.status[p.dataset.sec]?.v === 'bad').length;
   const r = s.querySelector('.ready'), nr = s.querySelector('.notready');
-  r.innerHTML = `✓ Ready: the puzzle matches the scan${n ? ' as edited' : ''}<small>${n ? `with my ${plural(n, 'edit')}` : 'no edits needed'}${todo ? ` · ${plural(todo, 'part')} not marked yet` : ''}</small>`;
+  r.innerHTML = `✓ Ready: the puzzle matches the scan${n ? ' as edited' : ''}<small>${n ? `with my ${plural(n, 'edit')}` : 'no edits needed'}${todo ? ` · ${todo} not marked yet` : ''}</small>`;
   nr.innerHTML = `✗ Not ready: something's wrong I couldn't fix<small>${bad ? `you marked ${plural(bad, 'part')} with a problem` : 'say what in the box above'}</small>`;
   r.classList.toggle('sel', d === 'ready');
   nr.classList.toggle('sel', d === 'notready');
