@@ -97,6 +97,23 @@ they aren't committed anywhere.
 Visibility: public by default; make a repo private if a source calls for it or
 if it draws objections.
 
+## The volunteer pipeline, end to end
+
+The goal: volunteers harvest, run the first-pass OCR and the AI review; the
+results reach the review site for less technical helpers; their proofs come back.
+
+| Step | Who | How |
+|---|---|---|
+| Harvest a source, first-pass OCR, build packets | a harvester (collaborator on the publication repo) | `blitz harvest` / `blitz packets` (after step 2); packets attached to a release of the publication repo |
+| AI review | anyone, with their agent | fork the publication repo, `blitz start`, PR the reviews (step 1c) |
+| Merge, import into the ledger | maintainer, later CI | `blitz check` on the PR; import on merge |
+| Publish to the review site | maintainer (`blitz site-publish`) | **later, decide:** a CI job on merge, with the site keys as org secrets |
+| Helpers' proofs back into the ledger | maintainer | `site-import` + import |
+
+Harvesting is a trusted role (it uploads packets), reviewing is open to anyone.
+The test of the whole chain: someone other than the maintainer harvests a batch
+of Boston Globe puzzles, reviews it with their agent, and it reaches the site.
+
 ## What stays in `judge-scans` (and becomes the harvest folder)
 
 Today `xword-ocr/harvests/judge/` is the working folder and `epp scans backup`
