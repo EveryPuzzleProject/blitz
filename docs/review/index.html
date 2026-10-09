@@ -170,7 +170,11 @@ body.side .typed { margin-top: 0; }
 
 /* the answer key: always sans-serif, like the printed keys */
 .gridwrap { display: flex; gap: 24px; padding: 14px; flex-wrap: wrap; align-items: flex-start; }
-.gridbox { position: relative; width: 420px; height: 420px; flex: none; }
+.gridbox { position: relative; width: 420px; height: 420px; flex: none; margin: 16px 0 0 20px; }
+.edge-c, .edge-r { position: absolute; display: grid; font: 10px/1 var(--sans); color: var(--muted); pointer-events: none; }
+.edge-c { top: -14px; left: 0; right: 0; text-align: center; }
+.edge-r { left: -20px; top: 0; bottom: 0; width: 16px; text-align: right; align-items: center; }
+.typedgrid.hit div { color: transparent; }
 .gridbox img { width: 100%; height: 100%; display: block; }
 .typedgrid { position: absolute; inset: 0; display: grid; }
 .typedgrid div { display: flex; align-items: center; justify-content: center; font: 600 21px/1 var(--sans); cursor: pointer; }
@@ -716,6 +720,38 @@ function answerStrip(k) {
   cv.style.width = cs.length * 24 + 'px';
   return cv;
 }
+// "r9c13 (42 Across, 31 Down)": a square's position, and the clues through it
+let refMap = null, refFor = null;
+function cellRef(r, c) {
+  if (refFor !== NUM) {   // built once per numbering: square -> the entries through it
+    refMap = {}; refFor = NUM;
+    for (const k of Object.keys(NUM)) for (const [rr, cc] of entryCells(k)) (refMap[`${rr},${cc}`] ||= []).push(k.slice(1) + (k[0] === 'A' ? ' Across' : ' Down'));
+  }
+  const through = refMap[`${r},${c}`] || [];
+  return `r${r + 1}c${c + 1}` + (through.length ? ` (${through.join(', ')})` : '');
+}
+// while a note box has the cursor, clicking a square puts its position in the note instead
+let refAt = 0;
+addEventListener('mousedown', e => {
+  const sq = e.target.closest('[data-rc]'), ta = document.activeElement;
+  if (!sq || !ta || ta.tagName !== 'TEXTAREA') return;
+  e.preventDefault();   // keep the cursor in the note
+  const [r, c] = sq.dataset.rc.split(',').map(Number), ref = cellRef(r, c);
+  const a = ta.selectionStart, b = ta.selectionEnd, v = ta.value;
+  const pad = a && !/\s$/.test(v.slice(0, a)) ? ' ' : '';
+  ta.value = v.slice(0, a) + pad + ref + ' ' + v.slice(b);
+  ta.selectionStart = ta.selectionEnd = a + pad.length + ref.length + 1;
+  ta.dispatchEvent(new Event('input'));
+  refAt = Date.now();
+}, true);
+const justReferenced = () => Date.now() - refAt < 400;
+// row and column numbers along a grid's top and left edges
+function edgeLabels(box, H, W) {
+  box.querySelectorAll('.edge-c, .edge-r').forEach(x => x.remove());
+  box.insertAdjacentHTML('beforeend',
+    `<div class="edge-c" style="grid-template-columns:repeat(${W},1fr)">${Array.from({length: W}, (_, i) => `<span>${i + 1}</span>`).join('')}</div>` +
+    `<div class="edge-r" style="grid-template-rows:repeat(${H},1fr)">${Array.from({length: H}, (_, i) => `<span>${i + 1}</span>`).join('')}</div>`);
+}
 // the number printed beside the clue, as the OCR read it
 function printedNumber(k, flags) {
   const f = flags.find(f => f.startsWith('number-corrected:'));
@@ -907,8 +943,10 @@ function blankCells(cls) {
     const k = `grid:r${r+1}c${c+1}`, h = history(k), x = document.createElement('div');
     if (g[r][c] === '#') x.className = 'blk';
     if (nums[`${r},${c}`]) x.innerHTML = `<span class="n">${nums[`${r},${c}`]}</span>`;
-    if (h.length > 1) { x.style.boxShadow = `inset 0 0 0 2.5px ${h[h.length-1].color}`; x.title = `r${r+1}c${c+1}: ` + h.map(v => `${v.who} ${v.value === '#' ? 'black' : 'white'}`).join(' → '); }
-    x.onclick = () => { setEdit(k, g[r][c] === '#' ? '.' : '#', true); compose(document.querySelector('#bnotes'), k, true); };
+    x.dataset.rc = `${r},${c}`;
+    x.title = cellRef(r, c);
+    if (h.length > 1) { x.style.boxShadow = `inset 0 0 0 2.5px ${h[h.length-1].color}`; x.title += ': ' + h.map(v => `${v.who} ${v.value === '#' ? 'black' : 'white'}`).join(' → '); }
+    x.onclick = () => { if (justReferenced() || cls === 'hit') return; setEdit(k, g[r][c] === '#' ? '.' : '#', true); compose(document.querySelector('#bnotes'), k, true); };
     d.append(x);
   }
   return d;
@@ -919,8 +957,9 @@ function drawBlank(s) {
   s.querySelectorAll('.typedgrid').forEach(x => x.remove());
   scan.classList.toggle('blinking', bMode === 'blink');
   typed.style.display = bMode === 'side' ? '' : 'none';
-  if (bMode === 'side') typed.append(blankCells('solo'));
+  if (bMode === 'side') { typed.append(blankCells('solo')); scan.append(blankCells('hit')); }
   else scan.append(blankCells(bMode === 'over' ? 'over' : 'solo'));
+  const G0 = G(); edgeLabels(scan, G0.length, G0[0].length); edgeLabels(typed, G0.length, G0[0].length);
   const g = s.querySelector('#bnotes'), open = g.querySelector('.compose');
   g.innerHTML = rounds.flatMap(r => r.comments.filter(c => c.key.startsWith('grid:')).map(c => `<b>${esc(c.key.slice(5))}</b> ` + noteHtml(r, c.text, c.why))).join('');
   if (open) g.prepend(open);
@@ -985,7 +1024,8 @@ function addRow(s, key, label, box, flags = [], src = null) {
     for (const [r, c] of entryCells(label)) {
       const x = document.createElement('span');
       x.dataset.cell = `${r},${c}`;
-      x.onclick = () => { selCell = [r, c]; regrid(); markSel(); };
+      x.dataset.rc = `${r},${c}`;
+      x.onclick = () => { if (justReferenced()) return; selCell = [r, c]; regrid(); markSel(); };
       ac.append(x);
     }
     ab.append(ac);
@@ -997,7 +1037,7 @@ function addRow(s, key, label, box, flags = [], src = null) {
       const [r, c] = x.dataset.cell.split(',').map(Number), k = `cell:r${r+1}c${c+1}`, hh = history(k);
       x.textContent = final(k);
       x.style.boxShadow = hh.length > 1 ? `inset 0 0 0 2px ${hh[hh.length-1].color}` : '';
-      x.title = hh.length > 1 ? hh.map(v => `${v.who} ${v.value}`).join(' → ') : '';
+      x.title = cellRef(r, c) + (hh.length > 1 ? ': ' + hh.map(v => `${v.who} ${v.value}`).join(' → ') : '');
     });
     const h = moved ? history(key, src.text) : history(key), fin = h[h.length - 1].value;
     row.look = row.suspect || h.length > 1 || flags.length || odd || commentsFor(key).length;
@@ -1141,6 +1181,7 @@ function gridSection() {
       <p><button class="t" data-g="side">Side by side</button> <button class="t" data-g="over">On the scan</button> <button class="t" data-g="blink">Blink</button></p>
       <p>On the scan, a red letter sitting squarely on the printed one is a match; a doubled or smeared letter is a difference. Blink flips between them: differences jump.</p>
       <p>Click a square and type a letter to fix it. A coloured outline means a reviewer changed it (hover to see what it was).</p>
+      <p>Hover a square for its position. While you're writing a note, click a square to put its position in the note.</p>
       ${blankReasons().length ? `<p class="m-flag" style="padding:4px 8px;border-radius:6px">The blank grid may be worth a look: ${esc(blankReasons().join(' '))} <button class="ctxbtn" onclick="showBlank()">Open the blank grid</button></p>` : ''}
       <div class="margin" id="gnotes"></div>
     </div></div>`);
@@ -1157,10 +1198,12 @@ function cells(cls) {
   for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) {
     const k = `cell:r${r+1}c${c+1}`, ch = final(k), h = history(k), x = document.createElement('div');
     if (ch === '#') x.className = 'blk'; else x.textContent = ch;
-    if (h.length > 1) { x.style.boxShadow = `inset 0 0 0 2.5px ${h[h.length-1].color}`; x.title = `r${r+1}c${c+1}: ` + h.map(v => `${v.who} ${v.value}`).join(' → '); }
-    else if (low.has(`r${r+1}c${c+1}`)) { x.classList.add('unsure'); x.title = 'the OCR was unsure of this letter'; }
+    x.dataset.rc = `${r},${c}`;
+    x.title = cellRef(r, c);
+    if (h.length > 1) { x.style.boxShadow = `inset 0 0 0 2.5px ${h[h.length-1].color}`; x.title += ': ' + h.map(v => `${v.who} ${v.value}`).join(' → '); }
+    else if (low.has(`r${r+1}c${c+1}`)) { x.classList.add('unsure'); x.title += ': the OCR was unsure of this letter'; }
     if (selCell && selCell[0] === r && selCell[1] === c) x.classList.add('cur');
-    x.onclick = () => { selCell = [r, c]; regrid(); };
+    x.onclick = () => { if (justReferenced()) return; selCell = [r, c]; regrid(); };
     d.append(x);
   }
   return d;
@@ -1171,8 +1214,9 @@ function drawGrid(s) {
   s.querySelectorAll('.typedgrid').forEach(x => x.remove());
   scanBox.classList.toggle('blinking', gridMode === 'blink');
   typedBox.style.display = gridMode === 'side' ? '' : 'none';
-  if (gridMode === 'side') typedBox.append(cells('solo'));
+  if (gridMode === 'side') { typedBox.append(cells('solo')); scanBox.append(cells('hit')); }   // hit: hover and click on the scan too
   else scanBox.append(cells(gridMode === 'over' ? 'over' : 'solo'));
+  edgeLabels(scanBox, ocr.answers.length, ocr.answers[0].length); edgeLabels(typedBox, ocr.answers.length, ocr.answers[0].length);
   const g = s.querySelector('#gnotes'), open = g.querySelector('.compose');
   const notes = [];
   for (const r of rounds) for (const c of r.comments) if (c.key.startsWith('cell:')) notes.push(`<b>${esc(c.key.slice(5))}</b> ` + noteHtml(r, c.text, c.why));
