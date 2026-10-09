@@ -229,6 +229,7 @@ Know of a publication that ran crosswords? Add it to the
 ## Layout
 
 - `VOLUNTEER.md`: the procedure Claude follows.
+- `MAINTAINING.md`: the maintainer's loop for a publication: open puzzles, review, check, merge, import.
 - `src/blitz/`: the `blitz` command (`uv run blitz --help`): claiming puzzles, the
   review tools (text view, scan crops, finishing a review), a live page to
   watch reviews, and sending them.
