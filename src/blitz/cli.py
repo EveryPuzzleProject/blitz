@@ -22,7 +22,7 @@ The public review site (helpers check agents' reviews in the browser; see site/R
     blitz site-close <puzzle...>         take puzzles off the site
 
 A <puzzle> is its id (judge1931-03-14), looked up in ../blitz-work, or a path
-to any puzzle folder.
+to any puzzle folder. `text` also takes a folder of puzzle folders (a batch).
 """
 
 from __future__ import annotations
@@ -47,6 +47,18 @@ def _packet(name: str) -> Path:
     if (d / "ocr.json").exists():
         return d
     raise work.Stop(f"No puzzle {name}: give its id from `blitz status`, or a path to its folder.")
+
+
+def _packets(names: list[str]) -> list[Path]:
+    """Puzzles by id or path; a folder of packets (a maintainer's batch) stands for all of them."""
+    out = []
+    for name in names:
+        p = Path(name)
+        if p.is_dir() and not (p / "ocr.json").exists() and any(p.glob("*/ocr.json")):
+            out += sorted(d.parent for d in p.glob("*/ocr.json"))
+        else:
+            out.append(_packet(name))
+    return out
 
 
 def cmd_doctor(a) -> None:
@@ -104,8 +116,7 @@ def cmd_instructions(a) -> None:
 def cmd_text(a) -> None:
     from .packet import write_text
 
-    for name in a.puzzles:
-        d = _packet(name)
+    for d in _packets(a.puzzles):
         lane, why = write_text(d)
         print(f"{d / 'text.md'}" + (f"  (whole-puzzle problem: {'; '.join(why)})" if why else ""))
 

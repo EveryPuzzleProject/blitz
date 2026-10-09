@@ -138,3 +138,37 @@ def test_site_import_combines_helpers(monkeypatch):
     assert p["verdict"] == "needs-work" and p["reports"] == {"clue:D2": "Ann: Long tune."}
     assert p["by"]["Ann"] == {"clue:A1": "accept", "verdict": "looks-right"}
     assert p["proofs"]["Bo"]["edits"] == {"clue:A1": "Feline."} and p["proofs"]["Bo"]["decision"] == "ready"
+
+
+# Moved from xword-ocr's test_triage.py when xword-ocr stopped doing review (2026-10-09).
+
+def test_whole_puzzle_problems_go_to_the_full_review():
+    o = _ocr()
+    o["clues"]["D3"]["text"] = ""
+    assert "clue text missing" in structural_checks(o)
+    o = _ocr()
+    o["clues"]["D3"]["text"] = o["clues"]["D2"]["text"]
+    assert structural_checks(o)["same text on neighbouring clues"] == ["D2", "D3"]
+    o = _ocr()
+    o["clues"] = {("A5" if k == "A6" else k): v for k, v in o["clues"].items()}
+    assert "clue numbers don't match the grid" in structural_checks(o)
+    assert route(_ocr(answers=None)) == ("full", ["no answer key"])
+
+
+def test_a_whole_grid_crop_covers_every_square():
+    draft = {"corrections": {"cell:r4c4": "E"}, "tool_notes": [{"kind": "crop", "note": "x"}]}
+    review, _ = finish(_ocr(), draft, ["cell:all"])
+    assert review["corrections"] == {"cell:r4c4": "E"}
+    assert review["tool_notes"] == [{"kind": "crop", "note": "x"}]
+
+
+def test_a_few_missing_clues_are_not_a_continuation():
+    from blitz.packet import number_grid
+
+    grid = ["".join("#" if r % 2 and c % 2 else "." for c in range(25)) for r in range(25)]
+    labels = [s[0] for s in number_grid(grid)]
+    o = {"grid": grid, "answers": None, "clues": {k: {"text": f"clue {k}."} for k in labels}}
+    for k in [k for k in labels if k[0] == "D"][:3]:
+        o["clues"][k]["text"] = ""
+    checks = structural_checks(o)
+    assert "clue list continues on another page" not in checks and "clue text missing" in checks
