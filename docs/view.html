@@ -71,7 +71,7 @@ function show(P, row) {
     : `<div class="cell">${x.num ? `<span class="num">${x.num}</span>` : ''}${x.sol ? esc(x.sol) : known ? '<span class="unk">·</span>' : ''}</div>`).join('')).join('');
   const who = from && from !== 'local' ? from.split(/[/:]/)[0] : '';
   const state = row ? (row.state === 'needs-person' ? `Still being checked: ${esc(REASONS[row.reason] || row.reason)}` : esc(STATE[row.state] || row.state)) : '';
-  const xdLink = P.fromXd ? `https://github.com/${REPO}/blob/main/publications/${pub}/xd/${id}.xd` : '';
+  const xdLink = P.fromXd ? pubBlob(pub, `xd/${id}.xd`) : '';
 
   app.innerHTML = `
     <div class="kicker">${esc(name)} · ${esc(P.date)}</div>

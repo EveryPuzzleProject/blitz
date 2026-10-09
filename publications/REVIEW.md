@@ -2,7 +2,7 @@
 
 Run every command from the blitz folder. `<puzzle>` is the puzzle's id (judge1931-03-14);
 its folder is `../blitz-work/<puzzle>/`. Also read the publication's notes, if any
-(`publications/<pub>/NOTES.md`, or run `uv run blitz instructions <pub>`).
+(`uv run blitz instructions <pub>` prints them: `review-notes.md` in the publication's repo).
 
 You are proofreading the OCR of one crossword from a scanned magazine (1920s-1990s).
 

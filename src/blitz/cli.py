@@ -108,9 +108,9 @@ def cmd_instructions(a) -> None:
     root = _root()
     pub = a.pub or ((work.load_session(root) or {}).get("puzzles") or [{}])[0].get("pub", "")
     print((root / "publications" / "REVIEW.md").read_text(encoding="utf-8"))
-    notes = root / "publications" / pub / "NOTES.md"
-    if pub and notes.exists():
-        print("\n" + notes.read_text(encoding="utf-8"))
+    notes = work.publication_notes(root, pub) if pub else ""
+    if notes:
+        print("\n" + notes)
 
 
 def cmd_text(a) -> None:

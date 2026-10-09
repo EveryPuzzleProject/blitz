@@ -47,6 +47,25 @@ def work_dir(root: Path) -> Path:
     return w
 
 
+def publication_notes(root: Path, pub: str) -> str:
+    """What reviewers need to know about one publication: review-notes.md in its
+    own repo (EveryPuzzleProject/<pub>), from a checkout beside blitz or else
+    from GitHub; for a publication without a repo yet, publications/<pub>/NOTES.md."""
+    local = root.parent / pub / "review-notes.md"
+    if local.exists():
+        return local.read_text(encoding="utf-8")
+    old = root / "publications" / pub / "NOTES.md"
+    if old.exists():
+        return old.read_text(encoding="utf-8")
+    import urllib.request
+
+    try:
+        url = f"https://raw.githubusercontent.com/EveryPuzzleProject/{pub}/main/review-notes.md"
+        return urllib.request.urlopen(url, timeout=30).read().decode("utf-8")
+    except OSError:
+        return ""
+
+
 def load_session(root: Path) -> dict | None:
     f = work_dir(root) / "session.json"
     return json.loads(f.read_text(encoding="utf-8")) if f.exists() else None
