@@ -214,7 +214,8 @@ the publication repo instead of `blitz/publications/`.
    identical; both test suites pass.
 3. **Harvest folder = scans checkout.** Retire `epp scans backup/restore`; move
    `globe-wayback` into blitz or leave it in `tools` (it's Boston Globe discovery).
-4. **`blitz status`, export, provenance.** The cross-publication view; puzzle-only
+4. **`blitz status`, export, provenance.** (Export started early, 2026-10-09: xword-ocr
+   `export-gxd` writes puzzle-only xd + receipts rows; provenance lives in gxd's receipts.) The cross-publication view; puzzle-only
    xd into `judge/xd/`; `provenance.jsonl`; re-export on change.
 5. **Library polish.** API, docs, examples, PyPI, make xword-ocr public.
 6. **The org landing page** (`EveryPuzzleProject/.github`, `profile/README.md`):
