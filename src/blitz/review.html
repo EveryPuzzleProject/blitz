@@ -101,8 +101,9 @@ pre.xd{background:var(--panel);border:1px solid var(--line);border-radius:6px;pa
 .fact b.t{font-weight:700}.fact .sq{display:inline-block;margin:0 2px;padding:0 6px;border:1px solid var(--warn);border-radius:9px;text-decoration:none;color:var(--ink);cursor:pointer}
 .fact .sq:hover{background:color-mix(in srgb,var(--hot) 25%,transparent)}
 /* year filter at the top of the list */
-.yf{position:sticky;top:0;z-index:2;display:flex;gap:6px;align-items:center;padding:7px 12px;background:var(--bg);border-bottom:1px solid var(--line);font-size:12px;color:var(--muted)}
-.yf select{flex:1;min-width:0;font:inherit;font-size:13px;padding:2px 4px;border:1px solid var(--line);border-radius:5px;background:var(--panel);color:var(--ink)}
+.yf{position:sticky;top:0;z-index:2;display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:7px 12px;background:var(--bg);border-bottom:1px solid var(--line);font-size:12px;color:var(--muted)}
+.yf select{flex:1 1 40%;min-width:0;font:inherit;font-size:13px;padding:2px 4px;border:1px solid var(--line);border-radius:5px;background:var(--panel);color:var(--ink)}
+.yf #year{flex:1 1 60%}
 /* reactions */
 .rx{position:relative;display:inline-flex;gap:4px;align-items:center;flex-wrap:wrap}
 .rx button{font:inherit;font-size:13px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:999px;padding:1px 8px;cursor:pointer;line-height:1.5}
@@ -434,14 +435,25 @@ function setHot(item, zoom) {
 // ---- rendering ----
 // ---- the year filter at the top of the list ----
 const yearOf = x => (/(\d{4})-\d\d/.exec(x) || [])[1] || '';
-let yearSel = '', gradeSel = '';
-try { gradeSel = localStorage.getItem('blitz-grade') || ''; } catch (e) {}
+let yearSel = '', gradeSel = '', sortSel = '';
+try { gradeSel = localStorage.getItem('blitz-grade') || ''; sortSel = localStorage.getItem('blitz-sort') || ''; } catch (e) {}
 const GRADE_RANK = {check: 0, look: 1, clean: 2};
 const GRADE_NAME = {check: 'check closely', look: 'worth a look', clean: 'looks clean'};
 try { yearSel = localStorage.getItem('blitz-year') || ''; } catch (e) {}
 // The puzzle that most needs a helper's eyes: one they haven't checked, by the fewest people so far, then in date order.
 function pickToCheck(skip) {
   return visible().filter(p => !p.verdict && p.xdid !== skip).reduce((b, p) => !b || (p.eyes || 0) < (b.eyes || 0) || ((p.eyes || 0) === (b.eyes || 0) && (GRADE_RANK[p.grade] ?? 3) < (GRADE_RANK[b.grade] ?? 3)) ? p : b, null);
+}
+// The list in the chosen order. Puzzles you've already checked sink in the two "need" orders, so the top is what to do next.
+function ordered(list) {
+  if (!sortSel) return list;
+  const g = p => GRADE_RANK[p.grade] ?? 3, e = p => p.eyes || 0, mine = p => p.verdict ? 1 : 0;
+  const key = sortSel === 'need' ? p => [mine(p), g(p), e(p)] : p => [mine(p), e(p), g(p)];
+  return [...list].sort((a, b) => {
+    const ka = key(a), kb = key(b);
+    for (let i = 0; i < ka.length; i++) if (ka[i] !== kb[i]) return ka[i] - kb[i];
+    return a.xdid < b.xdid ? -1 : a.xdid > b.xdid ? 1 : 0;
+  });
 }
 function visible() {
   return S.puzzles.filter(p => (!yearSel || yearOf(p.xdid) === yearSel)
@@ -454,13 +466,20 @@ function renderYears() {
   const box = $('#yf');
   if (years.length < 2) { box.hidden = true; return; }
   if (yearSel && !by[yearSel]) yearSel = '';
-  const sig = years.map(y => y + by[y]).join(',') + '|' + S.puzzles.length;
+  const sig = years.map(y => y + by[y]).join(',') + '|' + S.puzzles.length + '|' + S.puzzles.some(p => p.grade);
   if (box.dataset.sig !== sig) {
     box.dataset.sig = sig;
     box.innerHTML = `<label for="year">Year</label><select id="year"><option value="">All years (${S.puzzles.length})</option>`
       + years.map(y => `<option value="${y}">${y} (${by[y]})</option>`).join('') + `</select>`
-      + (S.puzzles.some(p => p.grade) ? `<select id="gradef" title="Show only puzzles that need a closer look"><option value="">any</option>`
-        + `<option value="look">worth a look+</option><option value="check">check closely</option></select>` : '');
+      + (S.puzzles.some(p => p.grade) ? `<select id="gradef" title="Show only puzzles that need a closer look"><option value="">any grade</option>`
+        + `<option value="look">worth a look+</option><option value="check">check closely</option></select>` : '')
+      + `<select id="sortf" title="Order of the list"><option value="">by date</option>`
+      + (S.puzzles.some(p => p.grade) ? `<option value="need">most in need first</option>` : '')
+      + `<option value="eyes">fewest checks first</option></select>`;
+    $('#sortf').onchange = e => {
+      sortSel = e.target.value; try { sortSel ? localStorage.setItem('blitz-sort', sortSel) : localStorage.removeItem('blitz-sort'); } catch (er) {}
+      renderList();
+    };
     if ($('#gradef')) $('#gradef').onchange = e => {
       gradeSel = e.target.value; try { gradeSel ? localStorage.setItem('blitz-grade', gradeSel) : localStorage.removeItem('blitz-grade'); } catch (er) {}
       renderList();
@@ -479,6 +498,7 @@ function renderYears() {
   box.hidden = false;
   $('#year').value = yearSel;
   if ($('#gradef')) $('#gradef').value = gradeSel;
+  if ($('#sortf')) $('#sortf').value = [...$('#sortf').options].some(o => o.value === sortSel) ? sortSel : '';
 }
 function renderList() {
   const counts = {};
@@ -490,7 +510,7 @@ function renderList() {
   } else
   $('#counts').innerHTML = ['waiting','looking','writing','ready','needs a person','escalated'].filter(s => counts[s]).map(s => `<span>${chip(s)} ${counts[s]}</span>`).join('');
   renderYears();
-  $('#list').innerHTML = visible().map(p => `<div class="p ${p.xdid === sel ? 'sel' : ''}" data-x="${p.xdid}"><span>${p.grade ? `<span class="gdot g-${p.grade}" title="${GRADE_NAME[p.grade]}"></span>` : ''}${esc(p.xdid)}<br><span class="muted" style="font-size:12px">${HELPER ? (p.eyes ? `${p.eyes} checked it` : 'needs eyes') : p.updated ? ago(p.updated) : ''}</span></span><span>${HELPER ? hchip(p) : chip(p.status)}${HELPER ? '' : p.verdict === 'looks-right' ? '<span class="mark" style="color:var(--ok)" title="you: looks right">✓</span>' : p.verdict === 'needs-work' ? '<span class="mark" style="color:var(--bad)" title="you: needs work">✗</span>' : ''}${p.rejected ? `<span class="mark" style="color:var(--bad)" title="changes you rejected">−${p.rejected}</span>` : ''}</span></div>`).join('');
+  $('#list').innerHTML = ordered(visible()).map(p => `<div class="p ${p.xdid === sel ? 'sel' : ''}" data-x="${p.xdid}"><span>${p.grade ? `<span class="gdot g-${p.grade}" title="${GRADE_NAME[p.grade]}"></span>` : ''}${esc(p.xdid)}<br><span class="muted" style="font-size:12px">${HELPER ? (p.eyes ? `${p.eyes} checked it` : 'needs eyes') : p.updated ? ago(p.updated) : ''}</span></span><span>${HELPER ? hchip(p) : chip(p.status)}${HELPER ? '' : p.verdict === 'looks-right' ? '<span class="mark" style="color:var(--ok)" title="you: looks right">✓</span>' : p.verdict === 'needs-work' ? '<span class="mark" style="color:var(--bad)" title="you: needs work">✗</span>' : ''}${p.rejected ? `<span class="mark" style="color:var(--bad)" title="changes you rejected">−${p.rejected}</span>` : ''}</span></div>`).join('');
   document.querySelectorAll('.p').forEach(el => el.onclick = () => { sel = el.dataset.x; $('#follow').checked = false; hot = null; focusCrops = null; focusCard = null; peek = null; pinned = false; load(true); });
 }
 
