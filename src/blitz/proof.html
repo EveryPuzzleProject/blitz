@@ -66,6 +66,13 @@ h2 .quick { margin-left: 8px; font-size: 12px; padding: 2px 10px; }
 .decide .ready { border-color: var(--ok); color: var(--ok); } .decide .ready.sel { background: var(--ok); color: #fff; }
 .decide .notready { border-color: var(--bad); color: var(--bad); } .decide .notready.sel { background: var(--bad); color: #fff; }
 .decide button:disabled { opacity: .4; cursor: default; }
+.ask { border: 1px solid #d9cfa8; background: #fffbea; border-radius: 8px; padding: 10px 14px; margin: -2px 0 10px; font-size: 13px; }
+.ask p { margin: 0 0 8px; }
+.ask .acts { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+.decide .ask button { display: inline-block; width: auto; font-size: 13px; padding: 6px 14px; margin: 0; border-width: 1px; text-align: center; }
+.decide .ask button.good { background: var(--ok); color: #fff; border-color: var(--ok); }
+.decide .ask button.bad { background: #fff; color: var(--bad); border-color: var(--bad); }
+.decide .ask button.plain { background: #fff; color: var(--ink); border-color: var(--line); }
 .submitted { background: var(--okbg); border: 1px solid #b9dcbc; border-radius: 6px; padding: 10px 12px; font-size: 13px; }
 
 /* a proof row: scan strip over the typed line, comments in the margin */
@@ -115,7 +122,7 @@ del { text-decoration: line-through; opacity: .8; }
 .was { font-size: 12px; color: var(--muted); margin: 2px 0 0 2.6em; padding-left: 3px; }
 .was q { font-family: var(--serif); font-size: 13px; color: #555; }
 body:not(.show-changes) .chg, body:not(.show-changes) .was { display: none; }
-body.show-changes .plain { display: none; }
+body.show-changes .fintext { display: none; }
 .marks { font-size: 11px; display: flex; gap: 4px; flex-wrap: wrap; margin: 3px 0 0 2.6em; padding-left: 3px; }
 .marks:empty { display: none; }
 .marks b { font-weight: 600; border-radius: 8px; padding: 0 6px; }
@@ -287,8 +294,8 @@ async function load() {
   cur = store.cur;
   cur.status = cur.status || {};
   rounds.forEach((r, i) => r.color = i === rounds.length - 1 ? COLORS[4] : COLORS[i % 4]);
-  document.getElementById('who').value = cur.who;
   if (!cur.who) cur.who = 'You';
+  document.getElementById('who').value = cur.who === 'You' ? '' : cur.who;
   render();
 }
 
@@ -492,14 +499,14 @@ function summarySection() {
   s.innerHTML = `<h2>Your review</h2><table></table><div class="body">
     <div style="font-size:13px">Anything else the next reviewer should know? <span style="color:var(--muted)">(optional)</span></div>
     <textarea id="overall"></textarea>
-    <div class="decide"><button class="ready"></button><button class="notready"></button></div>
+    <div class="decide"><button class="ready"></button><div id="askready"></div><button class="notready"></button></div>
     <div style="display:flex;justify-content:flex-end"><button class="good" id="submit">Submit my review</button></div>
     <div id="after"></div></div>`;
   const ta = s.querySelector('#overall');
   ta.value = cur.note || '';
   ta.oninput = () => { cur.note = ta.value; save(); };
-  s.querySelector('.ready').onclick = () => { cur.decision = 'ready'; save(); paintSummary(); };
-  s.querySelector('.notready').onclick = () => { cur.decision = 'notready'; save(); paintSummary(); };
+  s.querySelector('.ready').onclick = readyClicked;
+  s.querySelector('.notready').onclick = () => { cur.decision = 'notready'; askDone(); save(); paintSummary(); };
   s.querySelector('#submit').onclick = async () => {
     const btn = s.querySelector('#submit'), after = s.querySelector('#after'), d = decision();
     const counts = `${d === 'ready' ? 'ready' : 'not ready'}, ${plural(Object.keys(cur.edits).length, 'edit')}, ${plural(cur.comments.length, 'comment')}`;
@@ -548,31 +555,60 @@ function implied() {
   if (ids.some(id => cur.status[id]?.v === 'bad')) return 'notready';
   return ids.every(id => cur.status[id]?.v === 'ok') ? 'ready' : null;
 }
-// the reviewer's own pick wins, except that "ready" can't stand next to a part with a problem
+// Not ready whenever the reviewer chooses it (there may be something no part covers); otherwise what the
+// parts say. Choosing Ready marks open parts good (and asks again about a part with a problem) first.
 function decision() {
-  const imp = implied();
-  if (imp === 'notready') return 'notready';
-  return cur.decision || imp;
+  return cur.decision === 'notready' ? 'notready' : implied();
 }
+// Ready with parts still open, or with a part marked as a problem: ask in place, never block
+function readyClicked() {
+  const ids = [...document.querySelectorAll('section[data-sec]')].map(p => p.dataset.sec);
+  const open = ids.filter(id => !cur.status[id]), bad = ids.filter(id => cur.status[id]?.v === 'bad');
+  const box = document.getElementById('askready');
+  const ready = () => {
+    for (const id of open) cur.status[id] = {v: 'ok', auto: true};
+    for (const id of bad) cur.status[id] = {v: 'ok', was: 'bad', note: cur.status[id].note || ''};
+    cur.decision = 'ready'; askDone(); save(); progress();
+  };
+  if (!open.length && !bad.length) return ready();
+  const name = id => `<b>${esc(PART[id].name)}</b>`, list = xs => xs.map(name).join(xs.length > 2 ? ', ' : ' and ');
+  let html = '';
+  if (bad.length) html += `<p>You said there's a problem in the ${bad.map(id => name(id) + (cur.status[id].note ? ` ("${esc(cur.status[id].note)}")` : '')).join(' and ')}. Is the puzzle ready anyway?</p>`;
+  if (open.length) html += `<p>${bad.length ? 'And you' : 'You'} haven't marked the ${list(open)} yet. ${bad.length ? '' : 'Mark ' + (open.length > 1 ? 'them all' : 'it') + ' as looking good?'}</p>`;
+  const go = bad[0] || open[0];
+  html += `<div class="acts"><button class="plain" data-a="back">Go back to the ${esc(PART[go].name)}</button>` +
+    (bad.length ? `<button class="bad" data-a="no">No, it's not ready</button>` : '') +
+    `<button class="good" data-a="yes">${bad.length ? "Yes, it's ready" : `Mark ${open.length > 1 ? 'all' : 'it'} good and choose Ready`}</button></div>`;
+  box.innerHTML = `<div class="ask">${html}</div>`;
+  box.querySelector('[data-a=yes]').onclick = ready;
+  box.querySelector('[data-a=no]')?.addEventListener('click', () => { cur.decision = 'notready'; askDone(); save(); paintSummary(); });
+  box.querySelector('[data-a=back]').onclick = () => {
+    askDone();
+    const t = document.querySelector(`section[data-sec="${go}"]`);
+    t.scrollIntoView({block: 'start'}); scrollBy(0, -70);
+  };
+}
+function askDone() { const b = document.getElementById('askready'); if (b) b.innerHTML = ''; }
 function paintSummary() {
   const s = document.getElementById('summary'); if (!s) return;
   const parts = [...document.querySelectorAll('section[data-sec]')];
   s.querySelector('table').innerHTML = parts.map(p => {
     const id = p.dataset.sec, st = cur.status[id], n = myEdits(id), c = myComments(id);
     const icon = st ? (st.v === 'ok' ? '<span style="color:var(--ok)">✓</span>' : '<span style="color:var(--bad)">✗</span>') : '<span style="color:#bbb">○</span>';
-    const said = st ? (st.v === 'ok' ? 'looks good' : `<span style="color:var(--bad)">problem: ${esc(st.note || '(no note)')}</span>`) : '<span style="color:var(--muted)">not reviewed yet</span>';
+    const said = st ? (st.v === 'ok' ? 'looks good' + (st.auto ? ' <span style="color:var(--muted)">(marked when you chose Ready)</span>'
+      : st.was === 'bad' ? ` <span style="color:var(--muted)">(you'd noted: ${esc(st.note || 'a problem')})</span>` : '')
+      : `<span style="color:var(--bad)">problem: ${esc(st.note || '(no note)')}</span>`) : '<span style="color:var(--muted)">not reviewed yet</span>';
     return `<tr data-go="${id}" title="Go back to the ${esc(PART[id].name)}"><td class="st">${icon}</td><td class="nm"><a>${esc(PART[id].name[0].toUpperCase() + PART[id].name.slice(1))}</a> · ${said}</td><td class="ct">${plural(n, 'edit')}, ${plural(c, 'comment')}</td><td class="go">go back ↑</td></tr>`;
   }).join('');
   s.querySelectorAll('[data-go]').forEach(a => a.onclick = () => { const t = document.querySelector(`section[data-sec="${a.dataset.go}"]`); t.style.display = ''; t.scrollIntoView({block: 'start'}); scrollBy(0, -70); });
   const n = Object.keys(cur.edits).length, imp = implied(), d = decision();
   const todo = parts.filter(p => !cur.status[p.dataset.sec]).length, bad = parts.filter(p => cur.status[p.dataset.sec]?.v === 'bad').length;
   const r = s.querySelector('.ready'), nr = s.querySelector('.notready');
-  r.innerHTML = `✓ Ready: the puzzle matches the scan${n ? ' as edited' : ''}<small>${n ? `with my ${plural(n, 'edit')}` : 'no edits needed'}${todo ? ` · first, review the ${plural(todo, 'part')} still open above` : ''}</small>`;
+  r.innerHTML = `✓ Ready: the puzzle matches the scan${n ? ' as edited' : ''}<small>${n ? `with my ${plural(n, 'edit')}` : 'no edits needed'}${todo ? ` · ${plural(todo, 'part')} not marked yet` : ''}</small>`;
   nr.innerHTML = `✗ Not ready: something's wrong I couldn't fix<small>${bad ? `you marked ${plural(bad, 'part')} with a problem` : 'say what in the box above'}</small>`;
-  r.disabled = todo > 0 || imp === 'notready';
-  r.classList.toggle('sel', d === 'ready' && !r.disabled);
+  r.classList.toggle('sel', d === 'ready');
   nr.classList.toggle('sel', d === 'notready');
-  s.querySelector('#submit').disabled = !(d === 'notready' || (d === 'ready' && !r.disabled));
+  s.querySelector('#submit').disabled = !d;
 }
 
 // our grid numbering, so each clue can show its answer and we can tell when print numbers differ
@@ -913,7 +949,7 @@ function addRow(s, key, label, box, flags = [], src = null) {
       kind = nearby && !last.value ? `${me} marked it not important`
         : nearby && !prev.value ? `${me} marked it important` : `${me} ${d.kind}`;
       if (document.activeElement !== txt)
-        txt.innerHTML = out ? esc(text) : `<span class="plain">${esc(fin)}</span><span class="chg">${nearby && !prev.value ? esc(fin) : d.html}</span>`;
+        txt.innerHTML = out ? esc(text) : `<span class="fintext">${esc(fin)}</span><span class="chg">${nearby && !prev.value ? esc(fin) : d.html}</span>`;
     } else if (document.activeElement !== txt) txt.textContent = fin;
     // the earlier versions, oldest first, so it's clear what was there before
     row.querySelector('.was').innerHTML = h.length > 1 ? h.slice(0, -1).map((v, i) =>
@@ -1118,7 +1154,7 @@ document.getElementById('undo').onclick = undo;
 document.getElementById('blankbtn').onclick = () => showBlank();
 document.getElementById('pagebtn').onclick = () => showPage(rows[focus]?.dataset.key);
 document.getElementById('redo').onclick = redo;
-document.getElementById('who').onchange = e => { cur.who = e.target.value.trim() || cur.who; save(); render(); };
+document.getElementById('who').onchange = e => { cur.who = e.target.value.trim() || 'You'; save(); render(); };
 // prototype only: freeze this review as a finished round, so the page shows it the way the next reviewer will
 function handOn() {
   const {status, ...round} = cur;
