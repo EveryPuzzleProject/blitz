@@ -33,6 +33,17 @@ Newest at the bottom of each section; strike through or delete when done.
    with extra_pages; the general fix belongs in discovery. Search the page text for "puzzle" and "solution" as well as
    "crossword": the user found "puzzle" hits where "crossword" doesn't (OCR mangles stylized headings).
 
+7. **Near misses become candidates, not drops** (user, 2026-10-11). The answer-key matcher is yes/no:
+   a key one column short (1931-04-04, 1931-05-02, 1936-04-01, Oct 1933's two), in two pieces (No. 316),
+   or off by a square is silently dropped. Keep these as ranked candidates (what fits, what's off), show
+   them side by side with the puzzle for a one-click "yes / no / yes but cut off" (as on the Judge gap
+   page), and on "yes" widen the crop to the full grid and OCR the rest. The same for puzzle pages:
+   surface "probably a crossword here" pages rather than dropping them below a score.
+8. **Re-harvest must keep existing page readings** (2026-10-11). `harvest --only` re-OCR'd pages it already
+   had: a puzzle grid was re-read as an answer key (No. 311 vanished) and four reviewed clues degraded
+   where reviewers had confirmed, not corrected, the OCR. It should reuse cached analyses for known pages
+   and analyze only new ones (Judge was repaired by restoring the earlier readings).
+
 ## Review site
 
 4. **Republish the ~300 newer Judge puzzles with `--current-review`**, so the page shows each
