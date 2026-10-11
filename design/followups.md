@@ -1,6 +1,7 @@
 # Follow-ups
 
 Work agreed on but not started. Take these on once Judge's gxd submission is done.
+The lessons from Judge's last day, and the changes to make first, are in next-publication.md.
 Newest at the bottom of each section; strike through or delete when done.
 
 ## Tools
