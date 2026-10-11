@@ -110,6 +110,16 @@ Newest at the bottom of each section; strike through or delete when done.
    the marks everywhere, and lists every marked square with who marked it. Left: No. 371 itself, once its
    harvest is in (mark its circles on the review page, or `special_cells` in its fix entry).
 
+11. **Proof page nits from reviewing all of Judge** (user, 2026-10-11):
+   - Changing a letter in the grid should let you say why right there, at the square, instead of
+     scrolling down to the first clue that uses it.
+   - Marking something in the header as not important: the "why" prompts don't fit. Offer a
+     "not important" choice (or similar).
+   - Make the notes field easy to clear or delete. The user cleared it a lot, because notes were full
+     of sourcing and OCR details that don't belong in a puzzle's note (they belong in headers like
+     Solution-Source, or in the change labels). Also stop writing such notes into fix-file `note`s.
+   - Hide the circle and shading tools behind something like "show circle/shading controls".
+
 ## Elsewhere
 
 5. **crossref: treat `_` as "no square"** (xd's not-part-of-the-puzzle), for the shaped Judge
