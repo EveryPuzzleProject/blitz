@@ -171,6 +171,7 @@ body.side .typed { margin-top: 0; }
 .typedgrid.solo { background: #fff; outline: 1px solid #999; }
 .typedgrid.solo div { border: .5px solid #bbb; }
 .typedgrid.solo div.blk { background: #222; }
+.typedgrid div.gap { background: transparent !important; border-color: transparent !important; box-shadow: none !important; }
 .typedgrid.over div { color: rgba(220, 20, 60, .85); }
 .typedgrid.over div.blk { background: transparent; }
 .typedgrid div.unsure { box-shadow: inset 0 0 0 2px var(--flag); }
@@ -702,14 +703,16 @@ function paintSummary() {
   s.querySelector('#submit').disabled = !d;
 }
 
+// not a square that takes a letter: a black square, or '_', space outside an odd-shaped puzzle
+const NS = ch => ch === '#' || ch === '_';
 // our grid numbering, so each clue can show its answer and we can tell when print numbers differ
 function numbering() {
   const g = G(), H = g.length, W = g[0].length, at = {};
   let n = 0;
   for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) {
-    if (g[r][c] === '#') continue;
-    const a = (c === 0 || g[r][c-1] === '#') && c + 1 < W && g[r][c+1] !== '#';
-    const d = (r === 0 || g[r-1][c] === '#') && r + 1 < H && g[r+1][c] !== '#';
+    if (NS(g[r][c])) continue;
+    const a = (c === 0 || NS(g[r][c-1])) && c + 1 < W && !NS(g[r][c+1]);
+    const d = (r === 0 || NS(g[r-1][c])) && r + 1 < H && !NS(g[r+1][c]);
     if (a || d) { n++; if (a) at['A' + n] = [r, c, 0, 1]; if (d) at['D' + n] = [r, c, 1, 0]; }
   }
   return at;
@@ -718,14 +721,14 @@ function answerFor(k) {
   const s = NUM[k]; if (!s) return '';
   let [r, c, dr, dc] = s, out = '';
   const g = G();
-  while (r < g.length && c < g[0].length && g[r][c] !== '#') { out += final(`cell:r${r+1}c${c+1}`) || '·'; r += dr; c += dc; }
+  while (r < g.length && c < g[0].length && !NS(g[r][c])) { out += final(`cell:r${r+1}c${c+1}`) || '·'; r += dr; c += dc; }
   return out;
 }
 function entryCells(k) {
   const s = NUM[k]; if (!s) return [];
   let [r, c, dr, dc] = s; const out = [];
   const g = G();
-  while (r < g.length && c < g[0].length && g[r][c] !== '#') { out.push([r, c]); r += dr; c += dc; }
+  while (r < g.length && c < g[0].length && !NS(g[r][c])) { out.push([r, c]); r += dr; c += dc; }
   return out;
 }
 // the entry's squares cut from the scanned answer key, laid in a row (Down too)
@@ -915,7 +918,7 @@ function blankReasons() {
   if (!hasKey()) out.push('There is no answer key, so our black squares and numbering rest on reading this grid.');
   if (ocr.answers) {
     const d = [];
-    ocr.grid.forEach((row, r) => [...row].forEach((ch, c) => { if ((ch === '#') !== (ocr.answers[r][c] === '#')) d.push(`r${r+1}c${c+1}`); }));
+    ocr.grid.forEach((row, r) => [...row].forEach((ch, c) => { if (NS(ch) !== NS(ocr.answers[r][c])) d.push(`r${r+1}c${c+1}`); }));
     if (d.length) out.push(`The blank grid and the answer key disagree about black squares at ${d.join(', ')}.`);
   }
   if ((ocr.grid_asymmetric_squares || []).length) out.push(`The grid isn't symmetric (${ocr.grid_asymmetric_squares.join(', ')}): check it's printed that way.`);
@@ -963,6 +966,7 @@ function blankCells(cls) {
   d.style.gridTemplate = `repeat(${H}, 1fr) / repeat(${W}, 1fr)`;
   for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) {
     const k = `grid:r${r+1}c${c+1}`, h = history(k), x = document.createElement('div');
+    if (g[r][c] === '_') { x.className = 'gap'; x.title = 'not part of the puzzle (outside its shape)'; d.append(x); continue; }
     if (g[r][c] === '#') x.className = 'blk';
     if (nums[`${r},${c}`]) x.innerHTML = `<span class="n">${nums[`${r},${c}`]}</span>`;
     x.dataset.rc = `${r},${c}`;
@@ -1224,6 +1228,7 @@ function cells(cls) {
   d.style.gridTemplate = `repeat(${H}, 1fr) / repeat(${W}, 1fr)`;
   for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) {
     const k = `cell:r${r+1}c${c+1}`, ch = final(k), h = history(k), x = document.createElement('div');
+    if (ch === '_' || G()[r][c] === '_') { x.className = 'gap'; x.title = 'not part of the puzzle (outside its shape)'; d.append(x); continue; }
     if (ch === '#') x.className = 'blk'; else x.textContent = ch;
     x.dataset.rc = `${r},${c}`;
     x.title = cellRef(r, c);
@@ -1313,7 +1318,7 @@ addEventListener('keydown', e => {
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   if (selCell && /^[a-z]$/.test(k)) {
     const [r, c] = selCell, key = `cell:r${r+1}c${c+1}`;
-    if (final(key) === '#') return;
+    if (NS(final(key))) return;
     if (k.toUpperCase() !== final(key)) {
       setEdit(key, k.toUpperCase(), true);
       const inRow = document.querySelector('.acells span.cur')?.closest('.row');

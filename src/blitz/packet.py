@@ -29,9 +29,10 @@ def load(packet: Path) -> dict:
 
 def number_grid(grid: list[str]) -> list[tuple[str, int, int, int]]:
     """Standard American numbering: (label, row, col, length) for every entry,
-    Across and Down, in number order. '#' is a black square."""
+    Across and Down, in number order. '#' is a black square; '_' is space outside an odd-shaped
+    puzzle (xd's 'not part of the puzzle'), numbered around like a block."""
     rows, cols = len(grid), len(grid[0]) if grid else 0
-    white = lambda r, c: 0 <= r < rows and 0 <= c < cols and grid[r][c] != "#"
+    white = lambda r, c: 0 <= r < rows and 0 <= c < cols and grid[r][c] not in "#_"
     out, n = [], 0
     for r in range(rows):
         for c in range(cols):
@@ -129,7 +130,7 @@ def structural_checks(ocr: dict) -> dict[str, list[str]]:
             f"key {len(ans)}x{len(ans[0])}, grid {len(grid)}x{len(grid[0])}"]
     if ans:
         diff = [f"r{i + 1}c{j + 1}" for i, row in enumerate(grid) for j, ch in enumerate(row)
-                if i < len(ans) and j < len(ans[i]) and (ch == "#") != (ans[i][j] == "#")]
+                if i < len(ans) and j < len(ans[i]) and (ch in "#_") != (ans[i][j] in "#_")]
         if diff:
             found["black squares differ from the answer key"] = diff
     return found
