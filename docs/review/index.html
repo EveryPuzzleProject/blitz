@@ -1053,8 +1053,10 @@ function addRow(s, key, label, box, flags = [], src = null) {
     sc.append(document.createElement('br'), btn, scanLink());
   }
   const ab = row.querySelector('.abox'), as = isClue && answerStrip(label);
-  if (as) {
-    ab.append(as);
+  // our letters for the entry whenever there's an answer key; the scan strip above them only
+  // when the key was straightened (a typed grid's key is on the answer page instead)
+  if (as || (isClue && hasKey() && entryCells(label).length)) {
+    if (as) ab.append(as);
     const ac = document.createElement('div');
     ac.className = 'acells';
     ac.title = label[0] === 'D' ? 'Down answer, laid out across' : 'Across answer';
