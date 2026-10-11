@@ -30,7 +30,8 @@ Newest at the bottom of each section; strike through or delete when done.
    Judge's 23 missing numbers have their title in the page text. Also look for answer keys in the same issue
    ("Solutions of Puzzles in this Issue", unnumbered, Mar-Nov 1937) and by "Solution of Puzzle No. N" text,
    not only by grid shape in later issues: 38 of 71 missing keys were found that way. Judge was patched by hand
-   with extra_pages; the general fix belongs in discovery.
+   with extra_pages; the general fix belongs in discovery. Search the page text for "puzzle" and "solution" as well as
+   "crossword": the user found "puzzle" hits where "crossword" doesn't (OCR mangles stylized headings).
 
 ## Review site
 
