@@ -455,6 +455,8 @@ function render() {
   // Title, author and byline always get a row, even when the OCR found no box for them: a fix may
   // have added one (it shows as a change), or the reviewer may need to type one the OCR missed.
   for (const k of ['title', 'author', 'byline']) if (!(k in (ocr.meta_boxes || {}))) addRow(hs, 'meta:' + k, k, null);
+  // the puzzle's note goes in the xd file too: shown, and editable, like the byline
+  addRow(hs, 'meta:note', 'note (in the xd)', null);
   for (const n of Object.keys(ocr.captions || {})) if (!(('other' + n) in (ocr.meta_boxes || {}))) addRow(hs, 'other:' + n, 'printed nearby', null);
   main.append(hs);
   const why = blankReasons();
