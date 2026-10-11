@@ -83,6 +83,16 @@ Newest at the bottom of each section; strike through or delete when done.
    The model updates as reviewers confirm pages, and a change in the pattern (weekly to monthly, a
    same-issue key) is a finding to show, not noise.
 
+12. **Keep printed clue numbers when they differ from standard numbering** (user, 2026-10-11). gxd's 1913
+   Wynne puzzle (gxd/nyworld/1913/nyw1913-12-21.xd) carries a `Numbering:` block after its clues: a copy of
+   the grid with each numbered square's label, letters standing in for two-digit numbers (`a=10 x=34`).
+   It isn't in doc/xd-format.md, and neither xdlint nor crossref reads it; it's the only use in gxd.
+   Judge has two puzzles where the printed grid numbers a square that starts no entry, so the printed clue
+   numbers run one high (judge1928-09-01, judge1929-03-02). We renumbered them to standard and explained
+   it in the note. judge1937-05-01 prints a clue 60 Across with no 60 Across in the grid. To do: agree with
+   Saul on a spec'd form (the Numbering block, or a per-clue `^Printed: 29` metadata line, which xd 3.0
+   already allows), then keep the printed numbers for these three, and have crossref show them.
+
 ## Review site
 
 4. **Republish the ~300 newer Judge puzzles with `--current-review`**, so the page shows each
