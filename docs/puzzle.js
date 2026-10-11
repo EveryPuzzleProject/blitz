@@ -38,12 +38,15 @@ async function loadPuzzle(pub, id, from) {
 }
 
 // An .xd file in the shape of an OCR reading: headers, grid (letters are the
-// answers), clues "A1. text ~ ANSWER", and notes.
+// answers), clues "A1. text ~ ANSWER", and notes. A square holding several letters
+// (a rebus) has a key in the grid that the header spells out ("Rebus: 1=TNLDMS");
+// its answer is all of them.
 function parseXd(text, id) {
   const parts = text.replace(/\r\n/g, '\n').split(/\n\n\n+/);
   const head = {};
   for (const l of parts[0].split('\n')) { const i = l.indexOf(': '); if (i > 0) head[l.slice(0, i)] = l.slice(i + 2); }
-  const rows = (parts[1] || '').split('\n').filter(r => r.trim());
+  const rebus = Object.fromEntries((head.Rebus || '').split(/\s+/).filter(kv => kv.includes('=')).map(kv => kv.split('=', 2)));
+  const rows = (parts[1] || '').split('\n').filter(r => r.trim()).map(r => [...r].map(ch => rebus[ch] || ch));
   const clues = {};
   for (const l of (parts[2] || '').split('\n')) {
     const m = l.match(/^([AD]\d+)\. (.*)$/);
@@ -53,10 +56,21 @@ function parseXd(text, id) {
   }
   return {
     xdid: id, source: head.Source, solutionSource: head['Solution-Source'], title: head.Title, author: head.Author, byline: head.Byline, captions: {},
-    grid: rows.map(r => [...r].map(ch => (ch === '#' ? '#' : '.')).join('')),
-    answers: rows.some(r => /[A-Za-z]/.test(r)) ? rows : null,
+    grid: rows.map(r => r.map(ch => (ch === '#' ? '#' : '.')).join('')),
+    answers: rows.some(r => /[A-Za-z]/.test(r.join(''))) ? rows : null,
     clues, note: (parts[3] || '').trim(),
   };
+}
+
+// A square's letters as HTML. Several (a rebus square) are set small in up to three
+// lines, the way the printed keys stack them ("TNL" over "DMS"); style them with
+// .rb { font-size: calc(1em * min(.6, 1.6 / var(--per))); line-height: 1 }.
+function squareHtml(s, esc) {
+  if (s.length < 2) return esc(s);
+  const lines = s.length > 8 ? 3 : s.length > 3 ? 2 : 1, per = Math.ceil(s.length / lines);
+  const parts = [];
+  for (let i = 0; i < s.length; i += per) parts.push(esc(s.slice(i, i + per)));
+  return `<span class="rb" style="--per:${per}">${parts.join('<br>')}</span>`;
 }
 
 // Every puzzle of a publication with its state, from puzzles.tsv on main.
@@ -83,6 +97,8 @@ function puzzleDate(xdid) {
     .toLocaleDateString('en-US', {year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC'});
 }
 
+// ocr.answers: rows, each a string (a letter a square) or a list of squares; a square,
+// or a review's correction of one, may hold several letters (a rebus).
 function buildPuzzle(ocr, review) {
   const rv = review || {};
   const grid = ocr.grid.map(r => [...r]);
@@ -137,7 +153,7 @@ function buildPuzzle(ocr, review) {
     for (let c = 0; c < C; c++) {
       if (!white(r, c)) { row.push(null); continue; }
       const ch = answers ? answers[r][c] : '';
-      row.push({r, c, num: nb.nums[`${r},${c}`] || 0, sol: /^[A-Za-z]$/.test(ch) ? ch.toUpperCase() : null});
+      row.push({r, c, num: nb.nums[`${r},${c}`] || 0, sol: /^[A-Za-z]+$/.test(ch) ? ch.toUpperCase() : null});
     }
     cells.push(row);
   }

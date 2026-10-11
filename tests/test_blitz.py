@@ -172,3 +172,13 @@ def test_a_few_missing_clues_are_not_a_continuation():
         o["clues"][k]["text"] = ""
     checks = structural_checks(o)
     assert "clue list continues on another page" not in checks and "clue text missing" in checks
+
+
+def test_finish_keeps_rebus_cells():
+    # a square printed with several letters is corrected with all of them; anything else long is refused
+    ocr = {"grid": ["..", ".."], "answers": ["AB", "CD"], "clues": {}}
+    draft = {"corrections": {"cell:r1c2": "tnldms", "cell:r2c1": "X1", "cell:r2c2": "e"}}
+    review, ignored = finish(ocr, draft, ["cell:all"])
+    assert review["corrections"]["cell:r1c2"] == "TNLDMS"
+    assert "cell:r2c1" not in review["corrections"] and "cell:r2c1=X1" in ignored
+    assert review["corrections"]["cell:r2c2"] == "E"

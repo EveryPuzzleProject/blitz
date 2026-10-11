@@ -77,6 +77,7 @@ label{font-size:13px}
 .cell{background:#fff;color:#111;position:relative;display:flex;align-items:flex-end;justify-content:center;font:600 clamp(9px,1.6vw,17px)/1 Georgia,serif;padding-bottom:6%}
 .cell.blk{background:#111}.cell .num{position:absolute;left:2px;top:1px;font:9px/1 system-ui,sans-serif;color:#444}
 .cell.chg{background:#fde7c7}.cell .unk{color:#999}
+.cell .rb{font-size:calc(1em * min(.6, 1.6 / var(--per)));line-height:1;text-align:center}
 .preview{display:grid;grid-template-columns:minmax(0,520px) minmax(0,1fr);gap:18px}
 @media (max-width:1100px){.preview{grid-template-columns:1fr}}
 .cl{columns:2 260px;font-size:13px}.cl h4{margin:0 0 4px}.cl ol{list-style:none;margin:0 0 10px;padding:0}.cl li{margin:1px 0;break-inside:avoid}
@@ -646,7 +647,11 @@ function changesHtml() {
 
 function xdText(Z) {  // the corrected puzzle as xd (a preview: the archive's own export is made upstream)
   const m = /(\d{4}-\d\d-\d\d)/.exec(Z.id), head = [['Title', Z.title], ['Author', Z.author], ['Byline', Z.byline], ['Date', m ? m[1] : ''], ['Source', Z.source]];
-  const grid = Z.cells.map(row => row.map(x => !x ? '#' : x.sol || '.').join(''));
+  // a square of several letters (a rebus) gets a key in the grid, spelled out in a Rebus header
+  const keys = {};
+  for (const x of Z.cells.flat()) if (x && x.sol && x.sol.length > 1 && !(x.sol in keys)) keys[x.sol] = '123456789@$%&*+?=!'[Object.keys(keys).length] || '?';
+  if (Object.keys(keys).length) head.push(['Rebus', Object.entries(keys).map(([s, k]) => `${k}=${s}`).join(' ')]);
+  const grid = Z.cells.map(row => row.map(x => !x ? '#' : keys[x.sol] || x.sol || '.').join(''));
   const ans = w => w.cells.map(([r, c]) => (Z.cells[r][c] || {}).sol || '.').join('');
   const list = d => Z.words.filter(w => w.dir === d).map(w => `${d}${w.n}. ${w.text} ~ ${ans(w)}`).join('\n');
   return head.filter(h => h[1]).map(h => `${h[0]}: ${h[1]}`).join('\n') + '\n\n\n' + grid.join('\n') + '\n\n\n' + list('A') + '\n\n' + list('D') + '\n';
@@ -662,7 +667,7 @@ function previewHtml() {
   const changedSq = new Set(corr.filter(k => k.startsWith('cell:') || k.startsWith('grid:')).map(k => k.slice(5)));
   const changedClue = new Set(corr.filter(k => k.startsWith('clue:')).map(k => k.slice(5)));
   const board = Z.cells.map((row, r) => row.map((x, c) => !x ? '<div class="cell blk"></div>'
-    : `<div class="cell ${changedSq.has(`r${r+1}c${c+1}`) ? 'chg' : ''}">${x.num ? `<span class="num">${x.num}</span>` : ''}${x.sol ? esc(x.sol) : '<span class="unk">·</span>'}</div>`).join('')).join('');
+    : `<div class="cell ${changedSq.has(`r${r+1}c${c+1}`) ? 'chg' : ''}">${x.num ? `<span class="num">${x.num}</span>` : ''}${x.sol ? squareHtml(x.sol, esc) : '<span class="unk">·</span>'}</div>`).join('')).join('');
   const ans = w => w.cells.map(([r, c]) => (Z.cells[r][c] || {}).sol || '·').join('');
   const list = d => Z.words.filter(w => w.dir === d).map(w => `<li class="${changedClue.has(w.id) ? 'chg' : ''}"><span class="n">${w.n}</span>${esc(w.text)}<span class="ans">${esc(ans(w))}</span></li>`).join('');
   return `<p class="hint">${P.review._draft ? 'From the draft (not finished yet). ' : ''}The puzzle with this review applied (less any change you rejected), as its record page will show it. Changed squares and clues are tinted.</p>

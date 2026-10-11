@@ -106,6 +106,12 @@ every call re-reads the whole conversation.
 }
 ```
 
+A square of the answer key printed with several letters (a rebus, or small letters stacked in
+one square) is a correction of that square with all of them, in reading order:
+`"corrections": {"cell:r14c8": "TNLDMS"}` (not an `answers` word, which is one letter a square).
+Say in `note` what the square holds and why, e.g. "r14c8 is printed with six small letters,
+TNL over DMS: any of them finishes 61 Down": it's how the decision becomes the puzzle's note.
+
 `tool_notes` is how the tools get better: one entry for each thing the tools got wrong or made
 hard, in this puzzle (not your corrections themselves). Use one of these kinds when it fits:
 "title-from-ad" (title or a clue picked up text from an ad or another column), "heading-in-clue"

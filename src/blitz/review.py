@@ -154,10 +154,12 @@ def finish(ocr: dict, draft: dict, seen: list[str]) -> tuple[dict, list[str]]:
                 fixes.append({"item": f"cell:r{r + 1}c{c + 1}", "value": ch})
     for c in fixes:
         item, value = c["item"].strip(), c["value"]
+        if item.startswith("cell:") and re.fullmatch(r"[A-Za-z]+", value.strip()):
+            value = value.strip().upper()  # several letters: a square printed with them all (a rebus)
         clue_text = (ocr["clues"].get(item[5:]) or {}).get("text", "x") if item.startswith("clue:") else ""
         if (not ITEM_OK.fullmatch(item)
                 or (item.startswith("grid:") and value not in ("#", "."))
-                or (item.startswith("cell:") and len(value) > 1)
+                or (item.startswith("cell:") and len(value) > 1 and not value.isalpha())
                 or (item.startswith("clue:") and re.fullmatch(r"[A-Z]+", value)
                     and not re.fullmatch(r"[A-Z ]+", clue_text))):  # an answer word put in a clue
             ignored.append(f"{item}={value}")

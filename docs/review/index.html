@@ -124,9 +124,12 @@ h2 .quick { margin-left: 8px; font-size: 12px; padding: 2px 10px; }
 .typedgrid.bk.over div.blk { background: rgba(220, 20, 60, .35); }
 .abox canvas { display: block; height: 24px; }
 .acells { display: flex; margin-top: 3px; }
-.acells span { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font: 600 15px/1 var(--sans);
+.acells > span { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font: 600 15px/1 var(--sans);
   border: .5px solid #ccc; background: #fff; cursor: pointer; }
-.acells span.cur { background: #e2ecfb; }
+.acells > span.cur { background: #e2ecfb; }
+.rebusbox { position: fixed; z-index: 50; box-sizing: border-box; font: 600 15px/1 var(--sans); letter-spacing: 1px;
+  padding: 0 6px; border: 2px solid #1f5fbf; border-radius: 3px; background: #fff; text-transform: uppercase; }
+.rb { font-size: calc(1em * min(.6, 1.6 / var(--per))); line-height: 1; text-align: center; }   /* a rebus square's letters */
 .abox .dir { font-size: 10px; color: var(--muted); }
 .lab .ans { display: block; font: 600 12px/1.2 var(--sans); color: var(--muted); letter-spacing: .5px; margin-top: 2px; word-break: break-all; }
 .strip { display: block; max-width: 100%; height: auto; }
@@ -233,7 +236,7 @@ footer button:disabled { opacity: .4; cursor: default; }
 </header>
 <main id="main"></main>
 <footer>
-  <span id="help"><kbd>J</kbd>/<kbd>K</kbd> next/previous line · <kbd>E</kbd> edit · <kbd>Enter</kbd>/<kbd>Esc</kbd> stop editing · <kbd>Z</kbd> or click the scan: more of the page · <kbd>M</kbd> comment · <kbd>Ctrl+Z</kbd>/<kbd>Ctrl+Y</kbd> undo/redo · <kbd>C</kbd> changes · <kbd>N</kbd> comments · hold <kbd>Space</kbd> on the answer key to put our letters on the scan</span>
+  <span id="help"><kbd>J</kbd>/<kbd>K</kbd> next/previous line · <kbd>E</kbd> edit · <kbd>Enter</kbd>/<kbd>Esc</kbd> stop editing · <kbd>Z</kbd> or click the scan: more of the page · <kbd>M</kbd> comment · <kbd>Enter</kbd> on a square: several letters (a rebus) · <kbd>Ctrl+Z</kbd>/<kbd>Ctrl+Y</kbd> undo/redo · <kbd>C</kbd> changes · <kbd>N</kbd> comments · hold <kbd>Space</kbd> on the answer key to put our letters on the scan</span>
 </footer>
 
 <script src="config.js"></script>
@@ -1064,7 +1067,7 @@ function addRow(s, key, label, box, flags = [], src = null) {
       const x = document.createElement('span');
       x.dataset.cell = `${r},${c}`;
       x.dataset.rc = `${r},${c}`;
-      x.onclick = () => { if (justReferenced()) return; selCell = [r, c]; regrid(); markSel(); };
+      x.onclick = e => pickSquare(r, c, e);
       ac.append(x);
     }
     ab.append(ac);
@@ -1072,9 +1075,9 @@ function addRow(s, key, label, box, flags = [], src = null) {
   } else if (isClue) ab.innerHTML = `<div class="dir">${hasKey() ? '' : 'no answer key to check against'}</div>`;
   const txt = row.querySelector('.txt');
   row.paint = () => {
-    row.querySelectorAll('.acells span').forEach(x => {
+    row.querySelectorAll('.acells > span').forEach(x => {
       const [r, c] = x.dataset.cell.split(',').map(Number), k = `cell:r${r+1}c${c+1}`, hh = history(k);
-      x.textContent = final(k);
+      setSquare(x, final(k));
       x.style.boxShadow = hh.length > 1 ? `inset 0 0 0 2px ${hh[hh.length-1].color}` : '';
       x.title = cellRef(r, c) + (hh.length > 1 ? ': ' + hh.map(v => `${v.who} ${v.value}`).join(' → ') : '');
     });
@@ -1222,6 +1225,7 @@ function gridSection() {
       <p>On the scan, a red letter sitting squarely on the printed one is a match; a doubled or smeared letter is a difference. Blink flips between them: differences jump.</p>`
       : `<p><b>This grid was typed by hand</b> (its shape is too irregular for the reader to straighten), so the scan is the whole page the answer key is printed on. Compare it with our grid by eye; open it larger to zoom.</p>`}
       <p>Click a square and type a letter to fix it. A coloured outline means a reviewer changed it (hover to see what it was).</p>
+      <p>A square printed with several letters (a rebus): double-click it, or click it and press <kbd>Enter</kbd>, and type them all.</p>
       <p>Hover a square for its position. While you're writing a note, click a square to put its position in the note.</p>
       ${blankReasons().length ? `<p class="m-flag" style="padding:4px 8px;border-radius:6px">The blank grid may be worth a look: ${esc(blankReasons().join(' '))} <button class="ctxbtn" onclick="showBlank()">Open the blank grid</button></p>` : ''}
       <div class="margin" id="gnotes"></div>
@@ -1231,6 +1235,58 @@ function gridSection() {
   drawGrid(s);
   return s;
 }
+// a square's letters; several (a rebus square) set small in up to three lines, the way the
+// printed keys stack them ("TNL" over "DMS")
+function setSquare(x, s) {
+  x.textContent = '';
+  if (!s || s.length < 2) { x.textContent = s || ''; return; }
+  const lines = s.length > 8 ? 3 : s.length > 3 ? 2 : 1, per = Math.ceil(s.length / lines), b = document.createElement('span');
+  b.className = 'rb'; b.style.setProperty('--per', per);
+  for (let i = 0; i < s.length; i += per) { if (i) b.append(document.createElement('br')); b.append(s.slice(i, i + per)); }
+  x.append(b);
+}
+// a reviewer's fix to a square: one letter, or several for a rebus square; then a note on why
+function fixSquare(r, c, v) {
+  const key = `cell:r${r+1}c${c+1}`;
+  v = v.replace(/[^a-z]/gi, '').toUpperCase();
+  if (!v || final(key) === '#' || v === final(key)) return;
+  setEdit(key, v, true);
+  const inRow = document.querySelector('.acells > span.cur')?.closest('.row');
+  compose(inRow ? inRow.querySelector('.margin') : document.querySelector('#gnotes'), key, true);
+}
+// a box over the square for typing several letters: Enter or clicking away keeps them, Esc doesn't
+function rebusBox(r, c, sq) {
+  const key = `cell:r${r+1}c${c+1}`;
+  if (final(key) === '#') return;
+  const rc = `[data-rc="${r},${c}"]`;   // over the square clicked, else our grid's, else the answer row's
+  sq = [sq, ...['#gtyped ', '.acells > ', '.typedgrid '].map(p => document.querySelector(p + rc))].find(x => x && x.getBoundingClientRect().width);
+  const at = sq?.getBoundingClientRect();
+  if (!at) return;
+  document.querySelector('.rebusbox')?.remove();
+  const box = document.createElement('input');
+  box.className = 'rebusbox';
+  box.value = final(key);
+  box.placeholder = 'letters';
+  box.title = `${cellRef(r, c)}: type every letter printed in the square, then Enter (Esc to cancel)`;
+  Object.assign(box.style, {left: at.left + 'px', top: at.top + 'px', height: at.height + 'px', minWidth: Math.max(at.width, 90) + 'px'});
+  let done = false;
+  const close = keep => { if (done) return; done = true; const v = box.value; box.remove(); if (keep) fixSquare(r, c, v); };
+  box.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); close(true); } else if (e.key === 'Escape') { e.preventDefault(); close(false); } };
+  box.oninput = () => { box.value = box.value.replace(/[^a-z]/gi, '').toUpperCase(); };
+  box.onblur = () => close(true);
+  document.body.append(box);
+  box.focus(); box.select();
+}
+// clicking a square selects it; clicking it again quickly (a double-click) opens the rebus box.
+// (The browser's own dblclick never fires: the first click redraws the grid under the pointer.)
+let lastPick = null;
+function pickSquare(r, c, e) {
+  if (justReferenced()) return;
+  const now = Date.now(), again = lastPick && lastPick.r === r && lastPick.c === c && now - lastPick.t < 450;
+  lastPick = again ? null : {r, c, t: now};
+  selCell = [r, c]; regrid();
+  if (again) rebusBox(r, c, document.elementFromPoint(e.clientX, e.clientY)?.closest('[data-rc]'));
+}
 function cells(cls) {
   const g = ocr.answers, H = g.length, W = g[0].length;
   const low = new Set(ocr.answers_low_confidence || []);
@@ -1239,13 +1295,13 @@ function cells(cls) {
   d.style.gridTemplate = `repeat(${H}, 1fr) / repeat(${W}, 1fr)`;
   for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) {
     const k = `cell:r${r+1}c${c+1}`, ch = final(k), h = history(k), x = document.createElement('div');
-    if (ch === '#') x.className = 'blk'; else x.textContent = ch;
+    if (ch === '#') x.className = 'blk'; else setSquare(x, ch);
     x.dataset.rc = `${r},${c}`;
     x.title = cellRef(r, c);
     if (h.length > 1) { x.style.boxShadow = `inset 0 0 0 2.5px ${h[h.length-1].color}`; x.title += ': ' + h.map(v => `${v.who} ${v.value}`).join(' → '); }
     else if (low.has(`r${r+1}c${c+1}`)) { x.classList.add('unsure'); x.title += ': the OCR was unsure of this letter'; }
     if (selCell && selCell[0] === r && selCell[1] === c) x.classList.add('cur');
-    x.onclick = () => { if (justReferenced()) return; selCell = [r, c]; regrid(); };
+    x.onclick = e => pickSquare(r, c, e);
     d.append(x);
   }
   return d;
@@ -1269,7 +1325,7 @@ function drawGrid(s) {
 function regrid() { const s = document.querySelector('section[data-sec=grid]'); if (s) drawGrid(s); markSel(); }
 function markSel() {
   const id = selCell ? selCell.join(',') : '';
-  document.querySelectorAll('.acells span').forEach(x => x.classList.toggle('cur', x.dataset.cell === id));
+  document.querySelectorAll('.acells > span').forEach(x => x.classList.toggle('cur', x.dataset.cell === id));
 }
 
 function setFocus(i) {
@@ -1326,16 +1382,8 @@ addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && k === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
   if ((e.ctrlKey || e.metaKey) && k === 'y') { e.preventDefault(); redo(); return; }
   if (e.ctrlKey || e.metaKey || e.altKey) return;
-  if (selCell && /^[a-z]$/.test(k)) {
-    const [r, c] = selCell, key = `cell:r${r+1}c${c+1}`;
-    if (final(key) === '#') return;
-    if (k.toUpperCase() !== final(key)) {
-      setEdit(key, k.toUpperCase(), true);
-      const inRow = document.querySelector('.acells span.cur')?.closest('.row');
-      compose(inRow ? inRow.querySelector('.margin') : document.querySelector('#gnotes'), key, true);
-    }
-    return;
-  }
+  if (selCell && /^[a-z]$/.test(k)) { fixSquare(...selCell, k); return; }
+  if (selCell && k === 'enter') { e.preventDefault(); rebusBox(...selCell); return; }
   if (k === 'j') setFocus(focus + 1);
   else if (k === 'k') setFocus(focus - 1);
   else if (k === 'e' && rows[focus]) { e.preventDefault(); rows[focus].querySelector('.txt').focus(); }

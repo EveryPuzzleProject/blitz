@@ -29,6 +29,7 @@
   .cell.blk { background: var(--block); }
   .cell .num { position: absolute; top: 1px; left: 2px; font: 500 calc(var(--sz) * .28)/1 var(--sans); color: var(--muted); }
   .cell .unk { color: var(--muted); }
+  .cell .rb { font-size: calc(1em * min(.6, 1.6 / var(--per))); line-height: 1; text-align: center; padding-bottom: 2px; }  /* a rebus square's letters */
   .lists { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; min-width: 0; }
   .lists h3 { font: 600 13px var(--sans); text-transform: uppercase; letter-spacing: .08em; margin: 0 0 6px; color: var(--muted); }
   .lists ol { list-style: none; margin: 0; padding: 0; font-family: var(--serif); font-size: 15px; }
@@ -44,7 +45,7 @@
 <body>
 <header class="top"><div class="wrap"><a href="./">Every Puzzle Project</a><span class="muted">Puzzle record</span></div></header>
 <main class="wrap" id="app"><p class="muted">Loading…</p></main>
-<script src="puzzle.js?v=202610091830"></script>
+<script src="puzzle.js?v=202610111500"></script>
 <script>
 // A puzzle's record in the archive: the transcription as printed, with where it came from.
 const PUBS = {judge: 'Judge', games: 'GAMES'};
@@ -68,7 +69,7 @@ function show(P, row) {
   const list = dir => P.words.filter(w => w.dir === dir).map(w =>
     `<li><b>${w.n}</b><span>${esc(w.text)}${known ? `<span class="ans">${esc(answer(w))}</span>` : ''}</span></li>`).join('');
   const board = P.cells.map(row => row.map(x => !x ? '<div class="cell blk"></div>'
-    : `<div class="cell">${x.num ? `<span class="num">${x.num}</span>` : ''}${x.sol ? esc(x.sol) : known ? '<span class="unk">·</span>' : ''}</div>`).join('')).join('');
+    : `<div class="cell">${x.num ? `<span class="num">${x.num}</span>` : ''}${x.sol ? squareHtml(x.sol, esc) : known ? '<span class="unk">·</span>' : ''}</div>`).join('')).join('');
   const who = from && from !== 'local' ? from.split(/[/:]/)[0] : '';
   const state = row ? (row.state === 'needs-person' ? `Still being checked: ${esc(REASONS[row.reason] || row.reason)}` : esc(STATE[row.state] || row.state)) : '';
   const xdLink = P.fromXd ? pubBlob(pub, `xd/${id}.xd`) : '';
