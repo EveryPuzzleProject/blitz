@@ -58,6 +58,9 @@ property of each field rather than a separate list to keep in sync. The round-tr
 
 - Relink saves the key it chose, recovered keys included, in the state or the manifest. Packets,
   the export and readiness read that decision; none of them looks the key up again.
+- The same goes for the key's letters: task-packets re-reads every key with the letter reader
+  (most of the ~40 minutes a full packet build takes) instead of using the reading relink saved.
+  Read once, save, reuse.
 - A typed key always names its scan (fix file `solution` requires `solution_from` or a page
   link; relink refuses otherwise), so typed letters always show next to the printed key.
 
