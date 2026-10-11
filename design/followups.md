@@ -5,6 +5,22 @@ Newest at the bottom of each section; strike through or delete when done.
 
 ## Tools
 
+0. **A harvest checkpoint: confirm the exceptions before review** (user, 2026-10-11). This one ties 6, 7 and 9
+   together. Right after harvest, and before any puzzle goes to review, the harvest writes an exceptions list.
+   A person, or an agent with a person checking its calls, works through it while the context is fresh,
+   instead of these turning up at the end as gaps to hunt down. Each row shows its evidence side by side
+   (crops plus links to the archive.org pages) and takes a one-click answer that goes into the fix file as a
+   decision with a note:
+   - a duplicate number: the same puzzle scanned twice (skip), a misprinted number (puzzle_number + note), or
+     two puzzles;
+   - a gap in the numbering: here's where we looked, so the puzzle is found on page N, or it's confirmed not
+     in the scan;
+   - a near-miss key: the right key but cut off or split (re-crop), or not this puzzle;
+   - a key with no puzzle, or a puzzle with no key;
+   - a grid read as a key or a key read as a grid; an odd shape; a continued clue list.
+   The gap page (scratch gap_page.py, harvests/judge/gap-index.html) is the prototype. Harvest's status
+   says "N exceptions open", and nothing is "ready for review" until they're settled.
+
 1. **Detect odd-shaped grids** (agreed 2026-10-11). Telling "printed square" from "blank page"
    around a grid is mechanical: the grid reader should mark squares outside the shape as `_`
    (xd's "not part of the puzzle") and find a shape's ring of black squares, so shaped grids
