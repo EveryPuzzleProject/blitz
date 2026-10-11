@@ -20,7 +20,7 @@ MAX_CROPS = 60
 FEW_DISPUTED = 4  # more disputed squares than this get one whole-grid crop instead
 UNRELIABLE = ('number-corrected', 'text-moved', 'line-recovered', 'low-ocr-score', 'missing', 'no-text')
 MAX_BOX_H = 400  # a box: crop taller than this isn't a look at one clue
-ITEM_OK = re.compile(r"clue:[AD]\d+|cell:r\d+c\d+|grid:r\d+c\d+|other:\d+|meta:(title|author|byline|puzzle_number)")
+ITEM_OK = re.compile(r"clue:[AD]\d+|cell:r\d+c\d+|grid:r\d+c\d+|special:r\d+c\d+|other:\d+|meta:(title|author|byline|puzzle_number)")
 
 
 def _in_clue_area(ocr: dict, r: tuple, image: str | None = None) -> bool:
@@ -70,6 +70,8 @@ def _covered(item: str, seen: list[str], ocr: dict, regions: dict | None = None)
                 if shaky and y1 - y0 <= MAX_BOX_H and _in_clue_area(ocr, (x0, y0, x1, y1), img):
                     return True
         return False
+    if kind == "special":  # a circled or shaded square: seen on a crop of either grid around it
+        return _covered("grid:" + key, seen, ocr) or _covered("cell:" + key, seen, ocr)
     if kind in ("cell", "grid"):
         r, c = (int(v) for v in key[1:].split("c"))
         for t in seen:
@@ -159,6 +161,7 @@ def finish(ocr: dict, draft: dict, seen: list[str]) -> tuple[dict, list[str]]:
         clue_text = (ocr["clues"].get(item[5:]) or {}).get("text", "x") if item.startswith("clue:") else ""
         if (not ITEM_OK.fullmatch(item)
                 or (item.startswith("grid:") and value not in ("#", "."))
+                or (item.startswith("special:") and value not in ("circle", "shaded", ""))  # a circled or shaded square
                 or (item.startswith("cell:") and len(value) > 1 and not value.isalpha())
                 or (item.startswith("clue:") and re.fullmatch(r"[A-Z]+", value)
                     and not re.fullmatch(r"[A-Z ]+", clue_text))):  # an answer word put in a clue

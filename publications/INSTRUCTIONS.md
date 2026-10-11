@@ -57,6 +57,8 @@ Use the answers as a cross-check: each clue's answer must fit its clue.
     "cell:r3c5": "E",                  (answer-grid letter; "#" for a black square)
     "grid:r3c5": "#",                  (puzzle-grid square: "#" black, "." white; for
                                         squares the OCR got wrong, e.g. cross-hatched)
+    "special:r3c5": "circle",          (a square printed with a circle in it; "shaded" for a shaded
+                                        square; "" if a square shown as marked isn't. Look at grid:all)
     "clue:A14": "full corrected clue text",
     "clue:A26": "",                    ("" = this clue number doesn't exist; if you fix the
                                         grid, key clues by the corrected grid's numbering)
