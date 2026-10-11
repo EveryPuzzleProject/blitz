@@ -69,6 +69,20 @@ Newest at the bottom of each section; strike through or delete when done.
    1934-06, each time one copy filled in by a reader. Same number plus near-identical clues means a duplicate
    scan, not a second puzzle.
 
+11. **Learn each publication's layout from what's confirmed** (user, 2026-10-11). Where the puzzle sits in
+   an issue, where its key runs, and whether a second puzzle is on the facing page are all regular, and the
+   data already shows it. Judge's confirmed puzzles sit at leaf 31 (10-90%: 31-34 weekly, 31-38 monthly).
+   Keys are in the next issue for 290 of 292 weekly puzzles and 177 of 191 monthly ones; the other 14
+   monthly keys are in the same issue, a few pages from the puzzle. Fit these as statistics per publication
+   (data, not hand-written rules: see no-publication-specific-cruft) and use them to:
+   - rank the pages to examine first, so a gap hunt starts at "leaf 30-32 of this issue, then the
+     facing page";
+   - put an expectation on each exception in the checkpoint (item 0): "No. 297 expected near leaf 31 of
+     1933-10; its key near leaf 31 of 1933-11";
+   - flag a placement that breaks the pattern (a key two issues later, a puzzle at leaf 8) as an exception.
+   The model updates as reviewers confirm pages, and a change in the pattern (weekly to monthly, a
+   same-issue key) is a finding to show, not noise.
+
 ## Review site
 
 4. **Republish the ~300 newer Judge puzzles with `--current-review`**, so the page shows each
