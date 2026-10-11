@@ -55,6 +55,12 @@ Newest at the bottom of each section; strike through or delete when done.
 4. **Republish the ~300 newer Judge puzzles with `--current-review`**, so the page shows each
    one as it stands now (later fixes, notes, sources), not the original agent review.
 
+10. **Circled (and shaded) squares** (user, 2026-10-11). xd marks them with lowercase letters in the grid
+   plus a `Special: circle` (or `shaded`) header; xdlint checks the value. Judge's unnumbered "Dirty Work at
+   the Crosswords" (Dec 1936, our No. 371) has circled squares. Needs: a way to mark a square circled in the
+   review UI (shown on the page, with its source, like everything else), import into the ledger, and the
+   pipeline (numbering, lint, packets, export-gxd) keeping lowercase cells as letters.
+
 ## Elsewhere
 
 5. **crossref: treat `_` as "no square"** (xd's not-part-of-the-puzzle), for the shaped Judge
