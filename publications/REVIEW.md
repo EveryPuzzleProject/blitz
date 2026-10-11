@@ -119,6 +119,11 @@ one square) is a correction of that square with all of them, in reading order:
 Say in `note` what the square holds and why, e.g. "r14c8 is printed with six small letters,
 TNL over DMS: any of them finishes 61 Down": it's how the decision becomes the puzzle's note.
 
+A square printed with a circle in it (or shaded) is `"corrections": {"special:r3c5": "circle"}`
+(or `"shaded"`), one entry per square: the xd file writes its letter in lowercase. Check them on a
+`grid:` crop (circles are usually drawn in the puzzle grid, not the answer key). If the circles
+spell something or the puzzle's title or notes explain them, say so in `note`.
+
 `tool_notes` is how the tools get better: one entry for each thing the tools got wrong or made
 hard, in this puzzle (not your corrections themselves). Use one of these kinds when it fits:
 "title-from-ad" (title or a clue picked up text from an ad or another column), "heading-in-clue"

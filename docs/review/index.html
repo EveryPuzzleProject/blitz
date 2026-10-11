@@ -192,6 +192,18 @@ body.side .typed { margin-top: 0; }
 .typedgrid.over div.blk { background: transparent; }
 .typedgrid div.unsure { box-shadow: inset 0 0 0 2px var(--flag); }
 .typedgrid div.cur { background: #e2ecfb !important; }
+/* circled and shaded squares (xd's Special): a ring or a tint; a reviewer's mark is ringed in their colour */
+.typedgrid div, .acells > span { position: relative; }
+.sp-circle::after { content: ''; position: absolute; inset: 6%; border: 1.5px solid var(--spc, #444); border-radius: 50%; pointer-events: none; }
+.sp-shaded { background-color: #d9d4cc !important; }
+.typedgrid.over div.sp-circle::after { border-color: rgba(220, 20, 60, .85); }
+.typedgrid.over div.sp-shaded { background-color: rgba(220, 20, 60, .2) !important; }
+.typedgrid.hit div.sp-circle::after { border-color: transparent; }
+.typedgrid.hit div.sp-shaded { background-color: transparent !important; }
+.marktool { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; margin: 0 0 8px; }
+.marktool > span { color: var(--muted); font-size: 12px; margin-right: 2px; }
+.splist { font-size: 13px; margin: 0 0 8px; }
+.splist:empty { display: none; }
 .gridside { flex: 1; min-width: 240px; font-size: 13px; }
 .gridside p { margin: 0 0 8px; }
 .gridside .margin { margin-top: 10px; }
@@ -372,6 +384,7 @@ function base(key) {
   if (m) return ocr.answers ? ocr.answers[m[1] - 1][m[2] - 1] : '';
   if (key.startsWith('meta:')) return ocr[key.slice(5)] || '';
   if (key.startsWith('other:')) return (ocr.captions || {})[key.slice(6)] || '';
+  if (key.startsWith('special:')) return (ocr.special || {})[key.slice(8)] || '';   // the OCR doesn't look for circles
   return ocr.clues[key.slice(5)]?.text ?? '';
 }
 function valueAt(key, i) {
@@ -500,8 +513,8 @@ function legend() {
 const PART = {
   meta: {name: 'title, byline and nearby lines', plural: true, has: k => k.startsWith('meta:') || k.startsWith('other:')},
   page: {name: 'whole page', has: () => false},
-  blank: {name: 'blank grid', has: k => k.startsWith('grid:')},
-  grid: {name: 'answer key', has: k => k.startsWith('cell:')},
+  blank: {name: 'blank grid', has: k => k.startsWith('grid:') || (k.startsWith('special:') && !hasKey())},
+  grid: {name: 'answer key', has: k => k.startsWith('cell:') || (k.startsWith('special:') && hasKey())},
   A: {name: 'Across clues', plural: true, has: k => k.startsWith('clue:A')},
   D: {name: 'Down clues', plural: true, has: k => k.startsWith('clue:D')},
 };
@@ -971,9 +984,12 @@ function blankSection(why, optional) {
       ${gridImg ? `<p><button class="t" data-b="side">Side by side</button> <button class="t" data-b="over">On the scan</button> <button class="t" data-b="blink">Blink</button></p>
       <p>Every printed black square should be red, and every small red number should sit on the printed one. Click a square to make it black or white.</p>`
       : `<p><b>This grid was typed by hand</b> (its shape is too irregular for the reader to straighten), so the scan is the puzzle's whole page. Compare our black squares and numbers with it by eye. Click a square to make it black or white.</p>`}
+      ${markTool('make it black or white')}
+      <div class="splist" id="bspecial"></div>
       <div class="margin" id="bnotes"></div>
     </div></div>`);
   s.querySelectorAll('[data-b]').forEach(b => b.onclick = () => { bMode = b.dataset.b; drawBlank(s); });
+  wireMarkTool(s);
   if (!gridImg) bMode = 'side';
   drawBlank(s);
   return s;
@@ -992,7 +1008,12 @@ function blankCells(cls) {
     x.dataset.rc = `${r},${c}`;
     x.title = cellRef(r, c);
     if (h.length > 1) { x.style.boxShadow = `inset 0 0 0 2.5px ${h[h.length-1].color}`; x.title += ': ' + h.map(v => `${v.who} ${v.value === '#' ? 'black' : 'white'}`).join(' → '); }
-    x.onclick = () => { if (justReferenced() || cls === 'hit') return; setEdit(k, g[r][c] === '#' ? '.' : '#', true); compose(document.querySelector('#bnotes'), k, true); };
+    if (g[r][c] !== '#') paintSpecial(x, r, c);
+    x.onclick = () => {
+      if (justReferenced() || cls === 'hit') return;
+      if (markMode) return markSquare(r, c, document.querySelector('#bnotes'));
+      setEdit(k, g[r][c] === '#' ? '.' : '#', true); compose(document.querySelector('#bnotes'), k, true);
+    };
     d.append(x);
   }
   return d;
@@ -1008,8 +1029,10 @@ function drawBlank(s) {
   else scan.append(blankCells(bMode === 'over' ? 'over' : 'solo'));
   const G0 = G(); if (gridImg) edgeLabels(scan, G0.length, G0[0].length); edgeLabels(typed, G0.length, G0[0].length);
   const g = s.querySelector('#bnotes'), open = g.querySelector('.compose');
-  g.innerHTML = rounds.flatMap(r => r.comments.filter(c => c.key.startsWith('grid:')).map(c => `<b>${esc(c.key.slice(5))}</b> ` + noteHtml(r, c.text, c.why))).join('');
+  g.innerHTML = rounds.flatMap(r => r.comments.filter(c => c.key.startsWith('grid:') || (!hasKey() && c.key.startsWith('special:')))
+    .map(c => `<b>${esc(c.key.split(':')[1])}</b> ` + noteHtml(r, c.text, c.why))).join('');
   if (open) g.prepend(open);
+  s.querySelector('#bspecial').innerHTML = specialList();
 }
 
 function noteHtml(r, text, why) {
@@ -1074,7 +1097,7 @@ function addRow(s, key, label, box, flags = [], src = null) {
       const x = document.createElement('span');
       x.dataset.cell = `${r},${c}`;
       x.dataset.rc = `${r},${c}`;
-      x.onclick = e => pickSquare(r, c, e);
+      x.onclick = e => markMode ? markSquare(r, c, row.querySelector('.margin')) : pickSquare(r, c, e);
       ac.append(x);
     }
     ab.append(ac);
@@ -1087,6 +1110,7 @@ function addRow(s, key, label, box, flags = [], src = null) {
       setSquare(x, final(k));
       x.style.boxShadow = hh.length > 1 ? `inset 0 0 0 2px ${hh[hh.length-1].color}` : '';
       x.title = cellRef(r, c) + (hh.length > 1 ? ': ' + hh.map(v => `${v.who} ${v.value}`).join(' → ') : '');
+      paintSpecial(x, r, c);
     });
     const h = moved ? history(key, src.text) : history(key), fin = h[h.length - 1].value;
     row.look = row.suspect || h.length > 1 || flags.length || odd || commentsFor(key).length;
@@ -1120,7 +1144,7 @@ function addRow(s, key, label, box, flags = [], src = null) {
       flags.filter(f => !f.startsWith('number-corrected')).map(f => `<b class="m-flag" title="${esc(f)}">${esc(f.split(':')[0])}</b>`).join('') +
       looked.map(w => `<b class="m-ok" title="${esc(w)} looked at this line and kept it">${esc(w)} looked</b>`).join('');
     const m = row.querySelector('.margin'), open = m.querySelector('.compose');
-    const cellNotes = isClue ? entryCells(label).flatMap(([r, c]) => commentsFor(`cell:r${r+1}c${c+1}`).map(x => [...x, `r${r+1}c${c+1}`])) : [];
+    const cellNotes = isClue ? entryCells(label).flatMap(([r, c]) => [`cell:r${r+1}c${c+1}`, spKey(r, c)].flatMap(k => commentsFor(k).map(x => [...x, `r${r+1}c${c+1}`]))) : [];
     m.innerHTML = commentsFor(key).map(([r, c]) => noteHtml(r, c.text, c.why)).join('') +
       cellNotes.map(([r, c, at]) => noteHtml(r, `(square ${at}) ${c.text}`, c.why)).join('') + '<button class="addc">💬 Comment</button>';
     if (open) m.prepend(open);
@@ -1209,13 +1233,17 @@ function historyButtons() {
 }
 function refresh(key) {
   if (key.startsWith('grid:')) { const y = scrollY; render(); scrollTo(0, y); return; }
-  if (key.startsWith('cell:')) { regrid(); rows.forEach(r => r.paint()); }
+  if (key.startsWith('cell:') || key.startsWith('special:')) {
+    regrid(); rows.forEach(r => r.paint());
+    const b = document.getElementById('blankpanel'); if (key.startsWith('special:') && b) drawBlank(b);
+  }
   else rows.find(r => r.dataset.key === key)?.paint();
   progress(); historyButtons();
 }
 function jumpTo(key) {
   const i = rows.findIndex(r => r.dataset.key === key);
-  if (i >= 0) setFocus(i); else document.querySelector('section[data-sec=grid]')?.scrollIntoView({block: 'center'});
+  if (i >= 0) setFocus(i);
+  else (document.querySelector('section[data-sec=grid]') || document.getElementById('blankpanel'))?.scrollIntoView({block: 'center'});
 }
 
 // ---- the answer key ----
@@ -1234,10 +1262,13 @@ function gridSection() {
       <p>Click a square and type a letter to fix it. A coloured outline means a reviewer changed it (hover to see what it was).</p>
       <p>A square printed with several letters (a rebus): double-click it, or click it and press <kbd>Enter</kbd>, and type them all.</p>
       <p>Hover a square for its position. While you're writing a note, click a square to put its position in the note.</p>
+      ${markTool('fix its letter')}
+      <div class="splist" id="gspecial"></div>
       ${blankReasons().length ? `<p class="m-flag" style="padding:4px 8px;border-radius:6px">The blank grid may be worth a look: ${esc(blankReasons().join(' '))} <button class="ctxbtn" onclick="showBlank()">Open the blank grid</button></p>` : ''}
       <div class="margin" id="gnotes"></div>
     </div></div>`);
   s.querySelectorAll('[data-g]').forEach(b => b.onclick = () => { gridMode = b.dataset.g; drawGrid(s); });
+  wireMarkTool(s);
   if (!ansImg) gridMode = 'side';
   drawGrid(s);
   return s;
@@ -1308,8 +1339,9 @@ function cells(cls) {
     x.title = cellRef(r, c);
     if (h.length > 1) { x.style.boxShadow = `inset 0 0 0 2.5px ${h[h.length-1].color}`; x.title += ': ' + h.map(v => `${v.who} ${v.value}`).join(' → '); }
     else if (low.has(`r${r+1}c${c+1}`)) { x.classList.add('unsure'); x.title += ': the OCR was unsure of this letter'; }
+    if (ch !== '#') paintSpecial(x, r, c);
     if (selCell && selCell[0] === r && selCell[1] === c) x.classList.add('cur');
-    x.onclick = e => pickSquare(r, c, e);
+    x.onclick = e => markMode ? markSquare(r, c, document.querySelector('#gnotes')) : pickSquare(r, c, e);
     d.append(x);
   }
   return d;
@@ -1327,9 +1359,59 @@ function drawGrid(s) {
   edgeLabels(typedBox, ocr.answers.length, ocr.answers[0].length);
   const g = s.querySelector('#gnotes'), open = g.querySelector('.compose');
   const notes = [];
-  for (const r of rounds) for (const c of r.comments) if (c.key.startsWith('cell:')) notes.push(`<b>${esc(c.key.slice(5))}</b> ` + noteHtml(r, c.text, c.why));
+  for (const r of rounds) for (const c of r.comments)
+    if (c.key.startsWith('cell:') || c.key.startsWith('special:')) notes.push(`<b>${esc(c.key.split(':')[1])}</b> ` + noteHtml(r, c.text, c.why));
   g.innerHTML = notes.join('');
   if (open) g.prepend(open);
+  s.querySelector('#gspecial').innerHTML = specialList();
+}
+// ---- circled and shaded squares (xd's Special: the square's letter is lowercase in the xd file) ----
+const SPECIAL = {circle: 'circled', shaded: 'shaded'};
+const spKey = (r, c) => `special:r${r+1}c${c+1}`;
+let markMode = '';   // what clicking a square does: '' fixes it (letter, or black/white), 'circle' or 'shaded' marks it
+function markTool(fix) {
+  const b = (m, label) => `<button class="t${markMode === m ? ' on' : ''}" data-mark="${m}">${label}</button>`;
+  return `<p>A square printed with a circle in it, or shaded: choose <b>◯ circle it</b> (or <b>▒ shade it</b>) and click each one; click again to take it off. The xd file writes its letter in lowercase.</p>
+    <div class="marktool"><span>Click a square to:</span>${b('', fix)}${b('circle', '◯ circle it')}${b('shaded', '▒ shade it')}</div>`;
+}
+function wireMarkTool(s) {
+  s.querySelectorAll('[data-mark]').forEach(b => b.onclick = () => {
+    markMode = b.dataset.mark; selCell = null; regrid();
+    document.querySelectorAll('[data-mark]').forEach(x => x.classList.toggle('on', x.dataset.mark === markMode));
+  });
+}
+// a square's mark, drawn; who marked it (or took it off) is its outline colour and in its hover text
+function paintSpecial(x, r, c) {
+  const k = spKey(r, c), v = final(k), h = history(k);
+  x.classList.remove('sp-circle', 'sp-shaded');
+  if (v) x.classList.add('sp-' + v);
+  x.style.removeProperty('--spc');
+  if (h.length > 1) {
+    const last = h[h.length - 1];
+    x.style.setProperty('--spc', last.color);
+    if (!x.style.boxShadow) x.style.boxShadow = `inset 0 0 0 2.5px ${last.color}`;
+    x.title += '; ' + h.map(s => `${s.who} ${s.value ? SPECIAL[s.value] : 'not marked'}`).join(' → ');
+  } else if (v) x.title += '; ' + SPECIAL[v];
+}
+function markSquare(r, c, notes) {
+  if (justReferenced() || NS(G()[r][c]) || (ocr.answers && NS(final(`cell:r${r+1}c${c+1}`)))) return;
+  const k = spKey(r, c);
+  setEdit(k, final(k) === markMode ? '' : markMode, true);
+  compose(notes, k, true);
+}
+// every marked square, with who marked it: nothing reaches the xd without showing here
+function specialList() {
+  const g = G(), on = {}, off = [];
+  for (let r = 0; r < g.length; r++) for (let c = 0; c < g[0].length; c++) {
+    const k = spKey(r, c), v = final(k), h = history(k);
+    const who = h.length > 1 ? ` <i style="color:${h[h.length-1].color}">(${esc(h[h.length-1].who)})</i>` : '';
+    if (v) (on[v] ||= []).push(`r${r+1}c${c+1}${who}`);
+    else if (h.length > 1) off.push(`r${r+1}c${c+1}${who}`);
+  }
+  const kinds = Object.keys(on);
+  return kinds.map(v => `<b>${SPECIAL[v][0].toUpperCase() + SPECIAL[v].slice(1)} squares</b> (lowercase letters in the xd): ${on[v].join(', ')}`).join('<br>') +
+    (kinds.length > 1 ? '<br><span class="m-flag">An xd file marks only one kind: the fewer will be listed in its notes.</span>' : '') +
+    (off.length ? `${kinds.length ? '<br>' : ''}<b>Marks taken off:</b> ${off.join(', ')}` : '');
 }
 function regrid() { const s = document.querySelector('section[data-sec=grid]'); if (s) drawGrid(s); markSel(); }
 function markSel() {

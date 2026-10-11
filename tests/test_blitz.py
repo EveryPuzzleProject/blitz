@@ -182,3 +182,25 @@ def test_finish_keeps_rebus_cells():
     assert review["corrections"]["cell:r1c2"] == "TNLDMS"
     assert "cell:r2c1" not in review["corrections"] and "cell:r2c1=X1" in ignored
     assert review["corrections"]["cell:r2c2"] == "E"
+
+
+def test_finish_keeps_circled_squares_seen_on_a_grid_crop():
+    # a circled (or shaded) square is a mark on the square: "circle", "shaded", or "" to take it off
+    ocr = {"grid": ["..", ".."], "answers": ["AB", "CD"], "clues": {}}
+    draft = {"corrections": {"special:r1c2": "circle", "special:r2c1": "shaded", "special:r2c2": "ring"}}
+    review, ignored = finish(ocr, draft, ["grid:r1c1"])
+    assert review["corrections"] == {"special:r1c2": "circle", "special:r2c1": "shaded"}
+    assert "special:r2c2=ring" in ignored
+    review, _ = finish(ocr, {"corrections": {"special:r1c2": "circle"}}, ["clue:A1"])
+    assert "special:r1c2" not in review["corrections"] and "special:r1c2" in review["unsure"]
+
+
+def test_the_proof_page_marks_circled_squares():
+    # one edit surface: the answer key (or the blank grid when there's no key) marks squares; every mark shows its source
+    from pathlib import Path
+
+    page = (Path(__file__).parents[1] / "src" / "blitz" / "proof.html").read_text(encoding="utf-8")
+    for needed in ("key.startsWith('special:')", "function markSquare", "function specialList", "data-mark=",
+                   "k.startsWith('special:') && hasKey()", "k.startsWith('special:') && !hasKey()"):
+        assert needed in page, needed
+    assert "prompt(" not in page

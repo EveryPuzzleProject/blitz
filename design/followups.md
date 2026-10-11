@@ -103,6 +103,11 @@ Newest at the bottom of each section; strike through or delete when done.
    the Crosswords" (Dec 1936, our No. 371) has circled squares. Needs: a way to mark a square circled in the
    review UI (shown on the page, with its source, like everything else), import into the ledger, and the
    pipeline (numbering, lint, packets, export-gxd) keeping lowercase cells as letters.
+   **Built 2026-10-11** (blitz branch claude/nice-poincare-b3a6f1, xword-ocr branch circled-squares): ledger
+   item `special:r3c5` = "circle" / "shaded" / "" (plain), fix-file `special_cells`; the proof page's answer
+   key (or blank grid when there's no key) has "Click a square to: fix it / ◯ circle it / ▒ shade it", draws
+   the marks everywhere, and lists every marked square with who marked it. Left: No. 371 itself, once its
+   harvest is in (mark its circles on the review page, or `special_cells` in its fix entry).
 
 ## Elsewhere
 
