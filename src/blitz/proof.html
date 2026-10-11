@@ -264,8 +264,12 @@ async function pickPuzzle() {
   const h = {apikey: SITE.supabaseAnonKey, Authorization: 'Bearer ' + SITE.supabaseAnonKey};
   const get = q => fetch(`${SITE.supabaseUrl}/rest/v1/${q}`, {headers: h}).then(r => r.ok ? r.json() : []);
   let [list, said] = await Promise.all([get('puzzles?select=xdid,title,base_url,checkup&open=eq.true&order=xdid'),
-                                        get('proofs?select=xdid,decision')]);
+                                        get('proofs?select=xdid,decision,user_id')]);
   if (!list.length) list = await get('puzzles?select=xdid,title,base_url&open=eq.true&order=xdid');  // no checkup column
+  // the puzzles this helper has already proofed: Next skips them, so the open puzzles work as a queue
+  let me = null;
+  try { me = sb ? (await sb.auth.getSession()).data.session?.user?.id : null; } catch (e) {}
+  const mine = new Set(said.filter(r => me && r.user_id === me).map(r => r.xdid));
   const reviews = {}, notReady = {};
   for (const r of said) { reviews[r.xdid] = (reviews[r.xdid] || 0) + 1; if (r.decision === 'notready') notReady[r.xdid] = (notReady[r.xdid] || 0) + 1; }
   // worst first: a helper said Not ready, then the checkup's grade (check closely, worth a look, clean),
@@ -282,6 +286,7 @@ async function pickPuzzle() {
     const c = p.checkup || {}, bits = [];
     if (notReady[p.xdid]) bits.push(`said not ready by ${notReady[p.xdid]}`);
     if (c.grade && c.grade !== 'clean') bits.push(GRADE[c.grade] + (c.high ? ` (${c.high} serious)` : ''));
+    if (mine.has(p.xdid)) bits.push('done by you');
     if (reviews[p.xdid]) bits.push(`${reviews[p.xdid]} review${reviews[p.xdid] > 1 ? 's' : ''}`);
     return `${p.xdid}: ${(p.title || '').replace(/^Judge's Crossword Puzzle /, '')}${bits.length ? ' · ' + bits.join(' · ') : ''}`;
   };
@@ -294,7 +299,12 @@ async function pickPuzzle() {
     try { localStorage.setItem('proof-order', os.value); } catch (e) {}
     const u = new URL(location.href); u.searchParams.delete('p'); u.searchParams.set('order', os.value); location.href = u.href;
   };
-  document.getElementById('nextpz').onclick = () => go(list[(i + 1) % list.length].xdid);
+  // the next puzzle you haven't proofed yet (or simply the next one once you've done them all)
+  const nextTodo = () => { for (let k = 1; k <= list.length; k++) { const p = list[(i + k) % list.length]; if (!mine.has(p.xdid) && p.xdid !== ID) return p; } return list[(i + 1) % list.length]; };
+  const left = list.filter(p => !mine.has(p.xdid)).length;
+  const nb = document.getElementById('nextpz');
+  nb.title = `${left} of ${list.length} open puzzles left for you`;
+  nb.onclick = () => go(nextTodo().xdid);
   document.getElementById('sitebar').hidden = false;
 }
 // the site's database: everyone's submitted proofs are readable; each helper writes their own
