@@ -48,7 +48,10 @@ Newest at the bottom of each section; strike through or delete when done.
    "missing" rows, but two puzzles with the same number weren't flagged: Judge printed No. 156 as "No. 155"
    (1930-05-17, a week after the real 155, with 156 missing between them), and No. 44 appears twice
    (1925-10-10, 1925-10-17b). Report duplicate numbers, numbers out of date order, and a duplicate beside a
-   gap (a likely misprint) in the harvest's status and as a warning on the puzzle in review.
+   gap (a likely misprint) in the harvest's status and as a warning on the puzzle in review. Also catch the same
+   page scanned twice: No. 44 (1925-10-10) reappears as leaf 40 of the 1925-10-17 item, and No. 310 twice in
+   1934-06, each time one copy filled in by a reader. Same number plus near-identical clues means a duplicate
+   scan, not a second puzzle.
 
 ## Review site
 
