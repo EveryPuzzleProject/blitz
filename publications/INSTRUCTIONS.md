@@ -87,6 +87,13 @@ extra letters, pun spellings, several letters in one square), so an odd
 spelling may be the point: check whether the answer grid only works with it,
 and say so in "sic" or the note. Never "fix" what is printed.
 
+The one exception is the answer key, which is evidence for the answers rather than part of the
+puzzle. When a letter in the printed key is plainly a misprint (the clue and the crossing words
+both call for another letter, and anyone solving the puzzle would agree: TANG, not TAHG), correct
+the square to the right letter and say so in the note, in this form: "The solution grid that
+ran on September 8, 1928 printed 1 Down as TAHG. It has been corrected to TANG." If the puzzle's
+gimmick needs the odd letter, keep it.
+
 Only correct what you can see in the scan. Transcribe exactly as printed,
 including the original spelling and punctuation. Don't modernize or improve
 anything. If something can't be read, list it under "unsure" rather than guess.
