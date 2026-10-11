@@ -44,6 +44,12 @@ Newest at the bottom of each section; strike through or delete when done.
    where reviewers had confirmed, not corrected, the OCR. It should reuse cached analyses for known pages
    and analyze only new ones (Judge was repaired by restoring the earlier readings).
 
+9. **Check the series: duplicates and order, not only gaps** (user, 2026-10-11). Numbering gaps become
+   "missing" rows, but two puzzles with the same number weren't flagged: Judge printed No. 156 as "No. 155"
+   (1930-05-17, a week after the real 155, with 156 missing between them), and No. 44 appears twice
+   (1925-10-10, 1925-10-17b). Report duplicate numbers, numbers out of date order, and a duplicate beside a
+   gap (a likely misprint) in the harvest's status and as a warning on the puzzle in review.
+
 ## Review site
 
 4. **Republish the ~300 newer Judge puzzles with `--current-review`**, so the page shows each
