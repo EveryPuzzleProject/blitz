@@ -163,6 +163,9 @@ body.side .typed { margin-top: 0; }
 .edge-r { left: -20px; top: 0; bottom: 0; width: 16px; text-align: right; align-items: center; }
 .typedgrid.hit div { color: transparent; }
 .gridbox img { width: 100%; height: 100%; display: block; }
+.gridbox.pagebox { width: 520px; height: auto; }
+.gridbox.pagebox img { height: auto; }
+.gridbox.pagebox .ctxbtn { display: inline-block; margin-top: 6px; }
 .typedgrid { position: absolute; inset: 0; display: grid; }
 .typedgrid div { display: flex; align-items: center; justify-content: center; font: 600 21px/1 var(--sans); cursor: pointer; }
 .typedgrid.solo { background: #fff; outline: 1px solid #999; }
@@ -306,7 +309,7 @@ async function start() {
   await loadProofs();
   await load();
 }
-let images = {}, ansImg = null, ocr, rev, page, rounds, cur, rows = [], focus = -1, NUM;
+let images = {}, ansImg = null, keyPage = null, gridImg = null, ocr, rev, page, rounds, cur, rows = [], focus = -1, NUM;
 const undoStack = [], redoStack = [];
 const MAIN = () => ocr.clue_image || 'page.jpg';
 const scaleOf = im => 1 / (ocr.scales[im || MAIN()] || 1);
@@ -320,7 +323,12 @@ async function load() {
   })));
   page = images[MAIN()];
   const a = new Image();
+  const probe = src => new Promise(ok => { const im = new Image(); im.onload = () => ok(im); im.onerror = () => ok(null); im.src = src; });
   ansImg = await new Promise(ok => { a.onload = () => ok(a); a.onerror = () => ok(null); a.src = dir + 'answers.png'; });
+  // A grid typed by hand (an irregular shape the reader can't straighten) has no answers.png or
+  // grid.png: show the scanned pages instead, side by side with our grid.
+  gridImg = await probe(dir + 'grid.png');
+  if (!ansImg && ocr.answers) keyPage = await probe(dir + 'answer_page.jpg');
   const agent = {who: (rev.model || 'agent').replace(/^claude-/, '').replace(/-\d.*$/, '').replace(/^./, c => c.toUpperCase()),
     edits: {...rev.corrections}, comments: [], summary: rev.note};
   for (const t of rev.tool_notes || []) if (t.target !== 'other') agent.comments.push({key: t.target, text: t.note});
@@ -353,7 +361,7 @@ function valueAt(key, i) {
 }
 const final = key => valueAt(key, rounds.length - 1);
 const G = () => ocr.grid.map((row, r) => [...row].map((ch, c) => final(`grid:r${r+1}c${c+1}`)).join(''));
-const hasKey = () => !!(ansImg && ocr.answers);
+const hasKey = () => !!((ansImg || keyPage) && ocr.answers);
 // every version a field went through: [{who, color, value}], starting with the OCR
 function history(key, start = base(key)) {
   const h = [{who: 'OCR', value: start}];
@@ -440,6 +448,9 @@ function render() {
     const m = /^other(\d+)$/.exec(k);
     addRow(hs, m ? 'other:' + m[1] : 'meta:' + k, m ? 'printed nearby' : k, ocr.meta_boxes[k]);
   }
+  // Title, author and byline always get a row, even when the OCR found no box for them: a fix may
+  // have added one (it shows as a change), or the reviewer may need to type one the OCR missed.
+  for (const k of ['title', 'author', 'byline']) if (!(k in (ocr.meta_boxes || {}))) addRow(hs, 'meta:' + k, k, null);
   for (const n of Object.keys(ocr.captions || {})) if (!(('other' + n) in (ocr.meta_boxes || {}))) addRow(hs, 'other:' + n, 'printed nearby', null);
   main.append(hs);
   const why = blankReasons();
@@ -719,7 +730,7 @@ function entryCells(k) {
 }
 // the entry's squares cut from the scanned answer key, laid in a row (Down too)
 function answerStrip(k) {
-  const cs = entryCells(k); if (!hasKey() || !cs.length) return null;
+  const cs = entryCells(k); if (!ansImg || !ocr.answers || !cs.length) return null;
   const cw = ansImg.naturalWidth / ocr.grid[0].length, ch = ansImg.naturalHeight / ocr.grid.length;
   const cv = document.createElement('canvas');
   cv.width = Math.round(cs.length * cw); cv.height = Math.round(ch);
@@ -929,15 +940,18 @@ function blankSection(why, optional) {
   if (optional && !why.length) why = ['Nothing flagged: the checks found the blank grid agrees with the answer key.'];
   s.insertAdjacentHTML('beforeend', `<p style="margin:10px 14px 0;font-size:13px"><b>${optional ? 'What the checks found:' : "Why you're seeing this:"}</b></p><ul class="reasons">${why.map(w => `<li>${esc(w)}</li>`).join('')}</ul>
     <div class="gridwrap">
-    <div class="gridbox" id="bscan"><img src="${dir}grid.png" alt="blank grid scan"></div>
+    ${gridImg ? `<div class="gridbox" id="bscan"><img src="${dir}grid.png" alt="blank grid scan"></div>`
+      : `<div class="gridbox pagebox" id="bscan"><img src="${dir}page.jpg" alt="the puzzle's page"><a class="ctxbtn" href="${dir}_src/page.jpg" target="_blank">open it larger ↗</a></div>`}
     <div class="gridbox" id="btyped"></div>
     <div class="gridside">
       <p><b>Spot the difference.</b> Our black squares (red) and our numbers (small red) on the printed grid:</p>
-      <p><button class="t" data-b="side">Side by side</button> <button class="t" data-b="over">On the scan</button> <button class="t" data-b="blink">Blink</button></p>
-      <p>Every printed black square should be red, and every small red number should sit on the printed one. Click a square to make it black or white.</p>
+      ${gridImg ? `<p><button class="t" data-b="side">Side by side</button> <button class="t" data-b="over">On the scan</button> <button class="t" data-b="blink">Blink</button></p>
+      <p>Every printed black square should be red, and every small red number should sit on the printed one. Click a square to make it black or white.</p>`
+      : `<p><b>This grid was typed by hand</b> (its shape is too irregular for the reader to straighten), so the scan is the puzzle's whole page. Compare our black squares and numbers with it by eye. Click a square to make it black or white.</p>`}
       <div class="margin" id="bnotes"></div>
     </div></div>`);
   s.querySelectorAll('[data-b]').forEach(b => b.onclick = () => { bMode = b.dataset.b; drawBlank(s); });
+  if (!gridImg) bMode = 'side';
   drawBlank(s);
   return s;
 }
@@ -965,9 +979,9 @@ function drawBlank(s) {
   s.querySelectorAll('.typedgrid').forEach(x => x.remove());
   scan.classList.toggle('blinking', bMode === 'blink');
   typed.style.display = bMode === 'side' ? '' : 'none';
-  if (bMode === 'side') { typed.append(blankCells('solo')); scan.append(blankCells('hit')); }
+  if (bMode === 'side') { typed.append(blankCells('solo')); if (gridImg) scan.append(blankCells('hit')); }
   else scan.append(blankCells(bMode === 'over' ? 'over' : 'solo'));
-  const G0 = G(); edgeLabels(scan, G0.length, G0[0].length); edgeLabels(typed, G0.length, G0[0].length);
+  const G0 = G(); if (gridImg) edgeLabels(scan, G0.length, G0[0].length); edgeLabels(typed, G0.length, G0[0].length);
   const g = s.querySelector('#bnotes'), open = g.querySelector('.compose');
   g.innerHTML = rounds.flatMap(r => r.comments.filter(c => c.key.startsWith('grid:')).map(c => `<b>${esc(c.key.slice(5))}</b> ` + noteHtml(r, c.text, c.why))).join('');
   if (open) g.prepend(open);
@@ -1182,18 +1196,21 @@ let selCell = null, gridMode = 'side';
 function gridSection() {
   const s = sec('grid', 'Answer key', 'the answer key', 'scan on the left, our letters on the right');
   s.insertAdjacentHTML('beforeend', `<div class="gridwrap">
-    <div class="gridbox" id="gscan"><img src="${dir}answers.png" alt="answer key scan"></div>
+    ${ansImg ? `<div class="gridbox" id="gscan"><img src="${dir}answers.png" alt="answer key scan"></div>`
+      : `<div class="gridbox pagebox" id="gscan"><img src="${dir}answer_page.jpg" alt="the page with the answer key"><a class="ctxbtn" href="${dir}answer_page.jpg" target="_blank">open it larger ↗</a></div>`}
     <div class="gridbox" id="gtyped"></div>
     <div class="gridside">
       <p><b>Spot the difference.</b> Look from one grid to the other, or put our letters <i>on</i> the scan:</p>
-      <p><button class="t" data-g="side">Side by side</button> <button class="t" data-g="over">On the scan</button> <button class="t" data-g="blink">Blink</button></p>
-      <p>On the scan, a red letter sitting squarely on the printed one is a match; a doubled or smeared letter is a difference. Blink flips between them: differences jump.</p>
+      ${ansImg ? `<p><button class="t" data-g="side">Side by side</button> <button class="t" data-g="over">On the scan</button> <button class="t" data-g="blink">Blink</button></p>
+      <p>On the scan, a red letter sitting squarely on the printed one is a match; a doubled or smeared letter is a difference. Blink flips between them: differences jump.</p>`
+      : `<p><b>This grid was typed by hand</b> (its shape is too irregular for the reader to straighten), so the scan is the whole page the answer key is printed on. Compare it with our grid by eye; open it larger to zoom.</p>`}
       <p>Click a square and type a letter to fix it. A coloured outline means a reviewer changed it (hover to see what it was).</p>
       <p>Hover a square for its position. While you're writing a note, click a square to put its position in the note.</p>
       ${blankReasons().length ? `<p class="m-flag" style="padding:4px 8px;border-radius:6px">The blank grid may be worth a look: ${esc(blankReasons().join(' '))} <button class="ctxbtn" onclick="showBlank()">Open the blank grid</button></p>` : ''}
       <div class="margin" id="gnotes"></div>
     </div></div>`);
   s.querySelectorAll('[data-g]').forEach(b => b.onclick = () => { gridMode = b.dataset.g; drawGrid(s); });
+  if (!ansImg) gridMode = 'side';
   drawGrid(s);
   return s;
 }
@@ -1222,9 +1239,10 @@ function drawGrid(s) {
   s.querySelectorAll('.typedgrid').forEach(x => x.remove());
   scanBox.classList.toggle('blinking', gridMode === 'blink');
   typedBox.style.display = gridMode === 'side' ? '' : 'none';
-  if (gridMode === 'side') { typedBox.append(cells('solo')); scanBox.append(cells('hit')); }   // hit: hover and click on the scan too
+  if (gridMode === 'side') { typedBox.append(cells('solo')); if (ansImg) scanBox.append(cells('hit')); }   // hit: hover and click on the scan too
   else scanBox.append(cells(gridMode === 'over' ? 'over' : 'solo'));
-  edgeLabels(scanBox, ocr.answers.length, ocr.answers[0].length); edgeLabels(typedBox, ocr.answers.length, ocr.answers[0].length);
+  if (ansImg) edgeLabels(scanBox, ocr.answers.length, ocr.answers[0].length);
+  edgeLabels(typedBox, ocr.answers.length, ocr.answers[0].length);
   const g = s.querySelector('#gnotes'), open = g.querySelector('.compose');
   const notes = [];
   for (const r of rounds) for (const c of r.comments) if (c.key.startsWith('cell:')) notes.push(`<b>${esc(c.key.slice(5))}</b> ` + noteHtml(r, c.text, c.why));
