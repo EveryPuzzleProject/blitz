@@ -24,6 +24,14 @@ Newest at the bottom of each section; strike through or delete when done.
    rather than typed and the next reviewer sees the scan crop as proof. Motivated by the
    Tomordy byline on judge1926-01-30, which had no crop.
 
+6. **Harvest discovery: examine every page the text search finds** (2026-10-11). In Judge's monthly years
+   (2-3 puzzles an issue) the harvester missed puzzles whose pages archive.org's own text search finds
+   ("crossword" hits both No. 320 and No. 321 in the November 1934 issue; we had only No. 320). About 17 of
+   Judge's 23 missing numbers have their title in the page text. Also look for answer keys in the same issue
+   ("Solutions of Puzzles in this Issue", unnumbered, Mar-Nov 1937) and by "Solution of Puzzle No. N" text,
+   not only by grid shape in later issues: 38 of 71 missing keys were found that way. Judge was patched by hand
+   with extra_pages; the general fix belongs in discovery.
+
 ## Review site
 
 4. **Republish the ~300 newer Judge puzzles with `--current-review`**, so the page shows each
