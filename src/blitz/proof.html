@@ -963,7 +963,7 @@ function blankCells(cls) {
   for (const [k, [r, c]] of Object.entries(N)) nums[`${r},${c}`] = k.slice(1);
   const d = document.createElement('div');
   d.className = 'typedgrid bk ' + cls;
-  d.style.gridTemplate = `repeat(${H}, 1fr) / repeat(${W}, 1fr)`;
+  d.style.gridTemplate = `repeat(${H}, minmax(0, 1fr)) / repeat(${W}, minmax(0, 1fr))`;
   for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) {
     const k = `grid:r${r+1}c${c+1}`, h = history(k), x = document.createElement('div');
     if (g[r][c] === '_') { x.className = 'gap'; x.title = 'not part of the puzzle (outside its shape)'; d.append(x); continue; }
@@ -983,6 +983,7 @@ function drawBlank(s) {
   s.querySelectorAll('.typedgrid').forEach(x => x.remove());
   scan.classList.toggle('blinking', bMode === 'blink');
   typed.style.display = bMode === 'side' ? '' : 'none';
+  if (!gridImg) typed.style.height = Math.round(420 * G().length / G()[0].length) + 'px';
   if (bMode === 'side') { typed.append(blankCells('solo')); if (gridImg) scan.append(blankCells('hit')); }
   else scan.append(blankCells(bMode === 'over' ? 'over' : 'solo'));
   const G0 = G(); if (gridImg) edgeLabels(scan, G0.length, G0[0].length); edgeLabels(typed, G0.length, G0[0].length);
@@ -1225,7 +1226,7 @@ function cells(cls) {
   const low = new Set(ocr.answers_low_confidence || []);
   const d = document.createElement('div');
   d.className = 'typedgrid ' + cls;
-  d.style.gridTemplate = `repeat(${H}, 1fr) / repeat(${W}, 1fr)`;
+  d.style.gridTemplate = `repeat(${H}, minmax(0, 1fr)) / repeat(${W}, minmax(0, 1fr))`;
   for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) {
     const k = `cell:r${r+1}c${c+1}`, ch = final(k), h = history(k), x = document.createElement('div');
     if (ch === '_' || G()[r][c] === '_') { x.className = 'gap'; x.title = 'not part of the puzzle (outside its shape)'; d.append(x); continue; }
@@ -1246,6 +1247,7 @@ function drawGrid(s) {
   s.querySelectorAll('.typedgrid').forEach(x => x.remove());
   scanBox.classList.toggle('blinking', gridMode === 'blink');
   typedBox.style.display = gridMode === 'side' ? '' : 'none';
+  if (!ansImg) typedBox.style.height = Math.round(420 * ocr.answers.length / ocr.answers[0].length) + 'px';
   if (gridMode === 'side') { typedBox.append(cells('solo')); if (ansImg) scanBox.append(cells('hit')); }   // hit: hover and click on the scan too
   else scanBox.append(cells(gridMode === 'over' ? 'over' : 'solo'));
   if (ansImg) edgeLabels(scanBox, ocr.answers.length, ocr.answers[0].length);
