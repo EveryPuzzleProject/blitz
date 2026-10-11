@@ -132,6 +132,19 @@ def publish(folder: Path, batch: str = "", dry_run: bool = False, skip: tuple[st
                if (d / "review.json").exists() and (d / "ocr.json").exists() and d.name not in skip]
     if not packets:
         raise Stop(f"No reviewed puzzles (with review.json) in {folder}.")
+    # A puzzle as it stands now (task-packets --current-review) goes up only when the page
+    # will show its xd file, built from committed data, so the site is a known version.
+    refused = []
+    for d in packets:
+        rv = json.loads((d / "review.json").read_text(encoding="utf-8"))
+        if rv.get("model") != "earlier reviews":
+            continue
+        if not rv.get("matches_xd"):
+            refused.append(f"{d.name}: the page wouldn't show its xd ({'; '.join((rv.get('mismatches') or ['not checked'])[:3])})")
+        elif any(not v or v.endswith("+changes") for v in (rv.get("built_from") or {"": ""}).values()):
+            refused.append(f"{d.name}: built from uncommitted data ({rv.get('built_from')}): commit, then rebuild")
+    if refused:
+        raise Stop(f"{len(refused)} packets refused:\n  " + "\n  ".join(refused[:30]))
     if dry_run:
         return [d.name for d in packets]
     account, key_id, secret, bucket, public = _env("R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY",
