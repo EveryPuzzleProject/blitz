@@ -115,7 +115,9 @@ verify) works but is manual. Next time: a re-harvest keeps readings that were al
 
 Sourcing, OCR caveats and layout decisions went into the puzzle's `note`, which would have gone
 into gxd's Notes. The rule now:
-- gxd Notes hold only corrected print misprints;
+- gxd Notes hold only text printed with the puzzle that explains its theme or adds a meta, and
+  editorial notes for corrections such as a misprinted key letter ("The answer key ... printed Y
+  as Z, presumably in error. It has been corrected to Q.");
 - everything else goes in `provenance`, which shows on the review page and stays out of gxd.
 
 Bylines and printed lines also carried Judge's payment notices, which aren't part of the puzzle.
@@ -205,10 +207,7 @@ existing proofs table, so helpers' decisions arrive the way proofs do today.
 
 ## Still open for Judge
 
-- **1933-10-01b (No. 297):** the agent's grid fix was refused at import and needs a person.
-- **The key-squares page:** 88 squares across 39 puzzles, plus 28 clean keys to confirm.
-- **Five notes to rule on:** keep in Notes or move to provenance (the wildcard square, the blank
-  clue, the clue with no entry, No. 371's instructions and its answer).
+- **28 clean keys** to confirm (nothing flagged, odd answers checked), and No. 273's newly found key.
 - **Same-date suffixes in the export:** `export-gxd` writes our ids as they are
   (`judge1924-11-15b.xd`), but gxd names the second puzzle on a date `...a`. Map them in the export.
 - **The merge request:** rebuild the gxd branch, a new scans archive, receipts, MR.md.
