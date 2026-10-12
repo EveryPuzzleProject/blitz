@@ -6,6 +6,10 @@
   bucket, public read), and a row each in Supabase's `puzzles` table.
 - `fetch_decisions`: everything helpers recorded, combined per puzzle in the shape
   `xword-ocr import-reviews --decisions` takes.
+- The key-squares page (docs/review/squares/, src/blitz/squares.html): one card per doubtful
+  answer-key square. `publish` puts a folder's key-squares.json (`blitz key-squares`) in the
+  `flags` table, and helpers' Keep / Change answers come back from `flag_checks`
+  (site/schema-6-key-squares.sql).
 
 Secrets come from ~/.blitz-site.env (KEY=value lines) or the environment, never from files in the
 repository:
@@ -71,9 +75,18 @@ REVIEW_HEAD = chr(10).join([
 ])
 
 
+SQUARES_DESC = ("Look at one letter of an old crossword's printed answer key at a time, and say whether we read it "
+                "right. Part of the Every Puzzle Project, which is turning early crosswords into searchable, preserved records.")
+SQUARES_HEAD = (REVIEW_HEAD.replace("<title>Check old crosswords: Every Puzzle Project</title>",
+                                    "<title>Key squares: Every Puzzle Project</title>")
+                .replace(REVIEW_DESC, SQUARES_DESC).replace("Help check old crosswords", "Check answer-key letters")
+                .replace(f"{SITE}/review/", f"{SITE}/review/squares/"))
+
+
 def build(root: Path) -> Path:
     """The review pages and (once) a config to fill in:
     - docs/review/: the proof page (src/blitz/proof.html): check the finished puzzle against the scan;
+    - docs/review/squares/: the key-squares page (squares.html): one doubtful answer-key square at a time;
     - docs/review-old/: the earlier change-by-change page (review.html, also `blitz watch`), kept to refer back to;
     - docs/review2/: a redirect to /review/ (where the proof page was previewed).
     All three share docs/review/config.js."""
@@ -105,6 +118,16 @@ def build(root: Path) -> Path:
     (old_out / "index.html").write_text(page, encoding="utf-8", newline="\n")
     shutil.copy2(root / "site" / "site.js", old_out / "site.js")
 
+    sq = out / "squares"
+    sq.mkdir(parents=True, exist_ok=True)
+    page = (Path(__file__).parent / "squares.html").read_text(encoding="utf-8")
+    old = "<script>\nconst SITE"
+    assert old in page
+    page = page.replace(old, '<script src="../config.js"></script>\n'
+                             f'<script src="{SUPABASE_JS}"></script>\n' + old)
+    page = page.replace("<title>Key squares</title>", SQUARES_HEAD)
+    (sq / "index.html").write_text(page, encoding="utf-8", newline="\n")
+
     moved = root / "docs" / "review2"
     moved.mkdir(parents=True, exist_ok=True)
     (moved / "index.html").write_text(
@@ -125,11 +148,33 @@ def _rest(method: str, path: str, body=None, prefer: str = ""):
     return json.loads(text) if text.strip() else None
 
 
-def publish(folder: Path, batch: str = "", dry_run: bool = False, skip: tuple[str, ...] = ()) -> list[str]:
-    """Put a folder's reviewed puzzles on the site (except the puzzles in skip: e.g. ones already imported).
+def _rest_all(path: str, page: int = 1000) -> list:
+    """Every row of a GET, a page at a time (the API returns at most 1000 rows per request)."""
+    out, sep = [], "&" if "?" in path else "?"
+    while True:
+        rows = _rest("GET", f"{path}{sep}limit={page}&offset={len(out)}") or []
+        out += rows
+        if len(rows) < page:
+            return out
+
+
+def _pub(xdid: str) -> str:
+    return xdid[:len(xdid) - len(xdid.lstrip("abcdefghijklmnopqrstuvwxyz"))] or "misc"  # judge1931-10-03 -> judge
+
+
+def publish(folder: Path, batch: str = "", dry_run: bool = False, skip: tuple[str, ...] = (),
+            squares_only: bool = False) -> list[str]:
+    """Put a folder's reviewed puzzles on the site (except the puzzles in skip: e.g. ones already imported),
+    and its key squares (key-squares.json from `blitz key-squares`) if it has them. squares_only: only the
+    key squares and the key images their cards crop, without opening the puzzles' review pages.
     Returns the puzzles published."""
+    squares = (json.loads((folder / "key-squares.json").read_text(encoding="utf-8"))
+               if (folder / "key-squares.json").exists() else None)
+    if squares_only and not squares:
+        raise Stop(f"No key-squares.json in {folder}: make it with  blitz key-squares {folder} --pub <pub>")
     packets = [d for d in sorted(folder.iterdir())
-               if (d / "review.json").exists() and (d / "ocr.json").exists() and d.name not in skip]
+               if (d / "review.json").exists() and (d / "ocr.json").exists() and d.name not in skip
+               and (not squares_only or d.name in squares["puzzles"])]
     if not packets:
         raise Stop(f"No reviewed puzzles (with review.json) in {folder}.")
     # A puzzle as it stands now (task-packets --current-review) goes up only when the page
@@ -145,7 +190,26 @@ def publish(folder: Path, batch: str = "", dry_run: bool = False, skip: tuple[st
             refused.append(f"{d.name}: built from uncommitted data ({rv.get('built_from')}): commit, then rebuild")
     if refused:
         raise Stop(f"{len(refused)} packets refused:\n  " + "\n  ".join(refused[:30]))
+    if squares:
+        # a skipped puzzle's cards stay as they are on the site (publish_squares leaves them alone)
+        squares = {**squares, "puzzles": [x for x in squares["puzzles"] if x not in skip],
+                   "flags": [f for f in squares["flags"] if f["xdid"] not in skip]}
+        # the cards were read from the publication's repo: the same commit as the packets, and committed
+        made = squares.get("built_from") or ""
+        packet_commits = {(json.loads((d / "review.json").read_text(encoding="utf-8")).get("built_from") or {}).get(squares["pub"])
+                          for d in packets} - {None}
+        if not made or made.endswith("+changes"):
+            raise Stop(f"key-squares.json was made from uncommitted {squares['pub']} data ({made or 'unknown'}): "
+                       f"commit, then run blitz key-squares again")
+        if packet_commits and packet_commits != {made}:
+            raise Stop(f"key-squares.json was made from {squares['pub']} {made}, the packets from "
+                       f"{', '.join(sorted(packet_commits))}: rebuild whichever is older")
+        missing = sorted({f["xdid"] for f in squares["flags"]} - {d.name for d in packets})
+        if missing:
+            raise Stop(f"key-squares.json has cards for puzzles that aren't reviewed packets here: {', '.join(missing[:10])}")
     if dry_run:
+        if squares:
+            print(f"  and {len(squares['flags'])} key squares in {len({f['xdid'] for f in squares['flags']})} puzzles")
         return [d.name for d in packets]
     account, key_id, secret, bucket, public = _env("R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY",
                                                    "R2_BUCKET", "R2_PUBLIC_URL")
@@ -157,8 +221,18 @@ def publish(folder: Path, batch: str = "", dry_run: bool = False, skip: tuple[st
     s3 = boto3.client("s3", endpoint_url=f"https://{account}.r2.cloudflarestorage.com",
                       aws_access_key_id=key_id, aws_secret_access_key=secret, region_name="auto")
     rows = []
+    base = lambda x: f"{public.rstrip('/')}/{_pub(x)}/{x}"
+    if squares_only:
+        need = {f["xdid"]: f["card"]["img"] for f in squares["flags"] if f["card"].get("img")}
+        for d in packets:
+            if d.name in need and (d / need[d.name]).exists():
+                s3.upload_file(str(d / need[d.name]), bucket, f"{_pub(d.name)}/{d.name}/{need[d.name]}", ExtraArgs={
+                    "ContentType": mimetypes.guess_type(need[d.name])[0] or "application/octet-stream",
+                    "CacheControl": "no-cache"})
+        publish_squares(squares, base, batch or folder.name)
+        return [d.name for d in packets]
     for d in packets:
-        pub = d.name[:len(d.name) - len(d.name.lstrip("abcdefghijklmnopqrstuvwxyz"))] or "misc"  # judge1931-10-03 -> judge
+        pub = _pub(d.name)
         files = {}
         for f in FILES:
             src = d / f
@@ -186,7 +260,32 @@ def publish(folder: Path, batch: str = "", dry_run: bool = False, skip: tuple[st
         print("  (no checkup column yet: run site/schema-4-checkup.sql to show grades in the list)")
         _rest("POST", "puzzles?on_conflict=xdid", [{k: v for k, v in r.items() if k != "checkup"} for r in rows],
               prefer="resolution=merge-duplicates,return=minimal")
+    if squares:
+        publish_squares(squares, base, batch or folder.name)
     return [r["xdid"] for r in rows]
+
+
+def publish_squares(squares: dict, base, batch: str) -> None:
+    """The key squares' cards into `flags`. The list is the whole truth for its puzzles: their open
+    cards that aren't in it any more (a person settled the square, or the key changed) are closed,
+    never deleted, so helpers' checks on them stay for import. base(xdid): the packet's URL."""
+    page = squares.get("page", "key-squares")
+    rows = [{"xdid": f["xdid"], "sq": f["sq"], "page": page, "pub": f["pub"], "source": f["source"], "batch": batch,
+             "open": True, "card": {**f["card"], "img": f"{base(f['xdid'])}/{f['card']['img']}" if f["card"].get("img") else None}}
+            for f in squares["flags"]]
+    try:
+        for i in range(0, len(squares["puzzles"]), 80):
+            chunk = ",".join(squares["puzzles"][i:i + 80])
+            _rest("PATCH", f"flags?page=eq.{page}&open=eq.true&xdid=in.({chunk})", {"open": False}, prefer="return=minimal")
+        for i in range(0, len(rows), 500):
+            _rest("POST", "flags?on_conflict=xdid,page,sq", rows[i:i + 500], prefer="resolution=merge-duplicates,return=minimal")
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", "replace")
+        if "flags" in body and ("does not exist" in body or "schema cache" in body):
+            raise Stop("The site has no key-squares tables yet: run site/schema-6-key-squares.sql in Supabase's SQL editor.")
+        raise Stop(f"Couldn't publish the key squares: {e.code} {body[:300]}")
+    print(f"  {len(rows)} key squares in {len({r['xdid'] for r in rows})} of {len(squares['puzzles'])} puzzles: "
+          f"{SITE}/review/squares/?pub={squares.get('pub', '')}")
 
 
 def consensus(verdicts: dict[str, str], items: dict[str, dict[str, str]]) -> dict:
@@ -246,11 +345,42 @@ def fetch_decisions(agreed_only: bool = False) -> dict:
         get(r["xdid"]).setdefault("proofs", {})[r.get("who") or who(r)] = {
             "decision": r["decision"], "edits": rv.get("edits", {}), "comments": rv.get("comments", []),
             "parts": rv.get("status", {}), "note": rv.get("note", ""), "at": r["at"]}
+    for x, sq in fetch_squares().items():
+        get(x)["squares"] = sq
     for x, p in out.items():
         p.update(consensus(said.get(x, {}), votes.get(x, {})))
     if agreed_only:
         out = {x: p for x, p in out.items() if p["agreement"] == "agreed"}
     return {"puzzles": out}
+
+
+def fetch_squares(page: str = "key-squares") -> dict[str, dict]:
+    """The key-squares page's cards and helpers' answers, per puzzle:
+    {xdid: {"open": [sq, ...], "cards": {sq: {letter, suggest, source, open}}, "checks": {sq: {helper: {was, value, at}}}}}.
+    A helper is the name they gave, or "a helper <id>" for a guest without one (and two people who gave
+    the same name are told apart the same way). Nothing if the site has no such tables yet."""
+    try:
+        flags = _rest_all(f"flags?select=xdid,sq,source,open,card&page=eq.{page}&order=xdid,sq")
+        checks = _rest_all(f"flag_checks?select=xdid,sq,user_id,who,was,value,at&page=eq.{page}&order=at")
+    except urllib.error.HTTPError as e:
+        if e.code in (400, 404):
+            return {}
+        raise
+    out: dict[str, dict] = {}
+    get = lambda x: out.setdefault(x, {"open": [], "cards": {}, "checks": {}})
+    for f in flags:
+        p = get(f["xdid"])
+        p["cards"][f["sq"]] = {"letter": f["card"].get("letter", ""), "suggest": f["card"].get("suggest", ""),
+                               "source": f["source"], "open": f["open"]}
+        if f["open"]:
+            p["open"].append(f["sq"])
+    names: dict[str, set] = {}
+    for c in checks:
+        names.setdefault(c["who"] or "", set()).add(c["user_id"])
+    for c in checks:
+        who = c["who"] if c["who"] and len(names[c["who"]]) == 1 else f"{c['who'] or 'a helper'} {c['user_id'][:6]}"
+        get(c["xdid"])["checks"].setdefault(c["sq"], {})[who] = {"was": c["was"], "value": c["value"], "at": c["at"]}
+    return out
 
 
 def close(xdids: list[str]) -> None:

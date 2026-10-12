@@ -22,6 +22,48 @@ read, so the next helper sees earlier helpers' edits and comments; and a row in 
 counts and the importer: `looks-right` only when Ready with no edits, otherwise `needs-work` (edits aren't
 applied on import yet). `site-import` puts each puzzle's proofs under `proofs`.
 
+## The key-squares page (since 2026-10-12)
+
+`/review/squares/` asks one kind of question: is this letter of the printed answer key what we have?
+One card per doubtful square, grouped by puzzle: a crop of the straightened key with the square boxed
+red and its answer tinted, the across and down answers through it with their clues, and **Keep**,
+**Change to** (the word check's suggestion) or a typed letter. The letter takes the decision's colour
+(yellow undecided, green kept, red changed, blue typed), the next undecided card comes up on its own
+(Enter after typing), and a bar at the bottom keeps the tally and the helper's name. `?pub=judge`
+narrows it to one publication.
+
+Each answer saves as it's given (a guest sign-in on the first one, as on the proof page) to
+`flag_checks`, one row per helper per square, with their name and the time; undoing deletes the row.
+The page shows earlier helpers' answers on each card and puts puzzles nobody has looked at first.
+Run `site/schema-6-key-squares.sql` once to switch it on.
+
+Where the cards come from: `blitz key-squares <packets> --pub <pub>` (see `src/blitz/squares.py`):
+
+- letters the OCR was unsure of, where the xd still has the OCR's letter (A left out: hand-lettered
+  A's are flagged too often and almost always right);
+- the word check: an answer of 4+ letters that isn't a known crossword answer in gxd (the
+  publication's own files left out) but becomes a common one by changing one easily confused letter
+  (I/T, D/O, S/E, C/G, F/E, ...).
+
+Squares a person has already corrected or confirmed in the publication's ledger aren't flagged again,
+and an answer through a square a person confirmed counts as a known answer for that publication. That
+is how a publication's own wordplay (Judge's EIUGE, TGA, GNIT, ENTAN) stops being flagged, without a
+per-publication list. The crops are drawn by the page from the packet's `answers.png` on R2, so a card
+costs no extra images; a puzzle without a straightened key links to the printed key instead.
+
+```
+uv run blitz key-squares ../xword-ocr/harvests/judge/tasks-final --pub judge          # writes key-squares.json there
+uv run --extra site blitz site-publish ../xword-ocr/harvests/judge/tasks-final --squares-only
+```
+
+`--squares-only` puts up the cards and their key images without opening the puzzles' review pages;
+without it, `site-publish` publishes the puzzles and their cards together. A publish closes the
+folder's open cards that aren't in the new list (settled, or the key changed); cards are never
+deleted, so answers on them still import. `site-import` puts each puzzle's cards and answers under
+`squares`, and xword-ocr's `import-reviews --decisions` appends them to the ledger (see its
+`docs/review-runbook.md`). A "flag a mistake" path from the live puzzle into these cards is
+designed in `design/flag-a-mistake.md`.
+
 ### Not brought forward from the old page
 
 The earlier change-by-change page is kept at `/review-old/` (`docs/review-old/`, built from

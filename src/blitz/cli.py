@@ -20,6 +20,7 @@ The public review site (helpers check agents' reviews in the browser; see site/R
     blitz checkup [folder] [--all]       grade each reviewed puzzle: check closely / worth a look / looks clean
     blitz site-status                    how many helpers checked each puzzle, and where they disagree
     blitz site-close <puzzle...>         take puzzles off the site
+    blitz key-squares <folder> --pub P   the key squares worth a glance, for /review/squares/ (site-publish puts them up)
 
 A <puzzle> is its id (judge1931-03-14), looked up in ../blitz-work, or a path
 to any puzzle folder. `text` also takes a folder of puzzle folders (a batch).
@@ -233,8 +234,32 @@ def cmd_site_build(a) -> None:
 def cmd_site_publish(a) -> None:
     from .site import publish
 
-    done = publish(Path(a.folder), a.batch or "", a.dry_run, tuple(a.skip or ()))
-    print(f"{'would publish' if a.dry_run else 'published'} {len(done)} puzzles")
+    done = publish(Path(a.folder), a.batch or "", a.dry_run, tuple(a.skip or ()), a.squares_only)
+    print(f"{'would publish' if a.dry_run else 'published'} {len(done)} puzzles"
+          + (" (their key squares only)" if a.squares_only else ""))
+
+
+def cmd_key_squares(a) -> None:
+    from .squares import build
+
+    root = _root()
+    repo = Path(a.repo) if a.repo else root.parent / a.pub
+    gxd = Path(a.gxd) if a.gxd else root.parent / "xd" / "gxd"
+    if not (repo / "xd").is_dir():
+        raise work.Stop(f"No xd/ in {repo}: give the publication's checkout with --repo.")
+    out = build(Path(a.folder), a.pub, repo, gxd)
+    for w in out["warnings"]:
+        print(f"  warning: {w}")
+    fl = out["flags"]
+    by = lambda s: sum(s in f["source"] for f in fl)
+    print(f"{len(fl)} key squares to check in {len({f['xdid'] for f in fl})} of {len(out['puzzles'])} puzzles "
+          f"({by('ocr')} the OCR was unsure of, {by('words')} from the word check); "
+          f"{len(out['clean'])} puzzles have none")
+    for f in fl:
+        if "words" in f["source"]:
+            print(f"  {f['xdid']} {f['sq']}: {f['card']['why'][0]}")
+    print(f"wrote {Path(a.folder) / 'key-squares.json'}; put it on the site with "
+          f"blitz site-publish {a.folder} --squares-only (or with the puzzles)")
 
 
 def cmd_site_import(a) -> None:
@@ -246,7 +271,8 @@ def cmd_site_import(a) -> None:
         Path(a.out).write_text(text, encoding="utf-8")
         n = data["puzzles"]
         print(f"wrote {a.out}: {len(n)} puzzles, {sum(1 for p in n.values() if p['verdict'])} with a verdict, "
-              f"{sum(len(p['reports']) for p in n.values())} reports")
+              f"{sum(len(p['reports']) for p in n.values())} reports, "
+              f"{sum(len(c) for p in n.values() for c in (p.get('squares') or {}).get('checks', {}).values())} key-square checks")
     else:
         print(text)
 
@@ -365,7 +391,17 @@ def main(argv=None) -> None:
     q.add_argument("--batch", help="a name for this batch (default: the folder's name)")
     q.add_argument("--dry-run", action="store_true", help="list what would be published")
     q.add_argument("--skip", nargs="+", metavar="PUZZLE", help="leave these puzzles out (e.g. already imported ones)")
+    q.add_argument("--squares-only", action="store_true",
+                   help="only the folder's key squares (key-squares.json and the key images): the puzzles' "
+                        "review pages aren't opened")
     q.set_defaults(fn=cmd_site_publish)
+    q = sub.add_parser("key-squares", help="the answer-key squares worth a person's glance (the OCR was unsure, or "
+                                           "the word check), for the key-squares page")
+    q.add_argument("folder", help="packets (task-packets --current-review), e.g. ../xword-ocr/harvests/judge/tasks-final")
+    q.add_argument("--pub", required=True)
+    q.add_argument("--repo", help="the publication's checkout, with xd/ and fixes/ (default: ../<pub>)")
+    q.add_argument("--gxd", help="a gxd checkout, for the word list (default: ../xd/gxd)")
+    q.set_defaults(fn=cmd_key_squares)
     q = sub.add_parser("checkup", help="the grade of each reviewed puzzle (check closely / worth a look / looks clean) and why")
     q.add_argument("folder", nargs="?")
     q.add_argument("--all", action="store_true", help="also list the puzzles that are only worth a look")
