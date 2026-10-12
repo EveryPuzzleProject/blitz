@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Key squares</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&family=Source+Serif+4:opsz,wght@8..60,600&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* The key-squares page: one card per doubtful answer-key square, grouped by puzzle, and a sticky tally bar.
+   Each card: a crop of the printed key (the square boxed red, its answer tinted), the answers and clues
+   through the square, and Keep / Change / type a letter. The letter's colour is the decision. */
+:root {
+  --paper: #f3f4f1; --sheet: #ffffff; --ink: #1d2124; --muted: #5d6468; --rule: #d9dcd6;
+  --pencil: #c0362c; --pencil-soft: #f6dcd8; --keep: #2f6b4f; --keep-soft: #dcebe2; --hl: #fff1c2;
+  --typed: #2f5aa8; --typed-soft: #dce5f6;
+  --f-display: "Source Serif 4", Georgia, serif; --f-body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --paper: #16191b; --sheet: #1f2326; --ink: #e6e8e4; --muted: #9aa2a6; --rule: #343a3e;
+  --pencil: #ef7a6e; --pencil-soft: #3b2220; --keep: #7cc3a0; --keep-soft: #1d3329; --hl: #3d3519;
+  --typed: #8fb0f0; --typed-soft: #1e2a40; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --paper: #16191b; --sheet: #1f2326; --ink: #e6e8e4; --muted: #9aa2a6; --rule: #343a3e;
+  --pencil: #ef7a6e; --pencil-soft: #3b2220; --keep: #7cc3a0; --keep-soft: #1d3329; --hl: #3d3519;
+  --typed: #8fb0f0; --typed-soft: #1e2a40; color-scheme: dark }
+* { box-sizing: border-box }
+body { background: var(--paper); color: var(--ink); font: 16px/1.5 var(--f-body); margin: 0 }
+.wrap { max-width: 860px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 120px }
+h1 { font: 600 1.9rem/1.15 var(--f-display); margin: 0 0 .4rem; text-wrap: balance }
+.lede { color: var(--muted); max-width: 62ch; margin: 0 0 1rem }
+.lede b { color: var(--ink) }
+.top { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; color: var(--muted); font-size: .92rem }
+.top a { color: var(--muted) }
+.puz { margin-top: 2rem; display: grid; gap: 12px }
+.puz h2 { font: 600 1.15rem/1.3 var(--f-display); margin: 0; display: flex; flex-wrap: wrap; gap: .25rem .75rem; align-items: baseline }
+.puz h2 a { font: 400 .85rem var(--f-body); color: var(--muted) }
+.card { background: var(--sheet); border: 1px solid var(--rule); border-radius: 6px; padding: 14px; display: grid; grid-template-columns: 210px 1fr; gap: 16px; align-items: start }
+.card.done-keep { border-color: var(--keep) }
+.card.done-change { border-color: var(--pencil) }
+.card.done-typed { border-color: var(--typed) }
+.crop { position: relative; border-radius: 3px; background-repeat: no-repeat; background-color: #fff; overflow: hidden; max-width: 100% }
+.crop i { position: absolute; display: block }
+.crop .tint { background: rgba(255, 196, 0, .2) }
+.crop .box { box-shadow: inset 0 0 0 3px #dc2828 }
+.nokey { font-size: .9rem; color: var(--muted) }
+.body { min-width: 0; display: grid; gap: 8px }
+.sq { font: 600 .78rem var(--f-mono); color: var(--muted); letter-spacing: .06em; text-transform: uppercase }
+.why { margin: 0 }
+.clues { display: grid; gap: 4px }
+.cl { display: grid; grid-template-columns: minmax(9ch, max-content) 1fr; gap: 12px; align-items: baseline }
+.cl > span:first-child { font-family: var(--f-mono); font-size: .95rem; letter-spacing: .08em; white-space: nowrap }
+.cl small { color: var(--muted); letter-spacing: 0; margin-right: 4px; font-family: var(--f-body) }
+.ct { color: var(--muted); font-size: .92rem; min-width: 0 }
+.cl i { font-style: normal; padding: 0 2px; border-radius: 2px; background: var(--hl); color: var(--ink) }
+.cl i.keep { background: var(--keep-soft); color: var(--keep); box-shadow: inset 0 0 0 1px var(--keep) }
+.cl i.change { background: var(--pencil-soft); color: var(--pencil); box-shadow: inset 0 0 0 1px var(--pencil) }
+.cl i.typed { background: var(--typed-soft); color: var(--typed); box-shadow: inset 0 0 0 1px var(--typed) }
+.others { margin: 0; color: var(--muted); font-size: .88rem }
+.acts { display: flex; flex-wrap: wrap; gap: 8px; align-items: center }
+button, .other input, #who { font: 600 .95rem var(--f-body); border-radius: 5px; border: 1px solid var(--rule); background: var(--sheet); color: var(--ink); padding: 6px 12px; cursor: pointer }
+#who { font-weight: 400; cursor: text; width: 13em; padding: 4px 8px }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--pencil); outline-offset: 2px }
+button.k[aria-pressed="true"] { background: var(--keep-soft); border-color: var(--keep); color: var(--keep) }
+button.c[aria-pressed="true"] { background: var(--pencil-soft); border-color: var(--pencil); color: var(--pencil) }
+.other { display: flex; gap: 6px; align-items: center; color: var(--muted); font-size: .9rem }
+.other input { width: 3.4em; text-transform: uppercase; text-align: center; font-family: var(--f-mono); cursor: text }
+.other input.on { background: var(--typed-soft); border-color: var(--typed); color: var(--typed) }
+.empty { margin-top: 2rem; background: var(--sheet); border: 1px solid var(--rule); border-radius: 6px; padding: 14px }
+.bar { position: fixed; left: 0; right: 0; bottom: 0; background: var(--sheet); border-top: 1px solid var(--rule); padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px)) }
+.bar .in { max-width: 860px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; justify-content: space-between }
+.tally { font-variant-numeric: tabular-nums }
+.msg { color: var(--muted); font-size: .9rem }
+.msg.ok { color: var(--keep) }
+.msg.bad { color: var(--pencil) }
+label.me { display: flex; gap: 6px; align-items: center; color: var(--muted); font-size: .9rem }
+@media (max-width: 560px) { .card { grid-template-columns: 1fr } .cl { grid-template-columns: 1fr; gap: 0 } }
+@media (prefers-reduced-motion: no-preference) { .card { transition: border-color .15s } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Key squares to check</h1>
+  <p class="lede">Each card is one letter of an old crossword's printed answer key that we may have read wrong: the OCR
+    wasn't sure of it, or it makes an answer that isn't a word we know. The <b>red box</b> marks the square on the printed
+    key; the yellow squares are the answer it belongs to. <b>Keep</b> the letter if the scan shows it, or <b>change</b> it
+    (after typing a letter, press Enter); the next card comes up on its own. Old puzzles had their own wordplay, so a
+    strange answer printed that way is still a Keep. Your answers save as you go, with the name you give below.</p>
+  <div class="top"><span id="scope"></span><a href="../">Proofread whole puzzles instead</a></div>
+  <div id="list"></div>
+</div>
+<div class="bar"><div class="in">
+  <span class="tally"><b id="nd">0</b> of <b id="nt">0</b> squares checked by you · <span id="nc">0</span> changes</span>
+  <label class="me">Your name <input id="who" maxlength="40" placeholder="shown with your answers" autocomplete="nickname"></label>
+  <span class="msg" id="msg" role="status"></span>
+</div></div>
+
+<script>
+const SITE = window.BLITZ_SITE;
+const params = new URLSearchParams(location.search);
+const PAGE = 'key-squares', PUB = params.get('pub') || '';
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+const id = f => f.xdid + ':' + f.sq;
+const sb = SITE && window.supabase ? window.supabase.createClient(SITE.supabaseUrl, SITE.supabaseAnonKey) : null;
+// what this helper decided: {id: {was, value, at}}; kept in the browser too, so nothing is lost if a save fails
+const KEY = 'blitz-key-squares-v1';
+let mine = {}, unsaved = {};
+try { ({mine = {}, unsaved = {}} = JSON.parse(localStorage.getItem(KEY) || '{}')) } catch (e) {}
+const keep = () => { try { localStorage.setItem(KEY, JSON.stringify({mine, unsaved})) } catch (e) {} };
+let who = '';
+try { who = localStorage.getItem('blitz-who') || '' } catch (e) {}
+let F = [], others = {}, me = null;
+const msg = (t, cls = '') => { const m = document.getElementById('msg'); m.textContent = t; m.className = 'msg ' + cls; };
+
+// ---- the cards: from the site's `flags` (open ones), or locally from ?data=key-squares.json&base=<packets>/ ----
+async function pages(q) {   // every row, 1000 at a time
+  const out = [];
+  for (let a = 0; ; a += 1000) {
+    const {data, error} = await q().range(a, a + 999);
+    if (error) throw error;
+    out.push(...data);
+    if (data.length < 1000) return out;
+  }
+}
+async function load() {
+  if (sb) {
+    const rows = await pages(() => { let q = sb.from('flags').select('xdid,sq,source,card').eq('page', PAGE).eq('open', true);
+      return (PUB ? q.eq('pub', PUB) : q).order('xdid').order('sq'); });
+    F = rows.map(r => ({...r.card, xdid: r.xdid, sq: r.sq, source: r.source}));
+    const ids = new Set(F.map(id));
+    try { me = (await sb.auth.getSession()).data.session?.user?.id || null; } catch (e) {}
+    // the site has the answers; the browser adds only the ones it hasn't sent yet
+    const local = mine;
+    mine = {};
+    for (const k of Object.keys(unsaved)) if (local[k]) mine[k] = local[k];
+    const checks = await pages(() => sb.from('flag_checks').select('xdid,sq,user_id,who,was,value,at').eq('page', PAGE).order('at'));
+    for (const c of checks) {
+      if (!ids.has(id(c))) continue;
+      if (me && c.user_id === me) { if (!unsaved[id(c)]) mine[id(c)] = {was: c.was, value: c.value, at: c.at}; if (!who && c.who) who = c.who; }
+      else (others[id(c)] ||= []).push(c);
+    }
+  } else {
+    const base = params.get('base') || './';
+    const d = await (await fetch(params.get('data') || 'key-squares.json')).json();
+    F = d.flags.map(f => ({...f.card, xdid: f.xdid, sq: f.sq, source: f.source,
+      img: f.card.img ? `${base}${f.xdid}/${f.card.img}` : null}));
+    msg('Local preview: your answers stay in this browser.');
+  }
+  // an answer to a card whose letter has changed since doesn't count any more
+  for (const f of F) if (mine[id(f)] && mine[id(f)].was !== f.letter) delete mine[id(f)];
+}
+
+// ---- drawing ----
+const W = () => matchMedia('(max-width: 560px)').matches ? Math.min(320, innerWidth - 60) : 210;
+function crop(f) {
+  const k = f.crop;
+  if (!f.img || !k) return `<p class="nokey">There's no straightened copy of this key.${f.scan ? ` <a href="${esc(f.scan)}" target="_blank" rel="noopener">Open the printed key ↗</a>` : ''}</p>`;
+  const s = W() / k.w, px = v => (v * s).toFixed(1) + 'px';
+  const rect = (b, cls) => `<i class="${cls}" style="left:${px(b[0] - k.x)};top:${px(b[1] - k.y)};width:${px(b[2])};height:${px(b[3])}"></i>`;
+  return `<div class="crop" role="img" aria-label="The printed key around square ${esc(f.sq)}" style="width:${px(k.w)};height:${px(k.h)};` +
+    `background-image:url(&quot;${esc(f.img)}&quot;);background-size:${px(k.size[0])} ${px(k.size[1])};background-position:${px(-k.x)} ${px(-k.y)}">` +
+    k.tint.map(b => rect(b, 'tint')).join('') + rect(k.box, 'box') + '</div>';
+}
+// an answer with the square's letter in its own span, coloured by the decision (see paint)
+const word = w => w ? `<div class="cl"><span><small>${esc(w.label)}</small>${[...w.answer].map((ch, i) =>
+  i === w.i ? `<i class="tgt">${esc(ch)}</i>` : esc(ch)).join('')}</span><span class="ct">${esc(w.clue)}</span></div>` : '';
+const said = c => c.value === c.was ? `kept ${c.was}` : `changed it to ${c.value}`;
+function card(f) {
+  const o = others[id(f)] || [];
+  return `<div class="card" data-id="${esc(id(f))}">
+    ${crop(f)}
+    <div class="body">
+      <div class="sq">Square ${esc(f.sq)} · we have <span>${esc(f.letter)}</span></div>
+      ${f.why.map(w => `<p class="why">${esc(w)}.</p>`).join('')}
+      <div class="clues">${word(f.across)}${word(f.down)}</div>
+      ${o.length ? `<p class="others">Already checked: ${o.map(c => `${esc(c.who || 'a helper')} ${esc(said(c))}`).join('; ')}. A second look still helps.</p>` : ''}
+      <div class="acts">
+        <button class="k" data-v="${esc(f.letter)}" aria-pressed="false">Keep ${esc(f.letter)}</button>
+        ${f.suggest ? `<button class="c" data-v="${esc(f.suggest)}" aria-pressed="false">Change to ${esc(f.suggest)}</button>` : ''}
+        <label class="other">or type <input maxlength="6" aria-label="Another letter for square ${esc(f.sq)}"></label>
+        ${f.scan ? `<a class="nokey" href="${esc(f.scan)}" target="_blank" rel="noopener">scan ↗</a>` : ''}
+      </div>
+    </div></div>`;
+}
+function render() {
+  const groups = {};
+  F.forEach(f => (groups[f.xdid] ||= []).push(f));
+  // puzzles with a card nobody has looked at come first
+  const fresh = fs => fs.some(f => !(others[id(f)] || []).length);
+  const order = Object.entries(groups).sort((a, b) => fresh(b[1]) - fresh(a[1]));
+  const list = document.getElementById('list');
+  list.innerHTML = order.length ? order.map(([x, fs]) => `
+    <section class="puz"><h2>${esc(fs[0].num ? 'No. ' + fs[0].num : fs[0].title || x)} · ${esc(fs[0].date || x)}
+      <a href="../?p=${esc(x)}" target="_blank" rel="noopener">whole puzzle</a></h2>
+      ${fs.map(card).join('')}
+    </section>`).join('') : `<p class="empty">No key squares to check${PUB ? ' in ' + esc(PUB) : ''} right now. Thank you!</p>`;
+  document.getElementById('nt').textContent = F.length;
+  const pubs = [...new Set(F.map(f => f.xdid.replace(/\d.*/, '')))];
+  document.getElementById('scope').textContent = `${F.length} squares in ${order.length} puzzles` + (pubs.length ? ` (${pubs.join(', ')})` : '');
+  paint();
+}
+function paint() {
+  let nd = 0, nc = 0;
+  document.querySelectorAll('.card').forEach(el => {
+    const f = F.find(f => id(f) === el.dataset.id), m = mine[el.dataset.id], v = m?.value;
+    el.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(!!v && b.dataset.v === v)));
+    const inp = el.querySelector('input');
+    const kind = !v ? '' : v === f.letter ? 'keep' : v === f.suggest ? 'change' : 'typed';
+    if (kind === 'typed') inp.value = v; else if (document.activeElement !== inp) inp.value = '';
+    el.querySelectorAll('.tgt').forEach(t => { t.className = 'tgt ' + kind; t.textContent = v || f.letter; });
+    inp.classList.toggle('on', kind === 'typed');
+    for (const k of ['keep', 'change', 'typed']) el.classList.toggle('done-' + k, kind === k);
+    if (v) nd++;
+    if (v && v !== f.letter) nc++;
+  });
+  document.getElementById('nd').textContent = nd;
+  document.getElementById('nc').textContent = nc;
+}
+
+// ---- deciding, and saving to the site as you go ----
+function decide(k, value) {
+  const f = F.find(f => id(f) === k);
+  if (value) mine[k] = {was: f.letter, value, at: new Date().toISOString()};
+  else delete mine[k];
+  unsaved[k] = true;
+  keep(); paint(); flush();
+}
+let flushing = null, again = false;
+async function flush() {
+  if (!sb) return;
+  if (flushing) { again = true; return flushing; }
+  flushing = (async () => {
+    try {
+      let {data: {session}} = await sb.auth.getSession();
+      if (!session) {
+        const r = await sb.auth.signInAnonymously();
+        if (r.error) throw r.error;
+        session = r.data.session;
+      }
+      me = session.user.id;
+      for (const k of Object.keys(unsaved)) {
+        const [xdid, sq] = [k.slice(0, k.lastIndexOf(':')), k.slice(k.lastIndexOf(':') + 1)];
+        const m = mine[k];
+        msg('Saving…');
+        const r = m ? await sb.from('flag_checks').upsert({xdid, page: PAGE, sq, user_id: me, who: who.slice(0, 40), was: m.was, value: m.value, at: m.at})
+                    : await sb.from('flag_checks').delete().match({xdid, page: PAGE, sq, user_id: me});
+        if (r.error) throw r.error;
+        delete unsaved[k]; keep();
+      }
+      msg('Saved', 'ok');
+    } catch (e) {
+      msg(`Couldn't save (${e.message || e}); kept in this browser, will try again.`, 'bad');
+      setTimeout(flush, 15000);
+    }
+  })();
+  await flushing;
+  flushing = null;
+  if (again) { again = false; flush(); }
+}
+
+// bring up the next card that has no answer yet
+const smooth = !matchMedia('(prefers-reduced-motion: reduce)').matches;
+function advance(from) {
+  const cards = [...document.querySelectorAll('.card')];
+  const i = cards.indexOf(from);
+  const next = cards.slice(i + 1).concat(cards.slice(0, i)).find(c => !mine[c.dataset.id]);
+  if (!next) { msg(sb ? 'All done: thank you! Every answer is saved.' : 'All done.', 'ok'); return; }
+  setTimeout(() => {
+    next.scrollIntoView({behavior: smooth ? 'smooth' : 'auto', block: 'center'});
+    next.querySelector('button').focus({preventScroll: true});
+  }, 180);
+}
+const list = document.getElementById('list');
+list.addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  const k = b.closest('.card').dataset.id, chose = mine[k]?.value !== b.dataset.v;
+  decide(k, chose ? b.dataset.v : '');
+  if (chose) advance(b.closest('.card'));
+});
+list.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.target.tagName === 'INPUT' && e.target.value.trim()) { e.preventDefault(); advance(e.target.closest('.card')); }
+});
+list.addEventListener('input', e => {
+  const i = e.target;
+  if (i.tagName !== 'INPUT') return;
+  i.value = i.value.replace(/[^A-Za-z0-9]/g, '');
+  decide(i.closest('.card').dataset.id, i.value.toUpperCase());
+});
+const whoBox = document.getElementById('who');
+whoBox.onchange = async () => {
+  who = whoBox.value.trim();
+  try { localStorage.setItem('blitz-who', who) } catch (e) {}
+  // your answers on these cards carry the new name too (sent again, like any change)
+  for (const f of F) if (mine[id(f)]) unsaved[id(f)] = true;
+  keep(); flush();
+};
+
+load().then(() => {
+  whoBox.value = who;
+  render();
+  if (Object.keys(unsaved).length) flush();
+}).catch(e => {
+  document.getElementById('list').innerHTML = `<p class="empty">Couldn't load the key squares: ${esc(e.message || e)}</p>`;
+});
+addEventListener('resize', () => { clearTimeout(window.__rt); window.__rt = setTimeout(render, 200); });
+</script>
+</body>
+</html>

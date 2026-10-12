@@ -132,8 +132,21 @@ def test_site_import_combines_helpers(monkeypatch):
         "proofs?select=*&order=at": [{"xdid": "p1", "user_id": uid["b"], "who": "Bo", "decision": "ready", "at": "t",
                                       "review": {"edits": {"clue:A1": "Feline."}, "status": {"A": {"v": "ok"}}}}],
     }
-    monkeypatch.setattr(site, "_rest", lambda method, path, *a, **k: data[path])
+    # the key-squares page: two guests who gave no name are told apart
+    data["flags?select=xdid,sq,source,open,card&page=eq.key-squares&order=xdid,sq"] = [
+        {"xdid": "p1", "sq": "r1c1", "source": "ocr", "open": True, "card": {"letter": "I", "suggest": ""}},
+        {"xdid": "p1", "sq": "r2c2", "source": "words", "open": False, "card": {"letter": "D", "suggest": "O"}}]
+    data["flag_checks?select=xdid,sq,user_id,who,was,value,at&page=eq.key-squares&order=at"] = [
+        {"xdid": "p1", "sq": "r1c1", "user_id": "u1aaaaaa", "who": "", "was": "I", "value": "T", "at": "t1"},
+        {"xdid": "p1", "sq": "r1c1", "user_id": "u2bbbbbb", "who": "", "was": "I", "value": "I", "at": "t2"},
+        {"xdid": "p1", "sq": "r1c1", "user_id": "u3", "who": "Cy", "was": "I", "value": "T", "at": "t3"}]
+    monkeypatch.setattr(site, "_rest", lambda method, path, *a, **k: data[path.split("&limit=")[0]]
+                        if "offset=0" in path or "&limit=" not in path else [])
     p = site.fetch_decisions()["puzzles"]["p1"]
+    assert p["squares"]["open"] == ["r1c1"] and p["squares"]["cards"]["r2c2"]["suggest"] == "O"
+    assert p["squares"]["checks"]["r1c1"] == {"a helper u1aaaa": {"was": "I", "value": "T", "at": "t1"},
+                                              "a helper u2bbbb": {"was": "I", "value": "I", "at": "t2"},
+                                              "Cy": {"was": "I", "value": "T", "at": "t3"}}
     assert p["items"] == {"clue:A1": "reject"} and p["notes"]["clue:A1"] == "a helper: scan says Feline."
     assert p["verdict"] == "needs-work" and p["reports"] == {"clue:D2": "Ann: Long tune."}
     assert p["by"]["Ann"] == {"clue:A1": "accept", "verdict": "looks-right"}

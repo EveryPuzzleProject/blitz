@@ -128,6 +128,29 @@ and later `blitz site-import -o <file>` plus `xword-ocr import-reviews ... --dec
 to bring their proofs back (see xword-ocr's `docs/review-runbook.md`). Whether
 this runs automatically on merge is undecided.
 
+### Key squares
+
+The quickest way for people to help: one doubtful answer-key letter at a time, at
+blitz.xwordapp.com/review/squares/ (see site/README.md). For a folder of current-review packets:
+
+```
+uv run blitz key-squares <folder> --pub games            # the flag list: OCR-unsure letters and the word check
+uv run --extra site blitz site-publish <folder> --squares-only
+```
+
+Bring the answers back with the rest of the site's work, and read the dry run before the real one:
+
+```
+uv run --extra site blitz site-import -o ../blitz-work/site-decisions.json
+cd ../xword-ocr
+uv run xword-ocr import-reviews <folder> --pubid games --by "..." --decisions ../blitz-work/site-decisions.json --dry-run
+```
+
+The dry run ends with what it would append, by who it credits: key-square answers show as
+`<names> (key-squares page): confirm cell` / `correct cell` / `confirm check`. Then run it without
+`--dry-run`, relink and sync as in step 4, rebuild the packets, and run `blitz key-squares` and
+`site-publish --squares-only` again: settled cards drop off the page.
+
 ## Large batches without PRs
 
 For tens or hundreds of puzzles at once, the maintainer can skip claims and PRs:
