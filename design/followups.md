@@ -217,3 +217,80 @@ Newest at the bottom of each section; strike through or delete when done.
 
 5. **crossref: treat `_` as "no square"** (xd's not-part-of-the-puzzle), for the shaped Judge
    grids; gxd's 1913 Wynne diamond already uses it.
+
+## Direction: one job per part (user, 2026-10-12)
+
+What went wrong with Judge, in the user's words: not enough rigor in harvest and linking, and
+iterating on the process was hard. A puzzle came in mangled because we'd missed its answer key or
+its clue page. We tracked the page down, then everything had to be rebuilt, and the user often
+waited on a full rebuild of the whole batch. A further finding: having Claude build quick one-off
+tools was very useful, but Claude often couldn't make good use of the tools and infrastructure
+underneath, so the work kept swimming upstream.
+
+**The parts.** Each does one job well. EPP and blitz are roughly the same thing: blitz is the core
+of EPP, with other parts around it.
+
+| Part | Its job | Writes |
+|---|---|---|
+| **harvest** | Find and fetch images: one module per source (archive.org, newspapers.com, publisher sites, ...). Calls xword-ocr to decide which pages are worth having. | A source manifest: each image with its issue, date, page, URL and capture time, plus issues known to be missing. |
+| **xword-ocr** | Extract puzzle data and meta information (headings, numbers, bylines) from one image. Knows nothing about any publication, gxd, blitz or EPP; xd is fine as an output format. | A detection record per image: every grid-like thing (puzzle, key, pencilled copy), clue blocks and headings, with boxes and readings. Describes; never rejects. |
+| **link** (new) | Decide which pieces form which puzzle, and account for everything: series numbers, missing issues, keys across issues and publications, continuations, duplicates. | Assembled puzzles plus a completeness report, whose open exceptions a person settles (follow-up 0). |
+| **blitz** | Shepherd the review: packets, proofs, the ledger, the site. | The record (xd, ledger, puzzles.tsv) in the publication's repo. |
+| **gxd-export** | Turn the record into what gxd wants: puzzle-only xd, receipts, the source archive, `gxd-exports.tsv`. | A gxd submission. |
+
+This is the inventory/assembly design agreed 2026-10-01, which went unbuilt while Judge was
+finished, plus harvest and export moved out into parts of their own. It replaces step 2 of
+restructure.md ("move harvest and export into blitz"): `harvest.py` today is mostly linking, so
+it gets split apart, not moved whole.
+
+**How a change travels.** The test for this design is the Judge loop: find a missing clue page,
+add it, and see the fixed puzzle on the review site. That should touch only what changed:
+- a new image → harvest adds it to the manifest → xword-ocr reads that one image;
+- link re-runs over the records (cheap: no image work) and says which puzzles changed;
+- blitz rebuilds those puzzles' packets and puts them back in the queue (next-publication.md 3b).
+No step re-reads pages it has already read (follow-up 8). The formats between the parts are plain
+files (JSON or TSV), not pickles, so any step can be re-run, inspected or diffed alone.
+
+**Built for Claude to drive.** The tools should be what an agent reaches for, not something it
+works around:
+- small commands that act on one image, issue, puzzle or exception, as well as whole batches;
+- state that's readable as files and can be queried by a command ("which puzzles have no key", "what's on leaf 31 of this
+  issue") with `--json` output;
+- a one-off script used twice becomes a command with a test (follow-up 16);
+- each part's README says what it reads, what it writes and which commands exist.
+
+**Open questions.**
+- Where link lives: inside blitz as its own stage with its own inputs and outputs (to start), or a
+  project of its own.
+- Whether xword-ocr defines an archive/manifest format beyond the detection record, or harvest
+  owns all of it. Packets belong to blitz (decided).
+
+**Where each follow-up goes:**
+- link: 0, 6, 7, 9, 11 (and next-publication.md 3, one place to decide each key)
+- harvest: 8, and the discovery half of 6 (search for "puzzle" and "solution")
+- xword-ocr: 1, 2, 12 (reading printed numbers), 18
+- blitz: 3, 4, 10, 13, 14, 15, 16
+- gxd-export: 17, 12 (the spec with Saul)
+- crossref: 5
+
+Two follow-ups name the wrong home: 16's `xword-ocr verify` and `restore-readings` belong to blitz
+and harvest, and 17's `export-gxd` changes belong to gxd-export.
+
+18. **Take publication, gxd and blitz specifics out of xword-ocr** (audit, 2026-10-12). Found:
+   - **Applies to every publication:** textfix's broken-c rewrite ("elean" → "clean") always
+     fires, because it was "nearly always right in Judge". Make it a per-publication setting that
+     is passed in (the user: hints like this are publication-specific).
+   - **In every .xd:** `fixes._source_name` writes `EveryPuzzleProject/<pub>: fixes/fixes.toml`
+     into the `Fixes:` header.
+   - **Harvest defaults** are Judge's (`--collection pub_judge`, `--pubid judge`, 1930 dates).
+     The review page tells you to paste into `fixes/judge.toml`.
+   - **gxd:** all of `export.py` (`to_gxd`, `gxd_id`, receipts, XD208 quote flattening, the
+     sic-list drop) and the `export-gxd` command. `tasks.current_review` calls `to_gxd`.
+     pipeline.py writes "Misprints, kept as printed" notes and export strips them.
+   - **blitz/EPP:** `prcheck.py` (`ORG = "EveryPuzzleProject"`), `volunteer.py`,
+     `matches_xd`/`built_from` for site-publish, the CLI's "next, from ../blitz" and `epp scans`
+     hints, `corrections.py`'s `volunteer/pr-*` glob, `list_continues` duplicated in
+     `blitz.packet`, browse/triage, the xword-reviewer agent, docs/review-runbook.md.
+   The core (grid, ocr, letters, layout, clues, textfix, numbering, xd, lint, pipeline) imports
+   only itself. The first three bullets are small fixes that can be done now; the rest move with
+   their parts.
