@@ -164,6 +164,28 @@ Each was a judgement call that ended up in the fix file. See follow-ups 1, 2, 10
 - **Budget:** use the free Fable allowance.
 - **Rights:** fair use for research; repos public by default.
 
+## The workflow we're heading for
+
+The maintainer, after the key-squares page (2026-10-12): it "felt very productive and powerful,
+like I was really contributing", while proofreading whole puzzles "is tiresome since the ratio of
+fixing to checking is very very low". The numbers agree:
+- whole puzzles proofed: 2 of the last 11 needed a letter fixed;
+- flagged key squares: 20 of 88 needed a change.
+
+So the shape for the next series:
+
+1. **OCR, then AI review, gets the puzzle about 99% of the way.**
+2. **People quick-fix the last bits on narrow pages.** Each page asks one kind of question, with
+   the evidence beside it: flagged key squares (crop, the answers and clues through the square,
+   Keep / Change / type, auto-advance), refused grid fixes, misprint rulings. No whole-puzzle
+   proofreading.
+3. **Publish.**
+4. **Anyone can flag a mistake on the live site,** and the flag comes back as a card in the same
+   review tool, so a correction is a one-click fix with its source recorded in the ledger.
+
+The key-squares page should become a blitz feature for the community. It can run off the
+existing proofs table, so helpers' decisions arrive the way proofs do today.
+
 ## For the next series, in order
 
 1. **Harvest checkpoint first** (follow-up 0). Every gap, near-miss key, duplicate scan and
