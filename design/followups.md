@@ -160,6 +160,22 @@ Newest at the bottom of each section; strike through or delete when done.
      the choices "as printed (wordplay)", "misprint, kept with sic", "OCR error, fix" and
      "typo in print, corrected with a note".
 
+16. **One card format for every narrow check; scripts used twice become commands** (2026-10-12).
+   On Judge's last day the same shape was built three times as one-off pages in a scratch
+   folder: key squares, the sic audit, and the queue ordering. Two rules:
+   - **Cards:** blitz branch `claude/key-squares` (the key-squares page, `flags` / `flag_checks`
+     tables) keys a card by square and limits an answer to letters. Generalize it to
+     `{xdid, page, item, now, suggest, why, crop, rows}`, where `item` is any ledger key
+     (`clue:A14`, `cell:r3c5`, `meta:byline`), the value is free text, and `rows` are the ledger
+     rows applied on Accept. Then an audit, an agent or the live site's "flag a mistake" just
+     writes cards, and the same page and import handle them. The Judge sic audit
+     (judge branch `claude/sic-audit`, `audits/*.rows.jsonl`) is the second user.
+   - **Scripts:** a scratch script used a second time moves into a repo as a command with a test.
+     First in line: `verify_xd.py` (`xword-ocr verify --against <commit>`: no clue or black-square
+     changes slip through), `restore_old_pages.py` (`xword-ocr restore-readings <backup>`), the
+     answer word check (part of the checkup and the key-squares flags), and ordering the review
+     queue from puzzles.tsv (`blitz site-queue`).
+
 ## Elsewhere
 
 5. **crossref: treat `_` as "no square"** (xd's not-part-of-the-puzzle), for the shaped Judge
