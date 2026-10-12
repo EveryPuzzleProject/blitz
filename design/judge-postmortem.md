@@ -199,6 +199,9 @@ existing proofs table, so helpers' decisions arrive the way proofs do today.
 4. **One `blitz sync <pub>` command** that imports, rebuilds, verifies, publishes and stops on
    surprises. (next-publication.md, item 4.)
 5. **Notes and provenance separate from the start,** and the review instructions say so.
+5b. **A second look at "sic" items and wordplay corrections, both ways** (follow-up 15). Some
+   Judge clues kept as "sic" were possibly real uncorrected errors, and at least one pun was
+   "corrected" away: "Financy that!" became "Fancy that!". Close calls get double-checked.
 6. **Publication rules learned from confirmed data,** not hand-coded: where keys run, how
    numbering works, recurring printed text. (Follow-ups 7, 11.)
 7. **People do the narrow checks:** key squares, grid rulings, misprint rulings. Agents read
