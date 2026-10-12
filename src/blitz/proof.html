@@ -369,6 +369,8 @@ async function load() {
   if (!cur.who) cur.who = 'You';
   document.getElementById('who').value = cur.who === 'You' ? '' : cur.who;
   render();
+  // ?k=clue:A14 (any row's item) opens the page at that row, e.g. from a review card's link
+  if (params.get('k')) setTimeout(() => jumpTo(params.get('k')), 0);
 }
 
 // what a field held before any reviewer: the OCR's reading
