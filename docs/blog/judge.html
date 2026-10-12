@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Judge, 1924–1939: our first full series</title>
+<meta name="description" content="How 531 crosswords from Judge magazine went from archive.org scans to xd files, each linked to its scan: what went well, what was hard, and what we're changing for the next publication.">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Every Puzzle Project">
+<meta property="og:title" content="Judge, 1924–1939: our first full crossword series">
+<meta property="og:description" content="531 crosswords from Judge magazine, from archive.org scans to xd files: what went well, what was hard, and what's next.">
+<meta property="og:url" content="https://blitz.xwordapp.com/blog/judge.html">
+<meta property="og:image" content="https://blitz.xwordapp.com/blog/img/judge1924-11-22-no4-judge-grid.jpg">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 3 3%27%3E%3Crect width=%273%27 height=%273%27 fill=%27%23fff%27/%3E%3Crect width=%271%27 height=%271%27 fill=%27%231d1b17%27/%3E%3Crect x=%272%27 y=%272%27 width=%271%27 height=%271%27 fill=%27%231d1b17%27/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../style.css?v=202610021023">
+<style>
+  .post { max-width: 700px; }
+  .post p, .post li { font: 18px/1.6 var(--serif); }
+  .post li { margin: 4px 0; }
+  .post h1 { font-size: 34px; margin-top: 12px; }
+  .post h2 { font-size: 24px; margin-top: 40px; }
+  .post h3 { font: 600 19px var(--serif); margin: 28px 0 6px; }
+  .dek { font: 20px/1.5 var(--serif); color: var(--muted); margin: 6px 0 0; }
+  .byline { font-size: 14px; color: var(--muted); margin: 10px 0 24px; }
+  figure { margin: 24px 0; }
+  figure img { display: block; max-width: 100%; height: auto; border-radius: 4px; box-shadow: 0 1px 10px rgba(0,0,0,.15); background: #fff; }
+  figure.narrow img { max-width: 420px; width: 100%; }
+  figcaption { font-size: 14px; line-height: 1.45; color: var(--muted); margin-top: 8px; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 10px; margin: 24px 0; }
+  .stat { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .stat b { display: block; font: 700 30px/1.1 var(--serif); }
+  .stat span { font-size: 14px; color: var(--muted); }
+  /* the pipeline, as a row of steps that wraps */
+  .flow { list-style: none; padding: 0; margin: 24px 0; display: flex; flex-wrap: wrap; gap: 10px 0; align-items: stretch; }
+  .flow li { font: 14px/1.35 var(--sans); display: flex; align-items: stretch; margin: 0; }
+  .flow li > div { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; width: 132px; }
+  .flow li > div b { display: block; font: 600 15px var(--sans); }
+  .flow li > div span { color: var(--muted); }
+  .flow li.who-agent > div { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); background: var(--accent-soft); }
+  .flow li.who-person > div { border-color: #d9822b; background: color-mix(in srgb, #d9822b 14%, var(--surface)); }
+  .flow li:not(:last-child)::after { content: "→"; align-self: center; color: var(--muted); padding: 0 6px; font-size: 18px; }
+  .key { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 14px; color: var(--muted); margin-top: -12px; }
+  .sw { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; border: 1px solid var(--line); }
+  /* six copies of one puzzle */
+  .six { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; margin: 24px 0 8px; }
+  .six div { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font: 14px/1.4 var(--sans); }
+  .six b { display: block; font: 600 15px var(--sans); }
+  .six span { color: var(--muted); }
+  .clues { list-style: none; padding: 0; margin: 20px 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; }
+  .clues li { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; margin: 0; }
+  .clues q { font: italic 18px/1.4 var(--serif); quotes: "“" "”"; }
+  .clues .ans { display: block; margin-top: 6px; font: 600 15px/1.2 ui-monospace, Consolas, monospace; letter-spacing: .12em; }
+  .clues small { display: block; margin-top: 4px; font: 13px var(--sans); color: var(--muted); }
+  .bars svg { width: 100%; max-width: 560px; height: auto; display: block; }
+  .bars text { font: 14px var(--sans); fill: var(--ink); }
+  .bars .muted-t { fill: var(--muted); }
+  .note { border-left: 3px solid var(--line); padding: 2px 0 2px 14px; color: var(--muted); }
+  @media (max-width: 520px) { .post p, .post li { font-size: 17px; } .post .flow li { font-size: 13px; } .post h1 { font-size: 28px; } .flow li > div { width: 124px; } }
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap"><a href="../">Every Puzzle Project</a><span class="muted">Blog</span></div></header>
+<main class="wrap post">
+
+<h1>Judge, 1924–1939: our first full series</h1>
+<p class="dek">Every crossword <i>Judge</i> magazine printed, 531 puzzles, read from scans on archive.org into
+  <a href="https://github.com/century-arcade/xdformat">xd</a> files. What went well, what was hard, and what we're changing for the next one.</p>
+<p class="byline">Every Puzzle Project · October 2026<!-- TODO(alex): exact date when published --></p>
+
+<figure class="narrow">
+  <img src="img/judge1924-11-01-first-crossword.jpg" width="800" height="1082"
+    alt="A scanned Judge magazine page from 1 November 1924: a crossword grid with a reader's pencilled answers in some squares">
+  <figcaption><i>Judge</i>'s first crossword, 1 November 1924, in a copy someone had started solving in pencil. The page told
+    readers that the solution "will appear the following week. (That's to make you buy the next issue!)"
+    <a href="https://archive.org/details/sim_judge_1924-10-25_87">Scan on archive.org</a>.</figcaption>
+</figure>
+
+<p><i>Judge</i> was a weekly humor magazine. In the fall of 1924, with the country "Cross Word mad", it asked readers to send in
+  humorous crosswords, paying for each one it printed. The first ran on 1 November 1924, and the last we have ran in
+  January 1939, by which time <i>Judge</i> was a monthly printing two puzzles an issue. Readers wrote nearly all of them:
+  311 different names appear in the bylines.</p>
+
+<p>Until this month those puzzles existed only as page images. Now every one is an
+  <a href="https://github.com/century-arcade/xdformat">xd</a> file, a plain-text crossword format, with its grid, clues,
+  answers, title, constructor and date, and a link to the scan it came from. In xd they can sit in a research
+  corpus beside a century of later puzzles, where they can be searched, counted and compared, and preserved
+  for posterity. Our <i>Judge</i> puzzles are on their way into Saul Pwanson's gxd, the crossword corpus our
+  own research tools are built on.<!-- TODO(alex): update when the gxd merge request is in / merged --></p>
+
+<p><i>Judge</i> was the first full series the Every Puzzle Project took from start to finish, and we learned a lot.
+  This is the story of how it went.</p>
+
+<div class="stats">
+  <div class="stat"><b>531</b><span>crosswords: Nos. 1–122, a new run of Nos. 1–415, specials and second puzzles</span></div>
+  <div class="stat"><b>~44,000</b><span>clues</span></div>
+  <div class="stat"><b>528</b><span>with their answer key, found in a later issue</span></div>
+  <div class="stat"><b>~720</b><span>scanned pages, from 458 archive.org items</span></div>
+  <div class="stat"><b>15 days</b><span>from the first puzzle to the last proof</span></div>
+</div>
+
+<h2>How a puzzle gets from a scan to xd</h2>
+
+<ol class="flow" aria-label="The pipeline, step by step">
+  <li class="who-machine"><div><b>Find</b><span>search archive.org's page text for crossword pages</span></div></li>
+  <li class="who-machine"><div><b>Read</b><span>OCR built for this project: grid, clues, answer key</span></div></li>
+  <li class="who-agent"><div><b>Agent review</b><span>Claude checks the reading against crops of the scan</span></div></li>
+  <li class="who-person"><div><b>Proof page</b><span>a person checks what's left, with the scan beside it</span></div></li>
+  <li class="who-machine"><div><b>Ledger</b><span>every change, with who made it and what it was</span></div></li>
+  <li class="who-machine"><div><b>xd</b><span>one file per puzzle, rebuilt from the ledger</span></div></li>
+  <li class="who-machine"><div><b>gxd</b><span>the research corpus</span></div></li>
+</ol>
+<div class="key"><span><i class="sw"></i>code</span><span><i class="sw" style="background:var(--accent-soft)"></i>Claude</span>
+  <span><i class="sw" style="background:color-mix(in srgb,#d9822b 14%,var(--surface))"></i>a person</span></div>
+
+<p>The OCR does more than read text. A crossword's black squares decide its numbering, so the grid says which
+  clue numbers must exist and in what order, and the clue text is fitted to that list. That repairs misread
+  numbers and wrapped lines, and where grid and clues still disagree, that's exactly where someone should look.
+  <i>Judge</i> printed each answer key a week or more later, so the pipeline also searches later issues for a
+  key whose black squares match.</p>
+
+<p>Then Claude reviews each puzzle. It reads the OCR as text first, the way a person proofreads, and looks at
+  the scan only where something looks wrong: a crop of one clue, a few squares, the byline. Each review is a short
+  list of corrections and a verdict: ready, or what's left for a person. A person then proofs the puzzle on the
+  <a href="https://blitz.xwordapp.com/review/">review site</a>, which shows the transcription next to the scan,
+  with every change labelled by who made it. Volunteers contribute by directing Claude through the same steps.</p>
+
+<p>Every correction, from an agent or a person, goes into an append-only ledger with a name on it, and the xd files
+  are rebuilt from it. Nothing reaches an xd file without showing on the review page, along with where it came from.</p>
+
+<h2>What went well</h2>
+
+<h3>Agents did the reading; people made the judgement calls</h3>
+
+<p>Of the ledger's roughly 12,000 rows, about 11,200 were written by agents. Human reviewers made most of the rest:
+  the project's maintainer made 489 edits by hand on 172 puzzles, and helpers on the review site made 46. That's the split we were hoping for. Claude is good at the
+  patient part: comparing 90 clues and 200 squares with a scan, one by one. A person is needed for the
+  questions with no right answer in the scan: is this a misprint to keep, or a broken letter to fix? Is that an
+  extra black square, or a smudge?</p>
+
+<p>It was also affordable. With a reviewer agent trimmed to the few tools it needs, a puzzle cost about 17,000 tokens,
+  about 0.15% of a weekly Claude allowance. When we had two separate reviews of the same puzzles, they agreed on 91% of their corrections.</p>
+
+<h3>The tools learned from the reviewers</h3>
+
+<p>Every review ends with notes on what the tools got wrong: 1,599 of them for <i>Judge</i>. We group them
+  across a batch, and each kind becomes either a fix in the code or a line in a short notes file the next batch
+  of reviewers reads. The biggest win came early. The first ten puzzles a person reviewed needed 88 edits, and 52
+  of those were answer-key letters read as I. None had been flagged, because the OCR was sure of them. A
+  new way of reading each square fixed all 52:</p>
+
+<figure class="bars">
+  <svg viewBox="0 0 560 120" role="img" aria-label="Misread answer-key squares per 1,000: 91 before the fix, 4 after">
+    <text x="0" y="18" class="muted-t">Misread answer-key squares, per 1,000 reviewed</text>
+    <text x="0" y="54">before</text>
+    <rect x="64" y="38" width="455" height="24" rx="3" fill="var(--bad)"></rect>
+    <text x="526" y="56">91</text>
+    <text x="0" y="96">after</text>
+    <rect x="64" y="80" width="20" height="24" rx="3" fill="var(--good)"></rect>
+    <text x="92" y="98">4</text>
+  </svg>
+  <figcaption>Letter accuracy on the reviewed squares went from 90.9% to 99.6%.</figcaption>
+</figure>
+
+<p>Two habits kept changes like that safe. We measured each change against the puzzles people had
+  already corrected before merging it. One segmentation change that looked right on a handful of puzzles turned out to make
+  nine of them worse. And the importer refuses a grid fix whose numbering no longer matches the printed clues. That
+  caught real agent mistakes, including one on the last day.</p>
+
+<h3>Narrow pages are fast pages</h3>
+
+<p>The best review tool was the narrowest. On the last day, the remaining doubtful answer-key letters went
+  on a single page: a crop of each square from the scan, the letter we had, keep or change. A person can settle
+  one of those in seconds. Proofing a whole puzzle, once the page showed everything with its evidence,
+  took about two minutes.</p>
+
+<h2>What was hard</h2>
+
+<h3>1. Finding the puzzles came last, not first</h3>
+
+<p>Finding the pages sounds like the easy part. It wasn't. In 1925 and 1926 <i>Judge</i> printed the grid
+  under a decorative title the OCR couldn't read, with the clues on the facing page. Neither page looked like a
+  crossword on its own, and our first run found almost nothing from those two years.</p>
+
+<figure>
+  <img src="img/judge1925-facing-pages.jpg" width="1000" height="664"
+    alt="Two facing pages from a 1925 issue of Judge: the clue list on the left page, and the grid with last week's answer key on the right">
+  <figcaption>1925: the clues on the left page, the grid (and last week's answers) on the right. Our pipeline
+    now pairs grids and clue lists across facing pages. 47 <i>Judge</i> puzzles were put together that way.</figcaption>
+</figure>
+
+<p>Fixes like that kept coming. Some keys were printed under the next week's puzzle. Some were cut into
+  pieces by faint rules. No. 156 was printed as No. 155. Some keys were in double issues, and some issues had a
+  second puzzle. The puzzle numbers were our completeness check, and in the end every printed number was
+  found. But 18 puzzles and about 70 answer keys turned up only in a final hunt for gaps, after most of the
+  review was done. Each late find reopened puzzles that had already been checked: a newly found key meant
+  letters nobody had looked at yet.</p>
+
+<p>Help came from outside <i>Judge</i>, too. In 1925 newspapers reprinted its puzzles as "Cross Word Funnies,
+  selected by Judge". Matching those reprints back to the magazine turned up puzzles that were in archive.org's
+  scans but that our search had missed.</p>
+
+<p>The lesson: settle everything the search turns up (missing numbers, keys that almost match a grid, duplicate
+  scans) before any review starts. Next time, nothing goes to review until that list is empty.</p>
+
+<h3>2. One letter, all the way through</h3>
+
+<p>The answer keys were hand-lettered in a thin, light style, and the OCR kept reading T as I. (Also D as O,
+  S as E, and the hand-lettered A as nothing at all.) The worst part was that it was sure of itself, so our
+  low-confidence flags never fired.</p>
+
+<figure class="narrow">
+  <img src="img/judge1927-05-07-key-i-for-t.jpg" width="560" height="523"
+    alt="A printed 15 by 15 answer key; three squares are boxed in red, an E in TEST and the T at the end of both CABOT and CAT">
+  <figcaption>The answer key to <i>Judge</i>'s New X Word Puzzle No. 1 (30 April 1927), printed a week later.
+    The OCR read the boxed squares as I: TIST, CABOI, CAI. A helper on the review site fixed them.
+    <a href="https://archive.org/details/sim_judge_1927-05-07_92/page/n30/mode/1up">Scan on archive.org</a>.</figcaption>
+</figure>
+
+<p>The reading fix described above took care of most of it, but not all. On the last day, a rough check of
+  every answer against a word list found about 60 more strong suspects, a dozen of them in puzzles already
+  marked done. The check is simple: an answer that isn't a known crossword word, but becomes one when you change
+  an often-confused letter, gets flagged. For the next series it runs from the first day, before anyone reviews anything.</p>
+
+<h3>3. The thirty-minute touch-up that took all day</h3>
+
+<p>On 11 October the plan was half an hour of touch-up on the review site. It took the whole day, and almost
+  none of that time went on crosswords. Every problem that day had the same shape: two parts of the system
+  worked out the same fact separately and got different answers. Nothing noticed until a person opened a page.</p>
+
+<p>The root of it was that each puzzle existed in six forms:</p>
+
+<div class="six">
+  <div><b>The OCR's reading</b><span>on the machine that ran the harvest</span></div>
+  <div><b>The fix file and ledger</b><span>in git</span></div>
+  <div><b>The xd file</b><span>built from those</span></div>
+  <div><b>The review packet</b><span>what the review page loads</span></div>
+  <div><b>The published copy</b><span>on a content delivery network</span></div>
+  <div><b>The proofs</b><span>people's verdicts, in a database</span></div>
+</div>
+
+<p>So, for example, 17 puzzles showed "no answer key" although their xd had one, because two tools each worked
+  out which key a puzzle has, separately. One proof page showed an older copy of a puzzle, cached on the
+  content delivery network. Some puzzles were counted as checked because a file existed, not because anyone had checked them.</p>
+
+<p>The rule "the review page shows exactly what's in the xd" had been a convention. Now it's a check: the page is
+  built from the xd itself, and a puzzle can't be published unless the round trip matches. For the next series, each
+  proof will also record a fingerprint of the exact xd file it checked. A puzzle is done when a person's proof
+  matches the current file and they said it's ready.</p>
+
+<h2>Some things we found</h2>
+
+<p><i>Judge</i>'s puzzles are a window on what a humor magazine's readers found funny between the wars.
+  Some clues the reviewers enjoyed:</p>
+
+<ul class="clues">
+  <li><q>The wages of sin.</q><span class="ans">HEADLINES</span><small>No. 325, January 1935. Ten years earlier, two 1925 puzzles had answered the same clue with CASH.</small></li>
+  <li><q>Get a long little doggie.</q><span class="ans">DACHSHUND</span><small>No. 331, April 1935</small></li>
+  <li><q>A sea-going gallstone.</q><span class="ans">PEARL</span><small>No. 346, December 1935</small></li>
+  <li><q>This is very shad.</q><span class="ans">ROE</span><small>No. 391, October 1937. (In 1936, "This is very shady." was ELM.)</small></li>
+</ul>
+
+<p>Constructors played with the grid itself. In No. 4 (22 November 1924), the black squares spell the
+  magazine's name, with HA HA in cross-hatching in two corners:</p>
+
+<figure>
+  <img src="img/judge1924-11-22-no4-judge-grid.jpg" width="900" height="576"
+    alt="A crossword grid whose black squares spell JUDGE across the middle">
+  <figcaption>Puzzle No. 4, by Alfred M. Pelham. The puzzle has one-letter entries (K and I) in the holes of the letters.
+    <a href="https://archive.org/details/sim_judge_1924-11-15_87/page/n34/mode/1up">Scan on archive.org</a>
+    (archive.org dates this issue a week early).</figcaption>
+</figure>
+
+<p>Two weeks later, No. 6 (by Alfred L. Pelham, of Cambridge, Mass.) was two face-shaped grids sharing one clue
+  list: "Before Reading Judge" and "—and After". No square grid can hold that, so our xd stacks the two faces one above the other, and says so
+  on the puzzle's review page.</p>
+
+<figure>
+  <img src="img/judge1924-12-06-faces.jpg" width="720" height="619"
+    alt="Two crossword grids shaped like faces, with shaded squares for features; the second has circles for eyes">
+  <figcaption>Puzzle No. 6, 6 December 1924.
+    <a href="https://archive.org/details/sim_judge_1924-12-06_87/page/n34/mode/1up">Scan on archive.org</a>.</figcaption>
+</figure>
+
+<p>And in December 1936 a puzzle called "Dirty Work at the Crosswords" turned the grid into a whodunit.
+  The letters in its circled squares were clues to "the culprit's identity", three words of 3, 7 and 8 letters:
+  THE FARMER'S DAUGHTER.</p>
+
+<h2>What's next</h2>
+
+<p>The <i>Judge</i> puzzles go to gxd next. For the next publications (<i>GAMES</i> magazine from 1977, then
+  the <i>Boston Globe</i>, whose crossword goes back to 1917), the order changes:</p>
+
+<ol>
+  <li><b>Find everything first.</b> Every gap in the numbering, near-miss answer key and duplicate scan is settled,
+    with links to the evidence, before any review starts.</li>
+  <li><b>Check the answer words from day one,</b> and give people the narrow key-squares page as the normal
+    way to check keys.</li>
+  <li><b>One copy of the truth.</b> The review page shows the xd itself, proofs record exactly which version they
+    checked, and each puzzle's answer key is decided once and saved.</li>
+  <li><b>One command for the maintainer,</b> which imports, rebuilds, checks and publishes, and stops when
+    something looks surprising.</li>
+</ol>
+
+<p>Most of the work on the next series should be people making quick judgement calls with the evidence in front
+  of them, and Claude doing the reading.</p>
+
+<h2>How you can help</h2>
+
+<ul>
+  <li><b>Tell us about a puzzle.</b> The <a href="https://github.com/EveryPuzzleProject/catalog">catalog</a> lists
+    every publication known to have printed a crossword. If you've seen a puzzle in a paper or magazine we're
+    missing, even on paper with no link, report it there. No technical skills needed.</li>
+  <li><b>Hunt for Cross Word Funnies.</b> If you have newspaper archive access, <i>Judge</i>'s
+    <a href="https://github.com/EveryPuzzleProject/judge">repo</a> says what to look for.</li>
+  <li><b>Check puzzles against the scans,</b> by directing Claude through <a href="https://github.com/EveryPuzzleProject/blitz">blitz</a>,
+    or by hand on the <a href="https://blitz.xwordapp.com/review/">review site</a>.</li>
+  <li><b>Follow <i>Judge</i>'s status,</b> puzzle by puzzle, on its <a href="https://everypuzzleproject.github.io/judge/">status page</a>.</li>
+</ul>
+
+<p class="note">This is a research archive: an accurate record of puzzles as they were printed, each linked to its
+  source scan. It isn't a place to play old puzzles. The scans shown here are from <i>Judge</i> issues
+  published before 1931, which are in the public domain. Thanks to the Internet Archive for the scans, to
+  Saul Pwanson for gxd, and to David Steinberg's
+  <a href="http://www.preshortzianpuzzleproject.com/">Pre-Shortzian Puzzle Project</a> for showing what volunteers can do.</p>
+
+</main>
+</body>
+</html>
