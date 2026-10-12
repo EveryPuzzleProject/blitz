@@ -56,6 +56,15 @@
     font: 12.5px/1.45 ui-monospace, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; margin: 20px 0 6px; }
   pre.packet b { color: var(--bad); font-weight: 600; }
   .post ul.packet-list li { margin: 8px 0; }
+  .costs-wrap { overflow-x: auto; }
+  .costs { min-width: 620px; }
+  .costs td:first-child { min-width: 170px; }
+  .costs { width: 100%; border-collapse: collapse; margin: 20px 0 6px; font: 15px/1.4 var(--sans); }
+  .costs th, .costs td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .costs th { font-weight: 600; color: var(--muted); font-size: 13px; }
+  .costs td.n { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .costs th.n { text-align: right; }
+  .post p.costs-note { font: 14px/1.45 var(--sans); color: var(--muted); line-height: 1.45; margin: 4px 0 20px; }
   .note { border-left: 3px solid var(--line); padding: 2px 0 2px 14px; color: var(--muted); }
   @media (max-width: 520px) { .post p, .post li { font-size: 17px; } .post .flow li { font-size: 13px; } .post h1 { font-size: 28px; } .flow li > div { width: 124px; } }
 </style>
@@ -232,7 +241,7 @@ A74   PINED       What Romeo did for Jaliet.  <b>[odd: Jaliet]</b></pre>
   wrong, and a verdict, ready or what's left for a person. For No. 46 that was 15 clue fixes, the title, two
   answer-key letters and one misprint kept as printed ("plun.ber", a broken letter m).</p>
 
-<p>That's how a review came down to about 17,000 tokens. It also makes the work manageable: the reviewer's attention
+<p>That's how a review came down to about 17,000 tokens (the costs are in the table below). It also makes the work manageable: the reviewer's attention
   goes where there's evidence of a problem, and every decision it makes is tied to a piece of the scan.</p>
 
 <h3>What the person sees</h3>
@@ -273,8 +282,9 @@ A74   PINED       What Romeo did for Jaliet.  <b>[odd: Jaliet]</b></pre>
   extra black square, or a smudge?</p>
 
 <p>It was also affordable. A reviewer agent trimmed to the few tools it needs, reading the OCR as text and looking
-  only at small crops of the scan, cost about 17,000 tokens a puzzle: about 0.15% of a weekly Claude allowance. Two
-  separate reviews of the same puzzles agreed on 91% of their corrections.</p>
+  only at small crops of the scan, used about 17,000 tokens a puzzle. On a $100-a-month Claude Max plan, that's about
+  650 puzzles a week from the weekly allowance: the whole of <i>Judge</i> in less than a week. Two separate reviews of
+  the same puzzles agreed on 91% of their corrections.</p>
 
 <p>Why not skip the OCR and have Claude read the pages? We tried that while writing this post, on two puzzles. Claude
   looked at the puzzle page and the answer-key page, whole, and typed out the puzzle. It did remarkably well. On No. 46
@@ -285,6 +295,21 @@ A74   PINED       What Romeo did for Jaliet.  <b>[odd: Jaliet]</b></pre>
   to be found first: the OCR is also what found 531 puzzles in 458 issues and matched each one to an answer key
   printed weeks later. Two clean pages aren't a study, though, and as models get better at reading the balance may
   shift. We'll keep measuring.</p>
+
+<div class="costs-wrap"><table class="costs">
+  <thead><tr><th>How Claude checks a puzzle</th><th class="n">Tokens a puzzle</th><th class="n">Puzzles a week, $100 Max plan</th><th class="n">API cost a puzzle</th><th class="n">All 531 puzzles by API</th></tr></thead>
+  <tbody>
+    <tr><td>An agent looks at every image in the packet</td><td class="n">60,000–90,000</td><td class="n">about 280</td><td class="n">$0.70–1.00</td><td class="n">about $450</td></tr>
+    <tr><td>Text first, crops chosen by code (what we used)</td><td class="n">about 17,000</td><td class="n">about 650</td><td class="n">about $0.27</td><td class="n">about $140</td></tr>
+    <tr><td>No OCR: Claude reads the two whole pages</td><td class="n">about 78,000</td><td class="n">about 150*</td><td class="n">about $0.88</td><td class="n">about $470</td></tr>
+  </tbody>
+</table></div>
+<p class="costs-note">Claude Fable 5.1 throughout. Puzzles a week: measured on the weekly Fable allowance of a
+  $100-a-month Max plan (0.36% and 0.15% of it a puzzle); *the whole-page figure is scaled from its token count, not
+  measured. API cost: list price ($10 per million input tokens, $50 per million output), with no caching and about
+  2,000 tokens of output a puzzle. We ran the reviews on the plan's allowance, not the API: the project has no
+  budget, and an allowance that would otherwise go unused is free. A cheaper model through the API does better on
+  price (the text-first review cost about $0.05 a puzzle with Sonnet), but in our tests it found only about three-quarters of the fixes Fable made.</p>
 
 <h3>The tools learned from the reviewers</h3>
 
