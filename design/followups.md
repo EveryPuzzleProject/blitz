@@ -110,6 +110,37 @@ Newest at the bottom of each section; strike through or delete when done.
    the marks everywhere, and lists every marked square with who marked it. Left: No. 371 itself, once its
    harvest is in (mark its circles on the review page, or `special_cells` in its fix entry).
 
+13. **Proof page nits from reviewing all of Judge** (user, 2026-10-11):
+   - Changing a letter in the grid should let you say why right there, at the square, instead of
+     scrolling down to the first clue that uses it.
+   - Marking something in the header as not important: the "why" prompts don't fit. Offer a
+     "not important" choice (or similar).
+   - Make the notes field easy to clear or delete. The user cleared it a lot, because notes were full
+     of sourcing and OCR details that don't belong in a puzzle's note (they belong in headers like
+     Solution-Source, or in the change labels). Also stop writing such notes into fix-file `note`s.
+   - Hide the circle and shading tools behind something like "show circle/shading controls".
+   - Make answers findable with the browser's find (Ctrl+F). Today they're only drawn into the grid
+     and the clue rows' images. Print each entry's answer in small text under its row (or beside the
+     grid), so searching for TANG lands on the clue it belongs to.
+
+14. **A grid change that reinterprets the page goes back for reprocessing** (user, 2026-10-12).
+   When a reviewer finds a grid problem that changes how the rest of the page reads (a smudged
+   white square the OCR made black, as in judge1933-10-01b r3c5), they need a way to say so,
+   explain it, and send the puzzle back. Today they can't: the proof page can't renumber the
+   clues, and the importer refuses a grid fix that leaves clues without squares. So a
+   reviewer's correct fix gets dropped. Shape:
+   - **On the page:** toggling a square black or white offers "This changes the numbering: send
+     back for reprocessing", with a required why ("the scan shows an O; the key has an O").
+     The rest of the proof is set aside, not imported half-applied.
+   - **On import:** the grid squares go into the ledger as `grid:` records with the reviewer's
+     reason. The puzzle is marked "reprocess", not refused.
+   - **Reprocessing:** relink applies the squares (fix-file `grid_cells` already re-aligns the
+     OCR's clue text to the corrected numbering), the round-trip check runs, and the puzzle gets a
+     fresh packet and goes back in the queue. The reviewer's note shows on the new page, so the
+     next reviewer sees why the grid changed.
+   - **Agents too:** an agent's grid fix that the importer refuses today (No. 297) takes the same
+     path.
+
 ## Elsewhere
 
 5. **crossref: treat `_` as "no square"** (xd's not-part-of-the-puzzle), for the shaped Judge
