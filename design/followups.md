@@ -141,6 +141,25 @@ Newest at the bottom of each section; strike through or delete when done.
    - **Agents too:** an agent's grid fix that the importer refuses today (No. 297) takes the same
      path.
 
+15. **A special review for "sic" items and close calls, in both directions** (user, 2026-10-12).
+   While drafting the Judge blog post, many clue texts kept as "sic" turned out to be possibly real,
+   uncorrected errors (OCR or transcription, not the printer). The opposite also happened: a
+   deliberate pun was "corrected" away. "A bull's enemy. (Financy that!)" became "Fancy that!",
+   but it's almost certainly a pun on finance. A Judge audit is running separately. For every
+   series:
+   - **Sic items** (kept as printed): each gets a second look against the scan. Is it really
+     printed that way, and is it really a misprint and not wordplay? If the scan shows the right
+     text, it's an error to fix.
+   - **Corrections that turn an odd word into a common one:** each gets a second look for
+     wordplay (puns, dialect, deliberate misspellings like Judge's "gnumber", "Efternoon",
+     "Driv-It-Ur-Self"). If the print has it, restore it as printed.
+   - **Close calls** (a reviewer's "unsure", or two reviewers who disagree): double-checked by
+     a second reviewer or a person.
+   - **The tool:** a narrow page like the key-squares checker. Each card shows the crop of the
+     printed clue, the text as printed, the text we have, and why it was changed or kept, with
+     the choices "as printed (wordplay)", "misprint, kept with sic", "OCR error, fix" and
+     "typo in print, corrected with a note".
+
 ## Elsewhere
 
 5. **crossref: treat `_` as "no square"** (xd's not-part-of-the-puzzle), for the shaped Judge
