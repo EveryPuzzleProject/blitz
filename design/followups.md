@@ -119,6 +119,9 @@ Newest at the bottom of each section; strike through or delete when done.
      of sourcing and OCR details that don't belong in a puzzle's note (they belong in headers like
      Solution-Source, or in the change labels). Also stop writing such notes into fix-file `note`s.
    - Hide the circle and shading tools behind something like "show circle/shading controls".
+   - Make answers findable with the browser's find (Ctrl+F). Today they're only drawn into the grid
+     and the clue rows' images. Print each entry's answer in small text under its row (or beside the
+     grid), so searching for TANG lands on the clue it belongs to.
 
 14. **A grid change that reinterprets the page goes back for reprocessing** (user, 2026-10-12).
    When a reviewer finds a grid problem that changes how the rest of the page reads (a smudged
