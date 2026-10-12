@@ -50,6 +50,23 @@ def faces(ia):
     save(im, "judge1924-12-06-faces.jpg")
 
 
+def contact_sheet(xword_ocr):
+    """Part of the contact sheets an agent reviewer saw for No. 46 (judge1928-04-07): the
+    title, byline and first two clues, and the answer-key square the OCR couldn't read
+    (9 Across, .UK = AUK)."""
+    sheets = xword_ocr / "harvests" / "judge" / "tasks-agent1" / "judge1928-04-07" / "sheets"
+    top = Image.open(sheets / "sheet_1.png").convert("RGB").crop((0, 0, 1000, 614))
+    cell = Image.open(sheets / "sheet_6.png").convert("RGB").crop((0, 0, 1000, 268))
+    im = Image.new("RGB", (1000, top.height + cell.height), "white")
+    im.paste(top, (0, 0))
+    im.paste(cell, (0, top.height))
+    save(im, "judge1928-04-07-contact-sheet.jpg", 600)
+
+
+# docs/blog/img/judge1928-04-07-proof-{key,clues}.jpg are screenshots of the proof page
+# (blitz.xwordapp.com/review/?p=judge1928-04-07, 2026-10-12), not made here.
+
+
 def copies(xword_ocr):
     img = xword_ocr / "docs" / "img"
     for name in ["judge1924-11-01-first-crossword.jpg", "judge1925-facing-pages.jpg",
@@ -68,6 +85,7 @@ def main():
     OUT.mkdir(parents=True, exist_ok=True)
     it_misread(ia)
     faces(ia)
+    contact_sheet(a.xword_ocr)
     copies(a.xword_ocr)
 
 

@@ -52,6 +52,10 @@
   .bars .grid { stroke: var(--line); stroke-width: 1; }
   .bars .bar { fill: var(--accent); }
   .bars .bar:hover { fill: color-mix(in srgb, var(--accent) 75%, var(--ink)); }
+  pre.packet { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px;
+    font: 12.5px/1.45 ui-monospace, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; margin: 20px 0 6px; }
+  pre.packet b { color: var(--bad); font-weight: 600; }
+  .post ul.packet-list li { margin: 8px 0; }
   .note { border-left: 3px solid var(--line); padding: 2px 0 2px 14px; color: var(--muted); }
   @media (max-width: 520px) { .post p, .post li { font-size: 17px; } .post .flow li { font-size: 13px; } .post h1 { font-size: 28px; } .flow li > div { width: 124px; } }
 </style>
@@ -181,11 +185,79 @@
 
 <h2>Checking the reading</h2>
 
-<p>Then Claude reviews each puzzle. It reads the OCR as text first, the way a person proofreads, and looks at
-  the scan only where something looks wrong: a crop of one clue, a few squares, the byline. Each review is a short
-  list of corrections and a verdict: ready, or what's left for a person. A person then proofs the puzzle on the
-  <a href="https://blitz.xwordapp.com/review/">review site</a>, which shows the transcription next to the scan,
-  with every change labelled by who made it. Volunteers contribute by directing Claude through the same steps.</p>
+<h3>Assembling the review packet</h3>
+
+<p>The most important step in checking is deciding what to show the checker. A puzzle's evidence is a page scan of
+  several megapixels, plus an answer key from another issue. Handing all of it to Claude for every puzzle is what
+  made our first reviews cost 60,000 to 90,000 tokens each. So before any model runs, code builds a packet for each
+  puzzle, the way an editor would prepare proofs:</p>
+
+<ul class="packet-list">
+  <li><b>The reading, as text.</b> The answer key as rows of letters, with letters the reader wasn't sure of in
+    lowercase and unreadable ones as dots. Then every clue beside its answer from the key, flagged wherever the
+    pipeline did something or noticed something odd: a misreading it already fixed ("elean" to "clean"), a word
+    that isn't English ("exelamatlon", "Jaliet"), a clue number it had to correct, a line it borrowed from next door.</li>
+  <li><b>Whole-puzzle checks,</b> already run: clue text missing, the same text on two clues, clue numbers that
+    don't fit the grid, a key whose black squares disagree with the puzzle's. They cost nothing, and they catch most
+    of the serious problems.</li>
+  <li><b>Crops of the scan</b> for everything flagged: each clue's printed line with a line above and below for
+    context, a three-by-three patch of squares around each unsure letter, the title and the byline. Code chooses
+    them, not the model, and packs them onto a few contact sheets.</li>
+</ul>
+
+<pre class="packet" aria-label="An excerpt from the text view of No. 46's packet">## Answer key
+Lowercase = the letter reader wasn't sure; '.' = unreadable; '#' = black square.
+ 8 G # U S E R S # E # A R B O R # S
+ 9 # <b>o</b> R # # <b>.</b> U K # A L E # # O N #
+10 R # N O R S E # F # L A T H E # S
+
+## Across
+A1    LIBERAL     What kind of Seotchman would offer a penny for your thoughts?  <b>[odd: Seotchman]</b>
+A38   INFER       How to make a deduction.  <b>[spell:deduetion>deduction]</b>
+A53   <b>.</b>UK         This sounds like an exelamatlon, but it'e a bird.  <b>[odd: exelamatlon]</b>
+A74   PINED       What Romeo did for Jaliet.  <b>[odd: Jaliet]</b></pre>
+
+<figure class="narrow">
+  <img src="img/judge1928-04-07-contact-sheet.jpg" width="600" height="529"
+    alt="A contact sheet of labelled scan crops: the puzzle's title, its byline, clues 1 and 7 Across, and a three-by-three patch of answer-key squares">
+  <figcaption>Part of the text view (above) and the contact sheets (here) for No. 46, 7 April 1928. The title
+    crop shows the OCR had picked up "There where the" from the next column, and the last crop settles the
+    unreadable square in 53 Across: A, for AUK.</figcaption>
+</figure>
+
+<p>Claude reads the text, decides what looks wrong, and checks each suspicion against its crop. It can ask for more
+  (any clue, any square, any part of the page) at 40 to 400 tokens a crop. One rule keeps it honest: a correction to
+  anything it never saw on a crop is recorded as unsure, so nothing gets fixed from the text alone. What comes back
+  is a small file: corrections, misprints kept as printed, things confirmed as read, notes on what the tools got
+  wrong, and a verdict, ready or what's left for a person. For No. 46 that was 15 clue fixes, the title, two
+  answer-key letters and one misprint kept as printed ("plun.ber", a broken letter m).</p>
+
+<p>That's how a review came down to about 17,000 tokens. It also makes the work manageable: the reviewer's attention
+  goes where there's evidence of a problem, and every decision it makes is tied to a piece of the scan.</p>
+
+<h3>What the person sees</h3>
+
+<p>The human reviewer gets a packet too, built for eyes instead of tokens: a proof page on the
+  <a href="https://blitz.xwordapp.com/review/">review site</a> that shows the xd as it stands, every line beside its
+  scan, and every change marked with who made it and what the OCR had read. In the answer key, the scan sits beside
+  our letters, with changed squares outlined. A reviewer can lay our letters over the scan, or blink between the two,
+  so a wrong letter jumps out.</p>
+
+<figure>
+  <img src="img/judge1928-04-07-proof-key.jpg" width="780" height="332"
+    alt="The proof page's answer key: the scanned key on the left, our letters on the right, with changed squares outlined">
+  <figcaption>No. 46's answer key on the proof page: the scan on the left, our letters on the right. The outlined
+    squares are ones a reviewer changed.</figcaption>
+</figure>
+
+<figure>
+  <img src="img/judge1928-04-07-proof-clues.jpg" width="790" height="282"
+    alt="Rows of the proof page: each clue's scanned line above our text, the answer letters cut from the key beside it, and a note saying who changed the clue">
+  <figcaption>Clues on the proof page: the printed line above our text, the answer's squares cut from the key, and,
+    for 1 Across, the change an agent made ("Seotchman" to "Scotchman").</figcaption>
+</figure>
+
+<p>Volunteers contribute by directing Claude through the same packets.</p>
 
 <p>Every correction, from an agent or a person, goes into an append-only ledger with a name on it, and the xd files
   are rebuilt from it. Nothing reaches an xd file without showing on the review page, along with where it came from.</p>
