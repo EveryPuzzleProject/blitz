@@ -186,6 +186,12 @@ Newest at the bottom of each section; strike through or delete when done.
      changes slip through), `restore_old_pages.py` (`xword-ocr restore-readings <backup>`), the
      answer word check (part of the checkup and the key-squares flags), and ordering the review
      queue from puzzles.tsv (`blitz site-queue`).
+   - **Same-commit check vs incremental rebuilds** (2026-10-12): `site-publish` refuses a folder whose
+     `key-squares.json` and packets come from different judge commits. Rebuilding only the changed
+     packets (next-publication.md 3b) leaves a folder with packets from several commits. Check each
+     card against its own puzzle's packet commit instead. Judge's regenerated list
+     (`tasks-final-1012/key-squares.optional-2026-10-12.json`: 411 OCR-unsure letters in keys only
+     agents read, 24 word-check flags, mostly known wordplay) is an optional extra pass, not published.
 
 17. **A public evidence page per exported puzzle, for crossref to link to** (user, 2026-10-12).
    Crossref will credit Every Puzzle Project from each publication's `gxd-exports.tsv` (judge has
