@@ -41,11 +41,6 @@
   .flow li:not(:last-child)::after { content: "→"; align-self: center; color: var(--muted); padding: 0 6px; font-size: 18px; }
   .key { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 14px; color: var(--muted); margin-top: -12px; }
   .sw { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; border: 1px solid var(--line); }
-  /* six copies of one puzzle */
-  .six { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; margin: 24px 0 8px; }
-  .six div { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font: 14px/1.4 var(--sans); }
-  .six b { display: block; font: 600 15px var(--sans); }
-  .six span { color: var(--muted); }
   .clues { list-style: none; padding: 0; margin: 20px 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; }
   .clues li { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; margin: 0; }
   .clues q { font: italic 18px/1.4 var(--serif); quotes: "“" "”"; }
@@ -54,6 +49,9 @@
   .bars svg { width: 100%; max-width: 560px; height: auto; display: block; }
   .bars text { font: 14px var(--sans); fill: var(--ink); }
   .bars .muted-t { fill: var(--muted); }
+  .bars .grid { stroke: var(--line); stroke-width: 1; }
+  .bars .bar { fill: var(--accent); }
+  .bars .bar:hover { fill: color-mix(in srgb, var(--accent) 75%, var(--ink)); }
   .note { border-left: 3px solid var(--line); padding: 2px 0 2px 14px; color: var(--muted); }
   @media (max-width: 520px) { .post p, .post li { font-size: 17px; } .post .flow li { font-size: 13px; } .post h1 { font-size: 28px; } .flow li > div { width: 124px; } }
 </style>
@@ -63,7 +61,7 @@
 <main class="wrap post">
 
 <h1>Judge, 1924–1939: our first full series</h1>
-<p class="dek">Every crossword <i>Judge</i> magazine printed, 531 puzzles, read from scans on archive.org into
+<p class="dek">Every crossword in <i>Judge</i> magazine from 1924 to 1939, 531 puzzles, read from scans on archive.org into
   <a href="https://github.com/century-arcade/xdformat">xd</a> files. What went well, what was hard, and what we're changing for the next one.</p>
 <p class="byline">Every Puzzle Project · October 2026<!-- TODO(alex): exact date when published --></p>
 
@@ -76,16 +74,15 @@
 </figure>
 
 <p><i>Judge</i> was a weekly humor magazine. In the fall of 1924, with the country "Cross Word mad", it asked readers to send in
-  humorous crosswords, paying for each one it printed. The first ran on 1 November 1924, and the last we have ran in
-  January 1939, by which time <i>Judge</i> was a monthly printing two puzzles an issue. Readers wrote nearly all of them:
-  311 different names appear in the bylines.</p>
+  humorous crosswords, paying $25 for each one it printed (later lowered to $10). The first ran on 1 November 1924.
+  The last we have ran in January 1939, by which time <i>Judge</i> was a monthly printing two puzzles an issue; that's
+  where archive.org's scans end. Readers wrote nearly all of them: 311 different names appear in the bylines that followed.</p>
 
 <p>Until this month those puzzles existed only as page images. Now every one is an
   <a href="https://github.com/century-arcade/xdformat">xd</a> file, a plain-text crossword format, with its grid, clues,
   answers, title, constructor and date, and a link to the scan it came from. In xd they can sit in a research
   corpus beside a century of later puzzles, where they can be searched, counted and compared, and preserved
-  for posterity. Our <i>Judge</i> puzzles are on their way into Saul Pwanson's gxd, the crossword corpus our
-  own research tools are built on.<!-- TODO(alex): update when the gxd merge request is in / merged --></p>
+  for posterity.</p>
 
 <p><i>Judge</i> was the first full series the Every Puzzle Project took from start to finish, and we learned a lot.
   This is the story of how it went.</p>
@@ -107,16 +104,81 @@
   <li class="who-person"><div><b>Proof page</b><span>a person checks what's left, with the scan beside it</span></div></li>
   <li class="who-machine"><div><b>Ledger</b><span>every change, with who made it and what it was</span></div></li>
   <li class="who-machine"><div><b>xd</b><span>one file per puzzle, rebuilt from the ledger</span></div></li>
-  <li class="who-machine"><div><b>gxd</b><span>the research corpus</span></div></li>
 </ol>
 <div class="key"><span><i class="sw"></i>code</span><span><i class="sw" style="background:var(--accent-soft)"></i>Claude</span>
   <span><i class="sw" style="background:color-mix(in srgb,#d9822b 14%,var(--surface))"></i>a person</span></div>
 
-<p>The OCR does more than read text. A crossword's black squares decide its numbering, so the grid says which
-  clue numbers must exist and in what order, and the clue text is fitted to that list. That repairs misread
-  numbers and wrapped lines, and where grid and clues still disagree, that's exactly where someone should look.
-  <i>Judge</i> printed each answer key a week or more later, so the pipeline also searches later issues for a
-  key whose black squares match.</p>
+<h2>Teaching the OCR to read a crossword page</h2>
+
+<p>Off-the-shelf OCR reads a crossword page as a jumble: the grid's little numbers, lines from two clue columns run
+  together, the ad next door. So the reader built for this project starts from what a crossword is.</p>
+
+<h3>Finding the grid</h3>
+
+<p>A grid is the one thing on a page made of a lattice of identical squares. Text, cartoons and ads don't form
+  one. The reader looks for that lattice, which says where the grid is and how many rows and columns it has. It then
+  straightens the grid, correcting the tilt and curl of a page photographed in a bound volume, and calls each square
+  black or white. That last step is easier than it sounds. On the first test pages a white square was nearly all paper
+  and a black one all ink (0–4% ink against 100%), with nothing in between.</p>
+
+<figure class="narrow">
+  <img src="img/judge1930-page-detected-grids.jpg" width="900" height="1183"
+    alt="A 1930 Judge page with the crossword grid outlined in green and the previous week's answer key outlined in red">
+  <figcaption>No. 182 (15 November 1930), as the reader sees it: the puzzle's grid (green) and last week's answer key
+    (red), each found by its lattice of squares.
+    <a href="https://archive.org/details/sim_judge_1930-11-15_99/page/n31/mode/1up">Scan on archive.org</a>.</figcaption>
+</figure>
+
+<figure>
+  <img src="img/judge56-rectified-vs-detected.jpg" width="900" height="439"
+    alt="Left: a scanned crossword grid, straightened. Right: the same grid drawn as clean black and white squares">
+  <figcaption>No. 56 (2 January 1926): the grid straightened (left), and each square called black or white (right).
+    <a href="https://archive.org/details/sim_judge_1926-01-02_90/page/n34/mode/1up">Scan on archive.org</a>.</figcaption>
+</figure>
+
+<h3>Reading the answer key</h3>
+
+<p>The answer keys were harder. <i>Judge</i> printed them a week or more later, small, with hand-lettered capitals
+  that fill each square. Letters that big hide the white squares the grid finder looks for, so keys get a second
+  finder that looks instead for the points where the grid lines cross. Each square is then read on its own, in three
+  different ways; when the readings disagree, the reader gives its best guess and marks it unsure.</p>
+
+<figure class="narrow">
+  <img src="img/judge1925-answer-grid-crossings.jpg" width="700" height="780"
+    alt="A printed answer key with large letters filling the squares; red dots mark where the grid lines cross">
+  <figcaption>The answer to No. 31 (6 June 1925). The letters fill the squares, so the reader finds this grid by
+    its line crossings (red dots).
+    <a href="https://archive.org/details/sim_judge_1925-06-06_88/page/n34/mode/1up">Scan on archive.org</a>.</figcaption>
+</figure>
+
+<p>To match a key to its puzzle, the pipeline compares black squares with the puzzles from the weeks before: the
+  pattern is a fingerprint. Faint rules sometimes broke a key into pieces too small to match anything. For those, it
+  tried growing a piece's grid to the size of each candidate puzzle, at every position where the piece's black squares
+  fit, and kept the result only if the whole pattern then matched exactly. That found 42 more keys.</p>
+
+<p>One surprise: some scanned copies had been solved in pencil by their owners, and a filled-in puzzle looks a lot
+  like an answer key. The difference turned out to be simple. Puzzles have clue numbers in their squares, and
+  printed keys never do.</p>
+
+<h3>Splitting the clues</h3>
+
+<p>Clue lists are set in narrow columns, with wrapped lines and often an ad alongside. The reader finds each column,
+  stops lines from running into the ad copy next to it (one tobacco ad, "Judge men, my boy, as you judge Craven",
+  kept turning up inside clues), and joins wrapped lines to the clue they belong to.</p>
+
+<p>Then the grid helps again. A crossword's black squares decide its numbering, so the grid says exactly which
+  Across and Down numbers must exist, and in what order. The clue lines are lined up against that list, which repairs
+  misread numbers ("3." for "33."), dropped numbers and clues split in two. Where grid and clues still disagree is
+  exactly where someone should look.</p>
+
+<figure class="narrow">
+  <img src="../img/judge1928-04-07-page.jpg" width="520" height="1063"
+    alt="A Judge crossword page with each clue in the two clue columns outlined by a box">
+  <figcaption>No. 46 (7 April 1928): each box is one clue the reader found.
+    <a href="https://archive.org/details/sim_judge_1928-04-07_94/page/n31/mode/1up">Scan on archive.org</a>.</figcaption>
+</figure>
+
+<h2>Checking the reading</h2>
 
 <p>Then Claude reviews each puzzle. It reads the OCR as text first, the way a person proofreads, and looks at
   the scan only where something looks wrong: a crop of one clue, a few squares, the byline. Each review is a short
@@ -137,8 +199,19 @@
   questions with no right answer in the scan: is this a misprint to keep, or a broken letter to fix? Is that an
   extra black square, or a smudge?</p>
 
-<p>It was also affordable. With a reviewer agent trimmed to the few tools it needs, a puzzle cost about 17,000 tokens,
-  about 0.15% of a weekly Claude allowance. When we had two separate reviews of the same puzzles, they agreed on 91% of their corrections.</p>
+<p>It was also affordable. A reviewer agent trimmed to the few tools it needs, reading the OCR as text and looking
+  only at small crops of the scan, cost about 17,000 tokens a puzzle: about 0.15% of a weekly Claude allowance. Two
+  separate reviews of the same puzzles agreed on 91% of their corrections.</p>
+
+<p>Why not skip the OCR and have Claude read the pages? We tried that while writing this post, on two puzzles. Claude
+  looked at the puzzle page and the answer-key page, whole, and typed out the puzzle. It did remarkably well. On No. 46
+  (1928), all 289 squares and 110 of 112 clues matched our reviewed transcription exactly; the other two differ by a
+  period. On New X Word Puzzle No. 1 (1927), its only different square was a misprint in the printed key (YEY for YET),
+  which it caught and corrected. But it took about 78,000 tokens a puzzle, four to five times a text-first review.
+  It also leaves no crops to show the evidence for each reading and no flags saying where to look. And the pages have
+  to be found first: the OCR is also what found 531 puzzles in 458 issues and matched each one to an answer key
+  printed weeks later. Two clean pages aren't a study, though, and as models get better at reading the balance may
+  shift. We'll keep measuring.</p>
 
 <h3>The tools learned from the reviewers</h3>
 
@@ -221,32 +294,6 @@
   marked done. The check is simple: an answer that isn't a known crossword word, but becomes one when you change
   an often-confused letter, gets flagged. For the next series it runs from the first day, before anyone reviews anything.</p>
 
-<h3>3. The thirty-minute touch-up that took all day</h3>
-
-<p>On 11 October the plan was half an hour of touch-up on the review site. It took the whole day, and almost
-  none of that time went on crosswords. Every problem that day had the same shape: two parts of the system
-  worked out the same fact separately and got different answers. Nothing noticed until a person opened a page.</p>
-
-<p>The root of it was that each puzzle existed in six forms:</p>
-
-<div class="six">
-  <div><b>The OCR's reading</b><span>on the machine that ran the harvest</span></div>
-  <div><b>The fix file and ledger</b><span>in git</span></div>
-  <div><b>The xd file</b><span>built from those</span></div>
-  <div><b>The review packet</b><span>what the review page loads</span></div>
-  <div><b>The published copy</b><span>on a content delivery network</span></div>
-  <div><b>The proofs</b><span>people's verdicts, in a database</span></div>
-</div>
-
-<p>So, for example, 17 puzzles showed "no answer key" although their xd had one, because two tools each worked
-  out which key a puzzle has, separately. One proof page showed an older copy of a puzzle, cached on the
-  content delivery network. Some puzzles were counted as checked because a file existed, not because anyone had checked them.</p>
-
-<p>The rule "the review page shows exactly what's in the xd" had been a convention. Now it's a check: the page is
-  built from the xd itself, and a puzzle can't be published unless the round trip matches. For the next series, each
-  proof will also record a fingerprint of the exact xd file it checked. A puzzle is done when a person's proof
-  matches the current file and they said it's ready.</p>
-
 <h2>Some things we found</h2>
 
 <p><i>Judge</i>'s puzzles are a window on what a humor magazine's readers found funny between the wars.
@@ -281,13 +328,80 @@
     <a href="https://archive.org/details/sim_judge_1924-12-06_87/page/n34/mode/1up">Scan on archive.org</a>.</figcaption>
 </figure>
 
-<p>And in December 1936 a puzzle called "Dirty Work at the Crosswords" turned the grid into a whodunit.
-  The letters in its circled squares were clues to "the culprit's identity", three words of 3, 7 and 8 letters:
-  THE FARMER'S DAUGHTER.</p>
+<h2>Rules that weren't rules yet</h2>
+
+<p><i>Judge</i>'s puzzles come from the crossword's first years, while its conventions were still being worked
+  out. Plenty would look familiar today: numbered squares, mostly symmetric grids, black squares rather than the
+  open diagrams of the very first crosswords. (Though <i>Judge</i>'s clue lists were headed "Horizontal" and
+  "Vertical", not Across and Down.) Other habits fell by the wayside.</p>
+
+<p><b>Unchecked squares.</b> Today every letter in a crossword belongs to both an Across and a Down answer. In
+  <i>Judge</i> thousands didn't: 5,781 squares in 399 of the 531 puzzles stand in only one word. In the 1920s that
+  was the norm, and by the end of the run it was nearly gone.</p>
+
+<figure class="bars">
+<svg viewBox="0 0 559 200" role="img" aria-label="Unchecked squares per puzzle, by year: about 27 in 1924, under 1 in 1938">
+  <line x1="30" x2="559" y1="168" y2="168" class="grid"></line>
+  <text x="26" y="172" text-anchor="end" class="muted-t">0</text>
+  <line x1="30" x2="559" y1="121" y2="121" class="grid"></line>
+  <text x="26" y="125" text-anchor="end" class="muted-t">10</text>
+  <line x1="30" x2="559" y1="75" y2="75" class="grid"></line>
+  <text x="26" y="79" text-anchor="end" class="muted-t">20</text>
+  <line x1="30" x2="559" y1="28" y2="28" class="grid"></line>
+  <text x="26" y="32" text-anchor="end" class="muted-t">30</text>
+  <path d="M34,168 v-122.5 q0,-4 4,-4 h18 q4,0 4,4 v122.5 z" class="bar"><title>1924: 27.1 unchecked squares per puzzle</title></path>
+  <text x="47" y="186" text-anchor="middle" class="muted-t">1924</text>
+  <path d="M69,168 v-103.5 q0,-4 4,-4 h18 q4,0 4,4 v103.5 z" class="bar"><title>1925: 23.0 unchecked squares per puzzle</title></path>
+  <path d="M104,168 v-104.0 q0,-4 4,-4 h18 q4,0 4,4 v104.0 z" class="bar"><title>1926: 23.1 unchecked squares per puzzle</title></path>
+  <text x="117" y="186" text-anchor="middle" class="muted-t">1926</text>
+  <path d="M139,168 v-85.4 q0,-4 4,-4 h18 q4,0 4,4 v85.4 z" class="bar"><title>1927: 19.2 unchecked squares per puzzle</title></path>
+  <path d="M174,168 v-70.2 q0,-4 4,-4 h18 q4,0 4,4 v70.2 z" class="bar"><title>1928: 15.9 unchecked squares per puzzle</title></path>
+  <text x="187" y="186" text-anchor="middle" class="muted-t">1928</text>
+  <path d="M209,168 v-27.4 q0,-4 4,-4 h18 q4,0 4,4 v27.4 z" class="bar"><title>1929: 6.7 unchecked squares per puzzle</title></path>
+  <path d="M244,168 v-31.6 q0,-4 4,-4 h18 q4,0 4,4 v31.6 z" class="bar"><title>1930: 7.6 unchecked squares per puzzle</title></path>
+  <text x="257" y="186" text-anchor="middle" class="muted-t">1930</text>
+  <path d="M279,168 v-17.0 q0,-4 4,-4 h18 q4,0 4,4 v17.0 z" class="bar"><title>1931: 4.5 unchecked squares per puzzle</title></path>
+  <path d="M314,168 v-5.3 q0,-4 4,-4 h18 q4,0 4,4 v5.3 z" class="bar"><title>1932: 2.0 unchecked squares per puzzle</title></path>
+  <text x="327" y="186" text-anchor="middle" class="muted-t">1932</text>
+  <path d="M349,168 v-9.2 q0,-4 4,-4 h18 q4,0 4,4 v9.2 z" class="bar"><title>1933: 2.8 unchecked squares per puzzle</title></path>
+  <path d="M384,168 v-14.1 q0,-4 4,-4 h18 q4,0 4,4 v14.1 z" class="bar"><title>1934: 3.9 unchecked squares per puzzle</title></path>
+  <text x="397" y="186" text-anchor="middle" class="muted-t">1934</text>
+  <path d="M419,168 v-22.6 q0,-4 4,-4 h18 q4,0 4,4 v22.6 z" class="bar"><title>1935: 5.7 unchecked squares per puzzle</title></path>
+  <path d="M454,168 v-33.1 q0,-4 4,-4 h18 q4,0 4,4 v33.1 z" class="bar"><title>1936: 8.0 unchecked squares per puzzle</title></path>
+  <text x="467" y="186" text-anchor="middle" class="muted-t">1936</text>
+  <path d="M489,168 v-12.7 q0,-4 4,-4 h18 q4,0 4,4 v12.7 z" class="bar"><title>1937: 3.6 unchecked squares per puzzle</title></path>
+  <path d="M524,168 v-0.1 q0,-4 4,-4 h18 q4,0 4,4 v0.1 z" class="bar"><title>1938: 0.9 unchecked squares per puzzle</title></path>
+  <text x="537" y="186" text-anchor="middle" class="muted-t">1938</text>
+  <text x="47" y="36" text-anchor="middle">27</text>
+  <text x="537" y="158" text-anchor="middle">1</text>
+</svg>
+  <figcaption>Unchecked squares (letters in only one answer) per puzzle, by year, 1924–1938.</figcaption>
+</figure>
+
+<p><b>Two-letter answers,</b> 4,588 of them, in 454 puzzles, each with its own clue. Some are inventive:
+  "These two letters will get you going in circles." is DZ (1934). No. 4, the JUDGE grid, even has one-letter
+  answers, K and I, in the holes of its letters.</p>
+
+<p><b>Made-up abbreviations.</b> When a corner needed three unlikely letters, a constructor could simply declare them
+  an abbreviation:</p>
+
+<ul class="clues">
+  <li><q>Neurotic Railroads (abbr.).</q><span class="ans">NRR</span><small>June 1925</small></li>
+  <li><q>Persian Seamless Suspenders (abbr.).</q><span class="ans">PSS</span><small>September 1925</small></li>
+  <li><q>Plastered Business Men (abbr.).</q><span class="ans">PBM</span><small>October 1925</small></li>
+  <li><q>Mocha Pouring Republicans (abbr.).</q><span class="ans">MPR</span><small>January 1926</small></li>
+</ul>
+
+<p><b>Circled squares.</b> We didn't expect these so early. No. 6's second face has circled eyes, and in December
+  1936 a puzzle called "Dirty Work at the Crosswords" turned the grid into a whodunit: the letters in its circled
+  squares were clues to "the culprit's identity", three words of 3, 7 and 8 letters. (THE FARMER'S DAUGHTER.) Our
+  tools had nothing for circles, so we had to scramble. The review page gained a way to mark a square circled or
+  shaded, shown with who marked it, and the marks go into the xd. Spotting circles automatically is still on the
+  list.</p>
 
 <h2>What's next</h2>
 
-<p>The <i>Judge</i> puzzles go to gxd next. For the next publications (<i>GAMES</i> magazine from 1977, then
+<p>For the next publications (<i>GAMES</i> magazine from 1977, then
   the <i>Boston Globe</i>, whose crossword goes back to 1917), the order changes:</p>
 
 <ol>
@@ -314,14 +428,18 @@
     <a href="https://github.com/EveryPuzzleProject/judge">repo</a> says what to look for.</li>
   <li><b>Check puzzles against the scans,</b> by directing Claude through <a href="https://github.com/EveryPuzzleProject/blitz">blitz</a>,
     or by hand on the <a href="https://blitz.xwordapp.com/review/">review site</a>.</li>
+  <li><b>Help complete <i>Judge</i>.</b> archive.org's scans stop in January 1939, but <i>Judge</i> carried on
+    for a time after that, and was briefly revived years later. If you know where issues from after 1939 can be found,
+    from either run, tell us in the <a href="https://github.com/EveryPuzzleProject/catalog">catalog</a>.</li>
   <li><b>Follow <i>Judge</i>'s status,</b> puzzle by puzzle, on its <a href="https://everypuzzleproject.github.io/judge/">status page</a>.</li>
 </ul>
 
 <p class="note">This is a research archive: an accurate record of puzzles as they were printed, each linked to its
   source scan. It isn't a place to play old puzzles. The scans shown here are from <i>Judge</i> issues
   published before 1931, which are in the public domain. Thanks to the Internet Archive for the scans, to
-  Saul Pwanson for gxd, and to David Steinberg's
-  <a href="http://www.preshortzianpuzzleproject.com/">Pre-Shortzian Puzzle Project</a> for showing what volunteers can do.</p>
+  Saul Pwanson's xd crossword corpus, and to David Steinberg's
+  <a href="http://www.preshortzianpuzzleproject.com/">Pre-Shortzian Puzzle Project</a> for showing what a group of
+  highly motivated volunteers can do.</p>
 
 </main>
 </body>

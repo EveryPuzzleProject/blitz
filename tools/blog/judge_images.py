@@ -5,7 +5,7 @@ Public-domain material only: Judge pages printed before 1931. (Never GAMES.)
     uv run python tools/blog/judge_images.py [--ia ../xword-ocr/.cache/ia]
 
 Page images come from xword-ocr's archive.org cache (<ia>/<identifier>/leafNNNN.jpg);
-a puzzle's pages are its Source and Solution-Source headers in ../judge/xd/. Two
+a puzzle's pages are its Source and Solution-Source headers in ../judge/xd/. The other
 figures are copies of ones already made for xword-ocr/docs/process-notes.md.
 """
 import argparse
@@ -53,7 +53,8 @@ def faces(ia):
 def copies(xword_ocr):
     img = xword_ocr / "docs" / "img"
     for name in ["judge1924-11-01-first-crossword.jpg", "judge1925-facing-pages.jpg",
-                 "judge1924-11-22-no4-judge-grid.jpg"]:
+                 "judge1924-11-22-no4-judge-grid.jpg", "judge1930-page-detected-grids.jpg",
+                 "judge56-rectified-vs-detected.jpg", "judge1925-answer-grid-crossings.jpg"]:
         shutil.copyfile(img / name, OUT / name)
         print(name, "(copied)")
 
