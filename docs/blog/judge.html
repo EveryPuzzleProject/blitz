@@ -314,24 +314,21 @@ A74   PINED       What Romeo did for Jaliet.  <b>[odd: Jaliet]</b></pre>
   from its token count against the second row, the other review that reads mostly images. API cost: list price ($10
   per million input tokens, $50 per million output), with no caching and about 2,000 tokens of output a puzzle.</p>
 
-<p><b>1. Just ask Claude.</b> Why not skip the OCR and have Claude read the pages? We tried that while writing this
-  post, on two puzzles. Claude looked at the puzzle page and the answer-key page, whole, and typed out the puzzle. It
-  did remarkably well. On No. 46 (1928), all 289 squares and 110 of 112 clues matched our reviewed transcription
-  exactly; the other two differ by a period. On New X Word Puzzle No. 1 (1927), its only different square was a
-  misprint in the printed key (YEY for YET), which it caught and corrected. But it took about 78,000 tokens a puzzle.
-  It leaves no crops to show the evidence for each reading and no flags saying where to look. And the pages have to
-  be found first: the OCR is also what found 531 puzzles in 458 issues and matched each one to an answer key printed
-  weeks later. Two clean pages aren't a study, though, and as models get better at reading, the balance may shift.
-  We'll keep measuring.</p>
+<p><b>1. Just ask Claude.</b> The obvious way to transcribe a puzzle is to show Claude the page and the answer key and
+  ask. Claude does remarkably well at it. Given the two whole pages for No. 46 (1928), it got all 289 squares and 110
+  of 112 clues exactly as our reviewed transcription has them (the other two differ by a period), and on New X Word
+  Puzzle No. 1 (1927) it even caught a misprint in the printed key. But a puzzle costs about 78,000 tokens, there are
+  no crops to show the evidence for each reading, and nothing says where to look. Someone still has to find the pages,
+  too, in 458 issues, and match each puzzle to an answer key printed weeks later.</p>
 
-<p><b>2. Add the OCR.</b> Our first reviews gave Claude the OCR's reading plus every image in the packet: the grid,
-  the answer key, the page, and a strip for every clue. That cost about the same as reading the pages cold. The OCR
-  found the puzzles and did the first draft, but Claude still looked at everything.</p>
+<p><b>2. Add our own OCR.</b> So we built OCR to find the puzzles and make the first draft, and had Claude check that
+  draft against every image of the puzzle: the grid, the answer key, the page and a strip for every clue. That made the
+  process reliable, but it barely moved the cost: Claude was still looking at everything.</p>
 
 <p><b>3. Build the packet.</b> The savings came from deciding what Claude looks at: the text first, then only the crops
   code chose for what looked wrong, with a reviewer agent trimmed to the few tools it needs. That brought a puzzle down
-  to about 17,000 tokens, or about 650 puzzles a week: the whole of <i>Judge</i> in less than a week. Two separate
-  reviews of the same puzzles agreed on 91% of their corrections.</p>
+  to about 17,000 tokens, more than twice as many puzzles a week for the same allowance: about 650, or the whole of
+  <i>Judge</i> in less than a week. Two separate reviews of the same puzzles agreed on 91% of their corrections.</p>
 
 <p>We ran the reviews on the plan's allowance, not the API: the project has no source of funding, and an allowance
   that would otherwise go unused is free. We did try the text-first review through the API, on 11 puzzles Fable had
