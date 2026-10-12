@@ -64,6 +64,15 @@ property of each field rather than a separate list to keep in sync. The round-tr
 - A typed key always names its scan (fix file `solution` requires `solution_from` or a page
   link; relink refuses otherwise), so typed letters always show next to the printed key.
 
+### 3b. Rebuild only what changed
+
+On 2026-10-12 one grid square for one puzzle waited behind a 40-minute rebuild of all 531
+packets, because relink can't run while packets are being built from the same harvest. Packets
+already record the commits they were built from (`built_from`). So the publish step should compare
+each puzzle's current xd with the one its published packet was built from, and rebuild and
+republish only the puzzles that differ. A one-puzzle change should take seconds, and relinking
+should never have to wait.
+
 ### 4. One command for the maintainer's loop, which stops on surprises
 
 The loop is site-import, dry-run import, import, relink, volunteer-sync, verify, commit,
