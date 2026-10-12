@@ -141,7 +141,18 @@ Newest at the bottom of each section; strike through or delete when done.
    - **Agents too:** an agent's grid fix that the importer refuses today (No. 297) takes the same
      path.
 
-15. **A special review for "sic" items and close calls, in both directions** (user, 2026-10-12).
+15. **Retire "sic" for clues; a special review for close calls** (user, 2026-10-12).
+   **The decision (after the Judge sic audit):** "sic" was something of a fool's errand for
+   clues. Of Judge's 239 sic items, 54 were OCR slips or damaged type that should simply have been
+   fixed, 15 were wordplay that should never have been marked, and 13 were misnumbered clues that
+   belonged in a note. The rest were trivial printer's typos where the mark added nothing. From now
+   on, for clues: **fix it or don't.** Fix typography (bad kerning, a smudged period read as a
+   comma, a letter eaten by the scan). Leave odd or wrong text as printed, unannotated
+   (`as_printed`). For borderline cases, ask Claude, then a person. Answer keys keep their rule:
+   a clearly wrong printed letter is corrected, with a note. To do: drop "sic" from
+   publications/REVIEW.md and INSTRUCTIONS.md, the draft.json schema and `blitz finish`'s
+   "settled" check; the importer and export keep reading old sic records.
+   **Background:**
    While drafting the Judge blog post, many clue texts kept as "sic" turned out to be possibly real,
    uncorrected errors (OCR or transcription, not the printer). The opposite also happened: a
    deliberate pun was "corrected" away. "A bull's enemy. (Financy that!)" became "Fancy that!",
