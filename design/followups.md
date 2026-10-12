@@ -187,6 +187,26 @@ Newest at the bottom of each section; strike through or delete when done.
      answer word check (part of the checkup and the key-squares flags), and ordering the review
      queue from puzzles.tsv (`blitz site-queue`).
 
+17. **A public evidence page per exported puzzle, for crossref to link to** (user, 2026-10-12).
+   Crossref will credit Every Puzzle Project from each publication's `gxd-exports.tsv` (judge has
+   one since 2026-10-12: gxd id, our id, proof, package and scan links). The user wants that link to
+   open a hosted page, not raw package files. The proof page is close, but it's a review tool: guest
+   sign-in, edit controls, always the latest version. Build:
+   - **A read-only "evidence" mode of the proof page** at a clean URL, e.g.
+     `blitz.xwordapp.com/puzzle/judge1925-02-21` (GitHub Pages: a small router page, or `?p=` with
+     `view=evidence`). It shows the puzzle as it went to gxd, each clue and answer beside its scan
+     crop, every change with who made it and why (the ledger), the notes and provenance, and the
+     archive.org links. No sign-in, no editing. Same code and data as the proof page.
+   - **A frozen copy of each package per export,** at a versioned path
+     (`<pub>/<xdid>/gxd-<date>/`), so the link always shows what went into gxd. `gxd-exports.tsv`
+     points there. The page offers "see the current version" when the puzzle has changed since.
+   - **A real domain for the R2 bucket** (e.g. `scans.xwordapp.com`) instead of the rate-limited
+     `r2.dev` address, before public traffic arrives.
+   - **`export-gxd` writes `gxd-exports.tsv` itself.** Judge's was made by a one-off script.
+   - **Then crossref:** import each publication's `gxd-exports.tsv`, with a credit line and an
+     evidence link on puzzle pages and project credit on publication pages. Name volunteers only
+     with an opt-in on the review site; until then, credit "Every Puzzle Project".
+
 ## Elsewhere
 
 5. **crossref: treat `_` as "no square"** (xd's not-part-of-the-puzzle), for the shaped Judge
