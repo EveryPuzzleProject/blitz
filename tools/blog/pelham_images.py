@@ -10,7 +10,9 @@ the post credits their sources.
 docs/blog/img/hbs-student-pioneers-1915-1930.jpg is a grid of the twelve portraits on Baker
 Library's Student Pioneers page (HBS), Pelham outlined; hbs-pelham-annotated.png is a screenshot
 of his page's header with the degree year boxed and our note added. Both were made by hand
-(2026-10-12), not by this script.
+(2026-10-12), not by this script. hbs-yearbook-pelham.png is the heading and Pelham's entry cut
+from page 57 of the Harvard Business School Yearbook (an Ancestry.com image Ben Zimmer found),
+also by hand (2026-10-13).
 """
 import argparse
 import shutil
