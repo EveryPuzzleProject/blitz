@@ -344,7 +344,8 @@ def fetch_decisions(agreed_only: bool = False) -> dict:
         rv = r.get("review") or {}
         get(r["xdid"]).setdefault("proofs", {})[r.get("who") or who(r)] = {
             "decision": r["decision"], "edits": rv.get("edits", {}), "comments": rv.get("comments", []),
-            "parts": rv.get("status", {}), "note": rv.get("note", ""), "at": r["at"]}
+            "parts": rv.get("status", {}), "note": rv.get("note", ""), "at": r["at"],
+            "xd": rv.get("xd", "")}  # the xd version the page showed (packet xd_fp); "" before 2026-10-13
     for x, sq in fetch_squares().items():
         get(x)["squares"] = sq
     for x, p in out.items():

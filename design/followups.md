@@ -6,7 +6,10 @@ Newest at the bottom of each section; strike through or delete when done.
 
 ## Tools
 
-0. **A harvest checkpoint: confirm the exceptions before review** (user, 2026-10-11). This one ties 6, 7 and 9
+0. **A harvest checkpoint: confirm the exceptions before review** (user, 2026-10-11). **Built 2026-10-13**
+   (xword-ocr branch `claude/pub-neutral`): `xword-ocr checkpoint` writes exceptions.json/.html; decisions go in the fix file as
+   `[checkpoint."<id>"]`.
+   This one ties 6, 7 and 9
    together. Right after harvest, and before any puzzle goes to review, the harvest writes an exceptions list.
    A person, or an agent with a person checking its calls, works through it while the context is fresh,
    instead of these turning up at the end as gaps to hunt down. Each row shows its evidence side by side
@@ -56,7 +59,9 @@ Newest at the bottom of each section; strike through or delete when done.
    them side by side with the puzzle for a one-click "yes / no / yes but cut off" (as on the Judge gap
    page), and on "yes" widen the crop to the full grid and OCR the rest. The same for puzzle pages:
    surface "probably a crossword here" pages rather than dropping them below a score.
-8. **Re-harvest must keep existing page readings** (2026-10-11). `harvest --only` re-OCR'd pages it already
+8. **Re-harvest must keep existing page readings** (2026-10-11). **Built 2026-10-13** (xword-ocr branch `claude/pub-neutral`); `--reanalyze`
+   for the old behaviour.
+   `harvest --only` re-OCR'd pages it already
    had: a puzzle grid was re-read as an answer key (No. 311 vanished) and four reviewed clues degraded
    where reviewers had confirmed, not corrected, the OCR. It should reuse cached analyses for known pages
    and analyze only new ones (Judge was repaired by restoring the earlier readings).
@@ -276,7 +281,8 @@ works around:
 Two follow-ups name the wrong home: 16's `xword-ocr verify` and `restore-readings` belong to blitz
 and harvest, and 17's `export-gxd` changes belong to gxd-export.
 
-18. **Take publication, gxd and blitz specifics out of xword-ocr** (audit, 2026-10-12). Found:
+18. **Take publication, gxd and blitz specifics out of xword-ocr** (audit, 2026-10-12). The first three bullets
+   were **done 2026-10-13** (xword-ocr branch `claude/pub-neutral`; Judge's fix file has `[ocr] sure_swaps = ["e>c"]`). Found:
    - **Applies to every publication:** textfix's broken-c rewrite ("elean" → "clean") always
      fires, because it was "nearly always right in Judge". Make it a per-publication setting that
      is passed in (the user: hints like this are publication-specific).

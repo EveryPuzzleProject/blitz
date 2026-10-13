@@ -17,6 +17,8 @@ The public review site (helpers check agents' reviews in the browser; see site/R
     blitz site-build                     write docs/review/ (the page, served by GitHub Pages)
     blitz site-publish <folder>          put a folder's reviewed puzzles on the site
     blitz site-import [-o FILE] [--agreed]  what helpers decided, for xword-ocr import-reviews --decisions
+    blitz sync <pub> <folder> [--go] [--commit]  the site's work into the record: import, relink, sign off,
+                                         sync; stops on surprises (dry run without --go)
     blitz checkup [folder] [--all]       grade each reviewed puzzle: check closely / worth a look / looks clean
     blitz site-status                    how many helpers checked each puzzle, and where they disagree
     blitz site-close <puzzle...>         take puzzles off the site
@@ -277,6 +279,21 @@ def cmd_site_import(a) -> None:
         print(text)
 
 
+def cmd_sync(a) -> None:
+    from .sync import print_report, sync
+
+    folder = Path(a.folder)
+    repo = Path(a.repo or f"../{a.pub}")
+    r = sync(a.pub, folder, xword_ocr=Path(a.xword_ocr), repo=repo, by=a.by,
+             decisions=Path(a.decisions) if a.decisions else None, go=a.go, commit=a.commit, max_lines=a.max_lines)
+    if a.json:
+        print(json.dumps(r, indent=1, ensure_ascii=False))
+    else:
+        print_report(r, folder, repo, a.go)
+    if r["surprises"]:
+        sys.exit(1)
+
+
 def cmd_checkup(a) -> None:
     """The grade of every reviewed puzzle in a folder, and what is behind the ones that need a closer look."""
     from .packet import GRADES, checkup, load
@@ -411,6 +428,23 @@ def main(argv=None) -> None:
     q.add_argument("-o", "--out")
     q.add_argument("--agreed", action="store_true", help="only puzzles two or more helpers agree on (see site-status)")
     q.set_defaults(fn=cmd_site_import)
+    q = sub.add_parser("sync", help="bring the review site's work into the record: site-import, a dry-run import "
+                                     "(stops on surprises), then with --go import, relink, signoff, volunteer-sync and "
+                                     "a check that only this batch's puzzles changed")
+    q.add_argument("pub")
+    q.add_argument("folder", help="the batch's packets on the site (task-packets --current-review), "
+                                  "e.g. ../xword-ocr/harvests/games/tasks-site1")
+    q.add_argument("--by", default="review site", help="who the folder's own review.json files would be credited to "
+                                                       "(a current-review folder should credit nothing to it)")
+    q.add_argument("--decisions", help="a site-import file instead of fetching")
+    q.add_argument("--repo", help="the publication's checkout (default ../<pub>)")
+    q.add_argument("--xword-ocr", default="../xword-ocr", help="the xword-ocr checkout with harvests/<pub>")
+    q.add_argument("--go", action="store_true", help="do it (default: the dry run and its report)")
+    q.add_argument("--commit", action="store_true", help="commit the publication's repo at the end")
+    from .sync import MAX_LINES
+    q.add_argument("--max-lines", type=int, default=MAX_LINES, help="refuse crediting anyone with more ledger lines than this")
+    q.add_argument("--json", action="store_true")
+    q.set_defaults(fn=cmd_sync)
     q = sub.add_parser("site-close", help="take puzzles off the public review site")
     q.add_argument("puzzles", nargs="+")
     q.set_defaults(fn=cmd_site_close)
