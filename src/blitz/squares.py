@@ -31,8 +31,11 @@ from pathlib import Path
 from .work import Stop
 
 # Letters the OCR (or a printer) easily takes for one another: a suggestion changes one of these.
-CONFUSED = {"I": "TELJ", "T": "IL", "D": "O", "O": "DQC", "S": "E", "E": "SFC", "C": "EGO", "G": "C",
-            "L": "IT", "F": "EP", "P": "F", "H": "N", "N": "H", "R": "B", "B": "R", "U": "V", "V": "U"}
+# Hand-lettered keys add their own: Judge's R came out as Z or G, M as S, B as E, I as R, P as D
+# and S as T (found in its keys in gxd, 2026-10-12), so those pairs go both ways too.
+CONFUSED = {"I": "TELJR", "T": "ILS", "D": "OP", "O": "DQC", "S": "EMT", "E": "SFCB", "C": "EGO",
+            "G": "CR", "L": "IT", "F": "EP", "P": "FD", "H": "N", "N": "H", "R": "BZGI", "B": "RE",
+            "U": "V", "V": "U", "Z": "R", "M": "S"}
 MIN_LEN = 4        # shorter answers are too often abbreviations and initials
 RARE = 2           # an answer used fewer times than this in gxd is "not a known answer"
 COMMON = 20        # ...and a suggestion must be used at least this often
