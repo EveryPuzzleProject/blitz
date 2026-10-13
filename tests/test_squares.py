@@ -56,6 +56,19 @@ def test_suggest_changes_one_confused_letter():
     assert suggest("TAIES", Counter({"TALES": 50, "TAIES": 3}), set()) is None  # a known answer
 
 
+def test_suggest_knows_hand_lettered_key_misreads():
+    # Misread letters found in Judge's keys after they reached gxd (2026-10-12)
+    common = Counter({"BERTH": 184, "AIRED": 665, "DRUM": 426, "HARMONY": 29, "DROP": 1017,
+                      "ELASTIC": 233, "SEERS": 768})
+    assert suggest("BEZTH", common, set()) == (2, "BERTH", 184)      # R read as Z
+    assert suggest("AIZED", common, set()) == (2, "AIRED", 665)
+    assert suggest("DGUM", common, set()) == (1, "DRUM", 426)        # R read as G
+    assert suggest("HARSONY", common, set()) == (3, "HARMONY", 29)   # M read as S
+    assert suggest("DROD", common, set()) == (3, "DROP", 1017)       # P read as D
+    assert suggest("ELATTIC", common, set()) == (3, "ELASTIC", 233)  # S read as T
+    assert suggest("SIERS", common, set()) == (1, "SEERS", 768)      # E read as I
+
+
 def test_cards_from_the_ocr_and_the_word_check(tmp_path):
     folder, repo = fixture(tmp_path)
     out = build(folder, "judge", repo, counts=COUNTS)
