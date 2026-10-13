@@ -47,6 +47,11 @@ property of each field rather than a separate list to keep in sync. The round-tr
 
 ### 2. Record who saw what; don't guess it
 
+**Built 2026-10-13** (xword-ocr branch `claude/pub-neutral`, blitz `claude/proof-fingerprints`): packets carry `xd_fp`, proofs save
+it, import records what was proofed, `xword-ocr signoff` records the xd a ready proof produced
+(`fixes/signoffs.jsonl`), and readiness lapses a sign-off when the xd changes. Proofs with edits
+sign off the xd as relink made it from the proofed version plus their edits.
+
 - Every proof stores a fingerprint of the exact xd it was made against. The site knows it,
   because the packet carries it.
 - Readiness and puzzles.tsv compare fingerprints: "your proof was of an older version: the
@@ -55,6 +60,9 @@ property of each field rather than a separate list to keep in sync. The round-tr
   said Ready. That is the whole rule.
 
 ### 3. Decide each puzzle's key in one place, and save the decision
+
+**Built 2026-10-13** (xword-ocr branch `claude/pub-neutral`): relink writes `keys.json`; task-packets reads it (no recovery
+re-run, no letter re-read); a typed key needs `solution_from` or `solution_source`.
 
 - Relink saves the key it chose, recovered keys included, in the state or the manifest. Packets,
   the export and readiness read that decision; none of them looks the key up again.
@@ -75,6 +83,9 @@ should never have to wait.
 
 ### 4. One command for the maintainer's loop, which stops on surprises
 
+**Built 2026-10-13** (blitz `claude/proof-fingerprints`): `blitz sync <pub> <folder>` (dry run; `--go`,
+`--commit`). Packets, publishing and pushing are still printed as next steps.
+
 The loop is site-import, dry-run import, import, relink, volunteer-sync, verify, commit,
 packets, check, publish. Today each step was run by hand, and the steps that can damage the
 record (importing from the wrong folder, verdicts outside the batch) were easy to get wrong. One
@@ -90,6 +101,8 @@ command (`blitz sync <pub>`) should:
 The maintainer reads one report instead of six command outputs.
 
 ### 5. The harvest checkpoint before any review (follow-up 0)
+
+**Built 2026-10-13** (xword-ocr branch `claude/pub-neutral`): `xword-ocr checkpoint`.
 
 Much of the day's churn came from keys found late: 17 typed by hand, 49 linked after their
 puzzles' review, the fragment matcher arriving mid-review. Settle every exception (missing

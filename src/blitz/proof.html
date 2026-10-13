@@ -620,7 +620,9 @@ async function submitReview(d) {
   }
   const uid = session.user.id, at = new Date().toISOString(), n = Object.keys(cur.edits).length;
   const who = (cur.who === 'You' ? '' : cur.who || '').slice(0, 40);
-  const review = {edits: cur.edits, comments: cur.comments, status: cur.status, note: cur.note || ''};
+  // xd: the version of the puzzle this page showed (the packet's fingerprint of its .xd), so the import knows
+  // exactly what was proofed and a later change to the puzzle lapses the proof
+  const review = {edits: cur.edits, comments: cur.comments, status: cur.status, note: cur.note || '', xd: rev?.xd_fp || ''};
   const p = await sb.from('proofs').upsert({xdid: ID, user_id: uid, who, decision: d, review, at});
   if (p.error) throw p.error;
   const bad = Object.entries(cur.status).filter(([, x]) => x.v === 'bad').map(([id, x]) => `${PART[id]?.name || id}: ${x.note || 'a problem'}`);

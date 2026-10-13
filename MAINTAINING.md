@@ -124,9 +124,21 @@ cd blitz
 uv run --extra site blitz site-publish <folder of reviewed packets> --batch <name>
 ```
 
-and later `blitz site-import -o <file>` plus `xword-ocr import-reviews ... --decisions <file>`
-to bring their proofs back (see xword-ocr's `docs/review-runbook.md`). Whether
-this runs automatically on merge is undecided.
+To bring their proofs back, one command does the whole loop and stops on surprises:
+
+```
+uv run --extra site blitz sync games ../xword-ocr/harvests/games/<folder of the packets on the site>
+```
+
+Without `--go` it fetches what helpers decided, dry-runs the import and reports what it would
+add to the ledger, by who it credits. It stops if one name would get more than 150 lines, if the
+folder's own review.json files would be credited (a current-review folder adds none), or if a
+review is rejected. With `--go` it imports, relinks, signs off each ready proof of the current
+version (`xword-ocr signoff`: `fixes/signoffs.jsonl` records the xd it produced), runs
+volunteer-sync, and checks that only this batch's puzzles' xd files changed. `--commit` commits
+the publication's repo. Pushing, rebuilding packets for the changed puzzles and site-publish are
+printed as next steps. A sign-off lapses when the puzzle's xd changes later, so readiness always
+means "a person said this exact version is ready".
 
 ### Key squares
 
