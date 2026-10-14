@@ -21,7 +21,8 @@ machine, so only one person can do it.
 
 ## Goals
 
-1. **Each stage can be improved and retested alone.** Improve layout analysis,
+1. **Each stage can be improved and retested alone**, without fear of regressions
+   elsewhere (see *Regressions*). Improve layout analysis,
    run a dozen scans through it, compare the boxes with the last run. Nothing
    downstream re-runs unless its inputs changed.
 2. **Any unit of work can be rejected at any stage** into an exception queue,
@@ -81,6 +82,25 @@ Every stage writes its output as a JSON artifact with a header:
   command shows what changed (the viewer draws old and new boxes together).
 - No pickles. The per-page analysis and key-search caches become these
   artifacts.
+
+## Regressions: versions and an evaluation set
+
+We can't re-run every past publication on every change to OCR or layout, and
+we shouldn't need to.
+
+- **Finished work keeps the version that made it.** A code change never alters
+  existing outputs by itself; a publication moves to a new stage version only
+  when someone runs that stage for it on purpose, and that run ends with a diff.
+  (Today `relink` re-derives everything with whatever code is current, which is
+  why every change felt like a risk to Judge.)
+- **Measure against reviewed truth.** Each stage and technique has a small fixed
+  evaluation set (20–30 pages each from Judge, GAMES, later a newspaper or two),
+  scored against the reviewed xd files: regions found, squares and clues right.
+  It runs in minutes on every change and says *better or worse*, not merely
+  *different*.
+- **New behaviour sits behind a switch** (a technique), off for publications
+  that don't use it, so it can't regress them.
+- A full re-run is a deliberate upgrade of one publication, sample first.
 
 ## Where state lives
 
