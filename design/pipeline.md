@@ -213,7 +213,8 @@ Claude should drive the tools, not read the page:
 
 0. Merge the 2026-10-13 branches (done or in progress).
 1. **Page artifacts:** OCR, layout and extraction outputs as fingerprinted JSON
-   in the scans store, written by the current code. Retire the pickles.
+   in the scans store, written by the current code. Retire the pickles. Build
+   the evaluation set and a run-diff command.
 2. **Session SQLite:** hydrate from git and the artifacts; write back. Stage
    commands run on a subset and skip what's current.
 3. **Assembly as a stage per issue:** mint ids, write packets; add the alias
@@ -225,13 +226,34 @@ Claude should drive the tools, not read the page:
 6. **GAMES 1977–79 end to end** on the new path. Judge stays on the current path
    until the new one reproduces its xd files byte for byte.
 
-## Open questions
+## Decisions (were open questions)
 
-- Id details: is `<pub>-<issue>-<n>` enough for newspapers with several
-  editions or sections a day?
-- Artifact store: `<pub>-scans` releases, R2, or both?
-- How a stage's version is kept: a constant per stage module, bumped by hand,
-  or derived from its code?
-- How AI review, which needs a checkout, and the review site share a puzzle
-  without both working on it at once (claims on the site too?).
-- How to measure tokens per puzzle consistently across reviewers and models.
+Settled 2026-10-14.
+
+- **Ids for newspapers with several editions or sections a day:** `<issue>` is
+  whatever key the source stage gives the unit, not necessarily a date. A
+  newspaper's Sunday magazine is `bg-1925-03-01-mag`, its daily page
+  `bg-1925-03-01`; the format doesn't change.
+- **Artifact store:** R2, content-addressed (`<pub>/<stage>/<sha256>.json`),
+  with a local cache in front of it. We already run R2 for the review site;
+  release assets have count limits and no addressing by hash.
+- **Stage versions:** a constant in each stage module, bumped by hand when its
+  behaviour changes. A version derived from the code would change on every
+  harmless refactor and force re-runs. The evaluation set catches a bump that
+  was missed.
+- **AI review and the review site on the same puzzle:** AI review sets the
+  puzzle's state to `in-review` (with who and since when) when it claims it;
+  the site shows that and holds off saving edits until it clears. Claims
+  expire after a day.
+- **Tokens per puzzle:** each AI review records its usage (model, input,
+  output and cache tokens) in its packet entry; a `tokens` report sums them per
+  stage and per puzzle against the 10% goal.
+
+## Notes for the build
+
+- Today grids are found from pixels first and a page is OCR'd only if it has a
+  grid. OCR before layout means OCR on every page; measure the cost on a sample
+  (GAMES 1977) before running a whole publication.
+- The evaluation set is built with the page artifacts (step 1), so every later
+  step can show it didn't make things worse.
+- The first test run is a year or two of GAMES, 1977–78 first.
