@@ -75,9 +75,11 @@ Every stage writes its output as a JSON artifact with a header:
 
 - **version** is the stage's own version, bumped when its behaviour changes
   (not the whole package's).
-- **inputs** are the hashes of what it read. A stage re-runs for a unit when its
-  version, settings or any input hash differs from what's recorded; otherwise
-  its last output stands.
+- **inputs** are the hashes of what it read (including a page's hint from the
+  fix file). A stage re-runs for a unit when an input hash differs from what's
+  recorded. When only its version or settings differ (the code changed), the
+  last output stands until someone upgrades that stage for the publication on
+  purpose (see *Regressions*).
 - **Compare runs:** any stage can run on a subset into a scratch run, and a diff
   command shows what changed (the viewer draws old and new boxes together).
 - No pickles. The per-page analysis and key-search caches become these
