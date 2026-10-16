@@ -183,8 +183,8 @@ Change the 8 to whatever you like. Claude will:
 **What it costs.** About 20–30k tokens a puzzle, most of it Claude reading
 crops of the scan. If you're not sure how that compares to your plan, do 4
 and watch how far your usage meter moves. The strongest model you have does the
-best job, but any recent Claude helps. If you have a separate allowance for a
-particular model, name it in the prompt: "…and review 8 puzzles using Fable."
+best job, but any recent Claude helps. To use a particular model, name it in
+the prompt: "…and review 8 puzzles using Fable."
 
 **You can stop any time.** Every finished puzzle has already been sent, so
 stopping Claude, or running into your usage limit, wastes nothing. Puzzles

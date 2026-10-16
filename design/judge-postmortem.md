@@ -40,8 +40,8 @@ the end. The problems were elsewhere:
     the scan. The restricted `xword-reviewer` agent brought the cost down to about 17k tokens
     and 0.15% of the weekly Fable allowance a puzzle, against 0.36% for a full-image review.
   - Fable agreed with itself on 91% of corrections. Haiku missed about two-thirds of the errors.
-  - The API trials (Sonnet about $0.05 a puzzle, Opus $0.11) were dropped: the free Fable
-    allowance does the work.
+  - The API trials (Sonnet about $0.05 a puzzle, Opus $0.11) were dropped: the project has
+    no funding, and the plan's Fable allowance covers the work.
 - **The tool-notes loop.** Reviewers report what the tools got wrong (1,599 notes); `blitz
   feedback` groups them, and each becomes a code fix or a line in `review-notes.md`. The I-letter
   fix it led to took letter accuracy from 90.9% to 99.6%.
@@ -163,7 +163,7 @@ Each was a judgement call that ended up in the fix file. See follow-ups 1, 2, 10
   the third `b`. Our working ids use `b` for the second, so the export must map them (still open,
   see below).
 - **No publication-specific rules upstream.** Prefer general, reviewer-driven mechanisms.
-- **Budget:** use the free Fable allowance.
+- **Budget:** use the plan's Fable allowance, not the API.
 - **Rights:** fair use for research; repos public by default.
 
 ## The workflow we're heading for
