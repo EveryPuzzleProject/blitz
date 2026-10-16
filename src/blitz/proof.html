@@ -416,7 +416,9 @@ function lcs(A, B) {
 function diff(a, b, who, color) {
   const st = `style="color:${color}"`, I = t => `<ins ${st} title="added by ${esc(who)}">${esc(t)}</ins>`,
     D = t => `<del ${st} title="removed by ${esc(who)}">${esc(t)}</del>`;
-  const ops = lcs(a.split(/(?<=\s)/), b.split(/(?<=\s)/));
+  // spaces are tokens of their own, so a word that only lost what followed it ("pantie ___" ->
+  // "pantie") stays as it was and just the removed part is struck
+  const ops = lcs(a.split(/(\s+)/).filter(Boolean), b.split(/(\s+)/).filter(Boolean));
   let out = '', added = 0, removed = 0, words = 0;
   for (let k = 0; k < ops.length; k++) {
     const [op, t] = ops[k];
@@ -434,6 +436,7 @@ function diff(a, b, who, color) {
     words++;
     if (op === '+') { out += I(t); added++; } else { out += D(t); removed++; }
   }
+  out = out.replace(/<\/(del|ins)><\1 [^>]*>/g, '');  // one mark over a run of removed (or added) words
   return {html: out, kind: !words ? 'fixed letters' : added && removed ? 'changed words' : added ? 'added words' : 'removed words'};
 }
 
