@@ -66,11 +66,18 @@
   .people { display: flex; flex-wrap: wrap; gap: 10px; }
   .people a { display: flex; align-items: center; gap: 6px; text-decoration: none; font-size: 14px; color: var(--ink); }
   .people img { width: 28px; height: 28px; border-radius: 50%; }
+  .top a.nav { margin-left: auto; font: 500 15px var(--sans); color: var(--accent); }
+  .blog { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin: 28px 0 8px; }
+  .blog a { display: block; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px;
+    text-decoration: none; color: var(--ink); }
+  .blog a:hover { border-color: var(--accent); }
+  .blog small { display: block; font: 600 12px var(--sans); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+  .blog b { display: block; font: 600 18px/1.3 var(--serif); margin-top: 4px; }
   @media (max-width: 560px) { .years { grid-template-columns: 1fr; } .pct { text-align: left; } .big { font-size: 46px; } }
 </style>
 </head>
 <body>
-<header class="top"><div class="wrap"><a href="./">Every Puzzle Project</a><span class="muted">Blitz</span></div></header>
+<header class="top"><div class="wrap"><a href="./">Every Puzzle Project</a><span class="muted">Blitz</span><a class="nav" href="blog/">Blog</a></div></header>
 <main class="wrap">
   <div class="hero"><div>
   <h1>Bringing old crosswords back</h1>
@@ -85,6 +92,10 @@
   </div>
   <figure><img src="img/judge1924-11-15-cover-crossword.jpg" alt="Judge's cover for November 15, 1924: a full-page crossword printed over an illustration">
     <figcaption>November 15, 1924: at the height of the <a href="https://crosswordcraze.today">1924 crossword craze</a>, the whole cover was a crossword.</figcaption></figure>
+  </div>
+  <div class="blog">
+    <a href="blog/pelham.html"><small>From the blog</small><b>The Harvard student behind two of <i>Judge</i>'s most creative crosswords</b></a>
+    <a href="blog/judge.html"><small>From the blog</small><b><i>Judge</i>, 1924–1939: our first full series</b></a>
   </div>
   <div id="pubs"><p class="muted">Loading progress…</p></div>
   <h2>Contributors</h2>
