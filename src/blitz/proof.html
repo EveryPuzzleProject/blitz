@@ -245,6 +245,9 @@ const params = new URLSearchParams(location.search);
 const SITE = window.BLITZ_SITE;
 let ID = params.get('p') || 'judge1931-10-03';
 let dir = (params.get('base') || '/blitz-work/') + ID + '/';
+// locally, ?save=<url> (xword-ocr watch's /api/proof): a submitted review is posted there, into the
+// publication's ledger, so the import can take it; without it a local review stays in this browser
+const SAVE = params.get('save');
 const COLORS = ['#1d7a3a', '#7b3fb5', '#0f7c86', '#a0522d', '#1f5fbf'];
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
@@ -596,11 +599,13 @@ function summarySection() {
     btn.disabled = true; btn.textContent = 'Saving…';
     try {
       if (sb) await submitReview(d);
+      else if (SAVE) await saveLocal(d);
       cur.submitted = new Date().toISOString(); save();
       after.innerHTML = sb
         ? `<div class="submitted" style="margin-top:10px"><b>Thanks: your review is saved</b> (${counts}).
             The next person to check this puzzle will see your edits and comments.
             <div style="margin-top:6px"><button class="good" id="nextafter">Next puzzle →</button></div></div>`
+        : SAVE ? `<div class="submitted" style="margin-top:10px"><b>Saved to the publication's ledger</b> (${counts}), for the import.</div>`
         : `<div class="submitted" style="margin-top:10px"><b>Saved in this browser</b> (${counts}). <i>Local copy: nothing is sent.</i>
             <div style="margin-top:6px"><button class="plain" id="asnext">See this puzzle as the next reviewer will</button></div></div>`;
       after.querySelector('#nextafter')?.addEventListener('click', () => document.getElementById('nextpz').click());
@@ -614,6 +619,14 @@ function summarySection() {
 }
 // the whole review into proofs, and a verdict for the progress counts and the importer: "looks-right" only
 // when ready with no edits, since edits aren't applied on import yet
+// the same review, to a local server (?save=): plain text, so the browser sends it without asking first
+async function saveLocal(d) {
+  const review = {edits: cur.edits, comments: cur.comments, status: cur.status, note: cur.note || '', xd: rev?.xd_fp || ''};
+  const who = (cur.who === 'You' ? '' : cur.who || '').slice(0, 40);
+  const r = await fetch(SAVE, {method: 'POST', headers: {'Content-Type': 'text/plain'},
+    body: JSON.stringify({xdid: ID, who, decision: d, review, at: new Date().toISOString()})});
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || r.statusText);
+}
 async function submitReview(d) {
   let {data: {session}} = await sb.auth.getSession();
   if (!session) {
