@@ -87,6 +87,13 @@ h2 .quick { margin-left: 8px; font-size: 12px; padding: 2px 10px; }
 .row { display: grid; grid-template-columns: 58px minmax(0, 1fr) var(--aw, 360px) 250px; gap: 0 12px; padding: 6px 14px; border-bottom: 1px solid #f1ede6; }
 .row.focus { background: #fbf7ef; box-shadow: inset 3px 0 0 var(--ink); }
 .lab { font-weight: 600; font-size: 13px; padding-top: 2px; }
+/* the header's chain of evidence: the printed lines, then each header with where it came from */
+.subh { padding: 10px 14px 4px; font-weight: 600; font-size: 13px; border-bottom: 1px solid #e6e0d4; background: #faf8f3; }
+.subh .hint, .deriv .hint { font-weight: 400; color: var(--muted); font-size: 12px; }
+.evline .txt { color: var(--muted); }
+.evline .for { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.deriv { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; font-size: 13px; }
+.deriv canvas.strip { max-width: 260px; }
 .abox { padding-top: 2px; }
 .keep { margin: 4px 0 0 3px; font-size: 12px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .keep > span { color: var(--muted); }
@@ -497,6 +504,16 @@ function render() {
 
   main.append(pageSection());
   const hs = sec('meta', 'Title, byline and nearby lines', 'the title, byline and nearby lines', 'the words around the puzzle');
+  if (ocr.lines && ocr.headers) {
+    // two layers: what's printed (B1, B2, ... as the OCR read them; the ones no header uses are kept
+    // or left out), then the xd's header, each value with the line or header it comes from
+    subhead(hs, 'Printed near the puzzle', 'each line as the OCR read it; keep or discard the ones no header comes from');
+    for (const L of ocr.lines) L.key ? addRow(hs, L.key, 'B' + L.n, L.box) : evidenceLine(hs, L);
+    for (const n of Object.keys(ocr.captions || {})) if (!ocr.lines.some(l => l.key === 'other:' + n)) addRow(hs, 'other:' + n, 'printed nearby', null);
+    subhead(hs, "In the xd file's header", 'each value, with the line it was taken from or how it was computed');
+    for (const H of ocr.headers) H.key ? addRow(hs, H.key, H.name, null, [], null, H) : fixedHeader(hs, H);
+    addRow(hs, 'meta:note', 'Notes', null, [], null, {name: 'Notes', from: 'the lines kept above', rule: 'the lines kept, as printed'});
+  } else {
   for (const k of Object.keys(ocr.meta_boxes || {})) {
     const m = /^other(\d+)$/.exec(k);
     addRow(hs, m ? 'other:' + m[1] : 'meta:' + k, m ? 'printed nearby' : k, ocr.meta_boxes[k]);
@@ -507,6 +524,7 @@ function render() {
   // the puzzle's note goes in the xd file too: shown, and editable, like the byline
   addRow(hs, 'meta:note', 'note (in the xd)', null);
   for (const n of Object.keys(ocr.captions || {})) if (!(('other' + n) in (ocr.meta_boxes || {}))) addRow(hs, 'other:' + n, 'printed nearby', null);
+  }
   main.append(hs);
   const why = blankReasons();
   main.append(blankSection(why, hasKey()));
@@ -1072,10 +1090,58 @@ function noteHtml(r, text, why) {
   return `<div class="note" style="border-left-color:${r.color}"><span class="by" style="color:${r.color}">${esc(r.who)}${r === cur && r.who !== 'You' ? ' (you)' : ''}${why ? ' <i>on their edit</i>' : ''}</span>${esc(text)}</div>`;
 }
 
-function addRow(s, key, label, box, flags = [], src = null) {
+// ---- the header's chain of evidence (ocr.lines, ocr.headers from xword-ocr proofpacket._evidence) ----
+// First every line printed near the puzzle, numbered (B1, B2, ...), as the OCR read it; then each
+// header the xd gets, with the line (or header) it comes from and the rule that took it.
+function subhead(s, title, hint) {
+  s.insertAdjacentHTML('beforeend', `<div class="subh">${esc(title)} <span class="hint">${esc(hint)}</span></div>`);
+}
+const HEADER_OF = {title: 'Title', byline: 'Byline', puzzle_number: 'Number'};
+const toHeader = name => document.querySelector(`.row[data-hdr="${name}"]`)?.scrollIntoView({block: 'center'});
+function evidenceLine(s, L) {  // a line some header comes from: its crop and what the OCR read, not edited here
+  const row = document.createElement('div');
+  row.className = 'row evline';
+  row.id = 'evline-' + L.n;
+  row.innerHTML = `<div class="lab">B${L.n}</div><div class="body"><div class="scan"></div>
+    <div><div class="typed"><span class="txt"></span></div><div class="for">→ evidence for <a href="#">${esc(HEADER_OF[L.for] || L.for)}</a> (below)</div></div></div>
+    <div class="abox"></div><div class="margin"></div>`;
+  row.querySelector('.scan').append(strip(L.box));
+  row.querySelector('.txt').textContent = L.text;
+  row.querySelector('.for a').onclick = e => { e.preventDefault(); toHeader(HEADER_OF[L.for]); };
+  s.append(row);
+}
+function derivation(H) {  // where a header's value comes from: "← B3 “Crossword Puzzle #1” → “1” · the rule"
+  const d = document.createElement('div');
+  d.className = 'deriv';
+  const L = H.line && (ocr.lines || []).find(l => l.n === H.line);
+  if (L) {
+    d.append(strip(L.box));
+    d.insertAdjacentHTML('beforeend', `<div>← <a href="#">B${L.n}</a> “${esc(L.text)}”${L.text !== base(H.key) ? ` → “${esc(base(H.key))}”` : ''}<br><span class="hint">${esc(H.rule)}</span></div>`);
+    d.querySelector('a').onclick = e => { e.preventDefault(); e.stopPropagation(); document.getElementById('evline-' + L.n)?.scrollIntoView({block: 'center'}); };
+  } else if (H.from === 'Byline') {
+    d.innerHTML = `<div>← <a href="#">Byline</a> “${esc(final('meta:byline'))}” → “${esc(base(H.key))}”<br><span class="hint">computed: ${esc(H.rule)}</span></div>`;
+    d.querySelector('a').onclick = e => { e.preventDefault(); e.stopPropagation(); toHeader('Byline'); };
+  } else if (H.from) {
+    d.innerHTML = `<div>← ${esc(H.from)}<br><span class="hint">computed: ${esc(H.rule)}</span></div>`;
+  } else d.innerHTML = `<div class="hint">not printed near the puzzle: no line to show</div>`;
+  return d;
+}
+function fixedHeader(s, H) {  // a computed header nobody edits here (the Date): its value and where it came from
+  const row = document.createElement('div');
+  row.className = 'row evline';
+  row.dataset.hdr = H.name;
+  row.innerHTML = `<div class="lab">${esc(H.name)}</div><div class="body"><div class="scan"></div>
+    <div><div class="typed"><span class="txt"></span></div></div></div><div class="abox"></div><div class="margin"></div>`;
+  row.querySelector('.scan').append(derivation(H));
+  row.querySelector('.txt').textContent = H.value;
+  s.append(row);
+}
+
+function addRow(s, key, label, box, flags = [], src = null, from = null) {
   const row = document.createElement('div');
   row.className = 'row';
   row.dataset.key = key;
+  if (from) row.dataset.hdr = from.name;
   const isClue = key.startsWith('clue:');
   const moved = src && src.label !== label;
   const pn = isClue ? (src ? printedNumber(src.label, src.flags || []) : printedNumber(label, flags)) : '';
@@ -1083,18 +1149,20 @@ function addRow(s, key, label, box, flags = [], src = null) {
   row.innerHTML = `<div class="lab">${esc(label)}</div>
     <div class="body"><div class="scan"></div><div>
       <div class="typed">${isClue ? `<span class="num${odd ? ' odd' : ''}" title="the number printed beside this clue">${esc(pn)}.</span>` : ''}<span class="txt" spellcheck="false"></span></div>
-      ${key.startsWith('other:') ? `<div class="keep"><span>Part of this puzzle's record?</span>
-        <button class="k1" title="Keep this line with the puzzle">★ Important: keep it</button>
-        <button class="k0" title="Leave it out: a notice or ad, not part of the puzzle">Not important: leave it out</button></div>` : ''}
+      ${key.startsWith('other:') ? `<div class="keep">
+        <button class="k1" title="Keep this line with the puzzle: it goes in the xd's Notes">Keep</button>
+        <button class="k0" title="Discard it: a banner, notice or ad, not part of the puzzle">Discard</button></div>` : ''}
       <div class="was"></div><div class="marks"></div></div></div>
     <div class="abox"></div>
     <div class="margin"></div>`;
   const im = src ? src.image : null;
   const sc = row.querySelector('.scan'), tight = strip(box, im);
-  sc.append(tight);
+  sc.append(from ? derivation(from) : tight);
   const btn = document.createElement('button');
   btn.className = 'ctxbtn';
-  if (box) {
+  if (from) {
+    // a header: its evidence is the line above (or the header) it comes from, not a crop of its own
+  } else if (box) {
     const hh = history(key), who = hh.length > 1 ? hh[hh.length - 1].who : '';
     const why = suspectCrop(box, src ? src.text : base(key), final(key), who, im);
     let wide = null;
@@ -1160,8 +1228,8 @@ function addRow(s, key, label, box, flags = [], src = null) {
     if (h.length > 1) {
       const last = h[h.length - 1], prev = h[h.length - 2], d = diff(prev.value, last.value, last.who, last.color);
       const me = `${last.who}${last.who === cur.who && cur.who !== 'You' ? ' (you)' : ''}`;
-      kind = nearby && !last.value ? `${me} marked it not important`
-        : nearby && !prev.value ? `${me} marked it important` : `${me} ${d.kind}`;
+      kind = nearby && !last.value ? `${me} discarded it`
+        : nearby && !prev.value ? `${me} kept it` : `${me} ${d.kind}`;
       if (document.activeElement !== txt)
         txt.innerHTML = out ? esc(text) : `<span class="fintext">${esc(fin)}</span><span class="chg">${nearby && !prev.value ? esc(fin) : d.html}</span>`;
     } else if (document.activeElement !== txt) txt.textContent = fin;
