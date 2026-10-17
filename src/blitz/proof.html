@@ -245,6 +245,9 @@ const params = new URLSearchParams(location.search);
 const SITE = window.BLITZ_SITE;
 let ID = params.get('p') || 'judge1931-10-03';
 let dir = (params.get('base') || '/blitz-work/') + ID + '/';
+// locally, ?save=<url> (xword-ocr watch's /api/proof): a submitted review is posted there, into the
+// publication's ledger, so the import can take it; without it a local review stays in this browser
+const SAVE = params.get('save');
 const COLORS = ['#1d7a3a', '#7b3fb5', '#0f7c86', '#a0522d', '#1f5fbf'];
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
@@ -320,8 +323,11 @@ async function loadProofs() {
   for (const p of data) {
     const r = p.review || {};
     if (p.user_id === me) {
-      if (!store.cur) store.cur = {who: p.who, edits: r.edits || {}, comments: r.comments || [], status: r.status || {},
-        note: r.note || '', decision: p.decision, submitted: p.at};
+      if (!store.cur) {
+        store.cur = {who: p.who, edits: r.edits || {}, comments: r.comments || [], status: r.status || {},
+          note: r.note || '', decision: p.decision, submitted: p.at};
+        store.xd = r.xd || '';  // the version it was made on
+      }
       continue;
     }
     const bad = Object.entries(r.status || {}).filter(([, x]) => x.v === 'bad').map(([id, x]) => `Problem in the ${PART[id]?.name || id}: ${x.note || ''}`);
@@ -342,6 +348,21 @@ const scaleOf = im => 1 / (ocr.scales[im || MAIN()] || 1);
 
 async function load() {
   [ocr, rev] = await Promise.all([dir + 'ocr.json', dir + 'review.json'].map(u => fetch(u).then(r => r.json())));
+  // A review kept in this browser from another version of the puzzle (its xd has changed since, or
+  // it predates versions) is set aside, not laid over this one: its edits were to rows that may now
+  // hold other lines. It stays in this browser under its version.
+  const fp = rev?.xd_fp || '';
+  if (fp && store.cur && store.xd !== fp) {
+    try { localStorage.setItem('proof2-' + ID + '@' + (store.xd || 'old'), JSON.stringify(store)); } catch (e) {}
+    store = {past: [], cur: null};
+    const n = document.createElement('div');  // outside what the page redraws; click to close
+    n.className = 'submitted';
+    n.style.cssText = 'position:fixed;bottom:16px;left:16px;right:16px;max-width:560px;z-index:50;cursor:pointer';
+    n.innerHTML = '<b>The puzzle has changed since your last review here</b>, so that review is set aside and this one starts fresh. (Click to close.)';
+    n.onclick = () => n.remove();
+    document.body.append(n);
+  }
+  store.xd = fp;
   const names = new Set([MAIN(), ...Object.values(ocr.clues).map(c => c.image).filter(Boolean)]);
   images = {};
   await Promise.all([...names].map(n => new Promise((ok, bad) => {
@@ -416,7 +437,9 @@ function lcs(A, B) {
 function diff(a, b, who, color) {
   const st = `style="color:${color}"`, I = t => `<ins ${st} title="added by ${esc(who)}">${esc(t)}</ins>`,
     D = t => `<del ${st} title="removed by ${esc(who)}">${esc(t)}</del>`;
-  const ops = lcs(a.split(/(?<=\s)/), b.split(/(?<=\s)/));
+  // spaces are tokens of their own, so a word that only lost what followed it ("pantie ___" ->
+  // "pantie") stays as it was and just the removed part is struck
+  const ops = lcs(a.split(/(\s+)/).filter(Boolean), b.split(/(\s+)/).filter(Boolean));
   let out = '', added = 0, removed = 0, words = 0;
   for (let k = 0; k < ops.length; k++) {
     const [op, t] = ops[k];
@@ -434,6 +457,7 @@ function diff(a, b, who, color) {
     words++;
     if (op === '+') { out += I(t); added++; } else { out += D(t); removed++; }
   }
+  out = out.replace(/<\/(del|ins)><\1 [^>]*>/g, '');  // one mark over a run of removed (or added) words
   return {html: out, kind: !words ? 'fixed letters' : added && removed ? 'changed words' : added ? 'added words' : 'removed words'};
 }
 
@@ -593,11 +617,13 @@ function summarySection() {
     btn.disabled = true; btn.textContent = 'Saving…';
     try {
       if (sb) await submitReview(d);
+      else if (SAVE) await saveLocal(d);
       cur.submitted = new Date().toISOString(); save();
       after.innerHTML = sb
         ? `<div class="submitted" style="margin-top:10px"><b>Thanks: your review is saved</b> (${counts}).
             The next person to check this puzzle will see your edits and comments.
             <div style="margin-top:6px"><button class="good" id="nextafter">Next puzzle →</button></div></div>`
+        : SAVE ? `<div class="submitted" style="margin-top:10px"><b>Saved to the publication's ledger</b> (${counts}), for the import.</div>`
         : `<div class="submitted" style="margin-top:10px"><b>Saved in this browser</b> (${counts}). <i>Local copy: nothing is sent.</i>
             <div style="margin-top:6px"><button class="plain" id="asnext">See this puzzle as the next reviewer will</button></div></div>`;
       after.querySelector('#nextafter')?.addEventListener('click', () => document.getElementById('nextpz').click());
@@ -611,6 +637,14 @@ function summarySection() {
 }
 // the whole review into proofs, and a verdict for the progress counts and the importer: "looks-right" only
 // when ready with no edits, since edits aren't applied on import yet
+// the same review, to a local server (?save=): plain text, so the browser sends it without asking first
+async function saveLocal(d) {
+  const review = {edits: cur.edits, comments: cur.comments, status: cur.status, note: cur.note || '', xd: rev?.xd_fp || ''};
+  const who = (cur.who === 'You' ? '' : cur.who || '').slice(0, 40);
+  const r = await fetch(SAVE, {method: 'POST', headers: {'Content-Type': 'text/plain'},
+    body: JSON.stringify({xdid: ID, who, decision: d, review, at: new Date().toISOString()})});
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || r.statusText);
+}
 async function submitReview(d) {
   let {data: {session}} = await sb.auth.getSession();
   if (!session) {
