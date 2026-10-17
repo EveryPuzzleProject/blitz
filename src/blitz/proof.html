@@ -323,8 +323,11 @@ async function loadProofs() {
   for (const p of data) {
     const r = p.review || {};
     if (p.user_id === me) {
-      if (!store.cur) store.cur = {who: p.who, edits: r.edits || {}, comments: r.comments || [], status: r.status || {},
-        note: r.note || '', decision: p.decision, submitted: p.at};
+      if (!store.cur) {
+        store.cur = {who: p.who, edits: r.edits || {}, comments: r.comments || [], status: r.status || {},
+          note: r.note || '', decision: p.decision, submitted: p.at};
+        store.xd = r.xd || '';  // the version it was made on
+      }
       continue;
     }
     const bad = Object.entries(r.status || {}).filter(([, x]) => x.v === 'bad').map(([id, x]) => `Problem in the ${PART[id]?.name || id}: ${x.note || ''}`);
@@ -345,6 +348,21 @@ const scaleOf = im => 1 / (ocr.scales[im || MAIN()] || 1);
 
 async function load() {
   [ocr, rev] = await Promise.all([dir + 'ocr.json', dir + 'review.json'].map(u => fetch(u).then(r => r.json())));
+  // A review kept in this browser from another version of the puzzle (its xd has changed since, or
+  // it predates versions) is set aside, not laid over this one: its edits were to rows that may now
+  // hold other lines. It stays in this browser under its version.
+  const fp = rev?.xd_fp || '';
+  if (fp && store.cur && store.xd !== fp) {
+    try { localStorage.setItem('proof2-' + ID + '@' + (store.xd || 'old'), JSON.stringify(store)); } catch (e) {}
+    store = {past: [], cur: null};
+    const n = document.createElement('div');  // outside what the page redraws; click to close
+    n.className = 'submitted';
+    n.style.cssText = 'position:fixed;bottom:16px;left:16px;right:16px;max-width:560px;z-index:50;cursor:pointer';
+    n.innerHTML = '<b>The puzzle has changed since your last review here</b>, so that review is set aside and this one starts fresh. (Click to close.)';
+    n.onclick = () => n.remove();
+    document.body.append(n);
+  }
+  store.xd = fp;
   const names = new Set([MAIN(), ...Object.values(ocr.clues).map(c => c.image).filter(Boolean)]);
   images = {};
   await Promise.all([...names].map(n => new Promise((ok, bad) => {
