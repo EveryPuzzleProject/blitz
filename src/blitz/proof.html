@@ -161,6 +161,12 @@ body.show-changes .fintext { display: none; }
 .marks:empty { display: none; }
 .marks b { font-weight: 600; border-radius: 8px; padding: 0 6px; }
 .m-flag { background: var(--flagbg); color: var(--flag); }
+.fitb { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; font-weight: 600; letter-spacing: .03em; color: var(--muted);
+  border: 1px solid var(--line); border-radius: 9px; padding: 0 2px 0 7px; margin-right: 4px; background: var(--paper); }
+.fitb button { border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 12px; line-height: 1; padding: 1px 4px; border-radius: 7px; }
+.fitb button:hover { background: var(--line); color: var(--ink); }
+.fitb.off { text-decoration: line-through; opacity: .6; }
+.note.unsure { border-left-color: #d08a00; background: #fff6e0; } .note.unsure .by { color: #a86d00; }
 .m-ok { background: #e8f3e9; color: var(--ok); }
 body:not(.show-marks) .marks { display: none; }
 .margin { font-size: 12px; }
@@ -1098,6 +1104,8 @@ function drawBlank(s) {
 }
 
 function noteHtml(r, text, why) {
+  if (/^Not sure/.test(text))  // the rail's amber, so a doubt reads the same in the margin and on the rail
+    return `<div class="note unsure"><span class="by">${esc(r.who)}</span>${esc(text)}</div>`;
   return `<div class="note" style="border-left-color:${r.color}"><span class="by" style="color:${r.color}">${esc(r.who)}${r === cur && r.who !== 'You' ? ' (you)' : ''}${why ? ' <i>on their edit</i>' : ''}</span>${esc(text)}</div>`;
 }
 
@@ -1387,8 +1395,18 @@ function addRow(s, key, label, box, flags = [], src = null) {
       (isClue && !NUM[label] ? `<b class="m-flag">no ${esc(label)} in our grid</b>` : '') +
       (isClue && NUM[label] && pn !== label.slice(1) ? `<b class="m-flag">printed as ${esc(pn)}, sits at ${esc(label)} in our grid</b>` : '') +
       (moved ? `<b class="m-flag" title="the reviewer moved this text from where the OCR put it; the scan line came with it">printed line found in ${esc(src.label)}'s crop</b>` : '') +
-      flags.filter(f => !f.startsWith('number-corrected')).map(f => `<b class="m-flag" title="${esc(f)}">${esc(f.split(':')[0])}</b>`).join('') +
+      flags.filter(f => !f.startsWith('number-corrected') && !f.startsWith('fill-in blank')).map(f => `<b class="m-flag" title="${esc(f)}">${esc(f.split(':')[0])}</b>`).join('') +
+      flags.filter(f => f.startsWith('fill-in blank')).map(f => {
+        const printed = f.replace(/^fill-in blank:\s*/, '').replace(/\s*\(by rule\)$/, ''), off = cur.edits['fitb:' + label] === 'no';
+        return `<span class="fitb ${off ? 'off' : ''}" title="${off ? 'Not a fill-in blank (you took the tag off)' : `Tagged as a fill-in blank (printed “${esc(printed)}”)${/by rule/.test(f) ? ', by rule' : ''}; the export writes it as ___`}">FITB<button data-fitb="${esc(label)}" aria-label="${off ? 'Tag it again' : 'Not a fill-in blank'}">${off ? '↺' : '×'}</button></span>`;
+      }).join('') +
       looked.map(w => `<b class="m-ok" title="${esc(w)} looked at this line and kept it">${esc(w)} looked</b>`).join('');
+    row.querySelectorAll('[data-fitb]').forEach(b => b.onclick = e => {  // take the tag off, or put it back
+      e.stopPropagation();
+      const k = 'fitb:' + b.dataset.fitb;
+      if (cur.edits[k] === 'no') delete cur.edits[k]; else cur.edits[k] = 'no';
+      save(); render();
+    });
     const m = row.querySelector('.margin'), open = m.querySelector('.compose');
     const cellNotes = isClue ? entryCells(label).flatMap(([r, c]) => [`cell:r${r+1}c${c+1}`, spKey(r, c)].flatMap(k => commentsFor(k).map(x => [...x, `r${r+1}c${c+1}`]))) : [];
     m.innerHTML = commentsFor(key).map(([r, c]) => noteHtml(r, c.text, c.why)).join('') +
