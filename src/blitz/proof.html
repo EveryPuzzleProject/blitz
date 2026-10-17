@@ -1158,7 +1158,7 @@ function headerSection(hs) {
   if (evOf('author') == null && typeof evOf('byline') === 'number') used.add(evOf('byline'));
   const lineOpts = (sel, f) => `<option value="">not found</option>`
     + (ocr.lines || []).map(L => `<option value="${L.n}" ${String(sel) === String(L.n) ? 'selected' : ''}>B${L.n}: ${esc(L.text.slice(0, 30))}</option>`).join('')
-    + (ocr.metadata || []).map(m => `<option value="${m.id}" ${sel === m.id ? 'selected' : ''}>${m.id} ${esc(m.name)}: ${esc(String(m.value).slice(0, 30))}</option>`).join('');
+    + (ocr.metadata || []).map(m => `<option value="${m.id}" ${sel === m.id ? 'selected' : ''}>${esc(m.name)}: ${esc(String(m.value).slice(0, 30))}</option>`).join('');
   const valueBox = (row, f, name) => {  // the xd's value: the rule's result, or a reviewer's own
     const [derived, rule] = headerValue(f), k = 'meta:' + (META[f] || f), h = history(k, derived), last = h[h.length - 1];
     const own = h.length > 1 && last.value !== derived;
@@ -1206,7 +1206,7 @@ function headerSection(hs) {
     row.classList.add('hrow'); row.id = name; row.dataset.hdr = name;
     row.querySelector('.typed').style.display = 'none';
     const m = typeof n === 'string' && metaOf(n);
-    row.querySelector('.scan').innerHTML = m ? `<div>${esc(m.id)} <b>${esc(m.name)}</b>: ${esc(m.value)} <span class="hint">(the puzzle's metadata, not printed)</span></div>`
+    row.querySelector('.scan').innerHTML = m ? `<div><b>${esc(m.name)}</b>: ${esc(m.value)} <span class="hint">(the puzzle's metadata, not printed)</span></div>`
       : `<div class="hint">${f === 'date' && !ocr.metadata ? `computed: the date of the issue it's in (${esc(ocr.issue_date || '')})` : 'not found near this puzzle'}</div>`;
     evPicker(row, f);
     valueBox(row, f, name);
