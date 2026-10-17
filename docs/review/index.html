@@ -100,6 +100,24 @@ h2 .quick { margin-left: 8px; font-size: 12px; padding: 2px 10px; }
 .row { display: grid; grid-template-columns: 58px minmax(0, 1fr) var(--aw, 360px) 250px; gap: 0 12px; padding: 6px 14px; border-bottom: 1px solid #f1ede6; }
 .row.focus { background: #fbf7ef; box-shadow: inset 3px 0 0 var(--ink); }
 .lab { font-weight: 600; font-size: 13px; padding-top: 2px; }
+/* the title, byline and nearby lines: headers with their evidence, then the other lines */
+.subh { padding: 10px 14px 4px; font-weight: 600; font-size: 13px; border-bottom: 1px solid #e6e0d4; background: #faf8f3; }
+.subh .hint { font-weight: 400; color: var(--muted); font-size: 12px; }
+.row.colhead { font-size: 12px; color: var(--muted); padding-top: 8px; padding-bottom: 4px; background: #faf8f3; }
+.row.hrow .lab { color: var(--ink); }
+.row.discarded .scan, .row.discarded .typed, .row.discarded .lab { opacity: .5; }
+.row { scroll-margin-top: 130px; }  /* a row an anchor leads to: clear of the sticky header */
+.evsel { font-size: 12px; color: var(--muted); margin-bottom: 3px; } .evsel select { font: inherit; font-size: 12px; max-width: 260px; }
+.xdcol .val { font-size: 14px; } .xdcol .k { color: var(--muted); } .xdcol .hint { color: var(--muted); font-size: 12px; }
+.xdcol .v { font-family: var(--serif); font-size: 15px; font-weight: 600; outline: none; border-bottom: 1px dashed var(--line); min-width: 2em; display: inline-block; }
+.xdcol .ovr { font-size: 12px; } .xdcol .ovr button { font-size: 11px; }
+.xdcol .kd button { border: 1px solid var(--line); background: #fff; border-radius: 12px; padding: 2px 12px; cursor: pointer; font: inherit; font-size: 13px; }
+.xdcol .kd button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+.xdcol select.lbl { font: inherit; font-size: 12px; max-width: 240px; }
+/* what the text step did: one line of counts, opening to every operation, each linked to its row */
+.ops { padding: 10px 14px; } .ops summary { cursor: pointer; } .ops .hint { color: var(--muted); font-size: 12px; }
+.ops .opg { margin-top: 8px; } .ops .opn { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.ops ul { margin: 2px 0 0; padding-left: 18px; font-size: 13px; } .ops li { margin: 2px 0; } .ops a:visited { color: var(--muted); }
 .abox { padding-top: 2px; }
 .keep { margin: 4px 0 0 3px; font-size: 12px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .keep > span { color: var(--muted); }
@@ -260,6 +278,9 @@ const params = new URLSearchParams(location.search);
 const SITE = window.BLITZ_SITE;
 let ID = params.get('p') || 'judge1931-10-03';
 let dir = (params.get('base') || '/blitz-work/') + ID + '/';
+// locally, ?save=<url> (xword-ocr watch's /api/proof): a submitted review is posted there, into the
+// publication's ledger, so the import can take it; without it a local review stays in this browser
+const SAVE = params.get('save');
 const COLORS = ['#1d7a3a', '#7b3fb5', '#0f7c86', '#a0522d', '#1f5fbf'];
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
@@ -335,8 +356,11 @@ async function loadProofs() {
   for (const p of data) {
     const r = p.review || {};
     if (p.user_id === me) {
-      if (!store.cur) store.cur = {who: p.who, edits: r.edits || {}, comments: r.comments || [], status: r.status || {},
-        note: r.note || '', decision: p.decision, submitted: p.at};
+      if (!store.cur) {
+        store.cur = {who: p.who, edits: r.edits || {}, comments: r.comments || [], status: r.status || {},
+          note: r.note || '', decision: p.decision, submitted: p.at};
+        store.xd = r.xd || '';  // the version it was made on
+      }
       continue;
     }
     const bad = Object.entries(r.status || {}).filter(([, x]) => x.v === 'bad').map(([id, x]) => `Problem in the ${PART[id]?.name || id}: ${x.note || ''}`);
@@ -357,6 +381,21 @@ const scaleOf = im => 1 / (ocr.scales[im || MAIN()] || 1);
 
 async function load() {
   [ocr, rev] = await Promise.all([dir + 'ocr.json', dir + 'review.json'].map(u => fetch(u).then(r => r.json())));
+  // A review kept in this browser from another version of the puzzle (its xd has changed since, or
+  // it predates versions) is set aside, not laid over this one: its edits were to rows that may now
+  // hold other lines. It stays in this browser under its version.
+  const fp = rev?.xd_fp || '';
+  if (fp && store.cur && store.xd !== fp) {
+    try { localStorage.setItem('proof2-' + ID + '@' + (store.xd || 'old'), JSON.stringify(store)); } catch (e) {}
+    store = {past: [], cur: null};
+    const n = document.createElement('div');  // outside what the page redraws; click to close
+    n.className = 'submitted';
+    n.style.cssText = 'position:fixed;bottom:16px;left:16px;right:16px;max-width:560px;z-index:50;cursor:pointer';
+    n.innerHTML = '<b>The puzzle has changed since your last review here</b>, so that review is set aside and this one starts fresh. (Click to close.)';
+    n.onclick = () => n.remove();
+    document.body.append(n);
+  }
+  store.xd = fp;
   const names = new Set([MAIN(), ...Object.values(ocr.clues).map(c => c.image).filter(Boolean)]);
   images = {};
   await Promise.all([...names].map(n => new Promise((ok, bad) => {
@@ -371,7 +410,7 @@ async function load() {
   gridImg = await probe(dir + 'grid.png');
   if (!ansImg && ocr.answers) keyPage = await probe(dir + 'answer_page.jpg');
   const agent = {who: (rev.model || 'agent').replace(/^claude-/, '').replace(/-\d.*$/, '').replace(/^./, c => c.toUpperCase()),
-    edits: {...rev.corrections}, comments: [], summary: rev.note};
+    edits: {...rev.corrections}, comments: [], summary: 'verdict' in rev ? rev.verdict : rev.note};
   for (const t of rev.tool_notes || []) if (t.target !== 'other') agent.comments.push({key: t.target, text: t.note});
   for (const [k, v] of Object.entries(rev.unsure || {})) agent.comments.push({key: k, text: 'Not sure: ' + v});
   for (const [k, v] of Object.entries(rev.sic || {})) agent.comments.push({key: k, text: 'Printed this way, kept as printed: ' + v});
@@ -396,6 +435,7 @@ function base(key) {
   if (m) return ocr.answers ? ocr.answers[m[1] - 1][m[2] - 1] : '';
   if (key.startsWith('meta:')) return ocr[key.slice(5)] || '';
   if (key.startsWith('other:')) return (ocr.captions || {})[key.slice(6)] || '';
+  if (key.startsWith('line:B')) return lineN(+key.slice(6))?.text || '';
   if (key.startsWith('special:')) return (ocr.special || {})[key.slice(8)] || '';   // the OCR doesn't look for circles
   return ocr.clues[key.slice(5)]?.text ?? '';
 }
@@ -431,7 +471,9 @@ function lcs(A, B) {
 function diff(a, b, who, color) {
   const st = `style="color:${color}"`, I = t => `<ins ${st} title="added by ${esc(who)}">${esc(t)}</ins>`,
     D = t => `<del ${st} title="removed by ${esc(who)}">${esc(t)}</del>`;
-  const ops = lcs(a.split(/(?<=\s)/), b.split(/(?<=\s)/));
+  // spaces are tokens of their own, so a word that only lost what followed it ("pantie ___" ->
+  // "pantie") stays as it was and just the removed part is struck
+  const ops = lcs(a.split(/(\s+)/).filter(Boolean), b.split(/(\s+)/).filter(Boolean));
   let out = '', added = 0, removed = 0, words = 0;
   for (let k = 0; k < ops.length; k++) {
     const [op, t] = ops[k];
@@ -449,6 +491,7 @@ function diff(a, b, who, color) {
     words++;
     if (op === '+') { out += I(t); added++; } else { out += D(t); removed++; }
   }
+  out = out.replace(/<\/(del|ins)><\1 [^>]*>/g, '');  // one mark over a run of removed (or added) words
   return {html: out, kind: !words ? 'fixed letters' : added && removed ? 'changed words' : added ? 'added words' : 'removed words'};
 }
 
@@ -485,9 +528,12 @@ function render() {
       summaries.map(r => noteHtml(r, r.summary)).join('') + '</div>';
     main.append(s);
   }
+  if (ocr.lines && ocr.evidence && rev.model !== 'xword-ocr assembly') main.append(opsList());
 
   main.append(pageSection());
   const hs = sec('meta', 'Title, byline and nearby lines', 'the title, byline and nearby lines', 'the words around the puzzle');
+  if (ocr.lines && ocr.evidence) headerSection(hs);
+  else {
   for (const k of Object.keys(ocr.meta_boxes || {})) {
     const m = /^other(\d+)$/.exec(k);
     addRow(hs, m ? 'other:' + m[1] : 'meta:' + k, m ? 'printed nearby' : k, ocr.meta_boxes[k]);
@@ -498,6 +544,7 @@ function render() {
   // the puzzle's note goes in the xd file too: shown, and editable, like the byline
   addRow(hs, 'meta:note', 'note (in the xd)', null);
   for (const n of Object.keys(ocr.captions || {})) if (!(('other' + n) in (ocr.meta_boxes || {}))) addRow(hs, 'other:' + n, 'printed nearby', null);
+  }
   main.append(hs);
   const why = blankReasons();
   main.append(blankSection(why, hasKey()));
@@ -523,7 +570,7 @@ function legend() {
 
 // the parts of a puzzle, how to talk about them, and which fields belong to each
 const PART = {
-  meta: {name: 'title, byline and nearby lines', plural: true, has: k => k.startsWith('meta:') || k.startsWith('other:')},
+  meta: {name: 'title, byline and nearby lines', plural: true, has: k => /^(meta|other|line|ev|keep|label):/.test(k)},
   page: {name: 'whole page', has: () => false},
   blank: {name: 'blank grid', has: k => k.startsWith('grid:') || (k.startsWith('special:') && !hasKey())},
   grid: {name: 'answer key', has: k => k.startsWith('cell:') || (k.startsWith('special:') && hasKey())},
@@ -608,11 +655,13 @@ function summarySection() {
     btn.disabled = true; btn.textContent = 'Saving…';
     try {
       if (sb) await submitReview(d);
+      else if (SAVE) await saveLocal(d);
       cur.submitted = new Date().toISOString(); save();
       after.innerHTML = sb
         ? `<div class="submitted" style="margin-top:10px"><b>Thanks: your review is saved</b> (${counts}).
             The next person to check this puzzle will see your edits and comments.
             <div style="margin-top:6px"><button class="good" id="nextafter">Next puzzle →</button></div></div>`
+        : SAVE ? `<div class="submitted" style="margin-top:10px"><b>Saved to the publication's ledger</b> (${counts}), for the import.</div>`
         : `<div class="submitted" style="margin-top:10px"><b>Saved in this browser</b> (${counts}). <i>Local copy: nothing is sent.</i>
             <div style="margin-top:6px"><button class="plain" id="asnext">See this puzzle as the next reviewer will</button></div></div>`;
       after.querySelector('#nextafter')?.addEventListener('click', () => document.getElementById('nextpz').click());
@@ -626,6 +675,14 @@ function summarySection() {
 }
 // the whole review into proofs, and a verdict for the progress counts and the importer: "looks-right" only
 // when ready with no edits, since edits aren't applied on import yet
+// the same review, to a local server (?save=): plain text, so the browser sends it without asking first
+async function saveLocal(d) {
+  const review = {edits: cur.edits, comments: cur.comments, status: cur.status, note: cur.note || '', xd: rev?.xd_fp || ''};
+  const who = (cur.who === 'You' ? '' : cur.who || '').slice(0, 40);
+  const r = await fetch(SAVE, {method: 'POST', headers: {'Content-Type': 'text/plain'},
+    body: JSON.stringify({xdid: ID, who, decision: d, review, at: new Date().toISOString()})});
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || r.statusText);
+}
 async function submitReview(d) {
   let {data: {session}} = await sb.auth.getSession();
   if (!session) {
@@ -1053,10 +1110,194 @@ function noteHtml(r, text, why) {
   return `<div class="note" style="border-left-color:${r.color}"><span class="by" style="color:${r.color}">${esc(r.who)}${r === cur && r.who !== 'You' ? ' (you)' : ''}${why ? ' <i>on their edit</i>' : ''}</span>${esc(text)}</div>`;
 }
 
+// ---- the title, byline and nearby lines: the xd's headers with their evidence, then the other lines ----
+// (packets with ocr.lines and ocr.evidence: xword-ocr proofpacket, headers.py.) A header row: its name |
+// the printed line it comes from (crop, what the OCR read, corrections tracked; the part a rule took
+// outlined) | the value the xd gets (the rule named when it changed the text; a reviewer's own value
+// labelled) | comments. Then B rows for the lines no header comes from: keep (in our record) or
+// discard, and the text step's label for the line, which the export's rules go by.
+function subhead(s, title, hint) {
+  s.insertAdjacentHTML('beforeend', `<div class="subh">${esc(title)} <span class="hint">${esc(hint)}</span></div>`);
+}
+const LABELS = {instructions: "the puzzle's own instructions, theme or meta", 'test-solver': "a test solver's remark",
+  intro: 'an intro to the puzzle', credit: 'a credit or reprint line', kind: 'the kind of puzzle ("Illustrated Crossword")',
+  section: 'a section banner', furniture: 'page furniture (footer, page number, an answer-page pointer)',
+  'other-puzzle': "another puzzle's text", other: 'something else'};
+const DISCARD = ['section', 'furniture', 'other-puzzle'];
+const BY_RE = /\s+by\s+(?=\S)/i;
+// The rules, as xword-ocr headers.py has them (the packet's check catches the two drifting).
+const take = {
+  title: t => { const m = BY_RE.exec(t); return m && m.index > 0 ? [t.slice(0, m.index), 'the part before "by"'] : [t, '']; },
+  number: t => { const m = /#\s*(\d+)/.exec(t) || /(\d+)\s*$/.exec(t) || /(\d+)/.exec(t), v = m ? m[1] : ''; return [v, v === t ? '' : 'the digits in the line']; },
+  byline: t => { const m = BY_RE.exec(t); return m && m.index > 0 ? [t.slice(m.index).trim(), 'the part from "by" on'] : [t, '']; },
+  author: t => [take.byline(t)[0].replace(/^by\s+/i, '').replace(/^(?:Mr|Ms|Miss)\.?\s+(?=[A-Z])/, '').trim(), 'the name in the byline, "by" dropped'],
+  editor: t => { const m = /edited by\s+(\S.*)$/i.exec(t); return m ? [m[1].trim(), 'the name after "edited by"'] : [t, '']; },
+  date: t => [t, '']};
+const HEADERS = [['title', 'Title'], ['number', 'Number'], ['date', 'Date'], ['byline', 'Byline'], ['author', 'Author'], ['editor', 'Editor']];
+const META = {number: 'puzzle_number'};  // the edit key a header's own value is saved under (meta:puzzle_number)
+const lineN = n => (ocr.lines || []).find(l => l.n === n);
+const metaOf = id => (ocr.metadata || []).find(m => m.id === id);
+const evDefault = f => ocr.evidence?.[f] ?? (ocr.metadata || []).find(m => m.field === f)?.id ?? null;
+const evOf = f => { const v = cur.edits['ev:' + f]; return v === undefined ? evDefault(f) : v; };
+const labelOf = L => cur.edits['label:B' + L.n] ?? L.label ?? 'other';
+const keptOf = L => cur.edits['keep:B' + L.n] ?? (L.keep ?? !DISCARD.includes(labelOf(L)));
+// A title line ending "by" and a name (two or more capitalised words, or initials) gives the byline
+// too when nothing else does (headers.named_byline): "You Name It by Henry Hook", not "Two by Two".
+const NAME_RE = /\s+by\s+((?:[A-Z]\.\s*){2,}|[A-Z][\w.'\-]*(?:\s+[A-Z][\w.'\-]*){1,3})\s*$/;
+const one = s => (s || '').split(/\s+/).filter(Boolean).join(' ');
+function bylineEv() {
+  const b = evOf('byline'), t = evOf('title');
+  if (b == null && typeof t === 'number' && lineN(t) && NAME_RE.test(one(final('line:B' + t)))) return t;
+  return b;
+}
+function headerValue(f) {  // [value by the rule, the rule, the line] from the header's evidence as it stands
+  const shared = evOf('title') != null && evOf('title') === bylineEv();
+  let n = f === 'byline' ? bylineEv() : evOf(f);
+  if (f === 'author' && n == null) n = bylineEv();
+  if (typeof n === 'string' && metaOf(n)) return [metaOf(n).value, `from the puzzle's metadata: ${metaOf(n).name}`, n];
+  if (n == null || !lineN(n)) return f === 'date' && !ocr.metadata ? [ocr.issue_date || '', "computed: the date of the issue it's in", null] : ['', 'not found', null];
+  const t = one(final('line:B' + n));
+  if ((f === 'title' || f === 'byline') && !shared) return [t, '', n];
+  if (f === 'author' && !shared && cur.edits['ev:author'] === undefined && ocr.evidence?.author == null) return [...take.author('by ' + t.replace(/^\s*by\s+/i, '')), n];
+  return [...take[f](t), n];
+}
+function outline(cv, text, part) {  // the part of a line a header takes, outlined (by its share of the characters)
+  const i = part ? text.indexOf(part) : -1;
+  if (!cv || i < 0 || part === text) return;
+  const s = scaleOf(), px = 4 * s, w = cv.width - 2 * px, ctx = cv.getContext('2d');
+  ctx.strokeStyle = '#1f5fbf'; ctx.lineWidth = Math.max(2, cv.height / 40);
+  const by = text.search(BY_RE), lw = ctx.lineWidth;
+  if (by > 0 && cv.height > 0.3 * cv.width) {  // a heading printed as two lines: the name, then "by ..."
+    const top = i < by, line = top ? text.slice(0, by) : text.slice(by).trim(), j = top ? i : line.indexOf(part.trim());
+    const x0 = px + w * Math.max(0, j) / line.length, x1 = px + w * Math.min(line.length, j + part.trim().length) / line.length;
+    ctx.strokeRect(x0, top ? lw : cv.height / 2, x1 - x0, cv.height / 2 - lw);
+    return;
+  }
+  ctx.strokeRect(px + w * i / text.length, lw, w * part.length / text.length, cv.height - 2 * lw);
+}
+function headerSection(hs) {
+  hs.insertAdjacentHTML('beforeend', `<div class="row colhead"><div></div><div>Printed: the scan and what the OCR read</div><div>In the xd file</div><div>Review</div></div>`);
+  const used = new Set(HEADERS.map(([f]) => evOf(f)).filter(n => typeof n === 'number'));
+  if (evOf('author') == null && typeof evOf('byline') === 'number') used.add(evOf('byline'));
+  const lineOpts = (sel, f) => `<option value="">not found</option>`
+    + (ocr.lines || []).map(L => `<option value="${L.n}" ${String(sel) === String(L.n) ? 'selected' : ''}>B${L.n}: ${esc(L.text.slice(0, 30))}</option>`).join('')
+    + (ocr.metadata || []).map(m => `<option value="${m.id}" ${sel === m.id ? 'selected' : ''}>${esc(m.name)}: ${esc(String(m.value).slice(0, 30))}</option>`).join('');
+  const valueBox = (row, f, name) => {  // the xd's value: the rule's result, or a reviewer's own
+    const [derived, rule] = headerValue(f), k = 'meta:' + (META[f] || f), h = history(k, derived), last = h[h.length - 1];
+    const own = h.length > 1 && last.value !== derived;
+    row.querySelector('.abox').innerHTML = `<div class="xdcol"><div class="val"><span class="k">${esc(name)}:</span> <span class="v" contenteditable="true" spellcheck="false"></span></div>
+      ${rule && rule !== 'not found' && (f === 'date' || derived !== final('line:B' + evOf(f))) ? `<div class="hint">${esc(rule)}</div>` : ''}
+      ${own ? `<div class="ovr" style="color:${last.color}">${esc(last.who)}'s value; the rule gives “${esc(derived)}” <button class="undo">use the rule's</button></div>` : ''}</div>`;
+    const sp = row.querySelector('.xdcol .v');
+    sp.textContent = own ? last.value : derived;
+    if (own) sp.style.color = last.color;
+    sp.onclick = e => e.stopPropagation();
+    sp.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); sp.blur(); } };
+    // your value: saved as your edit; the rule's value again: your edit dropped, or (when an earlier
+    // round gave its own) saved, so it shows as you setting it back
+    const set = t => {
+      if (t === derived && !rounds.slice(0, -1).some(r => k in r.edits)) delete cur.edits[k]; else cur.edits[k] = t;
+      save(); render();
+    };
+    sp.onblur = () => { const t = sp.textContent.trim(); if (t !== (own ? last.value : derived)) set(t); };
+    row.querySelector('.undo')?.addEventListener('click', e => { e.stopPropagation(); set(derived); });
+  };
+  const evPicker = (row, f) => {
+    const sc = row.querySelector('.scan');
+    sc.insertAdjacentHTML('afterbegin', `<div class="evsel">from <select>${lineOpts(evOf(f), f)}</select>${cur.edits['ev:' + f] !== undefined ? ' <span class="hint">(you changed it)</span>' : ''}</div>`);
+    const sel = sc.querySelector('.evsel select');
+    sel.onclick = e => e.stopPropagation();
+    sel.onchange = () => {
+      const v = !sel.value ? null : /^M/.test(sel.value) ? sel.value : +sel.value;
+      if (v === evDefault(f)) delete cur.edits['ev:' + f]; else cur.edits['ev:' + f] = v;
+      save(); render();
+    };
+  };
+  for (const [f, name] of HEADERS) {
+    const [derived, , n] = headerValue(f), L = n != null && lineN(n);
+    if (L) {  // from a printed line: the line (shared with every header that comes from it) and the value
+      addRow(hs, 'line:B' + L.n, name, L.box, [], L.image ? {image: L.image, label: name, text: L.text} : null);
+      const row = rows[rows.length - 1];
+      row.classList.add('hrow'); row.id = name; row.dataset.hdr = name;
+      outline(row.querySelector('.scan canvas.strip'), final('line:B' + L.n), derived);
+      evPicker(row, f);
+      valueBox(row, f, name);
+      continue;
+    }
+    addRow(hs, 'meta:' + (META[f] || f), name, null);  // nothing found for it, or computed (the Date)
+    const row = rows[rows.length - 1];
+    row.classList.add('hrow'); row.id = name; row.dataset.hdr = name;
+    row.querySelector('.typed').style.display = 'none';
+    const m = typeof n === 'string' && metaOf(n);
+    row.querySelector('.scan').innerHTML = m ? `<div><b>${esc(m.name)}</b>: ${esc(m.value)} <span class="hint">(the puzzle's metadata, not printed)</span></div>`
+      : `<div class="hint">${f === 'date' && !ocr.metadata ? `computed: the date of the issue it's in (${esc(ocr.issue_date || '')})` : 'not found near this puzzle'}</div>`;
+    evPicker(row, f);
+    valueBox(row, f, name);
+  }
+  const rest = (ocr.lines || []).filter(L => !used.has(L.n));
+  if (!rest.length) return;
+  hs.insertAdjacentHTML('beforeend', `<div class="row colhead"><div></div><div>Other lines printed near the puzzle</div><div>Keep (in our record) or discard</div><div></div></div>`);
+  for (const L of rest) {
+    addRow(hs, 'line:B' + L.n, 'B' + L.n, L.box, [], L.image ? {image: L.image, label: 'B' + L.n, text: L.text} : null);
+    const row = rows[rows.length - 1], ab = row.querySelector('.abox'), k = keptOf(L);
+    row.id = 'B' + L.n;
+    if (L.text.length > 80) row.querySelectorAll('.scan canvas.strip').forEach(c => { c.style.width = '100%'; });
+    const was = {converted: ' (from its earlier keep/discard)', rule: ' (by rule)', default: ' (a default)', assembly: " (assembly's)"}[L.by] || '';
+    ab.innerHTML = `<div class="xdcol"><div class="kd"><button class="k1 ${k ? 'on' : ''}">Keep</button> <button class="k0 ${k ? '' : 'on'}">Discard</button></div>
+      <div class="hint">the text step says it's${esc(was)} <select class="lbl">${Object.entries(LABELS).map(([v, d]) => `<option value="${v}" ${v === labelOf(L) ? 'selected' : ''}>${esc(d)}</option>`).join('')}</select></div>
+      ${cur.edits['keep:B' + L.n] !== undefined || cur.edits['label:B' + L.n] !== undefined ? '<div class="hint">(you changed it)</div>' : ''}</div>`;
+    ab.onclick = e => e.stopPropagation();
+    const dflt = () => L.keep ?? !DISCARD.includes(labelOf(L));
+    ab.querySelector('.k1').onclick = () => { if (dflt()) delete cur.edits['keep:B' + L.n]; else cur.edits['keep:B' + L.n] = true; save(); render(); };
+    ab.querySelector('.k0').onclick = () => { if (!dflt()) delete cur.edits['keep:B' + L.n]; else cur.edits['keep:B' + L.n] = false; save(); render(); };
+    ab.querySelector('.lbl').onchange = e => { const v = e.target.value; if (v === L.label) delete cur.edits['label:B' + L.n]; else cur.edits['label:B' + L.n] = v; save(); render(); };
+    if (!k) row.classList.add('discarded');
+  }
+}
+// What the text step did, as a list of operations, each a link (an anchor: Back returns to the list) to
+// the row it touched: collapsed, one line of counts, the scope of the work; open, every change and choice.
+function opsList() {
+  const a = rounds[0], ed = a.edits, groups = [];
+  const go = (anchor, label) => `<a href="#${esc(anchor)}">${esc(label)}</a>`;
+  const short = t => t.length > 60 ? t.slice(0, 57) + '…' : t;
+  const why = key => (a.comments.find(c => c.key === key && !c.text.startsWith('Not sure'))?.text || '').replace(/^Changed by the LLM text step[^:]*: ?/, '').replace(/^Changed by the LLM text step\.$/, '');
+  const clue = Object.keys(ed).filter(k => k.startsWith('clue:')).map(k =>
+    `${go(k.slice(5), k.slice(5))}: “${esc(short(base(k)))}” → “${esc(short(ed[k]))}”${why(k) ? ` <span class="hint">${esc(why(k))}</span>` : ''}`);
+  const lines = Object.keys(ed).filter(k => k.startsWith('line:')).map(k =>
+    `${go(k.slice(5), k.slice(5))}: corrected the text${why(k) ? ` <span class="hint">${esc(why(k))}</span>` : ''}`);
+  const heads = HEADERS.filter(([f]) => ocr.evidence?.[f] != null).map(([f, name]) =>
+    `${go(name, name)} ← B${ocr.evidence[f]} “${esc(short(lineN(ocr.evidence[f])?.text || ''))}”`);
+  const typed = Object.keys(ed).filter(k => k.startsWith('meta:')).map(k => `${go(HEADERS.find(([f]) => (META[f] || f) === k.slice(5))?.[1] || k, k.slice(5))}: gave the value “${esc(short(ed[k]))}”`);
+  const used = new Set(Object.values(ocr.evidence || {}).filter(n => n != null));
+  const labels = (ocr.lines || []).filter(L => !used.has(L.n) && L.label).map(L =>
+    `${go('B' + L.n, 'B' + L.n)}: ${L.keep ? 'kept' : 'discarded'}, ${esc(LABELS[L.label] || L.label)}`);
+  const blanks = Object.entries(rev.blanks || {}).map(([k, b]) => `${go(k, k)}: fill-in blank “${esc(b.printed)}”${b.by === 'rule' ? ' <span class="hint">(by rule)</span>' : ''}`);
+  const unsure = Object.entries(rev.unsure || {}).map(([k, v]) => `${/^(clue|line):/.test(k) ? go(k.replace(/^(clue|line):/, ''), k.replace(/^(clue|line):/, '')) : esc(k)}: ${esc(v)}`);
+  const asked = (rev.requests || []).map(q => `${q.key ? go(q.key.replace(/^(clue|line):/, ''), q.key.replace(/^(clue|line):/, '')) + ': ' : ''}${esc(q.kind || 'other')}: ${esc(q.what || '')}${q.where ? ` <span class="hint">(${esc(q.where)})</span>` : ''}`);
+  for (const [name, items] of [['clues changed', clue], ['lines corrected', lines], ['headers taken from', heads], ['header values given', typed],
+    ['other lines labelled', labels], ['fill-in blanks', blanks], ['not sure', unsure], ['asked for', asked]]) if (items.length) groups.push([name, items]);
+  const s = document.createElement('section');
+  if (!groups.length) return s;
+  const one = (n, name) => n === 1 ? name.replace(/^(\w+?)s\b/, '$1') : name;
+  s.innerHTML = `<details class="ops"><summary><b>What the ${esc(a.who)} did</b> <span class="hint">${groups.map(([n, i]) => `${i.length} ${one(i.length, n)}`).join(' · ')}</span></summary>
+    ${groups.map(([n, i]) => `<div class="opg"><div class="opn">${n}</div><ul>${i.map(x => `<li>${x}</li>`).join('')}</ul></div>`).join('')}</details>`;
+  return s;
+}
+// The list's links are anchors (#A15, #B4, #Title): the browser records each, so Back returns to the
+// list. The page places the row (centred, clear of the sticky header) and, on Back, the list where it was.
+let listY = null;
+addEventListener('click', e => { if (e.target.closest('.ops a[href^="#"]')) listY = window.scrollY; }, true);
+addEventListener('hashchange', () => {
+  const row = location.hash.length > 1 && document.getElementById(decodeURIComponent(location.hash.slice(1)));
+  if (row && row.classList.contains('row')) requestAnimationFrame(() => row.scrollIntoView({block: 'center'}));
+  else if (listY !== null) requestAnimationFrame(() => window.scrollTo({top: listY}));
+});
+
 function addRow(s, key, label, box, flags = [], src = null) {
   const row = document.createElement('div');
   row.className = 'row';
   row.dataset.key = key;
+  if (key.startsWith('clue:')) row.id = key.slice(5);  // #A15: a link to this row
   const isClue = key.startsWith('clue:');
   const moved = src && src.label !== label;
   const pn = isClue ? (src ? printedNumber(src.label, src.flags || []) : printedNumber(label, flags)) : '';
@@ -1064,9 +1305,9 @@ function addRow(s, key, label, box, flags = [], src = null) {
   row.innerHTML = `<div class="lab">${esc(label)}</div>
     <div class="body"><div class="scan"></div><div>
       <div class="typed">${isClue ? `<span class="num${odd ? ' odd' : ''}" title="the number printed beside this clue">${esc(pn)}.</span>` : ''}<span class="txt" spellcheck="false"></span></div>
-      ${key.startsWith('other:') ? `<div class="keep"><span>Part of this puzzle's record?</span>
-        <button class="k1" title="Keep this line with the puzzle">★ Important: keep it</button>
-        <button class="k0" title="Leave it out: a notice or ad, not part of the puzzle">Not important: leave it out</button></div>` : ''}
+      ${key.startsWith('other:') ? `<div class="keep">
+        <button class="k1" title="Keep this line with the puzzle: it goes in the xd's Notes">Keep</button>
+        <button class="k0" title="Discard it: a banner, notice or ad, not part of the puzzle">Discard</button></div>` : ''}
       <div class="was"></div><div class="marks"></div></div></div>
     <div class="abox"></div>
     <div class="margin"></div>`;
@@ -1141,8 +1382,8 @@ function addRow(s, key, label, box, flags = [], src = null) {
     if (h.length > 1) {
       const last = h[h.length - 1], prev = h[h.length - 2], d = diff(prev.value, last.value, last.who, last.color);
       const me = `${last.who}${last.who === cur.who && cur.who !== 'You' ? ' (you)' : ''}`;
-      kind = nearby && !last.value ? `${me} marked it not important`
-        : nearby && !prev.value ? `${me} marked it important` : `${me} ${d.kind}`;
+      kind = nearby && !last.value ? `${me} discarded it`
+        : nearby && !prev.value ? `${me} kept it` : `${me} ${d.kind}`;
       if (document.activeElement !== txt)
         txt.innerHTML = out ? esc(text) : `<span class="fintext">${esc(fin)}</span><span class="chg">${nearby && !prev.value ? esc(fin) : d.html}</span>`;
     } else if (document.activeElement !== txt) txt.textContent = fin;
