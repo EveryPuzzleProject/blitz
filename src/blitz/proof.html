@@ -87,6 +87,11 @@ h2 .quick { margin-left: 8px; font-size: 12px; padding: 2px 10px; }
 .row { display: grid; grid-template-columns: 58px minmax(0, 1fr) var(--aw, 360px) 250px; gap: 0 12px; padding: 6px 14px; border-bottom: 1px solid #f1ede6; }
 .row.focus { background: #fbf7ef; box-shadow: inset 3px 0 0 var(--ink); }
 .lab { font-weight: 600; font-size: 13px; padding-top: 2px; }
+#rail { position: fixed; right: 3px; width: 12px; z-index: 6; border-left: 1px solid var(--line); }
+#rail .tick { position: absolute; left: 1px; width: 10px; height: 4px; border: 0; padding: 0; border-radius: 2px; cursor: pointer; background: #9a958d; }
+#rail .tick.unsure { background: #d08a00; height: 5px; }
+#rail .tick:hover, #rail .tick:focus-visible { transform: scaleX(1.4); outline: none; }
+@media (max-width: 700px) { #rail { display: none; } }
 /* the title, byline and nearby lines: headers with their evidence, then the other lines */
 .subh { padding: 10px 14px 4px; font-weight: 600; font-size: 13px; border-bottom: 1px solid #e6e0d4; background: #faf8f3; }
 .subh .hint { font-weight: 400; color: var(--muted); font-size: 12px; }
@@ -408,8 +413,9 @@ async function load() {
   if (!cur.who) cur.who = 'You';
   document.getElementById('who').value = cur.who === 'You' ? '' : cur.who;
   render();
+  setTimeout(navRail, 900);
   // ?k=clue:A14 (any row's item) opens the page at that row, e.g. from a review card's link
-  if (params.get('k')) setTimeout(() => jumpTo(params.get('k')), 0);
+  if (params.get('k')) { setTimeout(() => jumpTo(params.get('k')), 0); setTimeout(() => jumpTo(params.get('k')), 900); }
 }
 
 // what a field held before any reviewer: the OCR's reading
@@ -1412,6 +1418,38 @@ function addRow(s, key, label, box, flags = [], src = null) {
   rows.push(row);
   s.append(row);
 }
+
+// ---- the navigation rail down the right edge: where the edits, doubts and comments are ----
+// One tick per row with something on it, at that row's place in the page: an edit (in the colour of
+// whoever made it last), something a reviewer wasn't sure of (amber), a comment (grey). Click to go.
+function navRail() {
+  let rail = document.getElementById('rail');
+  if (!rail) {
+    rail = document.createElement('nav'); rail.id = 'rail'; rail.setAttribute('aria-label', 'Where the edits and doubts are');
+    document.body.append(rail);
+    addEventListener('resize', () => requestAnimationFrame(navRail));
+  }
+  const top = (document.querySelector('header')?.offsetHeight || 0) + 8, H = document.documentElement.scrollHeight;
+  const room = innerHeight - top - 12;
+  rail.style.top = top + 'px'; rail.style.height = room + 'px';
+  const ticks = [];
+  for (const row of rows) {
+    if (!row.isConnected || !row.dataset.key) continue;
+    const k = row.dataset.key, h = history(k), cs = commentsFor(k);
+    const unsure = cs.some(([, c]) => /^Not sure/.test(c.text)), edited = h.length > 1, other = cs.length && !unsure;
+    if (!edited && !unsure && !other) continue;
+    const y = (row.getBoundingClientRect().top + scrollY) / H * room;
+    const label = (row.querySelector('.lab')?.textContent || k).trim();
+    const why = [edited ? `${h[h.length - 1].who} changed it` : '', unsure ? 'not sure' : '', other ? `${cs.length} comment${cs.length > 1 ? 's' : ''}` : ''].filter(Boolean).join(' · ');
+    ticks.push(`<button class="tick ${unsure ? 'unsure' : edited ? 'edit' : 'note'}" style="top:${y.toFixed(1)}px;${edited && !unsure ? `background:${h[h.length - 1].color}` : ''}" data-i="${rows.indexOf(row)}" title="${esc(label)}: ${esc(why)}"></button>`);
+  }
+  rail.innerHTML = ticks.join('');
+  rail.querySelectorAll('.tick').forEach(t => t.onclick = () => { const r = rows[+t.dataset.i]; setFocus(+t.dataset.i); r.scrollIntoView({block: 'center'}); });
+}
+
+// every render (an edit, a choice) redraws the rail
+const renderPage = render;
+render = function () { renderPage(); requestAnimationFrame(navRail); };
 
 function commentsFor(key) {
   const out = [];
