@@ -22,7 +22,7 @@ Publishing reviewed puzzles to the site: build their packets with xword-ocr's
 ## The pipeline: runs quietly in the background
 
 Agents run the pipeline and fix its problems cheaply, from what the milestones recorded:
-signals, diffs, a crop or two. They never read a puzzle again from the source image. When an
+signals, diffs, a crop or two (they look at the scan to diagnose, never to transcribe). When an
 agent can't fix something, a person goes straight to the right stage with the right tool, and
 walks back through the stages to the cause:
 
@@ -32,6 +32,13 @@ walks back through the stages to the cause:
 | Title or metadata missing or wrong | the proof page: the header and its evidence | assembly (what was linked), then parts (what was found in the box) |
 | Clues or key missing | assembly and layout: the boxes on the page | regions, then harvest (the page was never found: locate it) |
 
+- **Look at the scan to diagnose; never transcribe from it.** Looking is expected: crops of the
+  part in question, or the page at low resolution, to find which stage went wrong. What's
+  ruled out is producing puzzle content from the scan. An agent about to type a clue, an
+  answer or a header because the toolchain didn't deliver it stops: the fix goes into a
+  stage, or the puzzle goes to the exceptions queue with a diagnosis. Any value typed by hand
+  shows as typed by hand on the proof page and counts as a reason code in triage, so hand
+  transcription can never happen silently.
 - **Milestones.** The pipeline is a series of named milestones: harvest, page OCR, regions,
   parts, assembly, text step, headers, proof packet, triage. Each writes a durable output in
   a documented format, which agents read and the visual tools render. Read a milestone's
