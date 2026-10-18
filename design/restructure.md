@@ -1,6 +1,8 @@
 # Restructure plan: blitz, xword-ocr, and one repo per publication
 
-Draft, 2026-10-09, for approval. Nothing here is done yet except step 0.
+Draft, 2026-10-09, for approval. Nothing here is done yet except step 0. Updated
+2026-10-18: the module moves are now **v3** work, after GAMES 1977-79 ships on v2, and
+harvest becomes its own package. See "v3: harvest on its own, blitz orchestrates".
 
 ## The rule
 
@@ -144,6 +146,45 @@ only review install blitz without the heavy OCR dependencies.
 unpickler that maps `xword_ocr.harvest.*` to the new module, tested by loading
 today's state and relinking all 511 Judge puzzles byte-identically. (Later,
 replace pickle with JSON so state survives refactors.)
+
+## v3: harvest on its own, blitz orchestrates (decided 2026-10-18)
+
+The table above has never been carried out. Instead, `harvest.py` grew to about 2,400
+lines inside xword-ocr, and the pipeline v2 stages, the watch server and the text step all
+went into xword-ocr too. On 2026-10-18 this was settled as **v3**, after GAMES 1977-79 ships
+on v2. Nothing moves mid-batch.
+
+| Component | Owns | Doesn't know about |
+|---|---|---|
+| **harvest**, a standalone package (no longer blitz's `harvest/` folder) | sources (archive.org, later others), a publication's inventory, page fetching and scan choice, answer-page pointers, page requests. In: a publication and a date range. Out: a manifest of pages. | OCR, puzzles |
+| **xword-ocr**, the library | image in, puzzle data out: page OCR, layout and regions, parts, grids and keys; possibly assembly and the text step, as "linking" | where pages come from, batches, the site |
+| **blitz**, the one CLI | the **batch** (named, with a status), orchestration, milestones and their invalidation, the **local server** (the watch page's stage views, plus the proof page, plus the batch dashboard), publish, import, export | how OCR works |
+
+Harvest is standalone rather than a folder in blitz because finding and fetching a
+publication's scans is useful beyond this pipeline (the catalog, the universe estimate),
+and its contract is clean.
+
+**The flow, as it should be in v3** (the goals are in both repos' CLAUDE.md: "The pipeline:
+runs quietly in the background" and "The north star"):
+1. A batch starts on a contributor's machine, from the CLI or with Claude running it.
+2. While it's in progress, the local server is the control room. The views form a chain:
+   - harvest (pages per issue);
+   - layout (region boxes, what's inside them);
+   - assembly;
+   - the proof page, with reviews saved straight to the ledger;
+   - the batch dashboard: triage, groups, exceptions.
+
+   Packets are rebuilt when they're opened, if anything upstream changed.
+3. Triage, the agent passes, and a person's diagnoses in those views.
+4. Publish the batch: packets to R2, the batch's status on the hosted site's `/review`
+   landing, decisions to git (the publication repo).
+5. Import into `<pub>/xd/`. Each puzzle records the fingerprint and R2 location of the proof
+   packet that backs it, so the evidence stays tied to the xd.
+6. Export to gxd, with provenance pointing at the proof.
+
+**Until v3, new orchestration code is written in blitz's shape**, so it doesn't have to be
+moved later: batches, milestones and invalidation, the unified local server. That holds even
+while it runs off the xword-ocr watch.
 
 ## How contributions come in (decided 2026-10-09)
 
