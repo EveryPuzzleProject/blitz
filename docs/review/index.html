@@ -43,6 +43,36 @@ body:not(.show-changes) .legend { display: none; }
 #sitebar[hidden] { display: none; }
 #sitebar .pickgrp { margin-left: auto; }
 #sitebar select { font: inherit; font-size: 13px; max-width: 420px; }
+#browse { position: relative; background: #fffbef; border-bottom: 1px solid #ecd9a0; padding: 12px 16px; max-height: 70vh; overflow-y: auto; }
+#browse[hidden] { display: none; }
+#browse .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+#browse a.card { display: block; background: #fff; border: 1px solid var(--line); border-radius: 6px; padding: 6px; color: var(--ink); text-decoration: none; font-size: 12px; line-height: 1.3; }
+#browse a.card:hover { border-color: var(--ink); }
+#browse a.card.cur { box-shadow: 0 0 0 2px var(--ink); }
+#browse a.card.done { opacity: .55; }
+#browse .thumb { aspect-ratio: 1; background: #f4f1ea; border-radius: 3px; margin-bottom: 5px; display: flex; align-items: center; justify-content: center; overflow: hidden; color: var(--muted); }
+#browse .thumb img { width: 100%; height: 100%; object-fit: contain; }
+#browse .id { color: var(--muted); font-size: 11px; }
+#browse .tt { font-weight: 600; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+#browse .bits { color: var(--bad); font-size: 11px; }
+#browse .tabs { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; font-size: 13px; }
+#browse .tabs .hint { color: var(--muted); font-size: 12px; }
+#browse .put { color: var(--ok); font-size: 11px; }
+#browse .dcard { grid-column: span 2; background: #fff; border: 1px solid var(--line); border-radius: 6px; padding: 8px; font-size: 12px; line-height: 1.35; }
+#browse .dcard.cur { box-shadow: 0 0 0 2px var(--ink); }
+#browse .dcard .pics { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 6px; }
+#browse .dcard .pg { display: block; aspect-ratio: 1; background: #f4f1ea; border-radius: 3px; overflow: hidden; }
+#browse .dcard .pg img { width: 100%; height: 100%; object-fit: cover; object-position: top; }
+#browse .dcard .why { margin: 4px 0 6px; }
+#browse .dcard .acts { display: flex; gap: 8px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+#browse .dcard .acts button { font-size: 12px; padding: 4px 10px; }
+#browse .rsform { margin-top: 6px; display: flex; gap: 6px; flex-wrap: wrap; }
+#browse .rsform[hidden] { display: none; }
+#browse .rsform input { flex: 1 1 100%; font: inherit; font-size: 12px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 4px; }
+#browse .rsform button { font-size: 12px; padding: 4px 10px; }
+#browse .rserr { flex-basis: 100%; color: var(--bad); }
+.dropnote { background: var(--badbg); border-bottom: 1px solid #e9b4ae; padding: 6px 16px; font-size: 13px; }
+@media (max-width: 500px) { #browse .cards { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); } }
 main { max-width: 1220px; margin: 0 auto; padding: 16px; }
 section { background: var(--paper); border: 1px solid var(--line); border-radius: 8px; margin-bottom: 18px; }
 section > h2 { font-size: 15px; margin: 0; padding: 10px 14px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 10px; }
@@ -250,8 +280,9 @@ footer button:disabled { opacity: .4; cursor: default; }
 <div id="sitebar" hidden>
   <b>Help check old crosswords.</b> Compare our text with the printed scan, line by line; fix what's wrong,
   then say whether each part looks good. <a href="../review-old/">The old review page</a>
-  <span class="pickgrp"><select id="order" title="Which puzzles come first"><option value="date">By date</option><option value="worst">Worst first</option></select> Puzzle <select id="pick"></select> <button class="t" id="nextpz">Next puzzle →</button></span>
+  <span class="pickgrp"><select id="order" title="Which puzzles come first"><option value="date">By date</option><option value="worst">Worst first</option></select> Puzzle <select id="pick"></select> <button class="t" id="browsebtn" title="Every open puzzle, with a picture of its grid">▦ Browse</button> <button class="t" id="nextpz">Next puzzle →</button></span>
 </div>
+<div id="browse" hidden><div class="tabs"></div><div class="cards"></div></div>
 <header>
   <h1 id="title">…</h1>
   <div class="grp"><span>Layers</span>
@@ -310,9 +341,15 @@ async function pickPuzzle() {
   if (!SITE) return;
   const h = {apikey: SITE.supabaseAnonKey, Authorization: 'Bearer ' + SITE.supabaseAnonKey};
   const get = q => fetch(`${SITE.supabaseUrl}/rest/v1/${q}`, {headers: h}).then(r => r.ok ? r.json() : []);
-  let [list, said] = await Promise.all([get('puzzles?select=xdid,title,base_url,checkup&open=eq.true&order=xdid'),
-                                        get('proofs?select=xdid,decision,user_id')]);
-  if (!list.length) list = await get('puzzles?select=xdid,title,base_url&open=eq.true&order=xdid');  // no checkup column
+  let [all, said, put] = await Promise.all([get('puzzles?select=xdid,title,base_url,files,checkup,dropped&open=eq.true&order=xdid'),
+                                            get('proofs?select=xdid,decision,user_id'), get('restores?select=xdid,who,user_id,at&order=at')]);
+  if (!all.length) all = await get('puzzles?select=xdid,title,base_url,files,checkup&open=eq.true&order=xdid');  // no dropped column
+  if (!all.length) all = await get('puzzles?select=xdid,title,base_url,files&open=eq.true&order=xdid');  // no checkup column
+  // dropped as not crosswords (site/schema-7-drops.sql): out of the picker and Next, under Browse's
+  // "Dropped" with a Restore button; a helper's restore puts the puzzle back at once
+  const restored = {};
+  for (const r of put) restored[r.xdid] = r;
+  const isDropped = p => p.dropped && !restored[p.xdid];
   // the puzzles this helper has already proofed: Next skips them, so the open puzzles work as a queue
   let me = null;
   try { me = sb ? (await sb.auth.getSession()).data.session?.user?.id : null; } catch (e) {}
@@ -324,10 +361,14 @@ async function pickPuzzle() {
   let order = params.get('order');
   try { order = order || localStorage.getItem('proof-order') || 'date'; } catch (e) { order = order || 'date'; }
   const g = p => ({check: 0, look: 1, clean: 2})[p.checkup?.grade] ?? 3;
-  if (order === 'worst') list.sort((a, b) => (notReady[b.xdid] || 0) - (notReady[a.xdid] || 0) || g(a) - g(b)
+  if (order === 'worst') all.sort((a, b) => (notReady[b.xdid] || 0) - (notReady[a.xdid] || 0) || g(a) - g(b)
     || (b.checkup?.high || 0) - (a.checkup?.high || 0) || (b.checkup?.medium || 0) - (a.checkup?.medium || 0) || (a.xdid < b.xdid ? -1 : 1));
-  const want = params.get('p'), i = Math.max(0, list.findIndex(p => p.xdid === want));
-  ID = list[i].xdid; dir = list[i].base_url + '/';
+  const want = params.get('p');
+  const here = all.find(p => p.xdid === want) || all.find(p => !isDropped(p)) || all[0];
+  ID = here.xdid; dir = here.base_url + '/';
+  // the picker and Next: the open puzzles (and this one, if it's dropped and you came to look at it)
+  let list = all.filter(p => !isDropped(p) || p === here);
+  const i = list.indexOf(here);
   const go = (x, o = order) => { const u = new URL(location.href); u.searchParams.set('p', x); u.searchParams.set('order', o); location.href = u.href; };
   const label = p => {
     const c = p.checkup || {}, bits = [];
@@ -335,11 +376,89 @@ async function pickPuzzle() {
     if (c.grade && c.grade !== 'clean') bits.push(GRADE[c.grade] + (c.high ? ` (${c.high} serious)` : ''));
     if (mine.has(p.xdid)) bits.push('done by you');
     if (reviews[p.xdid]) bits.push(`${reviews[p.xdid]} review${reviews[p.xdid] > 1 ? 's' : ''}`);
+    if (isDropped(p)) bits.unshift('dropped: not a crossword?');
     return `${p.xdid}: ${(p.title || '').replace(/^Judge's Crossword Puzzle /, '')}${bits.length ? ' · ' + bits.join(' · ') : ''}`;
   };
   const sel = document.getElementById('pick');
-  sel.innerHTML = list.map(p => `<option value="${esc(p.xdid)}"${p.xdid === ID ? ' selected' : ''}>${esc(label(p))}</option>`).join('');
+  const fillPicker = () => {
+    sel.innerHTML = list.map(p => `<option value="${esc(p.xdid)}"${p.xdid === ID ? ' selected' : ''}>${esc(label(p))}</option>`).join('');
+  };
+  fillPicker();
   sel.onchange = () => go(sel.value);
+  // Browse: every open puzzle as a card with a picture of its grid (thumb.png from site-publish, else
+  // the grid crop), in the picker's order, to tell puzzles apart at a glance. "Dropped": the puzzles
+  // dropped as not crosswords, each with its page, who dropped it and why, and Restore.
+  const bp = document.getElementById('browse'), bb = document.getElementById('browsebtn');
+  const link = p => { const u = new URL(location.href); u.searchParams.set('p', p.xdid); u.searchParams.set('order', order); u.searchParams.delete('browse'); return u.href; };
+  const pic = (p, ...names) => { const f = p.files || {}, n = names.find(x => f[x]); return n ? p.base_url + '/' + n : ''; };
+  const ttl = p => esc((p.title || '').replace(/^Judge's Crossword Puzzle /, '')) || '<span class="id">(no title)</span>';
+  const card = p => {
+    const img = pic(p, 'thumb.png', 'grid.png'), c = p.checkup || {}, bits = [];
+    if (notReady[p.xdid]) bits.push(`not ready (${notReady[p.xdid]})`);
+    if (c.grade && c.grade !== 'clean') bits.push(GRADE[c.grade]);
+    const r = p.dropped && restored[p.xdid];
+    return `<a class="card${p.xdid === ID ? ' cur' : ''}${mine.has(p.xdid) ? ' done' : ''}" href="${esc(link(p))}">`
+      + `<div class="thumb">${img ? `<img loading="lazy" alt="" src="${esc(img)}">` : 'no picture'}</div>`
+      + `<div class="id">${esc(p.xdid)}${mine.has(p.xdid) ? ' · ✓ done by you' : ''}</div>`
+      + `<div class="tt">${ttl(p)}</div>`
+      + (r ? `<div class="put">restored by ${esc(r.who || 'a helper')}</div>` : '')
+      + (bits.length ? `<div class="bits">${esc(bits.join(' · '))}</div>` : '') + '</a>';
+  };
+  const dcard = p => {
+    const grid = pic(p, 'thumb.png', 'grid.png'), page = pic(p, 'page-small.jpg', 'page.jpg'), d = p.dropped || {};
+    return `<div class="dcard${p.xdid === ID ? ' cur' : ''}" data-x="${esc(p.xdid)}">`
+      + `<div class="pics"><div class="thumb">${grid ? `<img loading="lazy" alt="the grid" src="${esc(grid)}">` : 'no grid'}</div>`
+      + `<a class="pg" href="${esc(pic(p, 'page.jpg') || page)}" target="_blank" title="the whole page">${page ? `<img loading="lazy" alt="its page" src="${esc(page)}">` : 'no page'}</a></div>`
+      + `<div class="id">${esc(p.xdid)}</div><div class="tt">${ttl(p)}</div>`
+      + `<div class="why"><b>Dropped by ${esc(d.by || 'someone')}</b>: ${esc((d.note || '').replace(/^triage: /, ''))}</div>`
+      + `<div class="acts"><a href="${esc(link(p))}">Proof page →</a><button class="plain rs">It's a crossword: Restore</button></div>`
+      + `<div class="rsform" hidden><input class="rsnote" maxlength="500" placeholder="Why it's a crossword (optional)">`
+      + `<button class="good rsgo">Restore</button> <button class="plain rsno">Cancel</button><div class="rserr"></div></div></div>`;
+  };
+  let view = 'open';
+  const paint = () => {
+    const drops = all.filter(isDropped), open = all.filter(p => !isDropped(p));
+    bp.querySelector('.tabs').innerHTML = `<button class="t${view === 'open' ? ' on' : ''}" data-v="open">Open (${open.length})</button>`
+      + (drops.length || view === 'dropped' ? ` <button class="t${view === 'dropped' ? ' on' : ''}" data-v="dropped">Dropped: not a crossword? (${drops.length})</button>` : '')
+      + (view === 'dropped' ? '<span class="hint">Each was taken out as not a crossword. If one is, Restore puts it back for review.</span>' : '');
+    bp.querySelectorAll('.tabs button').forEach(b => b.onclick = () => { view = b.dataset.v; paint(); });
+    const cards = bp.querySelector('.cards');
+    cards.innerHTML = view === 'dropped' ? (drops.map(dcard).join('') || '<p class="hint">Nothing is dropped.</p>') : open.map(card).join('');
+    cards.querySelectorAll('.dcard').forEach(el => {
+      const f = el.querySelector('.rsform');
+      el.querySelector('.rs').onclick = () => { f.hidden = false; f.querySelector('input').focus(); };
+      el.querySelector('.rsno').onclick = () => { f.hidden = true; };
+      el.querySelector('.rsgo').onclick = async () => {
+        const b = el.querySelector('.rsgo');
+        b.disabled = true; b.textContent = 'Restoring…';
+        try {
+          restored[el.dataset.x] = await restorePuzzle(el.dataset.x, f.querySelector('input').value.trim());
+          list = all.filter(p => !isDropped(p) || p === here); fillPicker(); paint();
+        } catch (e) {
+          b.disabled = false; b.textContent = 'Restore';
+          f.querySelector('.rserr').textContent = `Couldn't restore it: ${e.message || e}. Try again in a moment.`;
+        }
+      };
+    });
+    const cur = cards.querySelector('.cur');
+    bp.scrollTop = cur ? cur.offsetTop - 12 : 0;  // the puzzle you're on, at the top of the panel
+  };
+  bb.onclick = () => {
+    if (!bp.hidden) { bp.hidden = true; bb.classList.remove('on'); return; }
+    bp.hidden = false; bb.classList.add('on');
+    paint();
+  };
+  const bv = params.get('browse');
+  if (bv !== null) { view = bv === 'dropped' || isDropped(here) ? 'dropped' : 'open'; bp.hidden = true; bb.onclick(); }
+  document.querySelector('.dropnote')?.remove();
+  if (isDropped(here)) {  // came to look at a dropped puzzle: say so, and offer the way back
+    const n = document.createElement('div');
+    n.className = 'dropnote';
+    n.innerHTML = `<b>Dropped as not a crossword</b> by ${esc(here.dropped.by || 'someone')}: ${esc((here.dropped.note || '').replace(/^triage: /, ''))} `
+      + `<button class="t">Restore it in Browse</button>`;
+    n.querySelector('button').onclick = () => { view = 'dropped'; if (bp.hidden) bb.onclick(); else paint(); };
+    document.getElementById('sitebar').after(n);
+  }
   const os = document.getElementById('order');
   os.value = order;
   os.onchange = () => {
@@ -715,6 +834,21 @@ async function submitReview(d) {
     .filter(Boolean).join('; ').slice(0, 500);
   const v = await sb.from('verdicts').upsert({xdid: ID, user_id: uid, verdict: d === 'ready' && !n ? 'looks-right' : 'needs-work', note, at});
   if (v.error) throw v.error;
+}
+// a helper's decision that a puzzle dropped as not a crossword is one: a row in restores (one per helper
+// per puzzle), which site-import carries to the publication's ledger as a person's keep on drop:<pid>
+async function restorePuzzle(xdid, note) {
+  let {data: {session}} = await sb.auth.getSession();
+  if (!session) {
+    const r = await sb.auth.signInAnonymously();
+    if (r.error) throw r.error;
+    session = r.data.session;
+  }
+  const who = (document.getElementById('who')?.value || '').trim().slice(0, 40);
+  const row = {xdid, user_id: session.user.id, who, note: note.slice(0, 500), at: new Date().toISOString()};
+  const p = await sb.from('restores').upsert(row);
+  if (p.error) throw p.error;
+  return {...row, who: who || 'you'};
 }
 // known issues: true of the puzzle, not mistakes in our transcription; the reviewer acknowledges each one
 function knownIssues() {

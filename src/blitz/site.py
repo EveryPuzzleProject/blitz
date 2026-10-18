@@ -162,12 +162,60 @@ def _pub(xdid: str) -> str:
     return xdid[:len(xdid) - len(xdid.lstrip("abcdefghijklmnopqrstuvwxyz"))] or "misc"  # judge1931-10-03 -> judge
 
 
+def _thumb(packet: Path, size: int = 160) -> bytes | None:
+    """A small picture of the puzzle's grid (its crop from the scan, grid.png) for the site's Browse
+    list, so helpers can tell puzzles apart at a glance. None when the packet has no grid crop."""
+    import io
+
+    from PIL import Image
+
+    src = packet / "grid.png"
+    if not src.exists():
+        return None
+    with Image.open(src) as im:
+        im = im.convert("L")
+        im.thumbnail((size, size), Image.LANCZOS)
+        buf = io.BytesIO()
+        im.save(buf, "PNG", optimize=True)
+    return buf.getvalue()
+
+
+def _page_small(packet: Path, width: int = 420) -> bytes | None:
+    """The puzzle's page (page.jpg) small enough to read its layout at a glance: shown on a dropped
+    puzzle's card, so a helper sees what was dropped without opening it."""
+    import io
+
+    from PIL import Image
+
+    src = packet / "page.jpg"
+    if not src.exists():
+        return None
+    with Image.open(src) as im:
+        im = im.convert("RGB")
+        im.thumbnail((width, width * 2), Image.LANCZOS)
+        buf = io.BytesIO()
+        im.save(buf, "JPEG", quality=78, optimize=True)
+    return buf.getvalue()
+
+
+def dropped(folder: Path) -> dict[str, dict]:
+    """The folder's puzzles dropped as not crosswords: {pid: {by, note}}, from its dropped.json
+    (xword-ocr proof-packets writes it from the publication's ledger, drop:<pid>). They go on the
+    site marked dropped, out of the review page's lists, under Browse's "Dropped" with a Restore
+    button; a person's keep in the ledger takes a puzzle off dropped.json."""
+    f = folder / "dropped.json"
+    return json.loads(f.read_text(encoding="utf-8")) if f.exists() else {}
+
+
 def publish(folder: Path, batch: str = "", dry_run: bool = False, skip: tuple[str, ...] = (),
             squares_only: bool = False) -> list[str]:
     """Put a folder's reviewed puzzles on the site (except the puzzles in skip: e.g. ones already imported),
     and its key squares (key-squares.json from `blitz key-squares`) if it has them. squares_only: only the
     key squares and the key images their cards crop, without opening the puzzles' review pages.
+    Puzzles in the folder's dropped.json go up marked dropped, with who dropped them and why
+    (site/schema-7-drops.sql); a puzzle no longer on that list goes up open again.
     Returns the puzzles published."""
+    drops = dropped(folder)
     squares = (json.loads((folder / "key-squares.json").read_text(encoding="utf-8"))
                if (folder / "key-squares.json").exists() else None)
     if squares_only and not squares:
@@ -241,6 +289,16 @@ def publish(folder: Path, batch: str = "", dry_run: bool = False, skip: tuple[st
                     "ContentType": mimetypes.guess_type(f)[0] or "application/octet-stream",
                     "CacheControl": "no-cache" if f.endswith(".json") else "public, max-age=86400"})
                 files[f] = True
+        thumb = _thumb(d)
+        if thumb:
+            s3.put_object(Bucket=bucket, Key=f"{pub}/{d.name}/thumb.png", Body=thumb, ContentType="image/png",
+                          CacheControl="public, max-age=86400")
+            files["thumb.png"] = True
+        small = _page_small(d) if d.name in drops else None
+        if small:
+            s3.put_object(Bucket=bucket, Key=f"{pub}/{d.name}/page-small.jpg", Body=small, ContentType="image/jpeg",
+                          CacheControl="public, max-age=86400")
+            files["page-small.jpg"] = True
         rv = json.loads((d / "review.json").read_text(encoding="utf-8"))
         ocr = json.loads((d / "ocr.json").read_text(encoding="utf-8"))
         status = "escalated" if rv.get("escalate") else ("ready" if rv.get("ready") else "needs a person")
@@ -250,15 +308,25 @@ def publish(folder: Path, batch: str = "", dry_run: bool = False, skip: tuple[st
                      "base_url": f"{public.rstrip('/')}/{pub}/{d.name}", "files": files,
                      "review_status": status, "open": True,
                      "checkup": {"grade": cu.get("grade", ""), "high": sum(w["level"] == "high" for w in cu.get("warnings", [])),
-                                 "medium": sum(w["level"] == "medium" for w in cu.get("warnings", []))} if cu else None})
+                                 "medium": sum(w["level"] == "medium" for w in cu.get("warnings", []))} if cu else None,
+                     "dropped": ({"by": drops[d.name].get("by", ""), "note": drops[d.name].get("note", "")[:500]}
+                                 if d.name in drops else None)})
         print(f"  {d.name}: {len(files)} files")
     try:
         _rest("POST", "puzzles?on_conflict=xdid", rows, prefer="resolution=merge-duplicates,return=minimal")
     except urllib.error.HTTPError as e:  # the checkup column (schema-4-checkup.sql) isn't there yet: publish without it
-        if "checkup" not in e.read().decode("utf-8", "replace"):
+        msg = e.read().decode("utf-8", "replace")
+        if "dropped" in msg:  # no dropped column (schema-7-drops.sql) yet
+            if drops:
+                raise Stop(f"{len(drops)} puzzles here are dropped as not crosswords, and the site has no place to mark "
+                           "them yet: run site/schema-7-drops.sql once in the Supabase SQL editor, then publish again.")
+            _rest("POST", "puzzles?on_conflict=xdid", [{k: v for k, v in r.items() if k != "dropped"} for r in rows],
+                  prefer="resolution=merge-duplicates,return=minimal")
+            return [r["xdid"] for r in rows]
+        if "checkup" not in msg:
             raise
         print("  (no checkup column yet: run site/schema-4-checkup.sql to show grades in the list)")
-        _rest("POST", "puzzles?on_conflict=xdid", [{k: v for k, v in r.items() if k != "checkup"} for r in rows],
+        _rest("POST", "puzzles?on_conflict=xdid", [{k: v for k, v in r.items() if k not in ("checkup", "dropped")} for r in rows],
               prefer="resolution=merge-duplicates,return=minimal")
     if squares:
         publish_squares(squares, base, batch or folder.name)
@@ -346,6 +414,14 @@ def fetch_decisions(agreed_only: bool = False) -> dict:
             "decision": r["decision"], "edits": rv.get("edits", {}), "comments": rv.get("comments", []),
             "parts": rv.get("status", {}), "note": rv.get("note", ""), "at": r["at"],
             "xd": rv.get("xd", "")}  # the xd version the page showed (packet xd_fp); "" before 2026-10-13
+    # puts back of puzzles dropped as not crosswords (site/schema-7-drops.sql): per helper, a note and when;
+    # the importer records each as a person's keep on drop:<pid> in the publication's ledger
+    try:
+        restores = _rest("GET", "restores?select=*&order=at") or []
+    except urllib.error.HTTPError:  # no restores table yet
+        restores = []
+    for r in restores:
+        get(r["xdid"]).setdefault("restores", {})[r.get("who") or who(r)] = {"note": r.get("note", ""), "at": r["at"]}
     for x, sq in fetch_squares().items():
         get(x)["squares"] = sq
     for x, p in out.items():
