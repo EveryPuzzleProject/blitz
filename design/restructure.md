@@ -147,7 +147,7 @@ unpickler that maps `xword_ocr.harvest.*` to the new module, tested by loading
 today's state and relinking all 511 Judge puzzles byte-identically. (Later,
 replace pickle with JSON so state survives refactors.)
 
-## v3: harvest on its own, blitz orchestrates (decided 2026-10-18)
+## v3: harvest on its own, a viewer without the code, blitz orchestrates (decided 2026-10-18)
 
 The table above has never been carried out. Instead, `harvest.py` grew to about 2,400
 lines inside xword-ocr, and the pipeline v2 stages, the watch server and the text step all
@@ -158,23 +158,46 @@ on v2. Nothing moves mid-batch.
 |---|---|---|
 | **harvest**, a standalone package (no longer blitz's `harvest/` folder) | sources (archive.org, later others), a publication's inventory, page fetching and scan choice, answer-page pointers, page requests. In: a publication and a date range. Out: a manifest of pages. | OCR, puzzles |
 | **xword-ocr**, the library | image in, puzzle data out: page OCR, layout and regions, parts, grids and keys; possibly assembly and the text step, as "linking" | where pages come from, batches, the site |
-| **blitz**, the one CLI | the **batch** (named, with a status), orchestration, milestones and their invalidation, the **local server** (the watch page's stage views, plus the proof page, plus the batch dashboard), publish, import, export | how OCR works |
+| **blitz**, the one CLI: the orchestrator | the **batch** (named, with a status), orchestration, milestones and their invalidation, acting on decisions (re-running a stage from where it was invalidated), publish, import, export | how OCR works |
+| **the viewer**: static pages plus a tiny file server, with **none of the stage code** | every view: harvest, layout, assembly, the proof page, the batch dashboard. It reads milestone outputs (JSON and images) and writes decision files, nothing else. The same code serves the local folder and the hosted site (R2). | how anything is computed |
 
-Harvest is standalone rather than a folder in blitz because finding and fetching a
-publication's scans is useful beyond this pipeline (the catalog, the universe estimate),
-and its contract is clean.
+**The two most important pieces of v3: the viewer without the code, and the harvest
+split.**
+
+**The viewer without the code.** The viewer doesn't import xword-ocr or any stage, so it
+physically can't recompute anything. A dependency check in its tests also enforces this.
+Rules alone didn't hold: on 2026-10-18 the GAMES batch page grew its own key-finder,
+stricter than assembly's, and quietly disagreed with the pipeline (blitz's and xword-ocr's
+CLAUDE.md, "Views never compute").
+- **It draws; it doesn't judge.** It may crop and outline an image at recorded coordinates.
+  It never decides where a box goes.
+- **Actions write decisions.** Adjusting a box, a diagnosis, a restore or a relink each write
+  a decision file. The orchestrator sees it, invalidates that stage, re-runs from there and
+  writes new milestones, and the viewer redraws. Today's watch page buttons that run stages
+  directly (relink, read a page again) become requests.
+- **One viewer, local and hosted.** The hosted proof page already works this way: static
+  pages reading packets from R2. The local viewer is the same code over a local folder,
+  refreshing live when milestone files change. That ends the split between the watch page
+  and the site's proof page.
+- **Every value a view needs must be recorded by its milestone.** A gap shows as "not
+  recorded" on the page, and that list is the milestones' to-do list.
+
+**The harvest split.** Harvest is standalone rather than a folder in blitz because finding
+and fetching a publication's scans is useful beyond this pipeline (the catalog, the universe
+estimate), and its contract is clean.
 
 **The flow, as it should be in v3** (the goals are in both repos' CLAUDE.md: "The pipeline:
 runs quietly in the background" and "The north star"):
 1. A batch starts on a contributor's machine, from the CLI or with Claude running it.
-2. While it's in progress, the local server is the control room. The views form a chain:
+2. While it's in progress, the local viewer is the control room. The views form a chain:
    - harvest (pages per issue);
    - layout (region boxes, what's inside them);
    - assembly;
    - the proof page, with reviews saved straight to the ledger;
    - the batch dashboard: triage, groups, exceptions.
 
-   Packets are rebuilt when they're opened, if anything upstream changed.
+   The orchestrator rebuilds whatever a change or a decision invalidated, and the viewer
+   refreshes; the viewer never builds anything itself.
 3. Triage, the agent passes, and a person's diagnoses in those views.
 4. Publish the batch: packets to R2, the batch's status on the hosted site's `/review`
    landing, decisions to git (the publication repo).
@@ -183,8 +206,8 @@ runs quietly in the background" and "The north star"):
 6. Export to gxd, with provenance pointing at the proof.
 
 **Until v3, new orchestration code is written in blitz's shape**, so it doesn't have to be
-moved later: batches, milestones and invalidation, the unified local server. That holds even
-while it runs off the xword-ocr watch.
+moved later: batches, milestones and invalidation, and views that only read what milestones
+recorded. That holds even while it runs off the xword-ocr watch.
 
 ## How contributions come in (decided 2026-10-09)
 
