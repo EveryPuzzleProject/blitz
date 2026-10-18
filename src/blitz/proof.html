@@ -269,6 +269,7 @@ footer button:disabled { opacity: .4; cursor: default; }
   then say whether each part looks good. <a href="../review-old/">The old review page</a>
   <span class="pickgrp"><select id="order" title="Which puzzles come first"><option value="date">By date</option><option value="worst">Worst first</option></select> Puzzle <select id="pick"></select> <button class="t" id="browsebtn" title="Every open puzzle, with a picture of its grid">▦ Browse</button> <button class="t" id="nextpz">Next puzzle →</button></span>
 </div>
+<div id="walkbar" hidden style="background:#eef4ff;border-bottom:1px solid #c9d8f2;padding:6px 16px;font-size:13px;display:flex;gap:10px;align-items:center;flex-wrap:wrap"></div>
 <div id="browse" hidden><div class="tabs"></div><div class="cards"></div></div>
 <header>
   <h1 id="title">…</h1>
@@ -1927,6 +1928,21 @@ addEventListener('keyup', e => {
 addEventListener('mousedown', e => { if (selCell && !e.target.closest('.typedgrid, .acells, .compose')) { selCell = null; regrid(); } });
 
 start().catch(e => document.getElementById('main').textContent = 'Could not load ' + dir + ': ' + e);
+// locally, ?list=<url> (the batch page's walk through one group of puzzles): which group, where in it,
+// this puzzle's decision there, and Prev / Next to the others, keeping ?base, ?save and ?list
+if (!SITE && params.get('list')) (async () => {
+  const items = await fetch(params.get('list')).then(r => r.json()).catch(() => null);
+  if (!Array.isArray(items) || !items.length) return;
+  const i = items.findIndex(x => x.pid === ID), bar = document.getElementById('walkbar');
+  const to = x => { const u = new URL(location.href); u.searchParams.set('p', x.pid); u.searchParams.delete('k'); return u.href; };
+  const back = params.get('back');
+  bar.innerHTML = `<b>${esc(items[0].label)}</b> <span>${i + 1} of ${items.length}</span>`
+    + (i >= 0 && items[i].choice ? ` <span style="border:1px solid currentColor;border-radius:10px;padding:0 7px">${esc(items[i].choice)}</span>` : '')
+    + (i > 0 ? ` <a href="${to(items[i - 1])}">← ${esc(items[i - 1].title || items[i - 1].pid)}</a>` : '')
+    + (i + 1 < items.length ? ` <a href="${to(items[i + 1])}"><b>Next: ${esc(items[i + 1].title || items[i + 1].pid)} →</b></a>` : ' <span>last in this group</span>')
+    + (back ? ` <a style="margin-left:auto" href="${esc(back)}">back to the batch</a>` : '');
+  bar.hidden = false;
+})();
 </script>
 </body>
 </html>
