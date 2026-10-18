@@ -1,0 +1,531 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GAMES, 1977–1979: the pipeline, take two</title>
+<meta name="description" content="81 crosswords from GAMES magazine's first three years, put through a rebuilt pipeline: separate stages with durable outputs, triage in code, and a Claude step that corrects only what's wrong, for about 7,700 tokens a puzzle.">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Every Puzzle Project">
+<meta property="og:title" content="GAMES, 1977–1979: the pipeline, take two">
+<meta property="og:description" content="A rebuilt pipeline on GAMES magazine: about 7,700 tokens a puzzle, less than half of what Judge cost, measured from the records.">
+<meta property="og:url" content="https://blitz.xwordapp.com/blog/v2-pipeline.html">
+<meta property="og:image" content="https://blitz.xwordapp.com/blog/img/games1979-07-watch-parts-leaf42.jpg">
+<meta name="robots" content="noindex">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 3 3%27%3E%3Crect width=%273%27 height=%273%27 fill=%27%23fff%27/%3E%3Crect width=%271%27 height=%271%27 fill=%27%231d1b17%27/%3E%3Crect x=%272%27 y=%272%27 width=%271%27 height=%271%27 fill=%27%231d1b17%27/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../style.css?v=202610021023">
+<style>
+  .post { max-width: 700px; }
+  .post p, .post li { font: 18px/1.6 var(--serif); }
+  .post li { margin: 4px 0; }
+  .post h1 { font-size: 34px; margin-top: 12px; }
+  .post h2 { font-size: 24px; margin-top: 40px; }
+  .post h3 { font: 600 19px var(--serif); margin: 28px 0 6px; }
+  .dek { font: 20px/1.5 var(--serif); color: var(--muted); margin: 6px 0 0; }
+  .byline { font-size: 14px; color: var(--muted); margin: 10px 0 24px; }
+  figure { margin: 24px 0; }
+  figure img { display: block; max-width: 100%; height: auto; border-radius: 4px; box-shadow: 0 1px 10px rgba(0,0,0,.15); background: #fff; }
+  figure.narrow img { max-width: 420px; width: 100%; }
+  figure.wide { margin-left: calc(min(0px, (700px - min(100vw - 32px, 960px)) / 2)); margin-right: calc(min(0px, (700px - min(100vw - 32px, 960px)) / 2)); }
+  figcaption { font-size: 14px; line-height: 1.45; color: var(--muted); margin-top: 8px; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 10px; margin: 24px 0; }
+  .stat { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .stat b { display: block; font: 700 30px/1.1 var(--serif); }
+  .stat span { font-size: 14px; color: var(--muted); }
+  /* the pipeline, as a row of steps that wraps */
+  .flow { list-style: none; padding: 0; margin: 14px 0 24px; display: flex; flex-wrap: wrap; gap: 10px 0; align-items: stretch; }
+  .flow li { font: 14px/1.35 var(--sans); display: flex; align-items: stretch; margin: 0; }
+  .flow li > div { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; width: 118px; }
+  .flow li > div b { display: block; font: 600 15px var(--sans); }
+  .flow li > div span { color: var(--muted); }
+  .flow li.who-agent > div { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); background: var(--accent-soft); }
+  .flow li.who-person > div { border-color: #d9822b; background: color-mix(in srgb, #d9822b 14%, var(--surface)); }
+  .flow li:not(:last-child)::after { content: "→"; align-self: center; color: var(--muted); padding: 0 6px; font-size: 18px; }
+  .flow-label { font: 600 14px var(--sans); color: var(--muted); margin: 22px 0 0; text-transform: uppercase; letter-spacing: .04em; }
+  .flowfig { overflow-x: auto; }
+  .flowfig svg { width: 100%; min-width: 560px; height: auto; display: block; }
+  .flowfig rect.m { fill: var(--surface); stroke: var(--line); }
+  .flowfig rect.a { fill: var(--accent-soft); stroke: color-mix(in srgb, var(--accent) 55%, var(--line)); }
+  .flowfig rect.p { fill: color-mix(in srgb, #d9822b 14%, var(--surface)); stroke: #d9822b; }
+  .flowfig text { font-family: var(--sans); fill: var(--ink); }
+  .flowfig .b { font-size: 13px; font-weight: 600; }
+  .flowfig .s { font-size: 11px; fill: var(--muted); }
+  .flowfig .vw { font-size: 11px; fill: var(--accent); }
+  .flowfig .lab { font-size: 11px; font-weight: 600; fill: var(--muted); letter-spacing: .04em; }
+  .flowfig .arr { font-size: 16px; fill: var(--muted); }
+  .flowfig line.v { stroke: var(--line); }
+  .flowfig path.back { fill: none; stroke: #d9822b; stroke-dasharray: 4 3; marker-end: none; }
+  .key { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 14px; color: var(--muted); margin-top: -12px; }
+  .sw { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; border: 1px solid var(--line); }
+  .bars svg { width: 100%; max-width: 600px; height: auto; display: block; }
+  .bars text { font: 14px var(--sans); fill: var(--ink); }
+  .bars .muted-t { fill: var(--muted); }
+  .bars .bar { fill: var(--accent); }
+  .bars .bar-dim { fill: color-mix(in srgb, var(--muted) 45%, var(--surface)); }
+  .bars .bar-over { fill: var(--surface); stroke: var(--muted); stroke-dasharray: 4 3; }
+  pre.packet { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px;
+    font: 12.5px/1.45 ui-monospace, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; margin: 20px 0 6px; }
+  pre.packet b { color: var(--bad); font-weight: 600; }
+  pre.packet i { color: var(--good); font-style: normal; }
+  .costs-wrap { overflow-x: auto; }
+  .costs { width: 100%; border-collapse: collapse; margin: 20px 0 6px; font: 15px/1.4 var(--sans); }
+  .costs.minw { min-width: 620px; }
+  .costs th, .costs td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .costs th { font-weight: 600; color: var(--muted); font-size: 13px; }
+  .costs td.n { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .costs th.n { text-align: right; }
+  .costs td.was { color: var(--muted); text-decoration: line-through; }
+  .post p.costs-note { font: 14px/1.45 var(--sans); color: var(--muted); margin: 4px 0 20px; }
+  .note { border-left: 3px solid var(--line); padding: 2px 0 2px 14px; color: var(--muted); }
+  .todo { border: 1px dashed #d9822b; background: color-mix(in srgb, #d9822b 10%, var(--surface)); border-radius: 8px;
+    padding: 8px 12px; font: 14px/1.45 var(--sans) !important; color: var(--ink); }
+  .todo::before { content: "TODO "; font-weight: 700; color: #b5651d; }
+  span.todo { display: inline; padding: 1px 6px; }
+  code { font: 0.86em ui-monospace, Consolas, monospace; }
+  @media (max-width: 520px) { .post p, .post li { font-size: 17px; } .post .flow li { font-size: 13px; } .post h1 { font-size: 28px; } .flow li > div { width: 112px; } }
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap"><a href="../">Every Puzzle Project</a><a class="muted" href="./" style="font: inherit; color: var(--muted)">Blog</a></div></header>
+<main class="wrap post">
+
+<h1><i>GAMES</i>, 1977–1979: the pipeline, take two</h1>
+<p class="dek">After <i>Judge</i>, we rebuilt the way a scanned puzzle becomes an
+  <a href="https://github.com/century-arcade/xdformat">xd</a> file. On the first three years of <i>GAMES</i> magazine, 81
+  crosswords, Claude now spends about 7,700 tokens a puzzle, less than half of what <i>Judge</i> took. Here is what
+  changed, the tools it gave us, and where every number comes from.</p>
+<p class="byline">Every Puzzle Project · draft, October 2026</p>
+
+<figure class="narrow">
+  <img src="img/games1979-07-watch-parts-leaf42.jpg" width="828" height="1590"
+    alt="A GAMES magazine page with a 19 by 19 crossword. Coloured boxes mark its parts: the title and byline in purple, the grid in blue, six clue columns in green, and the intro paragraph and footer in grey dashes. A numbered list of the parts is below the page.">
+  <figcaption>"4-Warned Is 4-Armed", by Jordan Lasher (<i>GAMES</i>, July/August 1979), as the pipeline sees it: each
+    part of the page in its own box, listed below. This puzzle lost its title in one version of the pipeline and found
+    it again in the next; the story is below.
+    <a href="https://archive.org/details/Games-Magazine-July-August-1979-images/page/n42/mode/2up">Scan on archive.org</a>.</figcaption>
+</figure>
+
+<p><i>GAMES</i> began in September 1977, and its crosswords were edited by Will Shortz. Next to the usual 15×15s it
+  printed illustrated crosswords, cryptics "à l'Anglaise", a five-by-five warmup for new solvers, a giant "World's
+  Most Ornery Crossword", and puzzles that bent the rules on purpose. <i>Judge</i>'s pages
+  (<a href="judge.html">our first series</a>) held one puzzle and its clues. A <i>GAMES</i> page can hold two puzzles,
+  an intro, a drawing and a pointer to the answers forty pages on.</p>
+
+<p>We used its first three years, 1977 to 1979, as a test bench for a second version of the pipeline. The goal was
+  simple to state: a pipeline that runs quietly in the background, where Claude spends tokens only where tools can't
+  do the work, and a person looks only at what needs judgement.</p>
+
+<div class="stats">
+  <div class="stat"><b>81</b><span>crosswords, from 14 issues, 1977–1979</span></div>
+  <div class="stat"><b>7,710</b><span>tokens a puzzle for Claude's text step (<i>Judge</i>: 17,741)</span></div>
+  <div class="stat"><b>0</b><span>puzzles read by Claude from the whole page</span></div>
+  <div class="stat"><b>0</b><span>tokens for triage, cross-checks and headers: all code</span></div>
+  <div class="stat"><b class="todo-n">TODO</b><span>puzzles that needed a person</span></div>
+</div>
+
+<h2>What <i>Judge</i> taught us</h2>
+
+<p><i>Judge</i> went well in the end: 531 puzzles, all of them now xd files linked to their scans. But three
+  things about how it got there set the agenda for the next version.</p>
+
+<p><b>An agent read every puzzle.</b> In <i>Judge</i>'s pipeline, the OCR made a first draft and then a Claude agent
+  reviewed each puzzle against crops of its scan. Packing the evidence well brought that review down from 60,000–90,000
+  tokens to 17,741 a puzzle (measured below), which made <i>Judge</i> affordable. But it still meant Claude looked at every puzzle,
+  including the many where nothing was wrong. Cost grew with the number of puzzles, not with the number of problems.</p>
+
+<p><b>The same fact lived in several places.</b> On the day we expected half an hour of touch-up, the review page,
+  the xd files, the "is it done?" status and the published site each worked out the puzzle's state on their own, and
+  they disagreed. Typed answer keys with no scan behind them, stale clues on the page, an importer that credited
+  replayed work to the wrong person. The whole day went on finding which copy was right.</p>
+
+<p><b>People fixed puzzles, not tools.</b> The project's maintainer made 489 edits by hand on 172 of the 531
+  puzzles. Each fixed one puzzle. When the same mistake came from the same stage in the next puzzle, someone had to
+  find it and fix it again.</p>
+
+<h2>What version 2 changed</h2>
+
+<figure class="flowfig"><svg viewBox="0 0 680 300" role="img" aria-label="Version 1: find, read, agent review of every puzzle, proof page, xd. Version 2: harvest, parts, assembly, text step, headers, triage, exceptions, each stage with its own view.">
+<text x="0" y="14" class="lab">VERSION 1, ON JUDGE</text>
+<rect x="0" y="24" width="88" height="58" rx="7" class="m"/><text x="8" y="43" class="b">Find</text><text x="8" y="60" class="s">pages, keys</text>
+<text x="89" y="58" class="arr">›</text>
+<rect x="98" y="24" width="88" height="58" rx="7" class="m"/><text x="106" y="43" class="b">Read</text><text x="106" y="60" class="s">OCR: a whole</text><text x="106" y="75" class="s">draft</text>
+<text x="187" y="58" class="arr">›</text>
+<rect x="196" y="24" width="88" height="58" rx="7" class="a"/><text x="204" y="43" class="b">Agent review</text><text x="204" y="60" class="s">every puzzle</text>
+<text x="285" y="58" class="arr">›</text>
+<rect x="294" y="24" width="88" height="58" rx="7" class="p"/><text x="302" y="43" class="b">Proof page</text><text x="302" y="60" class="s">a person checks</text><text x="302" y="75" class="s">the rest</text>
+<text x="383" y="58" class="arr">›</text>
+<rect x="392" y="24" width="88" height="58" rx="7" class="m"/><text x="400" y="43" class="b">xd</text><text x="400" y="60" class="s">from the ledger</text>
+<text x="0" y="122" class="lab">VERSION 2, ON GAMES: EACH STAGE WRITES ITS OUTPUT, AND HAS A VIEW</text>
+<rect x="0" y="132" width="88" height="58" rx="7" class="m"/><text x="8" y="151" class="b">Harvest</text><text x="8" y="168" class="s">pages, region</text><text x="8" y="183" class="s">boxes</text><line x1="44.0" y1="190" x2="44.0" y2="202" class="v"/><text x="44.0" y="216" text-anchor="middle" class="vw">watch: Puzzles</text><text x="44.0" y="230" text-anchor="middle" class="vw">on the pages</text>
+<text x="89" y="166" class="arr">›</text>
+<rect x="98" y="132" width="88" height="58" rx="7" class="m"/><text x="106" y="151" class="b">Parts</text><text x="106" y="168" class="s">what's in</text><text x="106" y="183" class="s">each box</text><line x1="142.0" y1="190" x2="142.0" y2="202" class="v"/><text x="142.0" y="216" text-anchor="middle" class="vw">watch: In</text><text x="142.0" y="230" text-anchor="middle" class="vw">the boxes</text>
+<text x="187" y="166" class="arr">›</text>
+<rect x="196" y="132" width="88" height="58" rx="7" class="m"/><text x="204" y="151" class="b">Assembly</text><text x="204" y="168" class="s">links parts</text><text x="204" y="183" class="s">into puzzles</text><line x1="240.0" y1="190" x2="240.0" y2="202" class="v"/><text x="240.0" y="216" text-anchor="middle" class="vw">watch:</text><text x="240.0" y="230" text-anchor="middle" class="vw">Assembled</text>
+<text x="285" y="166" class="arr">›</text>
+<rect x="294" y="132" width="88" height="58" rx="7" class="a"/><text x="302" y="151" class="b">Text step</text><text x="302" y="168" class="s">corrects only</text><text x="302" y="183" class="s">what's wrong</text><line x1="338.0" y1="190" x2="338.0" y2="202" class="v"/><text x="338.0" y="216" text-anchor="middle" class="vw">proof page:</text><text x="338.0" y="230" text-anchor="middle" class="vw">verdict, edits</text>
+<text x="383" y="166" class="arr">›</text>
+<rect x="392" y="132" width="88" height="58" rx="7" class="m"/><text x="400" y="151" class="b">Headers</text><text x="400" y="168" class="s">from printed</text><text x="400" y="183" class="s">lines, by rule</text><line x1="436.0" y1="190" x2="436.0" y2="202" class="v"/><text x="436.0" y="216" text-anchor="middle" class="vw">proof page:</text><text x="436.0" y="230" text-anchor="middle" class="vw">headers</text>
+<text x="481" y="166" class="arr">›</text>
+<rect x="490" y="132" width="88" height="58" rx="7" class="m"/><text x="498" y="151" class="b">Triage</text><text x="498" y="168" class="s">reason codes,</text><text x="498" y="183" class="s">gxd check</text><line x1="534.0" y1="190" x2="534.0" y2="202" class="v"/><text x="534.0" y="216" text-anchor="middle" class="vw">batch page,</text><text x="534.0" y="230" text-anchor="middle" class="vw">Board</text>
+<text x="579" y="166" class="arr">›</text>
+<rect x="588" y="132" width="88" height="58" rx="7" class="p"/><text x="596" y="151" class="b">Exceptions</text><text x="596" y="168" class="s">a person names</text><text x="596" y="183" class="s">the stage</text><line x1="632.0" y1="190" x2="632.0" y2="202" class="v"/><text x="632.0" y="216" text-anchor="middle" class="vw">back to that</text><text x="632.0" y="230" text-anchor="middle" class="vw">stage's view</text>
+<path d="M 637 238 C 637 290, 300 290, 300 238" class="back"/><text x="470" y="292" text-anchor="middle" class="s">a diagnosis reruns from that stage</text>
+</svg></figure>
+<div class="key"><span><i class="sw"></i>code</span><span><i class="sw" style="background:var(--accent-soft)"></i>Claude</span>
+  <span><i class="sw" style="background:color-mix(in srgb,#d9822b 14%,var(--surface))"></i>a person</span></div>
+
+<h3>Stages that write things down</h3>
+
+<p>Version 2 is a chain of named stages, which we call milestones: harvest, page OCR, regions, parts, assembly, the
+  text step, headers, the proof packet and triage. Each writes its result to disk in a documented format, along with
+  what it was made from: the code version, the stages before it, and any decisions people made. A stage runs once
+  and is reused until one of those changes. When a person decides a stage got something wrong, that stage and the
+  ones after it run again, and nothing else does.</p>
+
+<p>That answers <i>Judge</i>'s bad day by construction. There is one copy of each fact, made by one stage, and
+  everything downstream reads it. It also makes the pipeline cheap to inspect: an agent looking for a problem reads
+  a stage's output, a diff or a crop, not the page.</p>
+
+<h3>Assembly that only links</h3>
+
+<p>Assembly decides which grid, clue lists, headings and paragraphs on a page belong to which puzzle, and finds the
+  answer key in a later issue. It runs with no one's help ("hands-off"), from the harvest's own boxes. When a puzzle
+  points to a page the harvest never fetched, such as the page its answers are on, assembly writes a request for it; the next round
+  fetches the page, reads it, and puts the issue together again, until nothing is left open.</p>
+
+<p>Our first version of assembly also tried to decide which line was the title. On "4-Warned Is 4-Armed" it chose the
+  biggest line near the grid: "Answer Drawer, page 70", a pointer to the answers in the page's footer. The real title
+  sat above an intro paragraph that assembly had already set aside, so the next stage never saw it.</p>
+
+<pre class="packet" aria-label="The text step's verdict on the puzzle, before and after the change">run 4, the text step's verdict:
+  "...the title and byline are not among the printed lines and <b>L2 'Answer Drawer, page 70' is not the title.</b>"
+run 4, its note on the tools:
+  "assembly took the 'Answer Drawer' footer as the Title because it was the only large line near the grid;
+   the real heading is presumably above the intro article, outside the crop."
+
+run 6, after assembly stopped choosing:
+  <i>Title  ← B1 "“4-Warned Is 4-Armed”"</i>
+  <i>Byline ← B2 "by Jordan Lasher"</i>
+  <i>Author ← B2 "by Jordan Lasher"</i></pre>
+<p class="costs-note">From the text step's answers for this puzzle in runs 4 and 6
+  (<code>textstep/run4-7779</code>, <code>run6-7779</code>).</p>
+
+<p>Claude's text step saw that the title was wrong, but it couldn't fix it: the line wasn't there. So assembly now
+  only links. Every heading and block of text near a puzzle reaches the next stage whole, in reading order, and a
+  separate step makes the first guess at title, byline and number from those lines. Measured on all 81 puzzles, that
+  first guess got 62 titles right instead of 54, and 77 bylines instead of 75. The rule we took from it: a stage that
+  throws away evidence hides its mistakes from every stage after it. Err on passing too much along.</p>
+
+<h3>A text step that corrects only what's wrong</h3>
+
+<p>In version 1, Claude reviewed the whole puzzle. In version 2 it gets a text view of what the stages produced, with
+  crops chosen by code for anything that looked doubtful, and it writes back only the differences: a corrected clue,
+  a label for a printed line, which line each header comes from, a fill-in blank kept as printed, and a one-sentence
+  verdict when something is worth saying. For "4-Warned Is 4-Armed" that was six clues, two lines and three headers:</p>
+
+<pre class="packet" aria-label="Part of the text step's answer for 4-Warned Is 4-Armed">"A17": "\"Phantom 2\" fighter plane"      why: opening quote dropped
+"A53": "Where the IRT runs"              why: words run together
+"A74": "\"I ___ Camera\""                 why: blank misplaced and words run together; answer AM A
+"L6":  "Reprinted with permission of Jordan Lasher and the Stamford Marriott Hotel.
+        Copyright © 1979 by Jordan Lasher."    why: copyright symbol dropped by the reading
+verdict: Tournament rebus puzzle: the key has squares holding letters-as-words (B, C, Q, Z,
+         '.' etc.), so odd-looking answers are expected, not key misreads.</pre>
+<p class="costs-note">Excerpt from <code>answer.json</code>, run 6. It left the other clues alone.</p>
+
+<p>A rule carried over from <i>Judge</i> keeps this honest: anything it changes without having seen it on a crop is
+  marked "not sure", and shows that way to the person who checks it.</p>
+
+<h3>Triage in code</h3>
+
+<p>After the text step, code sorts every puzzle into <b>ship</b>, <b>glance</b>, <b>needs attention</b> or
+  <b>not a crossword</b>, each with reason codes: no answer key matched, key letters unread, a clue list missing, a
+  header typed by hand, things the text step wasn't sure of. It costs no tokens.</p>
+
+<p>Part of triage is a free cross-check against the <a href="https://xd.saul.pw">xd corpus</a> of later
+  crosswords. A clue and answer from 1978 that also appear in gxd confirm each other; a near miss is a likely
+  misreading. Of 5,489 clue–answer pairs in the batch, 2,532 match a pair in gxd exactly. Of the 14 answers that miss
+  a gxd answer for the same clue by one letter, 11 turned out to be real misreadings of the key.</p>
+
+<div class="costs-wrap"><table class="costs">
+  <thead><tr><th>Triage, run 6 (81 puzzles)</th><th class="n">Puzzles</th><th>Most common reasons</th></tr></thead>
+  <tbody>
+    <tr><td>Ship as is</td><td class="n">2</td><td></td></tr>
+    <tr><td>Glance</td><td class="n">36</td><td>text step unsure (56), unknown answers in gxd terms (16)</td></tr>
+    <tr><td>Needs attention</td><td class="n">39</td><td>no key matched (15), key misread (12), no verdict (11), clues unread (8)</td></tr>
+    <tr><td>Not a crossword</td><td class="n">4</td><td>a stock-market board game, an answer page, a puzzle square, a word game</td></tr>
+  </tbody>
+</table></div>
+<p class="costs-note">From <code>triage/run6/summary.md</code>, 18 October 2026. A puzzle can carry several reasons.
+  <span class="todo">replace with the final triage once the batch lands.</span></p>
+
+<h3>Agents go after kinds of failure, not puzzles</h3>
+
+<p>The biggest change is in what Claude is asked to do once triage has spoken. It no longer reads the flagged
+  puzzles one by one. It takes one kind of failure, traces one example back through the stages to its cause, fixes
+  the tool, re-runs the batch as computation only, and diffs the result. "4-Warned Is 4-Armed" was the model: one
+  puzzle traced back to assembly, one change to assembly, all 81 puzzles re-assembled in code, and the first-guess
+  titles of eight more puzzles came right with it. No agent went looking through the other 80; the text step ran again
+  only on the 65 whose printed lines had changed.</p>
+
+<p>So cost grows with the number of kinds of failure in a batch, maybe five to ten, not with the number of puzzles.
+  The same puzzle shows why not every flag is a failure. Its answer key really does print digits and letters as
+  words, and our key reader, which turns a 2 into a Z on purpose because it's usually right, read GO2THE as GOZTHE:</p>
+
+<figure class="wide">
+  <img src="img/games1979-07-L042-proof-fitb.jpg" width="1400" height="766"
+    alt="Rows of the proof page: each clue's printed line above our text, the answer's squares cut from the scanned key above our letters. For 16 Across the scan shows GO2THE and our letters GOZTHE. Two rows carry an amber note, blank added from the page image, and a FITB pill.">
+  <figcaption>The proof page for "4-Warned Is 4-Armed". 16 Across, "___ dogs (degenerate)", is GO 2 THE in the printed
+    key; the key reader made it GOZTHE. The right fix there is a diagnosis, "printed that way", not a change to the
+    reader. Amber notes mark blanks put back from the page image, and FITB pills mark fill-in-the-blank clues.</figcaption>
+</figure>
+
+<h3>A person diagnoses a stage</h3>
+
+<p>When an agent can't settle something, a person does, but not by retyping. They go to the stage the symptom points
+  at, and walk back from there:</p>
+
+<div class="costs-wrap"><table class="costs">
+  <thead><tr><th>If a puzzle has…</th><th>start at</th><th>and walk back to</th></tr></thead>
+  <tbody>
+    <tr><td>a few odd answers or clues</td><td>the proof page: what the OCR read, beside the crop</td><td>how that clue or key square was read</td></tr>
+    <tr><td>a missing or wrong title</td><td>the proof page: the header and its evidence</td><td>assembly (what was linked), then the parts in the box</td></tr>
+    <tr><td>missing clues or key</td><td>assembly: the boxes on the page</td><td>the regions, then the harvest (the page was never found)</td></tr>
+  </tbody>
+</table></div>
+
+<p>What they record is a diagnosis ("this box splits the puzzle", "this list continues on the next page", "printed that
+  way"), which reruns the pipeline from that stage. A typed correction fixes one puzzle; a diagnosis fixes the stage.</p>
+
+<h2>The tools</h2>
+
+<p>Every stage has a view, and the views link to each other, so a person can follow a puzzle from the proof page back
+  to the page it was found on. They are where people work: whatever someone should look at is shown there with its
+  evidence, and whatever they should decide is a button there that records who decided it.</p>
+
+<h3>The watch page</h3>
+
+<p>The watch page runs locally over a harvest's outputs, one tab per stage. <b>Issues</b> picks which scan of each
+  issue to use: <i>GAMES</i> exists in several uploaders' scans, and a series is more consistent read from one.</p>
+
+<figure class="wide">
+  <img src="img/games-watch-issues.jpg" width="1400" height="875"
+    alt="The watch page's Issues tab: five columns of scan series (supermagbag, wwcoop, archive, dlb, rhgnr), each with how many issues it covers and whether its scans are longer or shorter, and below, a row per issue with page thumbnails from each series and main, backup and skip buttons.">
+  <figcaption>Issues: five uploaders' scans of <i>GAMES</i>, compared issue by issue. One is chosen as the main series,
+    the others kept as backups.</figcaption>
+</figure>
+
+<p><b>Puzzles on the pages</b> shows every page the harvest kept, with a box around each puzzle. A box that is too
+  big or too small is the first thing to check, and it can be redrawn right there.</p>
+
+<figure class="wide">
+  <img src="img/games1977-09-watch-regions.jpg" width="1400" height="984"
+    alt="Three pages of the first GAMES issue, each with a blue box around a crossword: the Pencilwise page with an illustrated crossword, Flights of Fancy, and another illustrated crossword above a doodle puzzle.">
+  <figcaption>The first issue, September/October 1977: one box per puzzle. The doodle puzzle below the third box isn't
+    a crossword, and stays out.
+    <a href="https://archive.org/details/Games-Magazine-September_October-1977-images/page/n26/mode/2up">Scans on archive.org</a>.</figcaption>
+</figure>
+
+<p><b>In the boxes</b> is the parts stage: what was found inside each box, each part numbered and coloured by kind
+  (grid, clue list, heading, other text). It's the page at the top of this post. <b>Assembled</b> is the next stage:
+  each puzzle with the pages its parts came from, the key's page, and the checks that failed.</p>
+
+<figure class="wide">
+  <img src="img/games1979-07-watch-assembled-L042.jpg" width="1400" height="818"
+    alt="An assembled puzzle card: '4-Warned Is 4-Armed' by Jordan Lasher, 19x19, leaf 42; Across 98%, Down 100%, key on leaf 71; the intro and credit lines as notes; checks in red; the puzzle page and the answer page side by side with their parts outlined.">
+  <figcaption>Assembled: "4-Warned Is 4-Armed" with its page and, 29 pages later, its answer key (orange). The red
+    checks are what triage reads: one clue not read cleanly, two key letters unread.</figcaption>
+</figure>
+
+<p>The same view shows the trouble on pages where two puzzles share a page. <i>GAMES</i> often printed the warmup
+  beside the cryptic, and the two sets of headings, clue lists and intros sit close together:</p>
+
+<figure class="wide">
+  <img src="img/games1979-07-watch-assembled-shared.jpg" width="1400" height="1011"
+    alt="Two assembled puzzle cards for the same page: a 5 by 5 warmup puzzle and a 15 by 15 Crossword à l'Anglaise, each with the shared Pencilwise page and its own parts outlined.">
+  <figcaption>The warmup and the cryptic on one page, July/August 1979. Assembly's own title for the warmup ("for New
+    Solvers") is only half the printed two-line title; the headers step gets it right from the lines.
+    <a href="https://archive.org/details/Games-Magazine-July-August-1979-images/page/n26/mode/2up">Scan on archive.org</a>.</figcaption>
+</figure>
+
+<p><b>Board</b> lays out every open exception by stage, so it's clear at a glance where a batch is stuck.</p>
+
+<figure class="wide">
+  <img src="img/games-watch-board.jpg" width="1400" height="831"
+    alt="A board with columns for each stage: Source, OCR, Layout, Extraction, Assembly, Validation, AI review. The Assembly column holds cards such as 'No. 4 not found in its issue' and 'an answer key with no puzzle'; the AI review column holds puzzles ready for review.">
+  <figcaption>Board: open exceptions by stage. Here most sit in assembly: puzzles found after their issue's ids were
+    assigned, keys with no puzzle.</figcaption>
+</figure>
+
+<h3>The proof page</h3>
+
+<p>The proof page on the <a href="https://blitz.xwordapp.com/review/">review site</a> shows the xd file as it
+  stands, part by part, each with its evidence. Version 2 added the headers: each of the xd's header fields in a fixed
+  order, with the printed line it came from, the crop of the scan, what the OCR read, and the value in the xd.</p>
+
+<figure class="wide">
+  <img src="img/games1979-07-L042-proof-headers.jpg" width="1400" height="931"
+    alt="The proof page's header rows for 4-Warned Is 4-Armed: Title from line B1 with the scan crop and the OCR text; Number not found; Date from the issue's metadata; Byline and Author from line B2 with their crops; Editor not found.">
+  <figcaption>Headers with their evidence. Each says which printed line it was taken from, and a reviewer can pick a
+    different line from the list.</figcaption>
+</figure>
+
+<p>Below the headers come the other lines printed near the puzzle, each with Keep or Discard: an intro to keep, a page
+  footer to drop. The text step suggests the label; a person can change it.</p>
+
+<figure class="wide">
+  <img src="img/games1979-07-L042-proof-lines.jpg" width="1400" height="1063"
+    alt="A printed line on the proof page: the intro paragraph's crop, its corrected text with changes underlined and struck through, Keep and Discard buttons, a label chosen from a list, and a note from the text step explaining that the paragraph had been read in two interleaved pieces.">
+  <figcaption>The intro to "4-Warned Is 4-Armed", read across two columns and put back together by the text step. Its
+    note says what it did and why.</figcaption>
+</figure>
+
+<p>This is where the shared pages were caught. In run 4, the cryptic on the November/December 1978 Pencilwise page
+  carried the warmup's title and byline, "Warmup Puzzle for New Solvers, by J. L. Wilkinson", and the text step let it
+  pass. With every line passed along and the headers taken from printed lines by rule, run 6 has it right, with the
+  crops to prove it:</p>
+
+<figure class="wide">
+  <img src="img/games1978-11-L030b-proof-headers.jpg" width="1400" height="836"
+    alt="The proof page's headers for the November/December 1978 cryptic: Title 'Crossword à l'Anglaise' from line B1 and Byline 'by Will Shortz' from line B2, each beside its scan crop.">
+  <figcaption>Crossword à l'Anglaise, by Will Shortz, November/December 1978. In run 4 its title and byline were the
+    warmup's.
+    <a href="https://archive.org/details/Games-Magazine-November-December-1978-images/page/n30/mode/2up">Scan on archive.org</a>.</figcaption>
+</figure>
+
+<p>At the top, the text step's verdict and a list of everything it did, each item linked to its row. A rail down the
+  right edge marks every edit (green) and every doubt (amber), so a reviewer can jump from one to the next and skip the
+  rest.</p>
+
+<figure class="wide">
+  <img src="img/games1979-07-L042-proof-ops.jpg" width="1400" height="880"
+    alt="The verdict box and the expanded list 'What the LLM text step did': clues changed, lines corrected, headers taken from, other lines labelled, fill-in blanks, each entry linked to its row.">
+  <figcaption>The verdict and the list of edits. "4-Warned Is 4-Armed": 6 clues changed, 2 lines corrected, 3 headers
+    taken from printed lines, 5 other lines labelled, 18 fill-in blanks, 4 things it wasn't sure of.</figcaption>
+</figure>
+
+<figure class="wide">
+  <img src="img/games1979-07-L042-proof-key.jpg" width="1400" height="640"
+    alt="The answer key on the proof page: the scanned key on the left and our letters on the right, with several squares outlined in orange, among them the 4 in LOOK B4 U LEAP and the 2 in SO2.">
+  <figcaption>The rebus key. Outlined squares are ones the reader wasn't sure of; the scan shows LOOK B4 U LEAP, and a
+    person can type the 4 into its square.</figcaption>
+</figure>
+
+<h3>Browse, and what was dropped</h3>
+
+<p>Browse shows every open puzzle as a picture of its grid, in order, so a batch can be scanned by eye: a grid that
+  isn't a crossword, or a puzzle with no title, stands out.</p>
+
+<figure class="wide">
+  <img src="img/games-review-browse.jpg" width="1400" height="612"
+    alt="Browse on the review site: a grid of puzzle thumbnails, each with its id and title, such as Armchair Safari, Flights of Fancy, and A Stock Market Game, whose grid is a game board.">
+  <figcaption>Browse. "A Stock Market Game" (November 1977) is a board game, not a crossword; triage now drops it.</figcaption>
+</figure>
+
+<p class="todo">Screenshot of Browse's "Dropped: not a crossword?" list, with the four drops and their Restore buttons,
+  once the drops reach the site's database (batch landing).</p>
+
+<h3>The batch page</h3>
+
+<p class="todo">The batch page: the batch's triage at a glance, each puzzle's reasons with a thumbnail, and a link
+  into the proof page at the right row. Section and screenshot to be written once the "Land GAMES 1977–79" work
+  publishes it.</p>
+
+<h2>What it cost, measured</h2>
+
+<p>Every Claude agent's work is recorded in the session logs: how many tokens it read and wrote, and which puzzles it
+  was given. The numbers here come from those records, using the same count for every run: the tokens each agent
+  processed, divided by the puzzles it handled.</p>
+
+<figure class="bars">
+  <svg viewBox="0 0 600 168" role="img" aria-label="Claude tokens per puzzle: about 77,300 when Claude reads the pages, 17,741 for version 1's agent review, 7,710 for version 2's text step">
+    <text x="0" y="16" class="muted-t">Claude tokens a puzzle (measured)</text>
+    <text x="0" y="52">Claude reads the pages</text>
+    <rect x="215" y="36" width="330" height="24" rx="3" class="bar-dim"><title>77,288 tokens a puzzle (two Judge puzzles)</title></rect>
+    <rect x="215.5" y="36.5" width="221" height="23" rx="3" class="bar-over"><title>51,700 of it the agent's fixed setup</title></rect>
+    <text x="553" y="53">77,300</text>
+    <text x="0" y="96">v1: agent review (<tspan font-style="italic">Judge</tspan>)</text>
+    <rect x="215" y="80" width="76" height="24" rx="3" class="bar-dim"><title>17,741 tokens a puzzle, 311 puzzles</title></rect>
+    <text x="299" y="97">17,741</text>
+    <text x="0" y="140">v2: text step (<tspan font-style="italic">GAMES</tspan>)</text>
+    <rect x="215" y="124" width="33" height="24" rx="3" class="bar"><title>7,710 tokens a puzzle, 81 puzzles</title></rect>
+    <text x="256" y="141">7,710</text>
+  </svg>
+  <figcaption>The dashed part of the top bar is a general-purpose agent's fixed setup, before it reads anything.</figcaption>
+</figure>
+
+<div class="costs-wrap"><table class="costs minw">
+  <thead><tr><th>How Claude works on a puzzle</th><th class="n">Puzzles</th><th class="n">Agents</th><th class="n">Tokens a puzzle</th><th class="n">Weekly Fable limit a puzzle</th></tr></thead>
+  <tbody>
+    <tr><td>Claude reads the puzzle page and the key page (<i>Judge</i>, 1927 and 1928)</td><td class="n">2</td><td class="n">2</td><td class="n">77,288</td><td class="n">—</td></tr>
+    <tr><td>v1: agent review, text first, crops by code (<i>Judge</i> batches 7–12)</td><td class="n">311</td><td class="n">78</td><td class="n">17,741</td><td class="n">0.15–0.17%</td></tr>
+    <tr><td>v2: the text step (<i>GAMES</i>, run 4, all 81)</td><td class="n">81</td><td class="n">8</td><td class="n">7,710</td><td class="n">0.074%</td></tr>
+    <tr><td>v2: the text step again, where the lines changed (run 6)</td><td class="n">65</td><td class="n">7</td><td class="n">7,928</td><td class="n">0.077%</td></tr>
+    <tr><td>v2: triage, gxd cross-check, headers, assembly</td><td class="n">81</td><td class="n">—</td><td class="n">0</td><td class="n">0</td></tr>
+    <tr><td>v2: agents after kinds of failure</td><td class="n" colspan="4"><span class="todo">from the batch landing</span></td></tr>
+  </tbody>
+</table></div>
+<p class="costs-note">Claude Fable 5.1 throughout. Tokens: each agent's own total as the harness reports it (tokens
+  read and written, not counting re-reads from the prompt cache), summed and divided by the puzzles it was given.
+  Run 6 is over the 55 puzzles whose agents reported a total. Weekly limit: the plan's weekly Fable meter before and
+  after a run, which shows whole percents (v1: 3% → 9% over 39 puzzles, and about 0.17% a puzzle over the 298 of
+  1929–1939; v2: 9% → 15% over 81, 15% → 20% over 65).</p>
+
+<p>Version 2's text step costs 43% of version 1's review, and 10% of handing Claude the pages, which is the goal we
+  set ourselves. Two things are behind it. Claude no longer reviews the puzzle; it reads a compact text view, sees
+  crops only of what code flagged, and writes back only what's wrong. And everything else that version 1 asked an agent
+  to do, judging which line is the title, checking whether an answer is plausible, deciding whether a puzzle needs a
+  person, is now code.</p>
+
+<p>Fair comparisons need two caveats. The whole-page test was two <i>Judge</i> puzzles, not <i>GAMES</i>, and most
+  of its 77,300 tokens (51,700) were a general-purpose agent's setup; batched ten to an agent like the text step, the
+  same reading would be nearer 30,000 a puzzle, and version 2 a quarter of that. And a version 2 puzzle isn't finished
+  when the text step is: the agents that go after kinds of failure come on top.
+  <span class="todo">add their tokens per puzzle from the batch landing, and the whole-batch total.</span></p>
+
+<h3>How many puzzles needed a person</h3>
+
+<p>On <i>Judge</i>, a person edited 172 of 531 puzzles (32%), and every puzzle went through an agent's review first.</p>
+
+<p class="todo">For <i>GAMES</i>: puzzles a person had to act on (diagnoses recorded, edits on the site) out of 81, and
+  how many shipped untouched, from the batch landing's triage and the games ledger. Run 6's first triage put 2 at
+  ship, 36 at glance and 39 at needs attention before any agent worked on the failures.</p>
+
+<h3>Accuracy, where we have reviewed truth</h3>
+
+<ul>
+  <li><b>Headers.</b> The first guess at title, byline and number, measured on all 81 puzzles against the reviewed
+    values: titles 54 → 62, bylines 75 → 77, numbers 79 → 80, after assembly stopped choosing.</li>
+  <li><b>The gxd cross-check.</b> 2,532 of 5,489 clue–answer pairs match gxd exactly; 11 of 14 one-letter near misses
+    on answers were real key misreadings.</li>
+  <li><b>The evaluation set.</b> 40 reviewed <i>Judge</i> puzzles, read by the OCR alone, before any model: grid
+    found 95%, squares right 95%, clues exactly right 87.5%, title 65%, key letters 84.5%. Every change to the
+    pipeline is measured against it before it is merged.</li>
+</ul>
+<p class="todo">The same measures on <i>GAMES</i> once its puzzles are reviewed (the evaluation set has no reviewed
+  <i>GAMES</i> puzzles yet), and the final header counts on the landed batch.</p>
+
+<h2>What's still hard</h2>
+
+<ul>
+  <li><b>Answer keys.</b> 15 puzzles have no key matched, many of them cryptics, whose answers <i>GAMES</i> printed
+    as text, and 12 have key letters misread.</li>
+  <li><b>Clue lists that wander.</b> Two-line clues split onto the next number, intros set in two columns read
+    interleaved, and the giant puzzles' second, easier clue list not captured.</li>
+  <li><b>Things that aren't crosswords.</b> A board game, an answer page and a "64 = 65" paradox square all came
+    through as puzzles. Triage drops them now, and Browse lists what was dropped, with a button to restore it.</li>
+</ul>
+
+<h2>What's next</h2>
+
+<p>Version 3 pulls the pipeline apart along the same lines: the harvest becomes a stage of its own that any
+  publication can run, the OCR library takes a page image and returns puzzle data, and blitz runs the batches, the
+  review site and the export to gxd. Next up after <i>GAMES</i> 1977–1979: the rest of <i>GAMES</i>, and checking that
+  nothing in version 2 was tuned to one magazine by running it on <i>Judge</i> again.</p>
+
+<p class="note">This is a research archive: an accurate record of puzzles as they were printed, each linked to its
+  source scan. It isn't a place to play old puzzles. Thanks to the Internet Archive and the uploaders of the
+  <i>GAMES</i> scans, and to Saul Pwanson's xd crossword corpus.</p>
+
+</main>
+</body>
+</html>
