@@ -43,6 +43,14 @@ walks back through the stages to the cause:
   parts, assembly, text step, headers, proof packet, triage. Each writes a durable output in
   a documented format, which agents read and the visual tools render. Read a milestone's
   output; don't recompute a stage to inspect it.
+- **Views never compute.** A view draws only what a milestone recorded: never its own
+  matcher, finder or guess at where a box goes, even one that "agrees" with the stage. If a
+  view needs a value the milestone didn't record (a key's box on its page, a part's place),
+  the fix is to record it in that milestone and re-run the stage. Until then the view shows
+  "not recorded". Every box or highlight names the milestone (and fingerprint) it came from.
+  A view that quietly recomputes can disagree with the pipeline, with nothing to show it
+  (GAMES 1977-79, 2026-10-18: a viewer's own key-finder, stricter than assembly's, left
+  "Flights of Fancy" with no key highlighted).
 - **Run once; re-run only when invalidated.** Each milestone records what it was made from
   (code version, upstream outputs, decisions) and is reused until one of those changes. A
   person's diagnosis invalidates its stage and the stages after it. A tool that recomputes
