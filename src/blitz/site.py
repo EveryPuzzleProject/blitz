@@ -162,6 +162,24 @@ def _pub(xdid: str) -> str:
     return xdid[:len(xdid) - len(xdid.lstrip("abcdefghijklmnopqrstuvwxyz"))] or "misc"  # judge1931-10-03 -> judge
 
 
+def _thumb(packet: Path, size: int = 160) -> bytes | None:
+    """A small picture of the puzzle's grid (its crop from the scan, grid.png) for the site's Browse
+    list, so helpers can tell puzzles apart at a glance. None when the packet has no grid crop."""
+    import io
+
+    from PIL import Image
+
+    src = packet / "grid.png"
+    if not src.exists():
+        return None
+    with Image.open(src) as im:
+        im = im.convert("L")
+        im.thumbnail((size, size), Image.LANCZOS)
+        buf = io.BytesIO()
+        im.save(buf, "PNG", optimize=True)
+    return buf.getvalue()
+
+
 def publish(folder: Path, batch: str = "", dry_run: bool = False, skip: tuple[str, ...] = (),
             squares_only: bool = False) -> list[str]:
     """Put a folder's reviewed puzzles on the site (except the puzzles in skip: e.g. ones already imported),
@@ -241,6 +259,11 @@ def publish(folder: Path, batch: str = "", dry_run: bool = False, skip: tuple[st
                     "ContentType": mimetypes.guess_type(f)[0] or "application/octet-stream",
                     "CacheControl": "no-cache" if f.endswith(".json") else "public, max-age=86400"})
                 files[f] = True
+        thumb = _thumb(d)
+        if thumb:
+            s3.put_object(Bucket=bucket, Key=f"{pub}/{d.name}/thumb.png", Body=thumb, ContentType="image/png",
+                          CacheControl="public, max-age=86400")
+            files["thumb.png"] = True
         rv = json.loads((d / "review.json").read_text(encoding="utf-8"))
         ocr = json.loads((d / "ocr.json").read_text(encoding="utf-8"))
         status = "escalated" if rv.get("escalate") else ("ready" if rv.get("ready") else "needs a person")
