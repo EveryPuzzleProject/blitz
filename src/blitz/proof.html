@@ -125,6 +125,7 @@ h2 .quick { margin-left: 8px; font-size: 12px; padding: 2px 10px; }
 /* the title, byline and nearby lines: headers with their evidence, then the other lines */
 .subh { padding: 10px 14px 4px; font-weight: 600; font-size: 13px; border-bottom: 1px solid #e6e0d4; background: #faf8f3; }
 .subh .hint { font-weight: 400; color: var(--muted); font-size: 12px; }
+.metaimg { display: block; max-width: 100%; max-height: 90px; margin: 4px 0; border: 1px solid #ddd; background: #fff; }
 .row.colhead { font-size: 12px; color: var(--muted); padding-top: 8px; padding-bottom: 4px; background: #faf8f3; }
 .row.hrow .lab { color: var(--ink); }
 .row.discarded .scan, .row.discarded .typed, .row.discarded .lab { opacity: .5; }
@@ -1364,7 +1365,9 @@ function headerSection(hs) {
     row.classList.add('hrow'); row.id = name; row.dataset.hdr = name;
     row.querySelector('.typed').style.display = 'none';
     const m = typeof n === 'string' && metaOf(n);
-    row.querySelector('.scan').innerHTML = m ? `<div><b>${esc(m.name)}</b>: ${esc(m.value)} <span class="hint">(the puzzle's metadata, not printed)</span></div>`
+    // a metadata value read from another page of the issue (the masthead's Editor) shows with its crop and source
+    row.querySelector('.scan').innerHTML = m ? `<div><b>${esc(m.name)}</b>: ${esc(m.value)} <span class="hint">(${m.image ? 'printed on another page of the issue' : "the puzzle's metadata, not printed"})</span></div>`
+      + (m.image ? `<img class="metaimg" src="${dir}${esc(m.image)}" alt="${esc(m.name)}, as printed">` : '') + (m.source ? `<div class="hint">${esc(m.source)}</div>` : '')
       : `<div class="hint">${f === 'date' && !ocr.metadata ? `computed: the date of the issue it's in (${esc(ocr.issue_date || '')})` : 'not found near this puzzle'}</div>`;
     evPicker(row, f);
     valueBox(row, f, name);
