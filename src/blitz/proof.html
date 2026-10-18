@@ -511,7 +511,8 @@ async function load() {
     document.body.append(n);
   }
   store.xd = fp;
-  const names = new Set([MAIN(), ...Object.values(ocr.clues).map(c => c.image).filter(Boolean)]);
+  // every page a crop is cut from: the clues' and the printed lines' (a title on the grid's page when most clues are on another)
+  const names = new Set([MAIN(), ...Object.values(ocr.clues).map(c => c.image), ...(ocr.lines || []).map(l => l.image)].filter(Boolean));
   images = {};
   await Promise.all([...names].map(n => new Promise((ok, bad) => {
     const im = new Image(); im.onload = () => { images[n] = im; ok(); }; im.onerror = bad; im.src = dir + '_src/' + n;
