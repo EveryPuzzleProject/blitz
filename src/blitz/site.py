@@ -167,7 +167,13 @@ def publish(folder: Path, batch: str = "", dry_run: bool = False, skip: tuple[st
     """Put a folder's reviewed puzzles on the site (except the puzzles in skip: e.g. ones already imported),
     and its key squares (key-squares.json from `blitz key-squares`) if it has them. squares_only: only the
     key squares and the key images their cards crop, without opening the puzzles' review pages.
-    Returns the puzzles published."""
+    Returns the puzzles published. Puzzles listed in the folder's dropped.json (dropped as not
+    crosswords: xword-ocr proof-packets writes it from the publication's ledger) are left out too;
+    a drop a person reverses comes off that list at the next proof-packets --index-only.
+
+    Leaving a puzzle out doesn't take it off the site if an earlier publish put it there."""
+    if (folder / "dropped.json").exists():
+        skip = tuple(skip) + tuple(json.loads((folder / "dropped.json").read_text(encoding="utf-8")))
     squares = (json.loads((folder / "key-squares.json").read_text(encoding="utf-8"))
                if (folder / "key-squares.json").exists() else None)
     if squares_only and not squares:

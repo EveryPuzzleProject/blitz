@@ -24,3 +24,11 @@ def test_publish_refuses_a_page_that_wouldnt_show_its_xd(tmp_path):
 def test_publish_takes_checked_packets(tmp_path):
     packet(tmp_path, "judge1925-02-21", matches_xd=True, built_from={"xword-ocr": "abc", "judge": "def"})
     assert publish(tmp_path, dry_run=True) == ["judge1925-02-21"]
+
+
+def test_publish_leaves_out_the_puzzles_dropped_as_not_crosswords(tmp_path):
+    packet(tmp_path, "games1977-11-01-L037", matches_xd=True, built_from={"xword-ocr": "abc", "games": "def"})
+    packet(tmp_path, "games1977-11-01-L040", matches_xd=True, built_from={"xword-ocr": "abc", "games": "def"})
+    (tmp_path / "dropped.json").write_text(json.dumps({"games1977-11-01-L037": {"by": "triage", "note": "a board game"}}),
+                                           encoding="utf-8")
+    assert publish(tmp_path, dry_run=True) == ["games1977-11-01-L040"]
