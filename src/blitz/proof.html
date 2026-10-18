@@ -1937,7 +1937,7 @@ if (!SITE && params.get('list')) (async () => {
   const to = x => { const u = new URL(location.href); u.searchParams.set('p', x.pid); u.searchParams.delete('k'); return u.href; };
   const back = params.get('back');
   bar.innerHTML = `<b>${esc(items[0].label)}</b> <span>${i + 1} of ${items.length}</span>`
-    + (i >= 0 && items[i].choice ? ` <span style="border:1px solid currentColor;border-radius:10px;padding:0 7px">${esc(items[i].choice)}</span>` : '')
+    + (i >= 0 && items[i].choice ? ` <span style="border:1px solid currentColor;border-radius:10px;padding:0 7px">${esc({ship: 'Ready', hold: 'Not ready', drop: 'dropped'}[items[i].choice] || items[i].choice)}</span>` : '')
     + (i > 0 ? ` <a href="${to(items[i - 1])}">← ${esc(items[i - 1].title || items[i - 1].pid)}</a>` : '')
     + (i + 1 < items.length ? ` <a href="${to(items[i + 1])}"><b>Next: ${esc(items[i + 1].title || items[i + 1].pid)} →</b></a>` : ' <span>last in this group</span>')
     + (back ? ` <a style="margin-left:auto" href="${esc(back)}">back to the batch</a>` : '');
