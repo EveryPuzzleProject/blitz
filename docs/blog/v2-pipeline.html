@@ -247,16 +247,17 @@ verdict: Tournament rebus puzzle: the key has squares holding letters-as-words (
   a gxd answer for the same clue by one letter, 11 turned out to be real misreadings of the key.</p>
 
 <div class="costs-wrap"><table class="costs">
-  <thead><tr><th>Triage, run 6 (81 puzzles)</th><th class="n">Puzzles</th><th>Most common reasons</th></tr></thead>
+  <thead><tr><th>Triage (81 puzzles)</th><th class="n">Run 6</th><th class="n">Run 7</th><th>Most common reasons, run 7</th></tr></thead>
   <tbody>
-    <tr><td>Ship as is</td><td class="n">2</td><td></td></tr>
-    <tr><td>Glance</td><td class="n">36</td><td>text step unsure (56), unknown answers in gxd terms (16)</td></tr>
-    <tr><td>Needs attention</td><td class="n">39</td><td>no key matched (15), key misread (12), no verdict (11), clues unread (8)</td></tr>
-    <tr><td>Not a crossword</td><td class="n">4</td><td>a stock-market board game, an answer page, a puzzle square, a word game</td></tr>
+    <tr><td>Ship as is</td><td class="n">2</td><td class="n">3</td><td></td></tr>
+    <tr><td>Glance</td><td class="n">36</td><td class="n">43</td><td>text step unsure (49), a changed clue not on its crop sheet (46), unknown answers (20)</td></tr>
+    <tr><td>Needs attention</td><td class="n">39</td><td class="n">31</td><td>key misread (11), something missing from the packet (11), a clue list asked for (8), clues unread (7)</td></tr>
+    <tr><td>Not a crossword</td><td class="n">4</td><td class="n">4</td><td>a stock-market board game, an answer page, a puzzle square, a word game</td></tr>
   </tbody>
 </table></div>
-<p class="costs-note">From <code>triage/run6/summary.md</code>, 18 October 2026. A puzzle can carry several reasons.
-  <span class="todo">replace with the final triage once the batch lands.</span></p>
+<p class="costs-note">From <code>triage/run6/summary.md</code> and <code>triage/run7/summary.md</code>, 18 October 2026. Run 7 is
+  run 6 rebuilt after the fixes described next, in code only: the text step's answers were reused, so it cost no
+  tokens. A puzzle can carry several reasons.</p>
 
 <h3>Agents go after kinds of failure, not puzzles</h3>
 
@@ -266,6 +267,14 @@ verdict: Tournament rebus puzzle: the key has squares holding letters-as-words (
   puzzle traced back to assembly, one change to assembly, all 81 puzzles re-assembled in code, and the first-guess
   titles of eight more puzzles came right with it. No agent went looking through the other 80; the text step ran again
   only on the 65 whose printed lines had changed.</p>
+
+<p>The first such pass over the whole batch took one group at a time. Twelve puzzles had no answer key. Traced
+  through assembly's output on one example, the cause was the Answer Drawer page: <i>GAMES</i> printed its keys
+  touching, and the chosen scan read a whole block of them as one 26-by-32 lattice, so no key could match. The other
+  uploader's scan of the same page had them apart. Assembly now also takes the answer grids from a page's other scan,
+  ranked after the chosen one's, and 10 of the 12 found their keys. The pass looked at the scan itself for 2 of the
+  81 puzzles; everything else came from the stages' outputs. Rebuilt with that and two smaller fixes, the batch went
+  from 39 puzzles needing attention to 31.</p>
 
 <p>So cost grows with the number of kinds of failure in a batch, maybe five to ten, not with the number of puzzles.
   The same puzzle shows why not every flag is a failure. Its answer key really does print digits and letters as
@@ -426,9 +435,19 @@ verdict: Tournament rebus puzzle: the key has squares holding letters-as-words (
 
 <h3>The batch page</h3>
 
-<p class="todo">The batch page: the batch's triage at a glance, each puzzle's reasons with a thumbnail, and a link
-  into the proof page at the right row. Section and screenshot to be written once the "Land GAMES 1977–79" work
-  publishes it.</p>
+<p>The batch page is where a batch is decided. Across the top, triage's counts and the decisions so far; below,
+  the puzzles grouped by reason code, each group with what the agent pass found and fixed or left open, and a
+  thumbnail per puzzle that opens its proof page at the right row. A person ships, holds or drops puzzles there, a
+  group at a time, and each decision goes into the publication's ledger with who made it.</p>
+
+<figure class="wide">
+  <img src="img/games-batch-page-run7.jpg" width="1400" height="1094"
+    alt="The batch page for run 7: triage counts (ship 3, glance 43, needs attention 31, not a crossword 4) and decisions (ship 0, hold 0, drop 4, undecided 77), a note on the agent pass, and groups of puzzle thumbnails by reason code: key-misread, verdict-missing, request-list, clues-unread, request-page, key-missing, each with a note saying what was found and fixed or left open.">
+  <figcaption>The batch page, run 7, before anyone has decided: groups by reason, with the agent pass's notes. Under
+    key-missing, the fix described above.</figcaption>
+</figure>
+
+<p class="todo">Final state of the batch page once the ship and hold decisions are made.</p>
 
 <h2>What it cost, measured</h2>
 
@@ -461,14 +480,17 @@ verdict: Tournament rebus puzzle: the key has squares holding letters-as-words (
     <tr><td>v2: the text step (<i>GAMES</i>, run 4, all 81)</td><td class="n">81</td><td class="n">8</td><td class="n">7,710</td><td class="n">0.074%</td></tr>
     <tr><td>v2: the text step again, where the lines changed (run 6)</td><td class="n">65</td><td class="n">7</td><td class="n">7,928</td><td class="n">0.077%</td></tr>
     <tr><td>v2: triage, gxd cross-check, headers, assembly</td><td class="n">81</td><td class="n">—</td><td class="n">0</td><td class="n">0</td></tr>
-    <tr><td>v2: agents after kinds of failure</td><td class="n" colspan="4"><span class="todo">from the batch landing</span></td></tr>
+    <tr><td>v2: the batch rebuilt after the fixes (run 7)</td><td class="n">77</td><td class="n">—</td><td class="n">0</td><td class="n">0</td></tr>
+    <tr><td>v2: the pass after kinds of failure (Opus, in the same session as building the batch page and import)</td><td class="n">81</td><td class="n">1</td><td class="n" colspan="2">see note</td></tr>
   </tbody>
 </table></div>
-<p class="costs-note">Claude Fable 5.1 throughout. Tokens: each agent's own total as the harness reports it (tokens
+<p class="costs-note">Claude Fable 5.1 for the text step. Tokens: each agent's own total as the harness reports it (tokens
   read and written, not counting re-reads from the prompt cache), summed and divided by the puzzles it was given.
   Run 6 is over the 55 puzzles whose agents reported a total. Weekly limit: the plan's weekly Fable meter before and
   after a run, which shows whole percents (v1: 3% → 9% over 39 puzzles, and about 0.17% a puzzle over the 298 of
-  1929–1939; v2: 9% → 15% over 81, 15% → 20% over 65).</p>
+  1929–1939; v2: 9% → 15% over 81, 15% → 20% over 65). The pass after kinds of failure ran in a working session
+  that also built the batch page, the import and the fixes; together they wrote about 1,200 output tokens a puzzle (and 3,100 to the prompt cache) and
+  re-read about 340,000 from the prompt cache, so the pass alone can't be separated out yet.</p>
 
 <p>Version 2's text step costs 43% of version 1's review, and 10% of handing Claude the pages, which is the goal we
   set ourselves. Two things are behind it. Claude no longer reviews the puzzle; it reads a compact text view, sees
@@ -479,16 +501,17 @@ verdict: Tournament rebus puzzle: the key has squares holding letters-as-words (
 <p>Fair comparisons need two caveats. The whole-page test was two <i>Judge</i> puzzles, not <i>GAMES</i>, and most
   of its 77,300 tokens (51,700) were a general-purpose agent's setup; batched ten to an agent like the text step, the
   same reading would be nearer 30,000 a puzzle, and version 2 a quarter of that. And a version 2 puzzle isn't finished
-  when the text step is: the agents that go after kinds of failure come on top.
-  <span class="todo">add their tokens per puzzle from the batch landing, and the whole-batch total.</span></p>
+  when the text step is: the pass after kinds of failure comes on top. This time it ran in a session that was also
+  building tools, so its own cost isn't separable; the next batch is meant to run it on its own and measure it, along
+  with a whole-page baseline on <i>GAMES</i> itself.</p>
 
 <h3>How many puzzles needed a person</h3>
 
 <p>On <i>Judge</i>, a person edited 172 of 531 puzzles (32%), and every puzzle went through an agent's review first.</p>
 
 <p class="todo">For <i>GAMES</i>: puzzles a person had to act on (diagnoses recorded, edits on the site) out of 81, and
-  how many shipped untouched, from the batch landing's triage and the games ledger. Run 6's first triage put 2 at
-  ship, 36 at glance and 39 at needs attention before any agent worked on the failures.</p>
+  how many shipped untouched, from the batch landing's triage and the games ledger. Run 7's triage puts 3 at ship, 43
+  at glance and 31 at needs attention, waiting for a person's decisions on the batch page.</p>
 
 <h3>Accuracy, where we have reviewed truth</h3>
 
