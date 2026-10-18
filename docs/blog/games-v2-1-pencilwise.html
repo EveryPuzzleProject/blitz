@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GAMES Magazine 1977–79 and Pipeline v2, part 1: Pencilwise, and the pipeline at a glance</title>
+<meta name="description" content="GAMES magazine's Pencilwise crosswords, 1977–79, and the rebuilt pipeline that turned them into xd files: the section, the puzzles, the diagram, and why we rebuilt it.">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Every Puzzle Project">
+<meta property="og:title" content="GAMES Magazine 1977–79 and Pipeline v2, part 1: Pencilwise, and the pipeline at a glance">
+<meta property="og:description" content="GAMES magazine's Pencilwise crosswords, 1977–79, and the rebuilt pipeline that turned them into xd files: the section, the puzzles, the diagram, and why we rebuilt it.">
+<meta property="og:url" content="https://blitz.xwordapp.com/blog/games-v2-1-pencilwise.html">
+<meta property="og:image" content="https://blitz.xwordapp.com/blog/img/games1977-09-cover.jpg">
+<meta name="robots" content="noindex">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 3 3%27%3E%3Crect width=%273%27 height=%273%27 fill=%27%23fff%27/%3E%3Crect width=%271%27 height=%271%27 fill=%27%231d1b17%27/%3E%3Crect x=%272%27 y=%272%27 width=%271%27 height=%271%27 fill=%27%231d1b17%27/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../style.css?v=202610021023">
+<style>
+  .post { max-width: 700px; }
+  .post p, .post li { font: 18px/1.6 var(--serif); }
+  .post li { margin: 4px 0; }
+  .post h1 { font-size: 34px; margin-top: 4px; }
+  .post h2 { font-size: 24px; margin-top: 40px; }
+  .post h3 { font: 600 19px var(--serif); margin: 28px 0 6px; }
+  .dek { font: 20px/1.5 var(--serif); color: var(--muted); margin: 6px 0 0; }
+  .byline { font-size: 14px; color: var(--muted); margin: 10px 0 24px; }
+  figure { margin: 24px 0; }
+  figure img { display: block; max-width: 100%; height: auto; border-radius: 4px; box-shadow: 0 1px 10px rgba(0,0,0,.15); background: #fff; }
+  figure.narrow img { max-width: 420px; width: 100%; }
+  figure.wide { margin-left: calc(min(0px, (700px - min(100vw - 32px, 960px)) / 2)); margin-right: calc(min(0px, (700px - min(100vw - 32px, 960px)) / 2)); }
+  figcaption { font-size: 14px; line-height: 1.45; color: var(--muted); margin-top: 8px; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 10px; margin: 24px 0; }
+  .stat { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .stat b { display: block; font: 700 30px/1.1 var(--serif); }
+  .stat span { font-size: 14px; color: var(--muted); }
+  /* the pipeline, as a row of steps that wraps */
+  .flow { list-style: none; padding: 0; margin: 14px 0 24px; display: flex; flex-wrap: wrap; gap: 10px 0; align-items: stretch; }
+  .flow li { font: 14px/1.35 var(--sans); display: flex; align-items: stretch; margin: 0; }
+  .flow li > div { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; width: 118px; }
+  .flow li > div b { display: block; font: 600 15px var(--sans); }
+  .flow li > div span { color: var(--muted); }
+  .flow li.who-agent > div { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); background: var(--accent-soft); }
+  .flow li.who-person > div { border-color: #d9822b; background: color-mix(in srgb, #d9822b 14%, var(--surface)); }
+  .flow li:not(:last-child)::after { content: "→"; align-self: center; color: var(--muted); padding: 0 6px; font-size: 18px; }
+  .flow-label { font: 600 14px var(--sans); color: var(--muted); margin: 22px 0 0; text-transform: uppercase; letter-spacing: .04em; }
+  .flowfig { overflow-x: auto; }
+  .flowfig svg { width: 100%; min-width: 560px; height: auto; display: block; }
+  .flowfig rect.m { fill: var(--surface); stroke: var(--line); }
+  .flowfig rect.a { fill: var(--accent-soft); stroke: color-mix(in srgb, var(--accent) 55%, var(--line)); }
+  .flowfig rect.p { fill: color-mix(in srgb, #d9822b 14%, var(--surface)); stroke: #d9822b; }
+  .flowfig text { font-family: var(--sans); fill: var(--ink); }
+  .flowfig .b { font-size: 13px; font-weight: 600; }
+  .flowfig .s { font-size: 11px; fill: var(--muted); }
+  .flowfig .fable { font-size: 10.5px; font-weight: 700; fill: var(--accent); }
+  .flowfig path.backhead { fill: none; stroke: #d9822b; }
+  .flowfig .vw { font-size: 11px; fill: var(--accent); }
+  .flowfig .lab { font-size: 11px; font-weight: 600; fill: var(--muted); letter-spacing: .04em; }
+  .flowfig .arr { font-size: 16px; fill: var(--muted); }
+  .flowfig line.v { stroke: var(--line); }
+  .flowfig path.back { fill: none; stroke: #d9822b; stroke-dasharray: 4 3; marker-end: none; }
+  .key { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 14px; color: var(--muted); margin-top: -12px; }
+  .sw { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; border: 1px solid var(--line); }
+  .bars svg { width: 100%; max-width: 600px; height: auto; display: block; }
+  .bars text { font: 14px var(--sans); fill: var(--ink); }
+  .bars .muted-t { fill: var(--muted); }
+  .bars .bar { fill: var(--accent); }
+  .bars .bar-dim { fill: color-mix(in srgb, var(--muted) 45%, var(--surface)); }
+  .bars .bar-over { fill: var(--surface); stroke: var(--muted); stroke-dasharray: 4 3; }
+  pre.packet { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px;
+    font: 12.5px/1.45 ui-monospace, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; margin: 20px 0 6px; }
+  pre.packet b { color: var(--bad); font-weight: 600; }
+  pre.packet i { color: var(--good); font-style: normal; }
+  .costs-wrap { overflow-x: auto; }
+  .costs { width: 100%; border-collapse: collapse; margin: 20px 0 6px; font: 15px/1.4 var(--sans); }
+  .costs.minw { min-width: 620px; }
+  .costs th, .costs td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .costs th { font-weight: 600; color: var(--muted); font-size: 13px; }
+  .costs td.n { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .costs th.n { text-align: right; }
+  .costs td.was { color: var(--muted); text-decoration: line-through; }
+  .post p.costs-note { font: 14px/1.45 var(--sans); color: var(--muted); margin: 4px 0 20px; }
+  .note { border-left: 3px solid var(--line); padding: 2px 0 2px 14px; color: var(--muted); }
+  .todo { border: 1px dashed #d9822b; background: color-mix(in srgb, #d9822b 10%, var(--surface)); border-radius: 8px;
+    padding: 8px 12px; font: 14px/1.45 var(--sans) !important; color: var(--ink); }
+  .todo::before { content: "TODO "; font-weight: 700; color: #b5651d; }
+  span.todo { display: inline; padding: 1px 6px; }
+  code { font: 0.86em ui-monospace, Consolas, monospace; }
+  @media (max-width: 520px) { .post p, .post li { font-size: 17px; } .post .flow li { font-size: 13px; } .post h1 { font-size: 28px; } .flow li > div { width: 112px; } }
+  .series { font: 14px/1.45 var(--sans); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; margin: 18px 0 24px; }
+  .series span { color: var(--muted); }
+  .series ol { margin: 4px 0 0; padding-left: 20px; }
+  .series li { font: 14px/1.5 var(--sans) !important; margin: 2px 0 !important; }
+  .series li.on { font-weight: 600 !important; }
+  .series a { font: 400 14px var(--sans); color: var(--accent); text-decoration: underline; }
+  .series.end { margin-top: 40px; }
+  .kicker { font: 600 15px var(--sans); color: var(--muted); margin: 16px 0 0; }
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap"><a href="../">Every Puzzle Project</a><a class="muted" href="./" style="font: inherit; color: var(--muted)">Blog</a></div></header>
+<main class="wrap post">
+
+<p class="kicker"><i>GAMES</i> Magazine 1977–79 and Pipeline v2 · Part 1 of 3</p>
+<h1>Pencilwise, and the pipeline at a glance</h1>
+<p class="dek">The crosswords from the first three years of <i>GAMES</i> magazine's Pencilwise section, 81 of them, and the rebuilt pipeline that turned them into <a href="https://github.com/century-arcade/xdformat">xd</a> files for less than half the Claude tokens <i>Judge</i> took. The section, the puzzles, and the new pipeline at a glance.</p>
+<p class="byline">Every Puzzle Project · draft, October 2026</p>
+<nav class="series top" aria-label="The series"><span>GAMES Magazine 1977–79 and Pipeline v2, in three parts</span><ol><li class="on">Part 1: Pencilwise, and the pipeline at a glance</li><li><a href="games-v2-2-stages.html">Part 2: Stage by stage: the tools</a></li><li><a href="games-v2-3-measured.html">Part 3: What it cost, measured</a></li></ol></nav>
+
+<figure class="narrow">
+  <img src="img/games1977-09-cover.jpg" width="800" height="1058"
+    alt="The cover of the first issue of GAMES, September/October 1977: Rodin's Thinker holding a copy of GAMES, against a scatter of words, numbers and puzzle symbols, with a yellow First Edition banner in the corner.">
+  <figcaption>The first issue of <i>GAMES</i>, September/October 1977.
+    <a href="https://archive.org/details/Games-Magazine-September_October-1977-images/page/n0/mode/1up">Scan on archive.org</a>.</figcaption>
+</figure>
+
+<p><i>GAMES</i> first appeared in September 1977, a bimonthly magazine of puzzles, games and contests. Inside, the
+  puzzles you solve with a pencil had a section of their own.</p>
+
+<h2>Pencilwise</h2>
+
+<figure>
+  <img src="img/games1977-09-pencilwise-banner.jpg" width="1200" height="389"
+    alt="The Pencilwise section header from September/October 1977: a drawing of the Thinker with a pencil, the word PENCILWISE, and a line saying the 16 pages hold all kinds of puzzles, with answers on pages 62 and 64.">
+  <figcaption>The first Pencilwise header, September/October 1977.
+    <a href="https://archive.org/details/Games-Magazine-September_October-1977-images/page/n26/mode/2up">Scan on archive.org</a>.</figcaption>
+</figure>
+
+<p>Pencilwise was the heart of each issue: sixteen or so pages of pencil puzzles, easy and difficult, with the
+  answers at the back of the magazine (later in a section called the Answer Drawer). Crosswords were its backbone.
+  Next to plain 15×15s it ran illustrated crosswords with pictures for clues, cryptics "à l'Anglaise", a five-by-five
+  warmup for new solvers, a giant "World's Most Ornery Crossword", and puzzles that bent the rules on purpose.</p>
+
+<p>This batch is the crosswords of Pencilwise from its first three years, September 1977 to the end of 1979: 81
+  puzzles from 14 issues. They are much harder to take apart than <i>Judge</i>'s (<a href="judge.html">our first
+  series</a>). A <i>Judge</i> page held one puzzle and its clues. A Pencilwise page can hold two puzzles, an intro, a
+  drawing and a pointer to the answers forty pages on.</p>
+
+<p>We used them as a test bench for a second version of the pipeline. The goal was simple to state: a pipeline that
+  runs quietly in the background, where Claude spends tokens only where tools can't do the work, and a person looks
+  only at what needs judgement.</p>
+
+<div class="stats">
+  <div class="stat"><b>81</b><span>crosswords, from 14 issues, 1977–1979</span></div>
+  <div class="stat"><b>7,710</b><span>tokens a puzzle for Claude's text step (<i>Judge</i>: 17,741)</span></div>
+  <div class="stat"><b>0</b><span>puzzles read by Claude from the whole page</span></div>
+  <div class="stat"><b>0</b><span>tokens for triage, cross-checks and headers: all code</span></div>
+  <div class="stat"><b>31</b><span>of 77 puzzles left for a person to look at after triage, so far</span></div>
+</div>
+
+<h2>Pipeline v2 at a glance</h2>
+
+<figure class="flowfig"><svg viewBox="0 0 680 340" role="img" aria-label="Version 1: find, read with OCR, a Claude Fable agent checks every puzzle's packet, proof page, xd. Version 2: harvest, OCR, layout, assembly, text step (the only step that calls Claude Fable), headers, triage, exceptions; each stage writes its output and has its own view, and a diagnosis can rerun the pipeline from any stage, back to the harvest.">
+<text x="0" y="14" class="lab">VERSION 1, ON JUDGE</text>
+<rect x="0" y="24" width="76" height="74" rx="7" class="m"/><text x="7" y="43" class="b">Find</text><text x="7" y="60" class="s">pages, keys</text><text x="76" y="66.0" class="arr">›</text><rect x="85" y="24" width="76" height="74" rx="7" class="m"/><text x="92" y="43" class="b">Read</text><text x="92" y="60" class="s">OCR and the</text><text x="92" y="75" class="s">grid reader</text><text x="161" y="66.0" class="arr">›</text><rect x="170" y="24" width="76" height="74" rx="7" class="a"/><text x="177" y="43" class="b">Agent</text><text x="177" y="60" class="s">checks each</text><text x="177" y="75" class="s">packet</text><text x="177" y="90" class="fable">Claude Fable</text><text x="246" y="66.0" class="arr">›</text><rect x="255" y="24" width="76" height="74" rx="7" class="p"/><text x="262" y="43" class="b">Proof page</text><text x="262" y="60" class="s">a person</text><text x="262" y="75" class="s">checks</text><text x="331" y="66.0" class="arr">›</text><rect x="340" y="24" width="76" height="74" rx="7" class="m"/><text x="347" y="43" class="b">xd</text><text x="347" y="60" class="s">from the</text><text x="347" y="75" class="s">ledger</text><text x="0" y="126" class="lab">VERSION 2, ON GAMES: EACH STAGE WRITES ITS OUTPUT, AND HAS A VIEW</text>
+<rect x="0" y="136" width="76" height="74" rx="7" class="m"/><text x="7" y="155" class="b">Harvest</text><text x="7" y="172" class="s">finds pages</text><text x="7" y="187" class="s">and puzzles</text><line x1="38.0" y1="210" x2="38.0" y2="222" class="v"/><text x="38.0" y="236" text-anchor="middle" class="vw">watch: Issues,</text><text x="38.0" y="250" text-anchor="middle" class="vw">on the pages</text><text x="76" y="178.0" class="arr">›</text><rect x="85" y="136" width="76" height="74" rx="7" class="m"/><text x="92" y="155" class="b">OCR</text><text x="92" y="172" class="s">machine OCR,</text><text x="92" y="187" class="s">once a page</text><line x1="123.0" y1="210" x2="123.0" y2="222" class="v"/><text x="123.0" y="236" text-anchor="middle" class="vw">proof page:</text><text x="123.0" y="250" text-anchor="middle" class="vw">what OCR read</text><text x="161" y="178.0" class="arr">›</text><rect x="170" y="136" width="76" height="74" rx="7" class="m"/><text x="177" y="155" class="b">Layout</text><text x="177" y="172" class="s">grids, clues,</text><text x="177" y="187" class="s">headings</text><line x1="208.0" y1="210" x2="208.0" y2="222" class="v"/><text x="208.0" y="236" text-anchor="middle" class="vw">watch: In</text><text x="208.0" y="250" text-anchor="middle" class="vw">the boxes</text><text x="246" y="178.0" class="arr">›</text><rect x="255" y="136" width="76" height="74" rx="7" class="m"/><text x="262" y="155" class="b">Assembly</text><text x="262" y="172" class="s">links parts</text><text x="262" y="187" class="s">into puzzles</text><line x1="293.0" y1="210" x2="293.0" y2="222" class="v"/><text x="293.0" y="236" text-anchor="middle" class="vw">watch:</text><text x="293.0" y="250" text-anchor="middle" class="vw">Assembled</text><text x="331" y="178.0" class="arr">›</text><rect x="340" y="136" width="76" height="74" rx="7" class="a"/><text x="347" y="155" class="b">Text step</text><text x="347" y="172" class="s">corrects only</text><text x="347" y="187" class="s">what's wrong</text><text x="347" y="202" class="fable">Claude Fable</text><line x1="378.0" y1="210" x2="378.0" y2="222" class="v"/><text x="378.0" y="236" text-anchor="middle" class="vw">proof page:</text><text x="378.0" y="250" text-anchor="middle" class="vw">verdict, edits</text><text x="416" y="178.0" class="arr">›</text><rect x="425" y="136" width="76" height="74" rx="7" class="m"/><text x="432" y="155" class="b">Headers</text><text x="432" y="172" class="s">from printed</text><text x="432" y="187" class="s">lines, by rule</text><line x1="463.0" y1="210" x2="463.0" y2="222" class="v"/><text x="463.0" y="236" text-anchor="middle" class="vw">proof page:</text><text x="463.0" y="250" text-anchor="middle" class="vw">headers</text><text x="501" y="178.0" class="arr">›</text><rect x="510" y="136" width="76" height="74" rx="7" class="m"/><text x="517" y="155" class="b">Triage</text><text x="517" y="172" class="s">reason codes,</text><text x="517" y="187" class="s">gxd check</text><line x1="548.0" y1="210" x2="548.0" y2="222" class="v"/><text x="548.0" y="236" text-anchor="middle" class="vw">batch page,</text><text x="548.0" y="250" text-anchor="middle" class="vw">Browse</text><text x="586" y="178.0" class="arr">›</text><rect x="595" y="136" width="76" height="74" rx="7" class="p"/><text x="602" y="155" class="b">Exceptions</text><text x="602" y="172" class="s">a person</text><text x="602" y="187" class="s">diagnoses</text><line x1="633.0" y1="210" x2="633.0" y2="222" class="v"/><text x="633.0" y="236" text-anchor="middle" class="vw">Board, then</text><text x="633.0" y="250" text-anchor="middle" class="vw">that stage</text><path d="M 633.0 256 L 633.0 278 L 38.0 278 L 38.0 262" class="back"/><path d="M 34.0 267 L 38.0 259 L 42.0 267" class="backhead"/><line x1="123.0" y1="278" x2="123.0" y2="270" class="back"/><line x1="208.0" y1="278" x2="208.0" y2="270" class="back"/><line x1="293.0" y1="278" x2="293.0" y2="270" class="back"/><line x1="378.0" y1="278" x2="378.0" y2="270" class="back"/><line x1="463.0" y1="278" x2="463.0" y2="270" class="back"/><line x1="548.0" y1="278" x2="548.0" y2="270" class="back"/><text x="335.5" y="296" text-anchor="middle" class="s">a diagnosis reruns the pipeline from the stage it names, as far back as the harvest</text></svg></figure>
+<div class="key"><span><i class="sw"></i>code</span><span><i class="sw" style="background:var(--accent-soft)"></i>Claude Fable, the only step that calls a model</span>
+  <span><i class="sw" style="background:color-mix(in srgb,#d9822b 14%,var(--surface))"></i>a person</span></div>
+
+<h3>Why a version 2: what <i>Judge</i> taught us</h3>
+
+<p><i>Judge</i> went well in the end: 531 puzzles, all of them now xd files linked to their scans. But three
+  things about how it got there set the agenda for the next version.</p>
+
+<p><b>An agent still saw every puzzle.</b> <i>Judge</i>'s big saving was the review packet: instead of the
+  scan, Claude read a text view of the OCR's draft and only the crops code picked for what looked wrong. That brought a
+  review from 60,000–90,000 tokens down to 17,741 a puzzle (measured in <a href="games-v2-3-measured.html">part 3</a>), and made <i>Judge</i> affordable. But every
+  puzzle still went to an agent, including the many where nothing was wrong, and the agent still made judgement calls
+  code could make: which line is the title, whether an answer is plausible, whether a person should look. Cost grew
+  with the number of puzzles, not with the number of problems.</p>
+
+<p><b>The same fact lived in several places.</b> On the day we expected half an hour of touch-up, the review page,
+  the xd files, the "is it done?" status and the published site each worked out the puzzle's state on their own, and
+  they disagreed. Typed answer keys with no scan behind them, stale clues on the page, an importer that credited
+  replayed work to the wrong person. The whole day went on finding which copy was right.</p>
+
+<p><b>People fixed puzzles, not tools.</b> The project's maintainer made 489 edits by hand on 172 of the 531
+  puzzles. Each fixed one puzzle. When the same mistake came from the same stage in the next puzzle, someone had to
+  find it and fix it again.</p>
+
+<h3>What changed: stages that write things down</h3>
+
+<p>Version 2 is a chain of named stages, which we call milestones: harvest, OCR, layout, assembly, the text step,
+  headers, the proof packet and triage. Each writes its result to disk in a documented format, along with
+  what it was made from: the code version, the stages before it, and any decisions people made. A stage runs once
+  and is reused until one of those changes. When a person decides a stage got something wrong, that stage and the
+  ones after it run again, and nothing else does.</p>
+
+<p>That answers <i>Judge</i>'s bad day by construction. There is one copy of each fact, made by one stage, and
+  everything downstream reads it. It also makes the pipeline cheap to inspect: an agent looking for a problem reads
+  a stage's output, a diff or a crop, not the page.</p>
+
+<h3>Where it landed</h3>
+
+<p>Claude's text step, the one step in version 2 that calls a model, took 7,710 tokens a puzzle across all 81,
+  against 17,741 for version 1's agent review on <i>Judge</i>: 43%. Triage, the cross-check against gxd, the headers
+  and assembly cost no tokens at all. After triage, 31 of the 77 crosswords were left for a person to look at.</p>
+
+<p><a href="games-v2-2-stages.html">Part 2</a> walks along the diagram, one stage at a time, with the tool we built to
+  see each one, following one puzzle all the way through. <a href="games-v2-3-measured.html">Part 3</a> has the
+  numbers: what it cost, measured from the records, and what's still hard.</p>
+
+
+<nav class="series end" aria-label="The series"><span>GAMES Magazine 1977–79 and Pipeline v2, in three parts</span><ol><li class="on">Part 1: Pencilwise, and the pipeline at a glance</li><li><a href="games-v2-2-stages.html">Part 2: Stage by stage: the tools</a></li><li><a href="games-v2-3-measured.html">Part 3: What it cost, measured</a></li></ol></nav>
+<p class="note">This is a research archive: an accurate record of puzzles as they were printed, each linked to its
+  source scan. It isn't a place to play old puzzles. Thanks to the Internet Archive and the uploaders of the
+  <i>GAMES</i> scans, and to Saul Pwanson's xd crossword corpus.</p>
+
+
+</main>
+</body>
+</html>

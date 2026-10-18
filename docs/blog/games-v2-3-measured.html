@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GAMES Magazine 1977–79 and Pipeline v2, part 3: What it cost, measured</title>
+<meta name="description" content="Claude tokens per puzzle for GAMES 1977–79 against Judge, measured from the agent records; how many puzzles needed a person; accuracy; and what's next.">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Every Puzzle Project">
+<meta property="og:title" content="GAMES Magazine 1977–79 and Pipeline v2, part 3: What it cost, measured">
+<meta property="og:description" content="Claude tokens per puzzle for GAMES 1977–79 against Judge, measured from the agent records; how many puzzles needed a person; accuracy; and what's next.">
+<meta property="og:url" content="https://blitz.xwordapp.com/blog/games-v2-3-measured.html">
+<meta property="og:image" content="https://blitz.xwordapp.com/blog/img/games-batch-page-run7.jpg">
+<meta name="robots" content="noindex">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 3 3%27%3E%3Crect width=%273%27 height=%273%27 fill=%27%23fff%27/%3E%3Crect width=%271%27 height=%271%27 fill=%27%231d1b17%27/%3E%3Crect x=%272%27 y=%272%27 width=%271%27 height=%271%27 fill=%27%231d1b17%27/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../style.css?v=202610021023">
+<style>
+  .post { max-width: 700px; }
+  .post p, .post li { font: 18px/1.6 var(--serif); }
+  .post li { margin: 4px 0; }
+  .post h1 { font-size: 34px; margin-top: 4px; }
+  .post h2 { font-size: 24px; margin-top: 40px; }
+  .post h3 { font: 600 19px var(--serif); margin: 28px 0 6px; }
+  .dek { font: 20px/1.5 var(--serif); color: var(--muted); margin: 6px 0 0; }
+  .byline { font-size: 14px; color: var(--muted); margin: 10px 0 24px; }
+  figure { margin: 24px 0; }
+  figure img { display: block; max-width: 100%; height: auto; border-radius: 4px; box-shadow: 0 1px 10px rgba(0,0,0,.15); background: #fff; }
+  figure.narrow img { max-width: 420px; width: 100%; }
+  figure.wide { margin-left: calc(min(0px, (700px - min(100vw - 32px, 960px)) / 2)); margin-right: calc(min(0px, (700px - min(100vw - 32px, 960px)) / 2)); }
+  figcaption { font-size: 14px; line-height: 1.45; color: var(--muted); margin-top: 8px; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 10px; margin: 24px 0; }
+  .stat { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .stat b { display: block; font: 700 30px/1.1 var(--serif); }
+  .stat span { font-size: 14px; color: var(--muted); }
+  /* the pipeline, as a row of steps that wraps */
+  .flow { list-style: none; padding: 0; margin: 14px 0 24px; display: flex; flex-wrap: wrap; gap: 10px 0; align-items: stretch; }
+  .flow li { font: 14px/1.35 var(--sans); display: flex; align-items: stretch; margin: 0; }
+  .flow li > div { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; width: 118px; }
+  .flow li > div b { display: block; font: 600 15px var(--sans); }
+  .flow li > div span { color: var(--muted); }
+  .flow li.who-agent > div { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); background: var(--accent-soft); }
+  .flow li.who-person > div { border-color: #d9822b; background: color-mix(in srgb, #d9822b 14%, var(--surface)); }
+  .flow li:not(:last-child)::after { content: "→"; align-self: center; color: var(--muted); padding: 0 6px; font-size: 18px; }
+  .flow-label { font: 600 14px var(--sans); color: var(--muted); margin: 22px 0 0; text-transform: uppercase; letter-spacing: .04em; }
+  .flowfig { overflow-x: auto; }
+  .flowfig svg { width: 100%; min-width: 560px; height: auto; display: block; }
+  .flowfig rect.m { fill: var(--surface); stroke: var(--line); }
+  .flowfig rect.a { fill: var(--accent-soft); stroke: color-mix(in srgb, var(--accent) 55%, var(--line)); }
+  .flowfig rect.p { fill: color-mix(in srgb, #d9822b 14%, var(--surface)); stroke: #d9822b; }
+  .flowfig text { font-family: var(--sans); fill: var(--ink); }
+  .flowfig .b { font-size: 13px; font-weight: 600; }
+  .flowfig .s { font-size: 11px; fill: var(--muted); }
+  .flowfig .fable { font-size: 10.5px; font-weight: 700; fill: var(--accent); }
+  .flowfig path.backhead { fill: none; stroke: #d9822b; }
+  .flowfig .vw { font-size: 11px; fill: var(--accent); }
+  .flowfig .lab { font-size: 11px; font-weight: 600; fill: var(--muted); letter-spacing: .04em; }
+  .flowfig .arr { font-size: 16px; fill: var(--muted); }
+  .flowfig line.v { stroke: var(--line); }
+  .flowfig path.back { fill: none; stroke: #d9822b; stroke-dasharray: 4 3; marker-end: none; }
+  .key { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 14px; color: var(--muted); margin-top: -12px; }
+  .sw { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; border: 1px solid var(--line); }
+  .bars svg { width: 100%; max-width: 600px; height: auto; display: block; }
+  .bars text { font: 14px var(--sans); fill: var(--ink); }
+  .bars .muted-t { fill: var(--muted); }
+  .bars .bar { fill: var(--accent); }
+  .bars .bar-dim { fill: color-mix(in srgb, var(--muted) 45%, var(--surface)); }
+  .bars .bar-over { fill: var(--surface); stroke: var(--muted); stroke-dasharray: 4 3; }
+  pre.packet { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px;
+    font: 12.5px/1.45 ui-monospace, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; margin: 20px 0 6px; }
+  pre.packet b { color: var(--bad); font-weight: 600; }
+  pre.packet i { color: var(--good); font-style: normal; }
+  .costs-wrap { overflow-x: auto; }
+  .costs { width: 100%; border-collapse: collapse; margin: 20px 0 6px; font: 15px/1.4 var(--sans); }
+  .costs.minw { min-width: 620px; }
+  .costs th, .costs td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .costs th { font-weight: 600; color: var(--muted); font-size: 13px; }
+  .costs td.n { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .costs th.n { text-align: right; }
+  .costs td.was { color: var(--muted); text-decoration: line-through; }
+  .post p.costs-note { font: 14px/1.45 var(--sans); color: var(--muted); margin: 4px 0 20px; }
+  .note { border-left: 3px solid var(--line); padding: 2px 0 2px 14px; color: var(--muted); }
+  .todo { border: 1px dashed #d9822b; background: color-mix(in srgb, #d9822b 10%, var(--surface)); border-radius: 8px;
+    padding: 8px 12px; font: 14px/1.45 var(--sans) !important; color: var(--ink); }
+  .todo::before { content: "TODO "; font-weight: 700; color: #b5651d; }
+  span.todo { display: inline; padding: 1px 6px; }
+  code { font: 0.86em ui-monospace, Consolas, monospace; }
+  @media (max-width: 520px) { .post p, .post li { font-size: 17px; } .post .flow li { font-size: 13px; } .post h1 { font-size: 28px; } .flow li > div { width: 112px; } }
+  .series { font: 14px/1.45 var(--sans); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; margin: 18px 0 24px; }
+  .series span { color: var(--muted); }
+  .series ol { margin: 4px 0 0; padding-left: 20px; }
+  .series li { font: 14px/1.5 var(--sans) !important; margin: 2px 0 !important; }
+  .series li.on { font-weight: 600 !important; }
+  .series a { font: 400 14px var(--sans); color: var(--accent); text-decoration: underline; }
+  .series.end { margin-top: 40px; }
+  .kicker { font: 600 15px var(--sans); color: var(--muted); margin: 16px 0 0; }
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap"><a href="../">Every Puzzle Project</a><a class="muted" href="./" style="font: inherit; color: var(--muted)">Blog</a></div></header>
+<main class="wrap post">
+
+<p class="kicker"><i>GAMES</i> Magazine 1977–79 and Pipeline v2 · Part 3 of 3</p>
+<h1>What it cost, measured</h1>
+<p class="dek">Claude tokens per puzzle for <i>GAMES</i> 1977–79 against <i>Judge</i>, measured from the agent records rather than estimated; how many puzzles needed a person; accuracy where we have reviewed truth; and what's next.</p>
+<p class="byline">Every Puzzle Project · draft, October 2026</p>
+<nav class="series top" aria-label="The series"><span>GAMES Magazine 1977–79 and Pipeline v2, in three parts</span><ol><li><a href="games-v2-1-pencilwise.html">Part 1: Pencilwise, and the pipeline at a glance</a></li><li><a href="games-v2-2-stages.html">Part 2: Stage by stage: the tools</a></li><li class="on">Part 3: What it cost, measured</li></ol></nav>
+
+<p><a href="games-v2-1-pencilwise.html">Part 1</a> introduced the pipeline and <a href="games-v2-2-stages.html">part
+  2</a> walked through its stages. This part is the numbers, and where each one comes from.</p>
+
+<h2>Tokens per puzzle</h2>
+
+<p>Every Claude agent's work is recorded in the session logs: how many tokens it read and wrote, and which puzzles it
+  was given. The numbers here come from those records, using the same count for every run: the tokens each agent
+  processed, divided by the puzzles it handled.</p>
+
+<figure class="bars">
+  <svg viewBox="0 0 600 168" role="img" aria-label="Claude tokens per puzzle: about 77,300 when Claude reads the pages, 17,741 for version 1's agent review, 7,710 for version 2's text step">
+    <text x="0" y="16" class="muted-t">Claude tokens a puzzle (measured)</text>
+    <text x="0" y="52">Claude reads the pages</text>
+    <rect x="215" y="36" width="330" height="24" rx="3" class="bar-dim"><title>77,288 tokens a puzzle (two Judge puzzles)</title></rect>
+    <rect x="215.5" y="36.5" width="221" height="23" rx="3" class="bar-over"><title>51,700 of it the agent's fixed setup</title></rect>
+    <text x="553" y="53">77,300</text>
+    <text x="0" y="96">v1: agent review (<tspan font-style="italic">Judge</tspan>)</text>
+    <rect x="215" y="80" width="76" height="24" rx="3" class="bar-dim"><title>17,741 tokens a puzzle, 311 puzzles</title></rect>
+    <text x="299" y="97">17,741</text>
+    <text x="0" y="140">v2: text step (<tspan font-style="italic">GAMES</tspan>)</text>
+    <rect x="215" y="124" width="33" height="24" rx="3" class="bar"><title>7,710 tokens a puzzle, 81 puzzles</title></rect>
+    <text x="256" y="141">7,710</text>
+  </svg>
+  <figcaption>The dashed part of the top bar is a general-purpose agent's fixed setup, before it reads anything.</figcaption>
+</figure>
+
+<div class="costs-wrap"><table class="costs minw">
+  <thead><tr><th>How Claude works on a puzzle</th><th class="n">Puzzles</th><th class="n">Agents</th><th class="n">Tokens a puzzle</th><th class="n">Weekly Fable limit a puzzle</th></tr></thead>
+  <tbody>
+    <tr><td>Claude reads the puzzle page and the key page (<i>Judge</i>, 1927 and 1928)</td><td class="n">2</td><td class="n">2</td><td class="n">77,288</td><td class="n">—</td></tr>
+    <tr><td>v1: agent review, text first, crops by code (<i>Judge</i> batches 7–12)</td><td class="n">311</td><td class="n">78</td><td class="n">17,741</td><td class="n">0.15–0.17%</td></tr>
+    <tr><td>v2: the text step (<i>GAMES</i>, run 4, all 81)</td><td class="n">81</td><td class="n">8</td><td class="n">7,710</td><td class="n">0.074%</td></tr>
+    <tr><td>v2: the text step again, where the lines changed (run 6)</td><td class="n">65</td><td class="n">7</td><td class="n">7,928</td><td class="n">0.077%</td></tr>
+    <tr><td>v2: triage, gxd cross-check, headers, assembly</td><td class="n">81</td><td class="n">—</td><td class="n">0</td><td class="n">0</td></tr>
+    <tr><td>v2: the batch rebuilt after the fixes (run 7)</td><td class="n">77</td><td class="n">—</td><td class="n">0</td><td class="n">0</td></tr>
+    <tr><td>v2: the pass after kinds of failure (Opus, in the same session as building the batch page and import)</td><td class="n">81</td><td class="n">1</td><td class="n" colspan="2">see note</td></tr>
+  </tbody>
+</table></div>
+<p class="costs-note">Claude Fable 5.1 for the text step. Tokens: each agent's own total as the harness reports it (tokens
+  read and written, not counting re-reads from the prompt cache), summed and divided by the puzzles it was given.
+  Run 6 is over the 55 puzzles whose agents reported a total. Weekly limit: the plan's weekly Fable meter before and
+  after a run, which shows whole percents (v1: 3% → 9% over 39 puzzles, and about 0.17% a puzzle over the 298 of
+  1929–1939; v2: 9% → 15% over 81, 15% → 20% over 65). The pass after kinds of failure ran in a working session
+  that also built the batch page, the import and the fixes; together they wrote about 1,200 output tokens a puzzle (and 3,100 to the prompt cache) and
+  re-read about 340,000 from the prompt cache, so the pass alone can't be separated out yet.</p>
+
+<p>Version 2's text step costs 43% of version 1's review, and 10% of handing Claude the pages, which is the goal we
+  set ourselves. Version 1's packet had already taken Claude off the scan; version 2 takes it further. Claude still reads a
+  text view and crops code chose, but writes back only what's wrong, and ten puzzles share an agent's setup. And everything else that version 1 asked an agent
+  to do, judging which line is the title, checking whether an answer is plausible, deciding whether a puzzle needs a
+  person, is now code.</p>
+
+<p>Fair comparisons need two caveats. The whole-page test was two <i>Judge</i> puzzles, not <i>GAMES</i>, and most
+  of its 77,300 tokens (51,700) were a general-purpose agent's setup; batched ten to an agent like the text step, the
+  same reading would be nearer 30,000 a puzzle, and version 2 a quarter of that. And a version 2 puzzle isn't finished
+  when the text step is: the pass after kinds of failure comes on top. This time it ran in a session that was also
+  building tools, so its own cost isn't separable; the next batch is meant to run it on its own and measure it, along
+  with a whole-page baseline on <i>GAMES</i> itself.</p>
+
+<h3>How many puzzles needed a person</h3>
+
+<p>On <i>Judge</i>, a person edited 172 of 531 puzzles (32%), and every puzzle went through an agent's review first.</p>
+
+<p class="todo">For <i>GAMES</i>: puzzles a person had to act on (diagnoses recorded, edits on the site) out of 81, and
+  how many shipped untouched, from the batch landing's triage and the games ledger. Run 7's triage puts 3 at ship, 43
+  at glance and 31 at needs attention, waiting for a person's decisions on the batch page.</p>
+
+<h3>Accuracy, where we have reviewed truth</h3>
+
+<ul>
+  <li><b>Headers.</b> The first guess at title, byline and number, measured on all 81 puzzles against the reviewed
+    values: titles 54 → 62, bylines 75 → 77, numbers 79 → 80, after assembly stopped choosing.</li>
+  <li><b>The gxd cross-check.</b> 2,532 of 5,489 clue–answer pairs match gxd exactly; 11 of 14 one-letter near misses
+    on answers were real key misreadings.</li>
+  <li><b>The evaluation set.</b> 40 reviewed <i>Judge</i> puzzles, read by the OCR alone, before any model: grid
+    found 95%, squares right 95%, clues exactly right 87.5%, title 65%, key letters 84.5%. Every change to the
+    pipeline is measured against it before it is merged.</li>
+</ul>
+<p class="todo">The same measures on <i>GAMES</i> once its puzzles are reviewed (the evaluation set has no reviewed
+  <i>GAMES</i> puzzles yet), and the final header counts on the landed batch.</p>
+
+<h2>What's still hard</h2>
+
+<ul>
+  <li><b>Answer keys.</b> After the fix in <a href="games-v2-2-stages.html">part 2</a>, 4 puzzles still have no key
+    matched, and 11 have key letters misread, mostly a key's last row cut in half where <i>GAMES</i> printed keys
+    touching. (The 14 cryptics have no key grid at all: <i>GAMES</i> printed their answers as text.)</li>
+  <li><b>Clue lists that wander.</b> Two-line clues split onto the next number, intros set in two columns read
+    interleaved, and the giant puzzles' second, easier clue list not captured.</li>
+  <li><b>Things that aren't crosswords.</b> A board game, an answer page and a "64 = 65" paradox square all came
+    through as puzzles. Triage drops them now, and Browse lists what was dropped, with a button to restore it.</li>
+</ul>
+
+<h2>What's next</h2>
+
+<p>Version 3 pulls the pipeline apart along the same lines: the harvest becomes a stage of its own that any
+  publication can run, the OCR library takes a page image and returns puzzle data, and blitz runs the batches, the
+  review site and the export to gxd. Next up after <i>GAMES</i> 1977–1979: the rest of <i>GAMES</i>, and checking that
+  nothing in version 2 was tuned to one magazine by running it on <i>Judge</i> again.</p>
+
+<nav class="series end" aria-label="The series"><span>GAMES Magazine 1977–79 and Pipeline v2, in three parts</span><ol><li><a href="games-v2-1-pencilwise.html">Part 1: Pencilwise, and the pipeline at a glance</a></li><li><a href="games-v2-2-stages.html">Part 2: Stage by stage: the tools</a></li><li class="on">Part 3: What it cost, measured</li></ol></nav>
+
+<p class="note">This is a research archive: an accurate record of puzzles as they were printed, each linked to its
+  source scan. It isn't a place to play old puzzles. Thanks to the Internet Archive and the uploaders of the
+  <i>GAMES</i> scans, and to Saul Pwanson's xd crossword corpus.</p>
+
+
+</main>
+</body>
+</html>
