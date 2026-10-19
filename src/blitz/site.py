@@ -6,6 +6,9 @@
   bucket, public read), and a row each in Supabase's `puzzles` table.
 - `fetch_decisions`: everything helpers recorded, combined per puzzle in the shape
   `xword-ocr import-reviews --decisions` takes.
+- The batch page (docs/review/batch/, src/blitz/batch.html, the page the local watch serves at /batch/):
+  every puzzle of a batch sorted by what the pipeline found, read from a snapshot on R2
+  (sitebatch.py, `blitz site-publish-batch`).
 - The key-squares page (docs/review/squares/, src/blitz/squares.html): one card per doubtful
   answer-key square. `publish` puts a folder's key-squares.json (`blitz key-squares`) in the
   `flags` table, and helpers' Keep / Change answers come back from `flag_checks`
@@ -83,10 +86,19 @@ SQUARES_HEAD = (REVIEW_HEAD.replace("<title>Check old crosswords: Every Puzzle P
                 .replace(f"{SITE}/review/", f"{SITE}/review/squares/"))
 
 
+BATCH_DESC = ("Every puzzle in a batch of old crosswords, sorted by what the pipeline found when it read the scans, "
+              "with why. Part of the Every Puzzle Project, which is turning early crosswords into searchable, preserved records.")
+BATCH_HEAD = (REVIEW_HEAD.replace("<title>Check old crosswords: Every Puzzle Project</title>",
+                                  "<title>The batch: Every Puzzle Project</title>")
+              .replace(REVIEW_DESC, BATCH_DESC).replace("Help check old crosswords", "A batch of old crosswords")
+              .replace(f"{SITE}/review/", f"{SITE}/review/batch/"))
+
+
 def build(root: Path) -> Path:
     """The review pages and (once) a config to fill in:
     - docs/review/: the proof page (src/blitz/proof.html): check the finished puzzle against the scan;
     - docs/review/squares/: the key-squares page (squares.html): one doubtful answer-key square at a time;
+    - docs/review/batch/: the batch page (batch.html): a batch's puzzles sorted by what the pipeline found;
     - docs/review-old/: the earlier change-by-change page (review.html, also `blitz watch`), kept to refer back to;
     - docs/review2/: a redirect to /review/ (where the proof page was previewed).
     All three share docs/review/config.js."""
@@ -127,6 +139,15 @@ def build(root: Path) -> Path:
                              f'<script src="{SUPABASE_JS}"></script>\n' + old)
     page = page.replace("<title>Key squares</title>", SQUARES_HEAD)
     (sq / "index.html").write_text(page, encoding="utf-8", newline="\n")
+
+    bt = out / "batch"
+    bt.mkdir(parents=True, exist_ok=True)
+    page = (Path(__file__).parent / "batch.html").read_text(encoding="utf-8")
+    old = "<script>\nconst $"
+    assert old in page
+    page = page.replace(old, '<script src="../config.js"></script>\n' + old)
+    page = page.replace("<title>Batch</title>", BATCH_HEAD)
+    (bt / "index.html").write_text(page, encoding="utf-8", newline="\n")
 
     moved = root / "docs" / "review2"
     moved.mkdir(parents=True, exist_ok=True)

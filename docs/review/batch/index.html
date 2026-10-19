@@ -1,0 +1,447 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The batch: Every Puzzle Project</title>
+<meta name="description" content="Every puzzle in a batch of old crosswords, sorted by what the pipeline found when it read the scans, with why. Part of the Every Puzzle Project, which is turning early crosswords into searchable, preserved records.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Every Puzzle Project">
+<meta property="og:title" content="A batch of old crosswords">
+<meta property="og:description" content="Every puzzle in a batch of old crosswords, sorted by what the pipeline found when it read the scans, with why. Part of the Every Puzzle Project, which is turning early crosswords into searchable, preserved records.">
+<meta property="og:url" content="https://blitz.xwordapp.com/review/batch/">
+<meta property="og:image" content="https://blitz.xwordapp.com/img/social-card.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Judge magazine's November 15, 1924 cover, a full-page crossword, beside the words: Bringing old crosswords back">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#f7f5f0">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 3 3%27%3E%3Crect width=%273%27 height=%273%27 fill=%27%23fff%27/%3E%3Crect width=%271%27 height=%271%27 fill=%27%231d1b17%27/%3E%3Crect x=%272%27 y=%272%27 width=%271%27 height=%271%27 fill=%27%231d1b17%27/%3E%3C/svg%3E">
+<style>
+/* one column of puzzle rows under a sticky summary bar (the 2026-10-18 prototype's layout); deciding
+   happens on the proof page, where the puzzle is in front of you: each row only says what's there and why */
+:root {
+  --bg: #f5f3ef; --paper: #fffdf9; --ink: #23211d; --muted: #77716a; --line: #e2ddd4;
+  --ship: #2e7d4f; --ship-bg: #e6f2ea; --glance: #8a6d12; --glance-bg: #f6eed4;
+  --person: #b3412f; --person-bg: #f7e3df; --drop: #6b6670; --drop-bg: #ebe8ee; --accent: #1f5fbf;
+  --serif: Georgia, "Times New Roman", serif; --sans: system-ui, "Segoe UI", Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #1b1a18; --paper: #24221f; --ink: #ece8e1; --muted: #a39d94; --line: #3a3732;
+  --ship: #7cc49a; --ship-bg: #22352a; --glance: #e0c069; --glance-bg: #3a3320; --person: #f09a88; --person-bg: #3d2622;
+  --drop: #b8b2be; --drop-bg: #302d33; --accent: #8ab4f0; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #1b1a18; --paper: #24221f; --ink: #ece8e1; --muted: #a39d94; --line: #3a3732;
+  --ship: #7cc49a; --ship-bg: #22352a; --glance: #e0c069; --glance-bg: #3a3320; --person: #f09a88; --person-bg: #3d2622;
+  --drop: #b8b2be; --drop-bg: #302d33; --accent: #8ab4f0; color-scheme: dark }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 var(--sans); padding: 0 16px 40px; }
+.wrap { max-width: 1040px; margin: 0 auto; }
+header { position: sticky; top: 0; background: var(--bg); padding: 14px 0 10px; z-index: 5; border-bottom: 1px solid var(--line); }
+h1 { font: 600 20px/1.2 var(--serif); margin: 0 0 2px; }
+h2 { font: 600 16px/1.2 var(--serif); margin: 22px 0 6px; }
+h1 select { font: 14px var(--sans); vertical-align: 2px; background: var(--paper); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 1px 4px; }
+.sub { color: var(--muted); font-size: 13px; }
+.bar { display: flex; height: 10px; border-radius: 5px; overflow: hidden; margin: 10px 0 8px; background: var(--line); }
+.bar span { display: block; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 4px; }
+.chip { border: 1px solid var(--line); background: var(--paper); color: var(--ink); border-radius: 14px; padding: 3px 11px; font: inherit; font-size: 13px; cursor: pointer; font-variant-numeric: tabular-nums; }
+.chip.on { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+.chip b { font-weight: 600; }
+.walk { margin-left: auto; font-size: 13px; }
+.row { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; gap: 4px 14px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+/* the grid as printed in either theme: white squares to fill, black blocks */
+.mini { width: 60px; height: 60px; display: grid; border: 1px solid #555; background: #fff; }
+.mini i { display: block; } .mini i.b { background: #1b1b1b; }
+.row.withpage { grid-template-columns: 200px minmax(0, 1fr) auto; }
+img.pg { width: 200px; display: block; border: 1px solid var(--line); background: #fff; }
+.maps { width: 200px; } .maps > a { display: block; position: relative; }
+/* more pages: a pile behind the first, with how many */
+.maps > a.stack img.pg { box-shadow: 4px 4px 0 -1px var(--paper), 4px 4px 0 0 #999, 8px 8px 0 -1px var(--paper), 8px 8px 0 0 #bbb; }
+.maps > a.stack::after { content: attr(data-more); position: absolute; right: -2px; bottom: -2px; background: var(--ink); color: var(--bg); font-size: 11px; font-weight: 600; border-radius: 9px; padding: 0 6px; }
+.maps .meta { margin-top: 10px; }
+/* a page as scanned, with what the pipeline recorded on it drawn over it (each box says its source) */
+.pgwrap { position: relative; line-height: 0; }
+.pgwrap svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.pgwrap svg .b { fill: none; pointer-events: visibleStroke; }
+.pgwrap svg .mine { stroke: #1f5fbf; } .pgwrap svg .mine.key { stroke: #c46e00; }
+.pgwrap svg .other { stroke: #8c8c8c; } .pgwrap svg .grid0 { stroke: #b4b4b4; stroke-dasharray: 6 5; }
+.pgwrap svg text { fill: #555; font: 600 34px system-ui, sans-serif; }
+/* the page full size over the list: click or Escape closes it */
+#lightbox { position: fixed; inset: 0; z-index: 20; background: rgba(0,0,0,.78); display: flex; align-items: flex-start; justify-content: center; overflow: auto; padding: 24px 16px; cursor: zoom-out; }
+#lightbox[hidden] { display: none; }
+#lightbox .pgwrap { max-width: min(1400px, 100%); box-shadow: 0 4px 24px rgba(0,0,0,.5); background: #fff; }
+#lightbox img { width: 100%; height: auto; }
+#lightbox .cap { position: fixed; left: 16px; top: 8px; color: #fff; font-size: 13px; } .leaves a.cur { font-weight: 700; color: var(--ink); text-decoration: none; }
+.legend { font-size: 12px; color: var(--muted); } .legend b { font-weight: 600; }
+.t { font: 600 15px/1.3 var(--serif); } .t .none { color: var(--muted); font-style: italic; font-weight: 400; }
+.meta { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+ul.why { margin: 4px 0 0; padding: 0; list-style: none; font-size: 13px; }
+ul.why li { margin: 1px 0; } ul.why li::before { content: "• "; color: var(--muted); }
+li.d { color: var(--person); } li.g { color: var(--muted); }
+.verdict { font-size: 13px; margin-top: 4px; padding-left: 8px; border-left: 2px solid var(--line); }
+.cause { font-size: 13px; margin-top: 4px; padding: 4px 8px; background: var(--paper); border-left: 3px solid var(--accent); }
+.side { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.pill { font-size: 12px; font-weight: 600; border-radius: 10px; padding: 2px 9px; white-space: nowrap; }
+.p-ship { color: var(--ship); background: var(--ship-bg); } .p-glance { color: var(--glance); background: var(--glance-bg); }
+.p-person { color: var(--person); background: var(--person-bg); } .p-drop { color: var(--drop); background: var(--drop-bg); }
+.state { font-size: 12px; color: var(--muted); }
+.uns { font-size: 13px; margin-top: 4px; } .uns summary { cursor: pointer; color: var(--muted); }
+.uns ul { margin: 2px 0 0; padding-left: 16px; } .uns li { margin: 1px 0; }
+a { color: var(--accent); } a.open { font-size: 12px; white-space: nowrap; }
+button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+details.tools { margin-top: 24px; } details.tools > summary { cursor: pointer; font: 600 15px var(--serif); padding: 6px 0; }
+.nl { columns: 2 360px; font-size: 13px; } .nl div { break-inside: avoid; margin: 2px 0; }
+.nlab { display: inline-flex; gap: 4px; align-items: center; margin-right: 12px; }
+.roles { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 6px 0; }
+.roles .ord { display: inline-block; min-width: 16px; text-align: center; font-size: 11px; color: #fff; background: var(--accent); border-radius: 8px; }
+table.mh { border-collapse: collapse; font-size: 13px; width: 100%; } table.mh td { padding: 6px 8px; border-top: 1px solid var(--line); vertical-align: top; }
+table.mh img { max-width: 100%; max-height: 60px; border: 1px solid var(--line); background: #fff; display: block; }
+table.mh details img { max-height: 44px; }
+.mhall { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 6px; margin-top: 6px; }
+.btn { border: 1px solid var(--line); background: var(--paper); color: var(--ink); border-radius: 12px; padding: 3px 11px; font: inherit; font-size: 13px; cursor: pointer; }
+.btn.go { background: var(--ship); color: #fff; border-color: var(--ship); }
+.err { color: var(--person); }
+.sitenav { font-size: 13px; margin-bottom: 6px; }
+/* the puzzles waiting for the text step: what changed in their reading, old -> new */
+#rerun .row { grid-template-columns: 64px minmax(0, 1fr); } #rerun img.th { width: 60px; height: 60px; object-fit: contain; border: 1px solid var(--line); background: #fff; }
+#rerun .chg { font-size: 13px; } #rerun del { color: var(--person); } #rerun ins { color: var(--ship); text-decoration: none; }
+@media (max-width: 560px) { .row, .row.withpage { grid-template-columns: 76px minmax(0, 1fr); } img.pg, .maps { width: 76px; }
+  .maps .leaves { font-size: 11px; line-height: 1.6; } header { position: static; } .mini { width: 48px; height: 48px; } .side { grid-column: 2; flex-direction: row; flex-wrap: wrap; align-items: center; } }
+</style></head>
+<body><div class="wrap">
+<header>
+  <div class="sitenav" id="sitenav" hidden><a href="../">← the proof page</a> · <a href="../?browse">Browse every puzzle</a></div>
+  <h1><span id="h1">Batch</span> <select id="runsel" title="Which run of the batch"></select></h1>
+  <div class="sub" id="runnote"></div>
+  <div class="sub" id="about">Each puzzle sorted by what the pipeline found. Triage's guess is the coloured label; Ready or Not ready is a person's decision on the proof page, and only Ready puzzles are imported. Next on the proof page walks the list shown here.</div>
+  <div class="bar" id="bar"></div>
+  <div class="chips" id="chips"></div>
+  <div class="chips" id="causechips"></div>
+  <div class="legend">Drawn from the records only: <b style="color:#1f5fbf">this puzzle's region boxes</b> (what its parts were read from) and <b style="color:#c46e00">its key</b> as assembly cut it; other puzzles in grey; the harvest's answer grids dashed. Hover a box for the milestone it came from.</div>
+</header>
+<details id="rerun" hidden></details>
+<main id="list"></main>
+<div id="lightbox" hidden><span class="cap"></span><div class="pgwrap"><img alt="the page, full size"><svg></svg></div></div>
+<details class="tools" id="tools"><summary>Batch tools: the agent's pass, spend, the Notes rule, the Editor from the masthead, import</summary>
+  <p class="meta" id="agent"></p><div id="spend"></div>
+  <h2>Notes rule</h2>
+  <p class="meta">Which labelled lines (kept on the proof page) go in gxd's Notes, for the whole publication. Tick labels to see every line the rule would take, then save it.</p>
+  <div id="notes"></div>
+  <h2 id="editor">Editor, from the masthead</h2>
+  <p class="meta">Each issue's staff box, read by the page OCR (the masthead milestone). Tick the roles whose name is a puzzle's Editor, in order: the first one an issue's masthead lists is its puzzles' Editor, and the proof page shows it with this crop. An issue that lists none of them gets no Editor. Save the rule for the whole publication: this run's proof packets are made again with it (markup only, about half a minute), and later runs take it too.</p>
+  <div id="mastheads"></div>
+  <h2>Import</h2>
+  <p class="meta">The puzzles marked Ready on the proof page, as they would go into the publication repo's xd/, ids assigned last. Held ones say why.</p>
+  <div id="import"></div>
+</details>
+</div>
+<script src="../config.js"></script>
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const params = new URLSearchParams(location.search);
+const KIND = {person: ['Needs a person', 'p-person', 'var(--person)'], glance: ['Glance', 'p-glance', 'var(--glance)'],
+              ship: ['Looks ready', 'p-ship', 'var(--ship)'], drop: ['Not a crossword', 'p-drop', 'var(--drop)']};
+const ORDER = ['person', 'glance', 'ship', 'drop'];
+const KINDOF = {'needs attention': 'person', glance: 'glance', ship: 'ship', 'not a crossword': 'drop'};
+const kindOf = p => p.choice === 'drop' ? 'drop' : KINDOF[p.triage];
+// the proof page opens at a row given as ?k=<its key>: clue:A68 for a clue, line:B4 for a printed line
+const KEY = a => /^[AD]\d+$/.test(a) ? 'clue:' + a : /^[BL]\d+$/.test(a) ? 'line:B' + a.slice(1) : '';
+let D, filter = params.get('f') || 'all', cause = params.get('cause') || '';
+// Where the records come from. Locally, the watch's API (xword-ocr watch: /api/batch, /api/overlay, the
+// images it serves). On the review site (config.js sets BLITZ_SITE), or given ?data=<folder>, a snapshot
+// of the same records as static files (blitz site-publish-batch): batch.json, overlay/<pid>-<n>.json and
+// the images, their URLs relative to the folder. A snapshot is the volunteer view: no maintainer tools,
+// and a puzzle's Ready or Not ready is on the proof page, not here.
+const SITE = window.BLITZ_SITE || null;
+let DATA = params.get('data') || '', BATCHES = [];
+const U = u => u && DATA ? new URL(u, new URL(DATA, location.href)).href : u;
+const full = m => DATA ? U(m.full || m.image) : m.image + '?w=1400';  // a page, full size
+
+async function load() {
+  if (SITE && !params.get('data')) {  // the batches published to the site, newest first
+    const idx = await fetch(`${SITE.filesBase}/batch/batches.json`, {cache: 'no-cache'}).then(r => r.json());
+    BATCHES = idx.batches || [];
+    const b = BATCHES.find(x => x.name === params.get('b')) || BATCHES[0];
+    if (!b) throw new Error('No batch has been published to the site yet.');
+    DATA = `${SITE.filesBase}/batch/${b.name}/`;
+  }
+  const r = await fetch(DATA ? U('batch.json') : '/api/batch' + (params.get('run') ? '?run=' + encodeURIComponent(params.get('run')) : ''),
+                        {cache: 'no-cache'});
+  D = await r.json();
+  if (D.error) throw new Error(D.error);
+  draw();
+  $('#tools').hidden = !!DATA;
+  if (!DATA) { drawTools(); drawRerun(); }
+}
+function drawRerun() {
+  const r = D.rerun, el = $('#rerun');
+  el.hidden = !r;
+  if (!r) return;
+  const clue = c => `<div class="chg">${c.crop && c.files ? `<a href="${esc(c.files + c.crop)}" target="_blank" title="its crop on the sheet the text step will read">${esc(c.label)}</a>` : esc(c.label)}
+    ${c.old == null ? '' : `<del>${esc(c.old || '(not read)')}</del> → `}<ins>${esc(c.new || '(not read)')}</ins></div>`;
+  el.innerHTML = `<summary><h2 style="display:inline">Needs the text step: ${r.puzzles.length} puzzles</h2>
+    <span class="meta">about ${(r.tokens / 1000).toFixed(0)}k Fable tokens, ${r.share}% of the weekly limit</span></summary>
+    <p class="meta">The reading of these puzzles' clues or printed lines changed since ${esc(r.from)}, so its text step answers no longer fit; the other ${r.reused} were reused as they are. The estimate is the cost measured per puzzle on run4 and run6, scaled by each puzzle's crops. A clue's label opens its crop from the sheet the text step will read; the proof page comes after the text step.</p>
+    ${r.puzzles.map(p => `<div class="row"><span>${p.thumb ? `<img class="th" loading="lazy" src="${esc(p.thumb)}" alt="the grid">` : ''}</span>
+      <div><div class="t">${esc(p.pid)}</div><div class="meta">${p.new ? 'not in the earlier run' : `${p.clues.length} clue(s)` + (p.lines.length ? `, ${p.lines.length} line(s)` : '') + ' changed'}${p.crops != null ? ` · ${p.crops} crops on its sheets` : ''}</div>
+      ${p.clues.slice(0, 12).map(c => clue({...c, files: p.files})).join('')}${p.clues.length > 12 ? `<div class="meta">+${p.clues.length - 12} more</div>` : ''}
+      ${p.lines.map(t => `<div class="chg meta">line: ${esc(t)}</div>`).join('')}</div></div>`).join('')}`;
+}
+const causeOf = pid => ((D.causes || {}).causes || []).find(c => c.pids.includes(pid));
+function shown() {
+  return D.puzzles.filter(p => (filter === 'all' || kindOf(p) === filter) && (!cause || (causeOf(p.pid) || {}).id === cause))
+    .sort((a, b) => ORDER.indexOf(kindOf(a)) - ORDER.indexOf(kindOf(b)) || a.pid.localeCompare(b.pid));
+}
+// a link into the proof page that walks the list on screen: its Next goes to the next row here. From a
+// snapshot the list goes in the link (?walk=<label>&pids=...): there's no server to ask for it.
+function proofUrl(pid, k, rows) {
+  const c = ((D.causes || {}).causes || []).find(x => x.id === cause);
+  const label = [filter !== 'all' ? KIND[filter][0] : '', c ? c.title : ''].filter(Boolean).join(' · ') || 'all puzzles';
+  const back = '&back=' + encodeURIComponent(location.pathname + location.search);
+  if (DATA) return `${SITE ? '../' : params.get('proof') || '/proof/'}?p=${encodeURIComponent(pid)}`
+    + (!SITE && params.get('base') ? '&base=' + encodeURIComponent(params.get('base')) : '')
+    + (k ? '&k=' + encodeURIComponent(k) : '') + `&walk=${encodeURIComponent(label)}&pids=${rows.map(r => r.pid).join(',')}` + back;
+  const list = `/api/walk?run=${encodeURIComponent(D.run)}&label=${encodeURIComponent(label)}&pids=${rows.map(r => r.pid).join(',')}`;
+  return `/proof/?p=${encodeURIComponent(pid)}&base=${encodeURIComponent(D.base)}&save=/api/proof${k ? '&k=' + encodeURIComponent(k) : ''}`
+    + `&list=${encodeURIComponent(list)}` + back;
+}
+function setUrl() {
+  const q = new URLSearchParams();
+  for (const x of ['run', 'b', 'data', 'proof', 'base']) if (params.get(x)) q.set(x, params.get(x));
+  if (filter !== 'all') q.set('f', filter);
+  if (cause) q.set('cause', cause);
+  history.replaceState(null, '', '?' + q);
+}
+function mini(grid) {
+  if (!grid.length) return '<div class="mini"></div>';
+  return `<div class="mini" style="grid-template-columns:repeat(${grid[0].length},1fr);grid-template-rows:repeat(${grid.length},1fr)">` +
+    grid.map(r => [...r].map(c => `<i class="${c === '#' ? 'b' : ''}"></i>`).join('')).join('') + '</div>';
+}
+function state(p) {  // where the puzzle stands: the proof page's Ready / Not ready, or a drop
+  if (p.choice === 'drop') return `dropped${p.by ? ' by ' + esc(p.by) : ''}`;
+  if (DATA) return '';  // a snapshot: Ready and Not ready are the proof page's
+  if (p.choice === 'ship') return `<b style="color:var(--ship)">Ready</b>${p.by ? ' · ' + esc(p.by) : ''}`;
+  if (p.choice === 'hold') return `<b style="color:var(--person)">Not ready</b>${p.by ? ' · ' + esc(p.by) : ''}`;
+  return 'not checked yet';
+}
+function draw() {
+  const snap = D.snapshot;
+  document.title = snap ? `${snap.title || snap.name}: the batch` : `Batch ${D.run}`;
+  $('#h1').textContent = snap ? `${snap.title || snap.name}: ${D.puzzles.length} puzzles` : `${D.pubid ? D.pubid.toUpperCase() + ' ' : ''}${D.puzzles.length} puzzles,`;
+  const rn = D.run_notes || {}, tag = r => r === D.current ? 'current' : (rn[r] || {}).status || '';
+  $('#sitenav').hidden = !SITE;
+  if (snap) {  // which published batch: one choice per batch on the site
+    $('#runsel').hidden = BATCHES.length < 2;
+    $('#runsel').innerHTML = BATCHES.map(b => `<option value="${esc(b.name)}"${b.name === snap.name ? ' selected' : ''}>${esc(b.title || b.name)}</option>`).join('');
+    $('#runsel').onchange = e => { params.set('b', e.target.value); setUrl(); location.reload(); };
+    $('#about').innerHTML = `Every puzzle in this batch, sorted by what the pipeline found when it read the scans: the coloured label is its guess,
+      and the list under each puzzle says why. Open one on the proof page to check it against the scan, fix what's wrong and say whether
+      it's ready; <b>Next</b> there walks the list shown here. Pages that turned out not to be crosswords are under <i>Not a crossword</i>.`;
+  } else {
+    $('#runsel').innerHTML = D.runs.map(r => `<option value="${esc(r)}"${r === D.run ? ' selected' : ''}>${esc(r)}${tag(r) ? ' (' + esc(tag(r)) + ')' : ''}</option>`).join('');
+    $('#runsel').onchange = e => { params.set('run', e.target.value); setUrl(); load(); };
+  }
+  const note = rn[D.run];
+  $('#runnote').innerHTML = snap ? `<span title="${esc(D.run)}${note ? ': ' + esc(note.what) : ''}">As the pipeline left it on ${esc((snap.at || '').slice(0, 10))}.</span>`
+    : (note ? `<b>${esc(D.run)}</b>: ${esc(note.what)}` : '')
+    + (D.current && D.run !== D.current ? ` <span class="err">Not the current run (${esc(D.current)}): a trial, for comparing.</span>` : '');
+  const count = k => D.puzzles.filter(p => kindOf(p) === k).length;
+  $('#bar').innerHTML = ORDER.map(k => `<span style="width:${100 * count(k) / D.puzzles.length}%;background:${KIND[k][2]}" title="${KIND[k][0]}: ${count(k)}"></span>`).join('');
+  const ready = D.puzzles.filter(p => p.choice === 'ship').length;
+  const rows = shown();
+  $('#chips').innerHTML = `<button class="chip ${filter === 'all' ? 'on' : ''}" data-f="all">All <b>${D.puzzles.length}</b></button>`
+    + ORDER.map(k => `<button class="chip ${filter === k ? 'on' : ''}" data-f="${k}">${KIND[k][0]} <b>${count(k)}</b></button>`).join('')
+    + (DATA ? '' : `<span class="meta">${ready} ready</span>`)
+    + (rows.length ? `<a class="walk" href="${proofUrl(rows[0].pid, '', rows)}" target="_blank">Walk these ${rows.length} on the proof page →</a>` : '');
+  const cs = (D.causes || {}).causes || [];
+  $('#causechips').innerHTML = cs.length ? `<span class="meta">By cause:</span>` + cs.map(c => `<button class="chip ${cause === c.id ? 'on' : ''}" data-c="${esc(c.id)}" title="${esc(c.recommend)}">${esc(c.title)} <b>${c.puzzles.length}</b></button>`).join('') : '';
+  document.querySelectorAll('[data-f]').forEach(b => b.onclick = () => { filter = b.dataset.f; setUrl(); draw(); });
+  document.querySelectorAll('[data-c]').forEach(b => b.onclick = () => { cause = cause === b.dataset.c ? '' : b.dataset.c; setUrl(); draw(); });
+  $('#list').innerHTML = rows.map(p => {
+    const k = KIND[kindOf(p)], c = causeOf(p.pid);
+    const rs = p.reasons.filter(r => r.code !== 'verdict');
+    const why = [...rs.filter(r => r.class === 'defect' && r.code !== 'not-a-crossword').map(r => `<li class="${r.severity === 'glance' ? 'g' : 'd'}"><a href="${proofUrl(p.pid, r.row, rows)}" target="_blank">${esc(r.code)}</a>${r.detail && r.detail !== 'from the verdict' ? ': ' + esc(r.detail) : ''}</li>`),
+                 ...rs.filter(r => r.class === 'gap').map(r => `<li class="g">gap: ${esc(r.code)}${r.detail && r.detail !== 'from the verdict' ? ': ' + esc(r.detail) : ''}</li>`)].join('');
+    const verdict = (p.reasons.find(r => r.code === 'verdict') || {}).detail;
+    // the puzzle's pages with what it took outlined (grid, clue lists, lines, key) and the other
+    // puzzles' parts in grey: what was linked, and that nothing a neighbour needs went with it
+    const pic = p.maps.length
+      ? `<div class="maps"><a class="${p.maps.length > 1 ? 'stack' : ''}" data-more="${p.maps.length > 1 ? '+' + (p.maps.length - 1) : ''}" href="${esc(full(p.maps[0]))}" target="_blank" title="${esc(leafTitle(p.maps[0]))} (click for full size)"><div class="pgwrap"><img class="pg" loading="lazy" src="${esc(U(p.maps[0].image))}" alt="the puzzle's page"><svg></svg></div></a>`
+        // every page as a link that swaps the thumbnail in place; the thumbnail opens the full size
+        + (p.maps.length > 1 ? `<div class="meta leaves">${p.maps.map((m, i) => `<a href="#" class="${i ? '' : 'cur'}" data-i="${i}">${esc(m.page.replace(/^.*, /, ''))}</a>`).join(' · ')}</div>` : '') + `</div>`
+      : p.page ? `<a href="${esc(U(p.page))}" target="_blank"><img class="pg" loading="lazy" src="${esc(U(p.page))}" alt="the puzzle's page"></a>` : mini(p.grid);
+    return `<div class="row withpage" id="${esc(p.pid)}">${pic}
+      <div><div class="t">${p.title ? esc(p.title) : '<span class="none">no title found</span>'}</div>
+        <div class="meta">${esc(p.date)} · ${p.grid.length}×${(p.grid[0] || '').length}${p.byline ? ' · ' + esc(p.byline) : ''}${p.cryptic ? ' · cryptic' : ''} · ${p.changes} changes, ${p.unsure_items.length} unsure, ${p.blanks} blanks</div>
+        ${why ? `<ul class="why">${why}</ul>` : ''}
+        ${verdict ? `<div class="verdict">${esc(verdict)}</div>` : ''}
+        ${kindOf(p) === 'drop' && p.note ? `<div class="verdict"><b>Dropped:</b> ${esc(p.note)}</div>` : ''}
+        ${c && c.lane !== 'glance' ? `<div class="cause"><b>${esc(c.title)}</b>${c.stage ? ` (${esc(c.stage)})` : ''}: ${esc(c.recommend)}</div>` : ''}
+        ${p.unsure_items.length ? `<details class="uns"><summary>Not sure (${p.unsure_items.length})</summary><ul>${p.unsure_items.map(u =>
+          `<li>${KEY(u.key) ? `<a href="${proofUrl(p.pid, KEY(u.key), rows)}" target="_blank">${esc(u.key)}</a>` : esc(u.key)}: ${esc(u.text)}</li>`).join('')}</ul></details>` : ''}</div>
+      <div class="side"><span class="pill ${k[1]}">${k[0]}</span><span class="state">${state(p)}</span>
+        <a class="open" href="${proofUrl(p.pid, '', rows)}" target="_blank">Proof page ↗</a></div></div>`;
+  }).join('') || '<p class="meta">None.</p>';
+  rows.forEach(p => { const row = document.getElementById(p.pid); if (row && p.maps.length) drawOverlay(row.querySelector('.maps svg'), p.pid, 0, 2); });
+  document.querySelectorAll('.maps > a').forEach(a => a.onclick = e => {
+    if (e.ctrlKey || e.metaKey || e.shiftKey) return;  // a new tab, as asked
+    e.preventDefault();
+    const row = a.closest('.row'), cur = row.querySelector('.leaves a.cur');
+    openLeaf(row.id, cur ? +cur.dataset.i : 0);
+  });
+  document.querySelectorAll('.leaves a').forEach(l => l.onclick = e => {
+    e.preventDefault();
+    showLeaf(l.closest('.row'), +l.dataset.i);
+  });
+}
+
+// ---- batch tools: the agent's pass, spend, the Notes rule, the import ----
+let NOTES = null;
+function drawTools() {
+  $('#agent').textContent = D.agent || '';
+  const sp = D.spend;
+  $('#spend').innerHTML = sp ? `<p class="meta">Spend for ${sp.puzzles} puzzles; target ${esc(sp.target)}</p><ul class="why">${sp.rows.map(r => `<li>${esc(r.part)} (${esc(r.model)}): ${esc(r.tokens)} <span class="meta">${esc(r.share)}</span></li>`).join('')}</ul>` : '';
+  drawNotes(); drawMastheads(); drawImport();
+}
+function drawNotes() {
+  const n = D.notes, saved = n.rule ? n.rule.labels : [], on = NOTES || saved;
+  const lines = n.labels.filter(l => on.includes(l)).flatMap(l => n.lines[l].map(x => ({...x, label: l})));
+  const pz = new Set(lines.map(x => x.pid)), all = D.puzzles.filter(p => p.choice !== 'drop');
+  $('#notes').innerHTML = `<div>${n.labels.map(l => `<label class="nlab"><input type="checkbox" data-nl="${l}"${on.includes(l) ? ' checked' : ''}>${esc(l)} <span class="meta">${n.lines[l].length}</span></label>`).join('')}
+    <button class="btn" id="savenotes">Save this rule</button>
+    <span class="meta">${n.rule ? `saved: ${esc(saved.join(', ') || 'no labels')} by ${esc(n.rule.by)} ${esc((n.rule.at || '').slice(0, 10))}` : 'no rule saved yet'}</span></div>
+    <p><b>${lines.length}</b> lines in the Notes of <b>${pz.size}</b> of ${all.length} puzzles.</p>
+    <div class="nl">${lines.map(x => `<div><span class="meta">${esc(x.label)}</span> <a href="${proofUrl(x.pid, 'line:B' + x.n, [x])}" target="_blank">${esc(x.pid.replace(D.pubid, ''))}</a> ${esc(x.text.length > 160 ? x.text.slice(0, 160) + '…' : x.text)}</div>`).join('')}</div>`;
+  document.querySelectorAll('[data-nl]').forEach(b => b.onchange = () => { NOTES = [...document.querySelectorAll('[data-nl]:checked')].map(x => x.dataset.nl); drawNotes(); });
+  $('#savenotes').onclick = async () => {
+    const r = await fetch('/api/notes-rule', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({pubid: D.pubid, labels: on, by: 'person'})});
+    const j = await r.json(); if (j.error) return alert(j.error);
+    NOTES = null; await load();
+  };
+}
+let ROLES = null, OTHERS = false;  // the roles ticked, in order (null: the saved rule); the other roles shown
+const roleKey = r => r.toLowerCase().split(/\s+/).join(' ').replace(/s$/, '');
+function drawMastheads() {
+  const m = D.mastheads;
+  if (!m) return $('#mastheads').innerHTML = '<p class="meta">No masthead milestone in this harvest yet (<code>xword-ocr mastheads</code>, or the next harvest).</p>';
+  const saved = m.rule ? m.rule.roles : [], on = ROLES || saved, keys = on.map(roleKey);
+  const seen = {};
+  for (const i of m.issues) for (const r of i.roles) (seen[r.key] ||= {role: r.role, issues: new Set()}).issues.add(i.date);
+  const rank = k => keys.includes(k) ? keys.indexOf(k) - 99 : 0;
+  const all = Object.entries(seen).sort(([ka, a], [kb, b]) => rank(ka) - rank(kb)
+    || /editor/i.test(b.role) - /editor/i.test(a.role) || b.issues.size - a.issues.size || a.role.localeCompare(b.role));
+  const dates = new Set(m.issues.map(i => i.date)).size;
+  const picked = i => keys.map(k => i.roles.find(r => r.key === k)).find(Boolean);
+  const none = m.issues.filter(i => !picked(i));
+  const changed = ROLES && ROLES.join('|') !== saved.join('|');
+  const box = ([k, v]) => `<label class="nlab"><input type="checkbox" data-role="${esc(v.role)}"${keys.includes(k) ? ' checked' : ''}>${keys.includes(k) ? `<span class="ord">${keys.indexOf(k) + 1}</span>` : ''}${esc(v.role)} <span class="meta">${v.issues.size} of ${dates}</span></label>`;
+  const eds = all.filter(([k, v]) => keys.includes(k) || /editor/i.test(v.role)), rest = all.filter(x => !eds.includes(x));
+  $('#mastheads').innerHTML = `<div class="roles">${eds.map(box).join('')}</div>
+    ${rest.length ? `<details${OTHERS ? ' open' : ''} id="otherroles"><summary class="meta">${rest.length} other roles (publisher, art director, ...)</summary><div class="roles">${rest.map(box).join('')}</div></details>` : ''}
+    <div class="chips"><button class="btn${changed || !m.rule ? ' go' : ''}" id="saveroles">Save this rule</button>
+    <span class="meta">${m.rule ? `saved: ${esc(saved.join(', then ') || 'no role (no Editor)')} by ${esc(m.rule.by)} ${esc((m.rule.at || '').slice(0, 10))}` : "no rule saved yet: the proof page offers the masthead's editors, no Editor header"}${changed ? ' · <b>not saved</b>' : ''}</span></div>
+    <p>${on.length ? `<b>${m.issues.length - none.length}</b> of ${m.issues.length} masthead${m.issues.length === 1 ? '' : 's'} give an Editor${none.length ? `; <span class="err"><b>${none.length}</b> list none of the ticked roles: their puzzles get no Editor</span>` : ''}.` : "Tick a role to see who each issue's Editor would be."}</p>
+    <table class="mh">${m.issues.map(i => {
+      const p = picked(i), rows = i.puzzles.map(pid => ({pid}));
+      return `<tr><td style="white-space:nowrap"><b>${esc(i.date)}</b><div class="meta">${i.puzzles.length} puzzle${i.puzzles.length === 1 ? '' : 's'}</div></td>
+        <td>${p ? `<b>${esc(p.role)}</b>: ${esc(p.value)}<img loading="lazy" src="${esc(p.crop)}" alt="${esc(p.role)} on the masthead">`
+          : `<span class="${on.length ? 'err' : 'meta'}">${i.roles.length ? (on.length ? 'none of the ticked roles on this masthead' : '') : esc(i.error || 'no masthead found')}</span>`}
+          ${i.roles.length ? `<details><summary class="meta">all ${i.roles.length} roles on this masthead</summary><div class="mhall">${i.roles.map(r => `<div><b>${esc(r.role)}</b>: ${esc(r.value)}<img loading="lazy" src="${esc(r.crop)}" alt=""></div>`).join('')}</div></details>` : ''}</td>
+        <td class="meta">${i.page ? `<a href="${esc(i.page)}" target="_blank">the masthead page</a> · ` : ''}${esc(i.item)}${i.leaf != null ? `, leaf ${i.leaf}` : ''}
+          <div>${i.puzzles.slice(0, 3).map(pid => `<a href="${proofUrl(pid, 'Editor', rows)}" target="_blank">${esc(pid.replace(D.pubid, ''))}</a>`).join(' ')}${i.puzzles.length > 3 ? ' …' : ''}</div></td></tr>`;
+    }).join('')}</table>`;
+  $('#otherroles') && ($('#otherroles').ontoggle = e => { OTHERS = e.target.open; });
+  document.querySelectorAll('[data-role]').forEach(b => b.onchange = () => {
+    const cur = ROLES || [...saved], r = b.dataset.role;
+    ROLES = b.checked ? [...cur.filter(x => roleKey(x) !== roleKey(r)), r] : cur.filter(x => roleKey(x) !== roleKey(r));
+    drawMastheads();
+  });
+  $('#saveroles').onclick = async e => {
+    e.target.disabled = true; e.target.textContent = "Saving, and making this run's proof packets again (about half a minute)…";
+    const r = await fetch('/api/editor-rule', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({pubid: D.pubid, roles: on, by: 'person', run: D.run})});
+    const j = await r.json(); if (j.error) return alert(j.error);
+    if (j.rebuilt && j.rebuilt.mismatches && j.rebuilt.mismatches.length) alert(`${j.rebuilt.mismatches.length} packets don't show their xd: ${j.rebuilt.mismatches.join(' ')}`);
+    ROLES = null; const y = window.scrollY; await load(); window.scrollTo(0, y);
+  };
+}
+async function drawImport(write = false) {
+  const q = params.get('run') ? '?run=' + encodeURIComponent(params.get('run')) : '';
+  const r = await fetch('/api/import' + q, write ? {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({run: D.run})} : {});
+  const j = await r.json();
+  if (j.error) return $('#import').innerHTML = `<p class="err">${esc(j.error)}</p>`;
+  const row = x => `<div><a href="${proofUrl(x.pid, '', [x])}" target="_blank">${esc(x.pid)}</a> → <b>${esc(x.xdid || '')}</b>${x.edits && x.edits.length ? ` <span class="meta">${x.edits.length} proof edit(s)</span>` : ''}${x.why ? ` <span class="meta">${esc(x.why)}</span>` : ''}</div>`;
+  $('#import').innerHTML = `<p>${j.write ? `<b>Wrote ${j.written.length}</b> xd file(s) in ${esc(j.repo)}` : `<b>${j.written.length}</b> would be written`}; ${j.pins.length} new id(s); ${j.held.length + j.exists.length} held.
+    ${!j.write && j.written.length ? '<button class="btn go" id="writeimport">Write them</button>' : ''}</p>
+    <div class="nl">${j.import.map(row).join('')}</div>${j.held.length + j.exists.length ? `<p><b>Held</b></p><div class="nl">${[...j.held, ...j.exists].map(row).join('')}</div>` : ''}`;
+  $('#writeimport') && ($('#writeimport').onclick = () => drawImport(true));
+}
+// a puzzle's leaves: the row's thumbnail shows one; the full size view pages through them (← →)
+const leafTitle = m => m.page + (m.others.length ? '; also on this page: ' + m.others.join(', ') : '');
+const OV = {};  // overlays fetched: what's recorded on a puzzle's page, from /api/overlay
+function overlayOf(pid, i) {
+  const k = pid + '/' + i;
+  const m = ((D.puzzles.find(p => p.pid === pid) || {}).maps || [])[i] || {};
+  const url = DATA ? U(m.overlay) : `/api/overlay/${encodeURIComponent(D.run)}/${encodeURIComponent(pid)}/${i}`;
+  return OV[k] || (OV[k] = fetch(url).then(r => r.json()).catch(() => ({boxes: [], notes: []})));
+}
+// the boxes as recorded, in the page's own pixels; each one's tooltip is its source (milestone, run, fingerprint)
+async function drawOverlay(svg, pid, i, scale) {
+  const ov = await overlayOf(pid, i);
+  if (!ov.size) { svg.innerHTML = ''; return ov; }
+  const [W, H] = ov.size, sw = Math.max(2, W / 260) * scale;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.setAttribute('preserveAspectRatio', 'none');
+  const cls = b => b.kind === 'answer-grid' ? 'grid0' : (b.mine ? 'mine' : 'other') + (b.kind === 'key' ? ' key' : '');
+  const tip = b => `<title>${esc((b.label ? b.label + ': ' : '') + b.kind + ' — ' + b.source)}</title>`;
+  const shape = b => b.outline
+    ? `<polygon class="b ${cls(b)}" stroke-width="${b.mine ? sw * 2 : sw}" points="${b.outline.map(q => q.join(',')).join(' ')}">${tip(b)}</polygon>`
+    : `<rect class="b ${cls(b)}" stroke-width="${b.mine ? sw * 2 : sw}" x="${b.box[0]}" y="${b.box[1]}" width="${b.box[2] - b.box[0]}" height="${b.box[3] - b.box[1]}">${tip(b)}</rect>`;
+  const order = b => b.kind === 'answer-grid' ? 0 : b.mine ? 2 : 1;  // own boxes on top
+  const bs = [...ov.boxes].sort((a, b) => order(a) - order(b));
+  const labels = [...new Map(bs.filter(b => !b.mine && b.label).map(b => [b.label, b])).values()]
+    .map(b => { const [x, y] = b.outline ? b.outline[0] : b.box; return `<text x="${x + sw * 2}" y="${y + 40}">${esc(b.label)}</text>`; });
+  svg.innerHTML = bs.map(shape).join('') + labels.join('');
+  return ov;
+}
+function showLeaf(row, i) {
+  const p = D.puzzles.find(x => x.pid === row.id), m = p.maps[i], a = row.querySelector('.maps > a');
+  a.querySelector('img').src = U(m.image);
+  a.href = full(m);
+  a.title = leafTitle(m) + ' (click for full size)';
+  drawOverlay(a.querySelector('svg'), p.pid, i, 2);
+  row.querySelectorAll('.leaves a').forEach(x => x.classList.toggle('cur', +x.dataset.i === i));
+}
+let LB = null;  // the puzzle and leaf the full size view shows
+function openLeaf(pid, i) {
+  const p = D.puzzles.find(x => x.pid === pid), n = p.maps.length;
+  i = (i + n) % n;
+  LB = {pid, i};
+  const lb = $('#lightbox'), m = p.maps[i], img = lb.querySelector('img');
+  const ovp = drawOverlay(lb.querySelector('svg'), pid, i, 1);
+  // open scrolled to the highlight: this puzzle's key on an answer page, else its own box
+  img.onload = async () => {
+    const ov = await ovp;
+    if (!LB || LB.pid !== pid || LB.i !== i || !ov.size) return;
+    const mine = ov.boxes.filter(b => b.mine), b = mine.find(x => x.kind === 'key') || mine[0];
+    if (!b) return;
+    const ys = b.outline ? b.outline.map(q => q[1]) : [b.box[1], b.box[3]];
+    const mid = (Math.min(...ys) + Math.max(...ys)) / 2 / ov.size[1];
+    lb.scrollTop = img.offsetTop + mid * img.height - lb.clientHeight / 2;
+  };
+  lb.scrollTop = 0;
+  img.src = full(m);
+  const cap = lb.querySelector('.cap');
+  cap.textContent = `${p.title || pid} · ${leafTitle(m)}` + (n > 1 ? ` · ${i + 1} of ${n}, ← → for the others` : '') + ' · Esc to close';
+  ovp.then(ov => { if (LB && LB.pid === pid && LB.i === i && (ov.notes || []).length) cap.textContent += ' · ' + ov.notes.join('; '); });
+  lb.hidden = false;
+  const row = document.getElementById(pid);
+  if (row && n > 1) showLeaf(row, i);
+}
+$('#lightbox').onclick = () => { $('#lightbox').hidden = true; LB = null; };
+addEventListener('keydown', e => {
+  if ($('#lightbox').hidden || !LB) return;
+  if (e.key === 'Escape') { $('#lightbox').hidden = true; LB = null; }
+  else if (e.key === 'ArrowRight') { e.preventDefault(); openLeaf(LB.pid, LB.i + 1); }
+  else if (e.key === 'ArrowLeft') { e.preventDefault(); openLeaf(LB.pid, LB.i - 1); }
+});
+load().catch(e => $('#list').innerHTML = `<p class="err">${esc(e.message)}</p>`);
+</script></body></html>

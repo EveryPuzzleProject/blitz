@@ -16,6 +16,9 @@
 The public review site (helpers check agents' reviews in the browser; see site/README.md):
     blitz site-build                     write docs/review/ (the page, served by GitHub Pages)
     blitz site-publish <folder>          put a folder's reviewed puzzles on the site
+    blitz site-publish-batch <name> [--watch URL] [--dry-run]
+                                         the batch page's records for /review/batch/: a snapshot of a
+                                         running watch's batch (its current run), then to the site
     blitz site-import [-o FILE] [--agreed]  what helpers decided, for xword-ocr import-reviews --decisions
     blitz sync <pub> <folder> [--go] [--commit]  the site's work into the record: import, relink, sign off,
                                          sync; stops on surprises (dry run without --go)
@@ -241,6 +244,19 @@ def cmd_site_publish(a) -> None:
           + (" (their key squares only)" if a.squares_only else ""))
 
 
+def cmd_site_publish_batch(a) -> None:
+    from . import sitebatch
+
+    out = Path(a.out) if a.out else work.work_dir(_root()) / "site-batch" / a.name
+    snap = sitebatch.snapshot(a.watch, out, a.name, a.title or "", a.run or "")["snapshot"]
+    print(f"{snap['run']}: {snap['puzzles']} puzzles ({snap['dropped']} dropped), written to {out}")
+    keys = sitebatch.publish(out, a.dry_run)
+    if a.dry_run:
+        print(f"would put {len(keys)} files under batch/{a.name}/; see it locally with batch.html?data=<that folder>")
+    else:
+        print(f"put {len(keys)} files under batch/{a.name}/: https://blitz.xwordapp.com/review/batch/?b={a.name}")
+
+
 def cmd_key_squares(a) -> None:
     from .squares import build
 
@@ -412,6 +428,16 @@ def main(argv=None) -> None:
                    help="only the folder's key squares (key-squares.json and the key images): the puzzles' "
                         "review pages aren't opened")
     q.set_defaults(fn=cmd_site_publish)
+    q = sub.add_parser("site-publish-batch", help="the batch page's records (a snapshot of a running watch's batch) "
+                                                  "to the review site's /review/batch/")
+    q.add_argument("name", help="the batch's name on the site, e.g. games-1977-79 (as site-publish --batch)")
+    q.add_argument("--title", help="its heading, e.g. 'GAMES 1977-79' (default: the name)")
+    q.add_argument("--watch", default="http://localhost:8772", help="the running watch (xword-ocr watch) to snapshot")
+    q.add_argument("--run", help="the text step run (default: the watch's current one, from the publication's "
+                                 "pipeline/triage/runs.json)")
+    q.add_argument("--out", help="where to write the snapshot (default: ../blitz-work/site-batch/<name>)")
+    q.add_argument("--dry-run", action="store_true", help="write the snapshot, upload nothing")
+    q.set_defaults(fn=cmd_site_publish_batch)
     q = sub.add_parser("key-squares", help="the answer-key squares worth a person's glance (the OCR was unsure, or "
                                            "the word check), for the key-squares page")
     q.add_argument("folder", help="packets (task-packets --current-review), e.g. ../xword-ocr/harvests/judge/tasks-final")
