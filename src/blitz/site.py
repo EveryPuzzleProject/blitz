@@ -1,7 +1,7 @@
 """The public review site: helpers without Claude check agents' reviews in the browser.
 
-- `build`: docs/review/ (served by GitHub Pages): the review page (review.html, the same page
-  `blitz watch` serves) in helper mode, with site.js connecting it to Supabase and the files.
+- `build`: docs/review/ (served by GitHub Pages): the proof page, the batch page and the key-squares
+  page, with config.js connecting them to Supabase and the files.
 - `publish`: a folder of reviewed puzzles to the site: their packet files to R2 (an S3-compatible
   bucket, public read), and a row each in Supabase's `puzzles` table.
 - `fetch_decisions`: everything helpers recorded, combined per puzzle in the shape
@@ -99,9 +99,8 @@ def build(root: Path) -> Path:
     - docs/review/: the proof page (src/blitz/proof.html): check the finished puzzle against the scan;
     - docs/review/squares/: the key-squares page (squares.html): one doubtful answer-key square at a time;
     - docs/review/batch/: the batch page (batch.html): a batch's puzzles sorted by what the pipeline found;
-    - docs/review-old/: the earlier change-by-change page (review.html, also `blitz watch`), kept to refer back to;
-    - docs/review2/: a redirect to /review/ (where the proof page was previewed).
-    All three share docs/review/config.js."""
+    All three share docs/review/config.js. (The earlier change-by-change page, /review-old/, and the
+    /review2/ redirect were taken off the site on 2026-10-19; review.html is still `blitz watch`.)"""
     out = root / "docs" / "review"
     out.mkdir(parents=True, exist_ok=True)
     if not (out / "config.js").exists():
@@ -113,22 +112,6 @@ def build(root: Path) -> Path:
                              f'<script src="{SUPABASE_JS}"></script>\n' + old)
     page = page.replace("<title>Proof a puzzle</title>", REVIEW_HEAD)
     (out / "index.html").write_text(page, encoding="utf-8", newline="\n")
-    (out / "site.js").unlink(missing_ok=True)   # the old page's adapter now lives in review-old/
-
-    old_out = root / "docs" / "review-old"
-    old_out.mkdir(parents=True, exist_ok=True)
-    page = (Path(__file__).parent / "review.html").read_text(encoding="utf-8")
-    old = '<script src="puzzle.js"></script>'
-    assert old in page
-    page = page.replace(old, '<script src="../review/config.js"></script>\n'
-                             f'<script src="{SUPABASE_JS}"></script>\n'
-                             '<script src="site.js"></script>\n'
-                             '<script src="../puzzle.js"></script>')
-    page = page.replace("<title>Review watch</title>",
-                        '<title>Check old crosswords (old page): Every Puzzle Project</title>\n'
-                        '<meta name="robots" content="noindex">')
-    (old_out / "index.html").write_text(page, encoding="utf-8", newline="\n")
-    shutil.copy2(root / "site" / "site.js", old_out / "site.js")
 
     sq = out / "squares"
     sq.mkdir(parents=True, exist_ok=True)
@@ -149,12 +132,6 @@ def build(root: Path) -> Path:
     page = page.replace("<title>Batch</title>", BATCH_HEAD)
     (bt / "index.html").write_text(page, encoding="utf-8", newline="\n")
 
-    moved = root / "docs" / "review2"
-    moved.mkdir(parents=True, exist_ok=True)
-    (moved / "index.html").write_text(
-        '<!doctype html>\n<meta charset="utf-8">\n<title>Moved</title>\n'
-        '<script>location.replace("../review/" + location.search + location.hash)</script>\n'
-        '<p>This page is now at <a href="../review/">/review/</a>.</p>\n', encoding="utf-8", newline="\n")
     return out
 
 
