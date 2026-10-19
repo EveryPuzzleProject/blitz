@@ -217,3 +217,14 @@ def test_the_proof_page_marks_circled_squares():
                    "k.startsWith('special:') && hasKey()", "k.startsWith('special:') && !hasKey()"):
         assert needed in page, needed
     assert "prompt(" not in page
+
+
+def test_proof_page_shows_a_second_clue_sets_lines_as_rows_of_their_own():
+    # xd clue metadata ("A1 ^Easy: ..."): ocr.clues["A1^Easy"], edited as clue:A1^Easy, sorted under A1,
+    # sharing A1's slot; the sets' printed headings (ocr.clue_sets) shown as the record says
+    from pathlib import Path
+
+    page = (Path(__file__).parents[1] / "src" / "blitz" / "proof.html").read_text(encoding="utf-8")
+    for needed in ("const slotOf = k => k.split('^')[0]", ".sort(clueOrder)", "function setsNote()", "metarow",
+                   "metaOf(k) === metaOf(label)", "NUM[slotOf(k)]"):
+        assert needed in page, needed
