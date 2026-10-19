@@ -222,6 +222,8 @@ body:not(.show-notes) .margin .note { display: none; }
 .note .edc { border: 0; background: none; color: var(--muted); cursor: pointer; font: inherit; font-size: 11px; font-weight: normal; padding: 0 0 0 6px; }
 .note .edc:hover { color: var(--ink); text-decoration: underline; }
 /* a pop-up over the page: the puzzle's pages as the packet records them, or the whole answer key */
+.lbpage { position: relative; } .lbkey { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.lbkey polygon { fill: none; stroke: #c46e00; stroke-width: 4; vector-effect: non-scaling-stroke; pointer-events: visibleStroke; }
 .lightbox { position: fixed; inset: 0; z-index: 60; background: rgba(30, 26, 20, .55); display: flex; align-items: center; justify-content: center; padding: 16px; }
 .lbcard { background: var(--paper); border-radius: 8px; width: 100%; max-width: 1100px; max-height: 100%; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 10px 34px rgba(0,0,0,.3); }
 .lbhead { display: flex; gap: 6px 10px; align-items: center; flex-wrap: wrap; padding: 8px 12px; border-bottom: 1px solid var(--line); font-size: 13px; }
@@ -1093,16 +1095,21 @@ function lightbox() {
 function closeLightbox() { document.querySelector('.lightbox')?.remove(); }
 
 // The pages the packet records (ocr.scales: the grid's page, the clue pages; _src/ has them full size), then
-// its answer key: the key's grid as cut from its page (answers.png), or a typed grid's answer page. The key's
-// whole page isn't in the packet, so it says so rather than guessing at one.
+// its answer key: the key's grid as cut from its page (answers.png), or a typed grid's answer page, and the
+// key's whole page when the packet records it (ocr.answer_page, with the key's outline as assembly matched
+// it). An older packet without it says so rather than guessing at one.
 const PAGE_LABEL = {'page.jpg': "the grid's page", 'clue_page.jpg': 'the clue page', 'continued_page.jpg': 'more clues'};
 function scanPages() {
   const out = Object.keys(ocr.scales || {}).map(n => ({name: n, src: dir + '_src/' + n, label: PAGE_LABEL[n] || n,
     what: n === 'page.jpg' ? `The page the grid is printed on${MAIN() === n ? ', with its clues' : ''}.`
       : n === MAIN() ? 'The page with most of the clues.' : 'A page more of the clues are printed on.'}));
+  const ap = ocr.answer_page;
   if (ansImg) out.push({name: 'answers.png', src: dir + 'answers.png', label: 'the answer key', key: true,
-    what: "The answer key's grid, as cut from its page.", nr: "The key's whole page: not recorded in this packet."});
-  else if (keyPage) out.push({name: 'answer_page.jpg', src: dir + 'answer_page.jpg', label: "the answer key's page", what: 'The page the answer key is printed on.'});
+    what: "The answer key's grid, as cut from its page.", ...(ap ? {} : {nr: "The key's whole page: not recorded in this packet."})});
+  if (ap) out.push({name: 'answer_page.jpg', src: dir + ap.image, label: "the answer key's page", outline: ap.key_outline,
+    what: `The page the answer key is printed on (leaf ${ap.leaf})${ap.key_outline ? ', the key outlined where assembly matched it' : ''}.`,
+    ...(ap.key_outline ? {} : {nr: "Where the key is on it: not recorded in this packet."})});
+  else if (keyPage && !ap) out.push({name: 'answer_page.jpg', src: dir + 'answer_page.jpg', label: "the answer key's page", what: 'The page the answer key is printed on.'});
   else if (out.length) out[out.length - 1].nr = 'No answer key in this packet.';
   return out;
 }
@@ -1126,6 +1133,9 @@ function scanViewer(name, box) {
     if (mine) img.onload = () => {  // the box in that page's packet pixels, placed on the full-size scan
       const s = ocr.scales[p.name], W = img.naturalWidth * s, H = img.naturalHeight * s, [x0, y0, x1, y1] = box;
       pg.insertAdjacentHTML('beforeend', `<div class="lbmark" style="left:${(x0 - 4) / W * 100}%;top:${(y0 - 3) / H * 100}%;width:${(x1 - x0 + 8) / W * 100}%;height:${(y1 - y0 + 6) / H * 100}%"></div>`);
+    };
+    if (p.outline) img.onload = () => {  // the key's outline as recorded, in this page's packet pixels
+      pg.insertAdjacentHTML('beforeend', `<svg class="lbkey" viewBox="0 0 ${img.naturalWidth} ${img.naturalHeight}" preserveAspectRatio="none"><polygon points="${p.outline.map(q => q.join(',')).join(' ')}"><title>The key, as assembly cut it out (answers.png)</title></polygon></svg>`);
     };
     lb.querySelector('.lbfoot').innerHTML = `<span>${esc(p.what)}${mine ? ' The line is outlined.' : ''}</span>`
       + (p.nr ? ` <span class="nr">${esc(p.nr)}</span>` : '')
