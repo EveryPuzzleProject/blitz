@@ -66,8 +66,9 @@ designed in `design/flag-a-mistake.md`.
 
 ### Not brought forward from the old page
 
-The earlier change-by-change page is kept at `/review-old/` (`docs/review-old/`, built from
-`src/blitz/review.html`, which is also `blitz watch`). These parts of it aren't in the new page yet:
+The earlier change-by-change page was at `/review-old/` until 2026-10-19, when it was taken off the
+site; its source is still `src/blitz/review.html` (also `blitz watch`) and `site/site.js`. These parts
+of it aren't in the new page yet:
 
 - **Sign-in and accounts:** Google / GitHub / Discord sign-in, "keep my progress" (a guest's work moving to
   an account, `schema-2-sign-in.sql`), and the name shown with it. The new page has a free-text name
@@ -119,7 +120,7 @@ The earlier change-by-change page is kept at `/review-old/` (`docs/review-old/`,
    `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`,
    `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_PUBLIC_URL`.
 
-## Welcome tour, year filter, reactions (old page, /review-old/)
+## Welcome tour, year filter, reactions (old page, formerly /review-old/)
 
 - **Welcome tour.** The first thing a helper sees: what the project is, then how to pick a puzzle, read the
   scan, check each change, look at the result, pass judgement and leave a note. Its "Show this every time"
