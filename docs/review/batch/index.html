@@ -83,6 +83,8 @@ li.d { color: var(--person); } li.g { color: var(--muted); }
 .p-ship { color: var(--ship); background: var(--ship-bg); } .p-glance { color: var(--glance); background: var(--glance-bg); }
 .p-person { color: var(--person); background: var(--person-bg); } .p-drop { color: var(--drop); background: var(--drop-bg); }
 .state { font-size: 12px; color: var(--muted); }
+.said { font-size: 13px; margin-top: 4px; } .said .r { color: var(--ship); } .said .n { color: var(--person); }
+.chip.held { border-color: var(--person); }
 .uns { font-size: 13px; margin-top: 4px; } .uns summary { cursor: pointer; color: var(--muted); }
 .uns ul { margin: 2px 0 0; padding-left: 16px; } .uns li { margin: 1px 0; }
 a { color: var(--accent); } a.open { font-size: 12px; white-space: nowrap; }
@@ -136,7 +138,7 @@ table.mh details img { max-height: 44px; }
   <p class="meta">Each issue's staff box, read by the page OCR (the masthead milestone). Tick the roles whose name is a puzzle's Editor, in order: the first one an issue's masthead lists is its puzzles' Editor, and the proof page shows it with this crop. An issue that lists none of them gets no Editor. Save the rule for the whole publication: this run's proof packets are made again with it (markup only, about half a minute), and later runs take it too.</p>
   <div id="mastheads"></div>
   <h2>Import</h2>
-  <p class="meta">The puzzles marked Ready on the proof page, as they would go into the publication repo's xd/, ids assigned last. Held ones say why.</p>
+  <p class="meta">The puzzles that ship (your Ship or Ready; otherwise one reviewer's Ready and nobody's Not ready), as they would go into the publication repo's xd/, ids assigned last. Held ones say why.</p>
   <div id="import"></div>
 </details>
 </div>
@@ -236,14 +238,14 @@ function drawRerun() {
 }
 const causeOf = pid => ((D.causes || {}).causes || []).find(c => c.pids.includes(pid));
 function shown() {
-  return D.puzzles.filter(p => (filter === 'all' || kindOf(p) === filter) && (!cause || (causeOf(p.pid) || {}).id === cause))
+  return D.puzzles.filter(p => (filter === 'all' || (filter === 'held' ? p.held_for_you : kindOf(p) === filter)) && (!cause || (causeOf(p.pid) || {}).id === cause))
     .sort((a, b) => ORDER.indexOf(kindOf(a)) - ORDER.indexOf(kindOf(b)) || a.pid.localeCompare(b.pid));
 }
 // a link into the proof page that walks the list on screen: its Next goes to the next row here. From a
 // snapshot the list goes in the link (?walk=<label>&pids=...): there's no server to ask for it.
 function proofUrl(pid, k, rows) {
   const c = ((D.causes || {}).causes || []).find(x => x.id === cause);
-  const label = [filter !== 'all' ? KIND[filter][0] : '', c ? c.title : ''].filter(Boolean).join(' · ') || 'all puzzles';
+  const label = [filter === 'held' ? 'Held for you' : filter !== 'all' ? KIND[filter][0] : '', c ? c.title : ''].filter(Boolean).join(' · ') || 'all puzzles';
   const back = '&back=' + encodeURIComponent(location.pathname + location.search);
   if (DATA) return `${SITE ? '../' : params.get('proof') || '/proof/'}?p=${encodeURIComponent(pid)}`
     + (!SITE && params.get('base') ? '&base=' + encodeURIComponent(params.get('base')) : '')
@@ -264,12 +266,23 @@ function mini(grid) {
   return `<div class="mini" style="grid-template-columns:repeat(${grid[0].length},1fr);grid-template-rows:repeat(${grid.length},1fr)">` +
     grid.map(r => [...r].map(c => `<i class="${c === '#' ? 'b' : ''}"></i>`).join('')).join('') + '</div>';
 }
-function state(p) {  // where the puzzle stands: the proof page's Ready / Not ready, or a drop
+// where the puzzle stands under the import rule (xword-ocr batchpage.standing): yours wins; else one
+// Ready and no Not ready ships; a Not ready is held for you
+function state(p) {
   if (p.choice === 'drop') return `dropped${p.by ? ' by ' + esc(p.by) : ''}`;
   if (DATA) return '';  // a snapshot: Ready and Not ready are the proof page's
-  if (p.choice === 'ship') return `<b style="color:var(--ship)">Ready</b>${p.by ? ' · ' + esc(p.by) : ''}`;
-  if (p.choice === 'hold') return `<b style="color:var(--person)">Not ready</b>${p.by ? ' · ' + esc(p.by) : ''}`;
-  return 'not checked yet';
+  if (p.held_for_you) return `<b style="color:var(--person)">Held for you</b>`;
+  const how = p.rule === 'crowd' ? ' · by the review rule' : p.by ? ' · ' + esc(p.by) : '';
+  if (p.choice === 'ship') return `<b style="color:var(--ship)">Ships</b>${how}`;
+  if (p.choice === 'hold') return `<b style="color:var(--person)">Held</b>${how}`;
+  return (p.said || []).length ? 'waiting for a Ready' : 'not checked yet';
+}
+// every reviewer's latest Ready / Not ready, from the ledger (proof:<pid>), with their note
+function said(p) {
+  if (DATA || !p.said || !p.said.length) return '';
+  return `<div class="said">${p.said.map(s => `<span class="${s.answer === 'ready' ? 'r' : 'n'}">${s.answer === 'ready' ? 'Ready' : 'Not ready'}</span>`
+    + ` <span class="meta">${esc(s.yours ? s.who + ' (you)' : s.who)} ${esc((s.at || '').slice(0, 10))}</span>${s.note ? ': ' + esc(s.note) : ''}`).join('<br>')}`
+    + `${p.rule === 'yours' && p.said.some(s => !s.yours && s.answer === 'notready') ? '<br><span class="meta">your decision overrides theirs</span>' : ''}</div>`;
 }
 function draw() {
   const snap = D.snapshot;
@@ -298,7 +311,8 @@ function draw() {
   const rows = shown();
   $('#chips').innerHTML = `<button class="chip ${filter === 'all' ? 'on' : ''}" data-f="all">All <b>${D.puzzles.length}</b></button>`
     + ORDER.map(k => `<button class="chip ${filter === k ? 'on' : ''}" data-f="${k}">${KIND[k][0]} <b>${count(k)}</b></button>`).join('')
-    + (DATA ? '' : `<span class="meta">${ready} ready</span>`)
+    + (DATA ? '' : `<button class="chip held ${filter === 'held' ? 'on' : ''}" data-f="held" title="a reviewer said Not ready and you haven't decided">Held for you <b>${(D.chosen || {}).held_for_you || 0}</b></button>`
+      + `<span class="meta">${ready} ship</span>`)
     + (rows.length ? `<a class="walk" href="${proofUrl(rows[0].pid, '', rows)}" target="_blank">Walk these ${rows.length} on the proof page →</a>` : '');
   const cs = (D.causes || {}).causes || [];
   $('#causechips').innerHTML = cs.length ? `<span class="meta">By cause:</span>` + cs.map(c => `<button class="chip ${cause === c.id ? 'on' : ''}" data-c="${esc(c.id)}" title="${esc(c.recommend)}">${esc(c.title)} <b>${c.puzzles.length}</b></button>`).join('') : '';
@@ -322,6 +336,7 @@ function draw() {
         <div class="meta">${esc(p.date)} · ${p.grid.length}×${(p.grid[0] || '').length}${p.byline ? ' · ' + esc(p.byline) : ''}${p.cryptic ? ' · cryptic' : ''} · ${p.changes} changes, ${p.unsure_items.length} unsure, ${p.blanks} blanks</div>
         ${why ? `<ul class="why">${why}</ul>` : ''}
         ${verdict ? `<div class="verdict">${esc(verdict)}</div>` : ''}
+        ${said(p)}
         ${kindOf(p) === 'drop' && p.note ? `<div class="verdict"><b>Dropped:</b> ${esc(p.note)}</div>` : ''}
         ${c && c.lane !== 'glance' ? `<div class="cause"><b>${esc(c.title)}</b>${c.stage ? ` (${esc(c.stage)})` : ''}: ${esc(c.recommend)}</div>` : ''}
         ${p.unsure_items.length ? `<details class="uns"><summary>Not sure (${p.unsure_items.length})</summary><ul>${p.unsure_items.map(u =>
