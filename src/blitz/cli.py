@@ -248,8 +248,12 @@ def cmd_site_publish_batch(a) -> None:
     from . import sitebatch
 
     out = Path(a.out) if a.out else work.work_dir(_root()) / "site-batch" / a.name
-    snap = sitebatch.snapshot(a.watch, out, a.name, a.title or "", a.run or "")["snapshot"]
-    print(f"{snap['run']}: {snap['puzzles']} puzzles ({snap['dropped']} dropped), written to {out}")
+    if a.keep:  # the snapshot already made (and looked at with --dry-run), as it is
+        snap = json.loads((out / "batch.json").read_text(encoding="utf-8"))["snapshot"]
+        print(f"{snap['run']}: {snap['puzzles']} puzzles ({snap['dropped']} dropped), snapshot of {snap['at']} in {out}")
+    else:
+        snap = sitebatch.snapshot(a.watch, out, a.name, a.title or "", a.run or "")["snapshot"]
+        print(f"{snap['run']}: {snap['puzzles']} puzzles ({snap['dropped']} dropped), written to {out}")
     keys = sitebatch.publish(out, a.dry_run)
     if a.dry_run:
         print(f"would put {len(keys)} files under batch/{a.name}/; see it locally with batch.html?data=<that folder>")
@@ -437,6 +441,7 @@ def main(argv=None) -> None:
                                  "pipeline/triage/runs.json)")
     q.add_argument("--out", help="where to write the snapshot (default: ../blitz-work/site-batch/<name>)")
     q.add_argument("--dry-run", action="store_true", help="write the snapshot, upload nothing")
+    q.add_argument("--keep", action="store_true", help="upload the snapshot already in --out instead of making it again")
     q.set_defaults(fn=cmd_site_publish_batch)
     q = sub.add_parser("key-squares", help="the answer-key squares worth a person's glance (the OCR was unsure, or "
                                            "the word check), for the key-squares page")
