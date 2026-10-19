@@ -83,6 +83,8 @@ li.d { color: var(--person); } li.g { color: var(--muted); }
 .p-ship { color: var(--ship); background: var(--ship-bg); } .p-glance { color: var(--glance); background: var(--glance-bg); }
 .p-person { color: var(--person); background: var(--person-bg); } .p-drop { color: var(--drop); background: var(--drop-bg); }
 .state { font-size: 12px; color: var(--muted); }
+.votes { font-size: 13px; color: var(--fg, inherit); } .votes .you { font-weight: 600; }
+.checked { margin: 18px 0 6px; padding-top: 8px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); }
 .said { font-size: 13px; margin-top: 4px; } .said .r { color: var(--ship); } .said .n { color: var(--person); }
 .chip.held { border-color: var(--person); }
 .uns { font-size: 13px; margin-top: 4px; } .uns summary { cursor: pointer; color: var(--muted); }
@@ -178,6 +180,7 @@ async function load() {
                         {cache: 'no-cache'});
   D = await r.json();
   if (D.error) throw new Error(D.error);
+  await liveVotes();
   draw();
   $('#tools').hidden = !!DATA;
   if (!DATA) { drawTools(); drawRerun(); }
@@ -236,10 +239,57 @@ function drawRerun() {
       ${p.clues.slice(0, 12).map(c => clue({...c, files: p.files})).join('')}${p.clues.length > 12 ? `<div class="meta">+${p.clues.length - 12} more</div>` : ''}
       ${p.lines.map(t => `<div class="chg meta">line: ${esc(t)}</div>`).join('')}</div></div>`).join('')}`;
 }
+// Who has said Ready (👍) or Not ready (👎) on each puzzle, and whether you did. Locally, the ledger's
+// records (the puzzle's said, from /api/batch). On the site, the proofs table as it stands now (what
+// the proof page saved: one row per helper per puzzle), read when the page loads and again when you come
+// back to it from the proof page; "you" is the helper the proof page signed in, in this browser.
+let LIVE = null;
+function myId() {
+  try {
+    const ref = new URL(SITE.supabaseUrl).hostname.split('.')[0];
+    return (JSON.parse(localStorage.getItem(`sb-${ref}-auth-token`) || 'null') || {}).user?.id || null;
+  } catch (e) { return null; }
+}
+async function liveVotes() {
+  if (!SITE || !DATA) return;
+  const h = {apikey: SITE.supabaseAnonKey, Authorization: 'Bearer ' + SITE.supabaseAnonKey};
+  const rows = await fetch(`${SITE.supabaseUrl}/rest/v1/proofs?select=xdid,decision,user_id`, {headers: h, cache: 'no-cache'})
+    .then(r => r.ok ? r.json() : null).catch(() => null);
+  if (!rows) return;
+  const me = myId();
+  LIVE = {};
+  for (const r of rows) {
+    const v = LIVE[r.xdid] ||= {up: 0, down: 0, you: ''};
+    v[r.decision === 'ready' ? 'up' : 'down']++;
+    if (me && r.user_id === me) v.you = r.decision;
+  }
+}
+function votes(p) {
+  if (LIVE) return LIVE[p.pid] || {up: 0, down: 0, you: ''};
+  const v = {up: 0, down: 0, you: ''};
+  for (const s of p.said || []) { v[s.answer === 'ready' ? 'up' : 'down']++; if (s.yours) v.you = s.answer; }
+  return v;
+}
+// 0 nobody has checked it, 1 someone else has, 2 you have: the list puts the unchecked first
+const checked = p => { const v = votes(p); return v.you ? 2 : v.up + v.down ? 1 : 0; };
+const CHECKED = ['', 'Checked by someone else', 'Checked by you'];
+function tally(p) {
+  const v = votes(p);
+  if (!v.up && !v.down) return '';
+  const bits = [v.up ? `👍 ${v.up}` : '', v.down ? `👎 ${v.down}` : ''].filter(Boolean).join(' · ');
+  return `<span class="votes" title="Ready ${v.up}, Not ready ${v.down}">${bits}${v.you ? ` <span class="you">(you ${v.you === 'ready' ? '👍' : '👎'})</span>` : ''}</span>`;
+}
+document.addEventListener('visibilitychange', async () => {
+  if (document.hidden || !D) return;
+  if (DATA) { await liveVotes(); draw(); return; }
+  const r = await fetch('/api/batch' + (params.get('run') ? '?run=' + encodeURIComponent(params.get('run')) : ''), {cache: 'no-cache'});
+  const d = await r.json().catch(() => null);
+  if (d && !d.error) { D = d; draw(); }
+});
 const causeOf = pid => ((D.causes || {}).causes || []).find(c => c.pids.includes(pid));
 function shown() {
   return D.puzzles.filter(p => (filter === 'all' || (filter === 'held' ? p.held_for_you : kindOf(p) === filter)) && (!cause || (causeOf(p.pid) || {}).id === cause))
-    .sort((a, b) => ORDER.indexOf(kindOf(a)) - ORDER.indexOf(kindOf(b)) || a.pid.localeCompare(b.pid));
+    .sort((a, b) => checked(a) - checked(b) || ORDER.indexOf(kindOf(a)) - ORDER.indexOf(kindOf(b)) || a.pid.localeCompare(b.pid));
 }
 // a link into the proof page that walks the list on screen: its Next goes to the next row here. From a
 // snapshot the list goes in the link (?walk=<label>&pids=...): there's no server to ask for it.
@@ -270,13 +320,14 @@ function mini(grid) {
 // Ready and no Not ready ships; a Not ready is held for you
 function state(p) {
   if (p.choice === 'drop') return `dropped${p.by ? ' by ' + esc(p.by) : ''}`;
-  if (DATA) return '';  // a snapshot: Ready and Not ready are the proof page's
+  if (DATA) return tally(p) || 'not checked yet';  // a snapshot: what helpers said on the proof page, live
   if (p.held_for_you) return `<b style="color:var(--person)">Held for you</b>`;
   const how = p.rule === 'crowd' ? ' · by the review rule' : p.by ? ' · ' + esc(p.by) : '';
   if (p.choice === 'ship') return `<b style="color:var(--ship)">Ships</b>${how}`;
   if (p.choice === 'hold') return `<b style="color:var(--person)">Held</b>${how}`;
   return (p.said || []).length ? 'waiting for a Ready' : 'not checked yet';
 }
+const stateLine = p => DATA || p.choice === 'drop' ? state(p) : [state(p), tally(p)].filter(Boolean).join('<br>');
 // every reviewer's latest Ready / Not ready, from the ledger (proof:<pid>), with their note
 function said(p) {
   if (DATA || !p.said || !p.said.length) return '';
@@ -318,7 +369,7 @@ function draw() {
   $('#causechips').innerHTML = cs.length ? `<span class="meta">By cause:</span>` + cs.map(c => `<button class="chip ${cause === c.id ? 'on' : ''}" data-c="${esc(c.id)}" title="${esc(c.recommend)}">${esc(c.title)} <b>${c.puzzles.length}</b></button>`).join('') : '';
   document.querySelectorAll('[data-f]').forEach(b => b.onclick = () => { filter = b.dataset.f; setUrl(); draw(); });
   document.querySelectorAll('[data-c]').forEach(b => b.onclick = () => { cause = cause === b.dataset.c ? '' : b.dataset.c; setUrl(); draw(); });
-  $('#list').innerHTML = rows.map(p => {
+  $('#list').innerHTML = rows.map((p, i) => {
     const k = KIND[kindOf(p)], c = causeOf(p.pid);
     const rs = p.reasons.filter(r => r.code !== 'verdict');
     const why = [...rs.filter(r => r.class === 'defect' && r.code !== 'not-a-crossword').map(r => `<li class="${r.severity === 'glance' ? 'g' : 'd'}"><a href="${proofUrl(p.pid, r.row, rows)}" target="_blank">${esc(r.code)}</a>${r.detail && r.detail !== 'from the verdict' ? ': ' + esc(r.detail) : ''}</li>`),
@@ -331,7 +382,8 @@ function draw() {
         // every page as a link that swaps the thumbnail in place; the thumbnail opens the full size
         + (p.maps.length > 1 ? `<div class="meta leaves">${p.maps.map((m, i) => `<a href="#" class="${i ? '' : 'cur'}" data-i="${i}">${esc(m.page.replace(/^.*, /, ''))}</a>`).join(' · ')}</div>` : '') + `</div>`
       : p.page ? `<a href="${esc(U(p.page))}" target="_blank"><img class="pg" loading="lazy" src="${esc(U(p.page))}" alt="the puzzle's page"></a>` : mini(p.grid);
-    return `<div class="row withpage" id="${esc(p.pid)}">${pic}
+    const head = checked(p) && (!i || checked(rows[i - 1]) !== checked(p)) ? `<div class="checked">${CHECKED[checked(p)]}</div>` : '';
+    return `${head}<div class="row withpage" id="${esc(p.pid)}">${pic}
       <div><div class="t">${p.title ? esc(p.title) : '<span class="none">no title found</span>'}</div>
         <div class="meta">${esc(p.date)} · ${p.grid.length}×${(p.grid[0] || '').length}${p.byline ? ' · ' + esc(p.byline) : ''}${p.cryptic ? ' · cryptic' : ''} · ${p.changes} changes, ${p.unsure_items.length} unsure, ${p.blanks} blanks</div>
         ${why ? `<ul class="why">${why}</ul>` : ''}
@@ -341,7 +393,7 @@ function draw() {
         ${c && c.lane !== 'glance' ? `<div class="cause"><b>${esc(c.title)}</b>${c.stage ? ` (${esc(c.stage)})` : ''}: ${esc(c.recommend)}</div>` : ''}
         ${p.unsure_items.length ? `<details class="uns"><summary>Not sure (${p.unsure_items.length})</summary><ul>${p.unsure_items.map(u =>
           `<li>${KEY(u.key) ? `<a href="${proofUrl(p.pid, KEY(u.key), rows)}" target="_blank">${esc(u.key)}</a>` : esc(u.key)}: ${esc(u.text)}</li>`).join('')}</ul></details>` : ''}</div>
-      <div class="side"><span class="pill ${k[1]}">${k[0]}</span><span class="state">${state(p)}</span>
+      <div class="side"><span class="pill ${k[1]}">${k[0]}</span><span class="state">${stateLine(p)}</span>
         <a class="open" href="${proofUrl(p.pid, '', rows)}" target="_blank">Proof page ↗</a></div></div>`;
   }).join('') || '<p class="meta">None.</p>';
   rows.forEach(p => { const row = document.getElementById(p.pid); if (row && p.maps.length) drawOverlay(row.querySelector('.maps svg'), p.pid, 0, 2); });
