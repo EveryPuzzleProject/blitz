@@ -125,6 +125,7 @@ h2 .quick { margin-left: 8px; font-size: 12px; padding: 2px 10px; }
 /* the title, byline and nearby lines: headers with their evidence, then the other lines */
 .subh { padding: 10px 14px 4px; font-weight: 600; font-size: 13px; border-bottom: 1px solid #e6e0d4; background: #faf8f3; }
 .subh .hint { font-weight: 400; color: var(--muted); font-size: 12px; }
+.metaimg { display: block; max-width: 100%; max-height: 90px; margin: 4px 0; border: 1px solid #ddd; background: #fff; }
 .row.colhead { font-size: 12px; color: var(--muted); padding-top: 8px; padding-bottom: 4px; background: #faf8f3; }
 .row.hrow .lab { color: var(--ink); }
 .row.discarded .scan, .row.discarded .typed, .row.discarded .lab { opacity: .5; }
@@ -269,6 +270,7 @@ footer button:disabled { opacity: .4; cursor: default; }
   then say whether each part looks good. <a href="../review-old/">The old review page</a>
   <span class="pickgrp"><select id="order" title="Which puzzles come first"><option value="date">By date</option><option value="worst">Worst first</option></select> Puzzle <select id="pick"></select> <button class="t" id="browsebtn" title="Every open puzzle, with a picture of its grid">▦ Browse</button> <button class="t" id="nextpz">Next puzzle →</button></span>
 </div>
+<div id="walkbar" hidden style="background:#eef4ff;border-bottom:1px solid #c9d8f2;padding:6px 16px;font-size:13px;display:flex;gap:10px;align-items:center;flex-wrap:wrap"></div>
 <div id="browse" hidden><div class="tabs"></div><div class="cards"></div></div>
 <header>
   <h1 id="title">…</h1>
@@ -511,7 +513,8 @@ async function load() {
     document.body.append(n);
   }
   store.xd = fp;
-  const names = new Set([MAIN(), ...Object.values(ocr.clues).map(c => c.image).filter(Boolean)]);
+  // every page a crop is cut from: the clues' and the printed lines' (a title on the grid's page when most clues are on another)
+  const names = new Set([MAIN(), ...Object.values(ocr.clues).map(c => c.image), ...(ocr.lines || []).map(l => l.image)].filter(Boolean));
   images = {};
   await Promise.all([...names].map(n => new Promise((ok, bad) => {
     const im = new Image(); im.onload = () => { images[n] = im; ok(); }; im.onerror = bad; im.src = dir + '_src/' + n;
@@ -1276,7 +1279,7 @@ const labelOf = L => cur.edits['label:B' + L.n] ?? L.label ?? 'other';
 const keptOf = L => cur.edits['keep:B' + L.n] ?? (L.keep ?? !DISCARD.includes(labelOf(L)));
 // A title line ending "by" and a name (two or more capitalised words, or initials) gives the byline
 // too when nothing else does (headers.named_byline): "You Name It by Henry Hook", not "Two by Two".
-const NAME_RE = /\s+by\s+((?:[A-Z]\.\s*){2,}|[A-Z][\w.'\-]*(?:\s+[A-Z][\w.'\-]*){1,3})\s*$/;
+const NAME_RE = /\s+by\s+((?:[A-Z]\.\s*){2,}|[A-Z][\w.'\-]*(?:\s+(?:(?:and|&)\s+)?[A-Z][\w.'\-]*){1,4})\s*$/;  // "by Doug and Janis Heller" too
 const one = s => (s || '').split(/\s+/).filter(Boolean).join(' ');
 function bylineEv() {
   const b = evOf('byline'), t = evOf('title');
@@ -1362,7 +1365,9 @@ function headerSection(hs) {
     row.classList.add('hrow'); row.id = name; row.dataset.hdr = name;
     row.querySelector('.typed').style.display = 'none';
     const m = typeof n === 'string' && metaOf(n);
-    row.querySelector('.scan').innerHTML = m ? `<div><b>${esc(m.name)}</b>: ${esc(m.value)} <span class="hint">(the puzzle's metadata, not printed)</span></div>`
+    // a metadata value read from another page of the issue (the masthead's Editor) shows with its crop and source
+    row.querySelector('.scan').innerHTML = m ? `<div><b>${esc(m.name)}</b>: ${esc(m.value)} <span class="hint">(${m.image ? 'printed on another page of the issue' : "the puzzle's metadata, not printed"})</span></div>`
+      + (m.image ? `<img class="metaimg" src="${dir}${esc(m.image)}" alt="${esc(m.name)}, as printed">` : '') + (m.source ? `<div class="hint">${esc(m.source)}</div>` : '')
       : `<div class="hint">${f === 'date' && !ocr.metadata ? `computed: the date of the issue it's in (${esc(ocr.issue_date || '')})` : 'not found near this puzzle'}</div>`;
     evPicker(row, f);
     valueBox(row, f, name);
@@ -1926,6 +1931,21 @@ addEventListener('keyup', e => {
 addEventListener('mousedown', e => { if (selCell && !e.target.closest('.typedgrid, .acells, .compose')) { selCell = null; regrid(); } });
 
 start().catch(e => document.getElementById('main').textContent = 'Could not load ' + dir + ': ' + e);
+// locally, ?list=<url> (the batch page's walk through one group of puzzles): which group, where in it,
+// this puzzle's decision there, and Prev / Next to the others, keeping ?base, ?save and ?list
+if (!SITE && params.get('list')) (async () => {
+  const items = await fetch(params.get('list')).then(r => r.json()).catch(() => null);
+  if (!Array.isArray(items) || !items.length) return;
+  const i = items.findIndex(x => x.pid === ID), bar = document.getElementById('walkbar');
+  const to = x => { const u = new URL(location.href); u.searchParams.set('p', x.pid); u.searchParams.delete('k'); return u.href; };
+  const back = params.get('back');
+  bar.innerHTML = `<b>${esc(items[0].label)}</b> <span>${i + 1} of ${items.length}</span>`
+    + (i >= 0 && items[i].choice ? ` <span style="border:1px solid currentColor;border-radius:10px;padding:0 7px">${esc({ship: 'Ready', hold: 'Not ready', drop: 'dropped'}[items[i].choice] || items[i].choice)}</span>` : '')
+    + (i > 0 ? ` <a href="${to(items[i - 1])}">← ${esc(items[i - 1].title || items[i - 1].pid)}</a>` : '')
+    + (i + 1 < items.length ? ` <a href="${to(items[i + 1])}"><b>Next: ${esc(items[i + 1].title || items[i + 1].pid)} →</b></a>` : ' <span>last in this group</span>')
+    + (back ? ` <a style="margin-left:auto" href="${esc(back)}">back to the batch</a>` : '');
+  bar.hidden = false;
+})();
 </script>
 </body>
 </html>
