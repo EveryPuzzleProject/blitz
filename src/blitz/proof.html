@@ -18,7 +18,8 @@ header { position: sticky; top: 0; z-index: 5; background: var(--paper); border-
 header h1 { font-size: 16px; margin: 0; }
 .grp { display: flex; gap: 4px; align-items: center; }
 .grp > span { color: var(--muted); font-size: 12px; margin-right: 2px; }
-button.t { border: 1px solid var(--line); background: #fff; border-radius: 14px; padding: 3px 10px; cursor: pointer; font: inherit; font-size: 13px; }
+button.t, a.t { border: 1px solid var(--line); background: #fff; border-radius: 14px; padding: 3px 10px; cursor: pointer; font: inherit; font-size: 13px; }
+a.t { color: inherit; text-decoration: none; display: inline-block; }
 button.t.on { background: var(--ink); color: #fff; border-color: var(--ink); }
 button.t:disabled { opacity: .35; cursor: default; }
 #who { font: inherit; font-size: 13px; padding: 2px 6px; width: 110px; border: 1px solid var(--line); border-radius: 4px; }
@@ -29,7 +30,7 @@ body:not(.show-changes) .legend { display: none; }
 #sitebar { background: #fff6dc; border-bottom: 1px solid #ecd9a0; padding: 6px 16px; font-size: 13px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 #sitebar[hidden] { display: none; }
 #sitebar .pickgrp { margin-left: auto; }
-#sitebar select { font: inherit; font-size: 13px; max-width: 420px; }
+#sitebar select { font: inherit; font-size: 13px; max-width: min(420px, calc(100vw - 32px)); }
 #browse { position: relative; background: #fffbef; border-bottom: 1px solid #ecd9a0; padding: 12px 16px; max-height: 70vh; overflow-y: auto; }
 #browse[hidden] { display: none; }
 #browse .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
@@ -302,8 +303,8 @@ footer button:disabled { opacity: .4; cursor: default; }
 <body class="show-changes show-notes show-marks">
 <div id="sitebar" hidden>
   <b>Help check old crosswords.</b> Compare our text with the printed scan, line by line; fix what's wrong,
-  then say whether each part looks good. <a href="../review-old/">The old review page</a>
-  <span class="pickgrp"><select id="order" title="Which puzzles come first"><option value="date">By date</option><option value="worst">Worst first</option></select> Puzzle <select id="pick"></select> <button class="t" id="browsebtn" title="Every open puzzle, with a picture of its grid">▦ Browse</button> <button class="t" id="nextpz">Next puzzle →</button></span>
+  then say whether each part looks good. <a href="batch/">All batches</a>
+  <span class="pickgrp"><select id="order" title="Which puzzles come first"><option value="date">By date</option><option value="worst">Worst first</option></select> Puzzle <select id="pick"></select> <button class="t" id="browsebtn" title="Every open puzzle, with a picture of its grid">▦ Browse</button> <a class="t" id="batchlink" href="batch/" title="Every puzzle in this puzzle's batch, sorted by what the pipeline found, with why">The batch</a> <button class="t" id="nextpz">Next puzzle →</button></span>
 </div>
 <div id="walkbar" hidden style="background:#eef4ff;border-bottom:1px solid #c9d8f2;padding:6px 16px;font-size:13px;display:flex;gap:10px;align-items:center;flex-wrap:wrap"></div>
 <div id="browse" hidden><div class="tabs"></div><div class="cards"></div></div>
@@ -340,6 +341,7 @@ footer button:disabled { opacity: .4; cursor: default; }
 const params = new URLSearchParams(location.search);
 // on the site (config.js sets BLITZ_SITE) the puzzles come from the site's list; locally from ?p= and ?base=
 const SITE = window.BLITZ_SITE;
+if (SITE && !location.search) location.replace('batch/');  // /review/ itself: the way in is the batches
 let ID = params.get('p') || 'judge1931-10-03';
 let dir = (params.get('base') || '/blitz-work/') + ID + '/';
 // locally, ?save=<url> (xword-ocr watch's /api/proof): a submitted review is posted there, into the
@@ -363,7 +365,7 @@ async function pickPuzzle() {
   if (!SITE) return;
   const h = {apikey: SITE.supabaseAnonKey, Authorization: 'Bearer ' + SITE.supabaseAnonKey};
   const get = q => fetch(`${SITE.supabaseUrl}/rest/v1/${q}`, {headers: h}).then(r => r.ok ? r.json() : []);
-  let [all, said, put] = await Promise.all([get('puzzles?select=xdid,title,base_url,files,checkup,dropped&open=eq.true&order=xdid'),
+  let [all, said, put] = await Promise.all([get('puzzles?select=xdid,title,base_url,files,checkup,dropped,batch&open=eq.true&order=xdid'),
                                             get('proofs?select=xdid,decision,user_id'), get('restores?select=xdid,who,user_id,at&order=at')]);
   if (!all.length) all = await get('puzzles?select=xdid,title,base_url,files,checkup&open=eq.true&order=xdid');  // no dropped column
   if (!all.length) all = await get('puzzles?select=xdid,title,base_url,files&open=eq.true&order=xdid');  // no checkup column
@@ -388,6 +390,10 @@ async function pickPuzzle() {
   const want = params.get('p');
   const here = all.find(p => p.xdid === want) || all.find(p => !isDropped(p)) || all[0];
   ID = here.xdid; dir = here.base_url + '/';
+  // its batch's page; from the batch page, back to the list as it was left (this site's pages only)
+  let back = params.get('back');
+  try { if (back && new URL(back, location.href).origin !== location.origin) back = ''; } catch (e) { back = ''; }
+  if (back || here.batch) document.getElementById('batchlink').href = back || 'batch/?b=' + encodeURIComponent(here.batch);
   // the picker and Next: the open puzzles (and this one, if it's dropped and you came to look at it)
   let list = all.filter(p => !isDropped(p) || p === here);
   const i = list.indexOf(here);
@@ -494,6 +500,9 @@ async function pickPuzzle() {
   nb.title = `${left} of ${list.length} open puzzles left for you`;
   nb.onclick = () => go(nextTodo().xdid);
   document.getElementById('sitebar').hidden = false;
+  // from the batch page (batch/): ?walk=<its list's name>&pids=<the puzzles in it>, walked in that order
+  if (params.get('walk')) walkBar((params.get('pids') || '').split(',').filter(Boolean)
+    .map(x => ({pid: x, label: params.get('walk'), title: (all.find(p => p.xdid === x) || {}).title || ''})));
 }
 // the site's database: everyone's submitted proofs are readable; each helper writes their own
 const sb = SITE && window.supabase ? window.supabase.createClient(SITE.supabaseUrl, SITE.supabaseAnonKey) : null;
@@ -2115,21 +2124,25 @@ addEventListener('keyup', e => {
 addEventListener('mousedown', e => { if (selCell && !e.target.closest('.typedgrid, .acells, .compose')) { selCell = null; regrid(); } });
 
 start().catch(e => document.getElementById('main').textContent = 'Could not load ' + dir + ': ' + e);
-// locally, ?list=<url> (the batch page's walk through one group of puzzles): which group, where in it,
-// this puzzle's decision there, and Prev / Next to the others, keeping ?base, ?save and ?list
+// the batch page's walk through one group of puzzles: which group, where in it, this puzzle's decision
+// there, and Prev / Next to the others, keeping the other parameters. Locally ?list=<url> gives the list;
+// on the site, ?walk and ?pids (above, with the site's puzzles).
 if (!SITE && params.get('list')) (async () => {
-  const items = await fetch(params.get('list')).then(r => r.json()).catch(() => null);
+  walkBar(await fetch(params.get('list')).then(r => r.json()).catch(() => null));
+})();
+function walkBar(items) {
   if (!Array.isArray(items) || !items.length) return;
   const i = items.findIndex(x => x.pid === ID), bar = document.getElementById('walkbar');
   const to = x => { const u = new URL(location.href); u.searchParams.set('p', x.pid); u.searchParams.delete('k'); return u.href; };
-  const back = params.get('back');
+  let back = params.get('back');
+  try { if (back && new URL(back, location.href).origin !== location.origin) back = ''; } catch (e) { back = ''; }  // this site's pages only
   bar.innerHTML = `<b>${esc(items[0].label)}</b> <span>${i + 1} of ${items.length}</span>`
     + (i >= 0 && items[i].choice ? ` <span style="border:1px solid currentColor;border-radius:10px;padding:0 7px">${esc({ship: 'Ready', hold: 'Not ready', drop: 'dropped'}[items[i].choice] || items[i].choice)}</span>` : '')
     + (i > 0 ? ` <a href="${to(items[i - 1])}">← ${esc(items[i - 1].title || items[i - 1].pid)}</a>` : '')
     + (i + 1 < items.length ? ` <a href="${to(items[i + 1])}"><b>Next: ${esc(items[i + 1].title || items[i + 1].pid)} →</b></a>` : ' <span>last in this group</span>')
     + (back ? ` <a style="margin-left:auto" href="${esc(back)}">back to the batch</a>` : '');
   bar.hidden = false;
-})();
+}
 </script>
 </body>
 </html>
