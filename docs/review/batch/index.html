@@ -100,6 +100,13 @@ table.mh details img { max-height: 44px; }
 .btn.go { background: var(--ship); color: #fff; border-color: var(--ship); }
 .err { color: var(--person); }
 .sitenav { font-size: 13px; margin-bottom: 6px; }
+/* the site's way in: one card per batch */
+.bcard { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 14px; align-items: center; padding: 14px 16px; margin: 12px 0;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: inherit; text-decoration: none; }
+.bcard:hover { border-color: var(--ink); }
+.bcard .t { font-size: 17px; } .bcard .bar { grid-column: 1 / -1; margin: 4px 0 2px; }
+.bcard .go { color: var(--accent); white-space: nowrap; font-size: 13px; }
+.bcard .pills { display: flex; flex-wrap: wrap; gap: 4px; grid-column: 1 / -1; }
 /* the puzzles waiting for the text step: what changed in their reading, old -> new */
 #rerun .row { grid-template-columns: 64px minmax(0, 1fr); } #rerun img.th { width: 60px; height: 60px; object-fit: contain; border: 1px solid var(--line); background: #fff; }
 #rerun .chg { font-size: 13px; } #rerun del { color: var(--person); } #rerun ins { color: var(--ship); text-decoration: none; }
@@ -108,14 +115,14 @@ table.mh details img { max-height: 44px; }
 </style></head>
 <body><div class="wrap">
 <header>
-  <div class="sitenav" id="sitenav" hidden><a href="../">← the proof page</a> · <a href="../?browse">Browse every puzzle</a></div>
+  <div class="sitenav" id="sitenav" hidden><a href="./">← All batches</a> · <a href="../?browse">Browse every puzzle</a></div>
   <h1><span id="h1">Batch</span> <select id="runsel" title="Which run of the batch"></select></h1>
   <div class="sub" id="runnote"></div>
   <div class="sub" id="about">Each puzzle sorted by what the pipeline found. Triage's guess is the coloured label; Ready or Not ready is a person's decision on the proof page, and only Ready puzzles are imported. Next on the proof page walks the list shown here.</div>
   <div class="bar" id="bar"></div>
   <div class="chips" id="chips"></div>
   <div class="chips" id="causechips"></div>
-  <div class="legend">Drawn from the records only: <b style="color:#1f5fbf">this puzzle's region boxes</b> (what its parts were read from) and <b style="color:#c46e00">its key</b> as assembly cut it; other puzzles in grey; the harvest's answer grids dashed. Hover a box for the milestone it came from.</div>
+  <div class="legend" id="legend">Drawn from the records only: <b style="color:#1f5fbf">this puzzle's region boxes</b> (what its parts were read from) and <b style="color:#c46e00">its key</b> as assembly cut it; other puzzles in grey; the harvest's answer grids dashed. Hover a box for the milestone it came from.</div>
 </header>
 <details id="rerun" hidden></details>
 <main id="list"></main>
@@ -154,15 +161,16 @@ let D, filter = params.get('f') || 'all', cause = params.get('cause') || '';
 const SITE = window.BLITZ_SITE || null;
 let DATA = params.get('data') || '', BATCHES = [];
 const U = u => u && DATA ? new URL(u, new URL(DATA, location.href)).href : u;
+const FILES = () => params.get('files') || SITE.filesBase;  // the site's bucket (?files=: a local copy of its layout)
 const full = m => DATA ? U(m.full || m.image) : m.image + '?w=1400';  // a page, full size
 
 async function load() {
   if (SITE && !params.get('data')) {  // the batches published to the site, newest first
-    const idx = await fetch(`${SITE.filesBase}/batch/batches.json`, {cache: 'no-cache'}).then(r => r.json());
+    const idx = await fetch(`${FILES()}/batch/batches.json`, {cache: 'no-cache'}).then(r => r.json()).catch(() => ({}));
     BATCHES = idx.batches || [];
-    const b = BATCHES.find(x => x.name === params.get('b')) || BATCHES[0];
-    if (!b) throw new Error('No batch has been published to the site yet.');
-    DATA = `${SITE.filesBase}/batch/${b.name}/`;
+    const b = BATCHES.find(x => x.name === params.get('b'));
+    if (!b) return landing();  // no batch asked for (or not one with a page): the site's way in
+    DATA = `${FILES()}/batch/${b.name}/`;
   }
   const r = await fetch(DATA ? U('batch.json') : '/api/batch' + (params.get('run') ? '?run=' + encodeURIComponent(params.get('run')) : ''),
                         {cache: 'no-cache'});
@@ -171,6 +179,46 @@ async function load() {
   draw();
   $('#tools').hidden = !!DATA;
   if (!DATA) { drawTools(); drawRerun(); }
+}
+// the site's way in (/review/ opens it): every batch on the site, with what the pipeline found in it.
+// A batch with a page (site-publish-batch) opens it; the others (no snapshot yet) open their proof pages.
+async function landing() {
+  document.title = 'Check old crosswords: Every Puzzle Project';
+  $('#sitenav').innerHTML = '<a href="../?browse">Browse every puzzle</a>';
+  $('#sitenav').hidden = false;
+  $('#runsel').hidden = true;
+  $('#h1').textContent = 'Help check old crosswords';
+  $('#about').innerHTML = `We turn scanned magazine crosswords into text, and every puzzle needs a person to check it against the scan.
+    Pick a batch to see its puzzles, sorted by what the pipeline found when it read them, then open one on the proof page:
+    compare our text with the printed page, fix what's wrong, and say whether it's ready.`;
+  for (const id of ['#bar', '#chips', '#causechips', '#runnote']) $(id).innerHTML = '';
+  $('#legend').hidden = true; $('#tools').hidden = true; $('#bar').style.display = 'none';
+  const snaps = await Promise.all(BATCHES.map(b => fetch(`${FILES()}/batch/${b.name}/batch.json`, {cache: 'no-cache'})
+    .then(r => r.json()).catch(() => null)));
+  const h = {apikey: SITE.supabaseAnonKey, Authorization: 'Bearer ' + SITE.supabaseAnonKey};
+  let rows = await fetch(`${SITE.supabaseUrl}/rest/v1/puzzles?select=xdid,batch,dropped&open=eq.true&order=xdid`, {headers: h})
+    .then(r => r.ok ? r.json() : []).catch(() => []);
+  if (!rows.length) rows = await fetch(`${SITE.supabaseUrl}/rest/v1/puzzles?select=xdid,batch&open=eq.true&order=xdid`, {headers: h})
+    .then(r => r.ok ? r.json() : []).catch(() => []);  // no dropped column
+  const other = {};
+  for (const r of rows) if (!BATCHES.some(b => b.name === r.batch)) (other[r.batch || ''] ||= []).push(r);
+  const card = (b, d) => {
+    const n = k => d.puzzles.filter(p => kindOf(p) === k).length, all = d.puzzles.length;
+    return `<a class="bcard" href="?b=${encodeURIComponent(b.name)}${params.get('files') ? '&files=' + encodeURIComponent(params.get('files')) : ''}"><div><div class="t">${esc(b.title || b.name)}</div>
+      <div class="meta">${all} puzzles · as the pipeline left it on ${esc((b.at || '').slice(0, 10))}</div></div>
+      <span class="go">Open the batch →</span>
+      <div class="bar">${ORDER.map(k => `<span style="width:${100 * n(k) / all}%;background:${KIND[k][2]}"></span>`).join('')}</div>
+      <div class="pills">${ORDER.filter(n).map(k => `<span class="pill ${KIND[k][1]}">${KIND[k][0]} ${n(k)}</span>`).join('')}</div></a>`;
+  };
+  const plain = (name, ps) => {
+    const open = ps.filter(p => !p.dropped), pub = ((ps[0] || {}).xdid || '').match(/^[a-z]+/);
+    return `<a class="bcard" href="../?p=${encodeURIComponent((open[0] || ps[0]).xdid)}"><div><div class="t">${esc(pub ? pub[0].toUpperCase() + ': ' : '')}${esc(name || 'puzzles')}</div>
+      <div class="meta">${open.length} open puzzles · no batch page yet: they open on the proof page, one after another</div></div>
+      <span class="go">Proof pages →</span></a>`;
+  };
+  $('#list').innerHTML = BATCHES.map((b, i) => snaps[i] ? card(b, snaps[i]) : '').join('')
+    + Object.entries(other).sort((a, b) => b[1].length - a[1].length).map(([k, v]) => plain(k, v)).join('')
+    || '<p class="meta">Nothing to check right now.</p>';
 }
 function drawRerun() {
   const r = D.rerun, el = $('#rerun');
@@ -206,7 +254,7 @@ function proofUrl(pid, k, rows) {
 }
 function setUrl() {
   const q = new URLSearchParams();
-  for (const x of ['run', 'b', 'data', 'proof', 'base']) if (params.get(x)) q.set(x, params.get(x));
+  for (const x of ['run', 'b', 'data', 'files', 'proof', 'base']) if (params.get(x)) q.set(x, params.get(x));
   if (filter !== 'all') q.set('f', filter);
   if (cause) q.set('cause', cause);
   history.replaceState(null, '', '?' + q);

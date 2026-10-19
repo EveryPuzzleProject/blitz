@@ -43,7 +43,7 @@ body:not(.show-changes) .legend { display: none; }
 #sitebar { background: #fff6dc; border-bottom: 1px solid #ecd9a0; padding: 6px 16px; font-size: 13px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 #sitebar[hidden] { display: none; }
 #sitebar .pickgrp { margin-left: auto; }
-#sitebar select { font: inherit; font-size: 13px; max-width: 420px; }
+#sitebar select { font: inherit; font-size: 13px; max-width: min(420px, calc(100vw - 32px)); }
 #browse { position: relative; background: #fffbef; border-bottom: 1px solid #ecd9a0; padding: 12px 16px; max-height: 70vh; overflow-y: auto; }
 #browse[hidden] { display: none; }
 #browse .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
@@ -316,8 +316,8 @@ footer button:disabled { opacity: .4; cursor: default; }
 <body class="show-changes show-notes show-marks">
 <div id="sitebar" hidden>
   <b>Help check old crosswords.</b> Compare our text with the printed scan, line by line; fix what's wrong,
-  then say whether each part looks good. <a href="../review-old/">The old review page</a>
-  <span class="pickgrp"><select id="order" title="Which puzzles come first"><option value="date">By date</option><option value="worst">Worst first</option></select> Puzzle <select id="pick"></select> <button class="t" id="browsebtn" title="Every open puzzle, with a picture of its grid">▦ Browse</button> <a class="t" href="batch/" title="Every puzzle in a batch, sorted by what the pipeline found, with why">The batch</a> <button class="t" id="nextpz">Next puzzle →</button></span>
+  then say whether each part looks good. <a href="batch/">All batches</a>
+  <span class="pickgrp"><select id="order" title="Which puzzles come first"><option value="date">By date</option><option value="worst">Worst first</option></select> Puzzle <select id="pick"></select> <button class="t" id="browsebtn" title="Every open puzzle, with a picture of its grid">▦ Browse</button> <a class="t" id="batchlink" href="batch/" title="Every puzzle in this puzzle's batch, sorted by what the pipeline found, with why">The batch</a> <button class="t" id="nextpz">Next puzzle →</button></span>
 </div>
 <div id="walkbar" hidden style="background:#eef4ff;border-bottom:1px solid #c9d8f2;padding:6px 16px;font-size:13px;display:flex;gap:10px;align-items:center;flex-wrap:wrap"></div>
 <div id="browse" hidden><div class="tabs"></div><div class="cards"></div></div>
@@ -356,6 +356,7 @@ footer button:disabled { opacity: .4; cursor: default; }
 const params = new URLSearchParams(location.search);
 // on the site (config.js sets BLITZ_SITE) the puzzles come from the site's list; locally from ?p= and ?base=
 const SITE = window.BLITZ_SITE;
+if (SITE && !location.search) location.replace('batch/');  // /review/ itself: the way in is the batches
 let ID = params.get('p') || 'judge1931-10-03';
 let dir = (params.get('base') || '/blitz-work/') + ID + '/';
 // locally, ?save=<url> (xword-ocr watch's /api/proof): a submitted review is posted there, into the
@@ -379,7 +380,7 @@ async function pickPuzzle() {
   if (!SITE) return;
   const h = {apikey: SITE.supabaseAnonKey, Authorization: 'Bearer ' + SITE.supabaseAnonKey};
   const get = q => fetch(`${SITE.supabaseUrl}/rest/v1/${q}`, {headers: h}).then(r => r.ok ? r.json() : []);
-  let [all, said, put] = await Promise.all([get('puzzles?select=xdid,title,base_url,files,checkup,dropped&open=eq.true&order=xdid'),
+  let [all, said, put] = await Promise.all([get('puzzles?select=xdid,title,base_url,files,checkup,dropped,batch&open=eq.true&order=xdid'),
                                             get('proofs?select=xdid,decision,user_id'), get('restores?select=xdid,who,user_id,at&order=at')]);
   if (!all.length) all = await get('puzzles?select=xdid,title,base_url,files,checkup&open=eq.true&order=xdid');  // no dropped column
   if (!all.length) all = await get('puzzles?select=xdid,title,base_url,files&open=eq.true&order=xdid');  // no checkup column
@@ -404,6 +405,10 @@ async function pickPuzzle() {
   const want = params.get('p');
   const here = all.find(p => p.xdid === want) || all.find(p => !isDropped(p)) || all[0];
   ID = here.xdid; dir = here.base_url + '/';
+  // its batch's page; from the batch page, back to the list as it was left (this site's pages only)
+  let back = params.get('back');
+  try { if (back && new URL(back, location.href).origin !== location.origin) back = ''; } catch (e) { back = ''; }
+  if (back || here.batch) document.getElementById('batchlink').href = back || 'batch/?b=' + encodeURIComponent(here.batch);
   // the picker and Next: the open puzzles (and this one, if it's dropped and you came to look at it)
   let list = all.filter(p => !isDropped(p) || p === here);
   const i = list.indexOf(here);

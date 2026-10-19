@@ -28,7 +28,8 @@ from .work import Stop
 
 # what the page reads from /api/batch; the rest (the tools' data) stays local
 KEEP = ("run", "current", "pubid", "counts", "causes", "puzzles")
-VOLUNTEER_DROP = ("proof", "diagnosis")  # a puzzle's ledger fields a volunteer doesn't see
+# a puzzle's ledger fields a volunteer doesn't see: the proof page's decisions and who made them
+VOLUNTEER_DROP = ("proof", "diagnosis", "said", "held_for_you", "rule")
 
 
 def _get(watch: str, path: str) -> bytes:
