@@ -228,3 +228,12 @@ def test_proof_page_shows_a_second_clue_sets_lines_as_rows_of_their_own():
     for needed in ("const slotOf = k => k.split('^')[0]", ".sort(clueOrder)", "function setsNote()", "metarow",
                    "setKeyOf(k) === setKeyOf(label)", "NUM[slotOf(k)]"):
         assert needed in page, needed
+
+
+def test_proof_and_batch_pages_carry_the_feature():
+    # the feature (a sub-series) is a header row like the others (ev:feature, meta:feature), and shows on the batch page
+    from pathlib import Path
+    src = Path(__file__).parents[1] / "src" / "blitz"
+    page = (src / "proof.html").read_text(encoding="utf-8")
+    assert "['feature', 'Feature']" in page and "  feature: t =>" in page
+    assert "p.feature" in (src / "batch.html").read_text(encoding="utf-8")
