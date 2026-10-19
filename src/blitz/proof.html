@@ -272,6 +272,8 @@ body.side .typed { margin-top: 0; }
 .typedgrid.over div.blk { background: transparent; }
 .typedgrid div.unsure { box-shadow: inset 0 0 0 2px var(--flag); }
 .typedgrid div.cur { background: #e2ecfb !important; }
+/* on the scan, the selected square is ringed, never filled: the printed letter stays readable */
+.typedgrid.hit div.cur, .typedgrid.over div.cur { background: transparent !important; outline: 2.5px solid #1f5fbf; outline-offset: 1px; z-index: 1; }
 /* circled and shaded squares (xd's Special): a ring or a tint; a reviewer's mark is ringed in their colour */
 .typedgrid div, .acells > span { position: relative; }
 .sp-circle::after { content: ''; position: absolute; inset: 6%; border: 1.5px solid var(--spc, #444); border-radius: 50%; pointer-events: none; }
