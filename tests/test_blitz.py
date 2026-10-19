@@ -226,5 +226,5 @@ def test_proof_page_shows_a_second_clue_sets_lines_as_rows_of_their_own():
 
     page = (Path(__file__).parents[1] / "src" / "blitz" / "proof.html").read_text(encoding="utf-8")
     for needed in ("const slotOf = k => k.split('^')[0]", ".sort(clueOrder)", "function setsNote()", "metarow",
-                   "metaOf(k) === metaOf(label)", "NUM[slotOf(k)]"):
+                   "setKeyOf(k) === setKeyOf(label)", "NUM[slotOf(k)]"):
         assert needed in page, needed
