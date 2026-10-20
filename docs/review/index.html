@@ -118,6 +118,9 @@ h2 .quick { margin-left: 8px; font-size: 12px; padding: 2px 10px; }
 .decide .ready { border-color: var(--ok); color: var(--ok); } .decide .ready.sel { background: var(--ok); color: #fff; }
 .decide .notready { border-color: var(--bad); color: var(--bad); } .decide .notready.sel { background: var(--bad); color: #fff; }
 .decide button:disabled { opacity: .4; cursor: default; }
+/* an ask: a short value the pipeline didn't find (review.json asks: xword-ocr problems.ASK_REVIEWER) */
+.askbox { border: 2px solid #c46e00; background: #fff6e8; border-radius: 8px; padding: 8px 10px; font-size: 14px; color: #6b3d00; }
+.askbox b { display: block; margin-bottom: 4px; } .askbox .done { color: var(--ok); }
 /* sending a puzzle back: rarer than Ready / Not ready, so a quiet link that opens a short form */
 #sendback { margin: 2px 0 10px; font-size: 13px; } #sendback > a { color: var(--muted); cursor: pointer; text-decoration: underline; }
 #sendback .sbform { margin-top: 6px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
@@ -1649,6 +1652,20 @@ function outline(cv, text, part) {  // the part of a line a header takes, outlin
   }
   ctx.strokeRect(px + w * i / text.length, lw, w * part.length / text.length, cv.height - 2 * lw);
 }
+// The pipeline didn't find this value and asks the reviewer to (the packet's asks): a prompt in its row,
+// the scan one click away; what they type in the xd column is their edit, shown as theirs.
+function askBox(row, f, name) {
+  const ask = (rev?.asks || []).find(a => a.field === f);
+  if (!ask) return;
+  const typed = cur.edits['meta:' + (META[f] || f)];
+  const sc = row.querySelector('.scan');
+  const box = document.createElement('div');
+  box.className = 'askbox';
+  box.innerHTML = typed ? `<span class="done">✓ You gave the ${esc(name.toLowerCase())}: “${esc(typed)}”, recorded as yours.</span>`
+    : `<b>${esc(ask.says)}</b>Look on the page around the grid; if it's printed, type it as printed in the ${esc(name)} box to the right. If none is printed, say so in a comment.`;
+  if (!typed) box.append(scanLink(ask.image));
+  sc.prepend(box);
+}
 function headerSection(hs) {
   hs.insertAdjacentHTML('beforeend', `<div class="row colhead"><div></div><div>Printed: the scan and what the OCR read</div><div>In the xd file</div><div>Review</div></div>`);
   const used = new Set(HEADERS.map(([f]) => evOf(f)).filter(n => typeof n === 'number'));
@@ -1709,6 +1726,7 @@ function headerSection(hs) {
       : `<div class="hint">${f === 'date' && !ocr.metadata ? `computed: the date of the issue it's in (${esc(ocr.issue_date || '')})` : 'not found near this puzzle'}</div>`;
     evPicker(row, f);
     valueBox(row, f, name);
+    askBox(row, f, name);
   }
   const rest = (ocr.lines || []).filter(L => !used.has(L.n));
   if (!rest.length) return;
