@@ -357,7 +357,7 @@ footer button:disabled { opacity: .4; cursor: default; }
     <button class="t" id="redo" title="Redo (Ctrl+Y)">↷ Redo</button>
   </div>
   <div class="grp"><span>You are</span><input id="who" placeholder="your name (optional)"></div>
-  <div class="grp"><button class="t" id="pagebtn">Whole page</button> <button class="t" id="blankbtn">Blank grid</button> <a class="ctxbtn" id="scanlink" target="_blank">Original scan ↗</a> <a class="ctxbtn" id="srclink" target="_blank">archive.org ↗</a></div>
+  <div class="grp"><button class="t" id="pagebtn">Whole page</button> <button class="t" id="blankbtn">Blank grid</button> <a class="ctxbtn" id="scanlink" target="_blank">Original scan ↗</a> <a class="ctxbtn" id="srclink" target="_blank">archive.org ↗</a> <a class="ctxbtn" id="stagelink" target="_blank" hidden title="the grid's page in the watch's views: the boxes, what was read in them, what assembly linked">Stages ↗</a></div>
   <div class="progress" id="progress"></div>
   <div class="legend" id="legend"></div>
 </header>
@@ -747,6 +747,8 @@ function render() {
   sl.href = dir + '_src/page.jpg';
   sl.onclick = e => { if (e.ctrlKey || e.metaKey || e.shiftKey) return; e.preventDefault(); scanViewer('page.jpg'); };
   document.getElementById('srclink').href = ocr.source || '#';
+  const stl = document.getElementById('stagelink');
+  if (stl) { stl.hidden = !stageUrl(MAIN(), 'pages'); stl.href = stageUrl('page.jpg', 'pages') || '#'; }
   legend();
   const main = document.getElementById('main');
   main.innerHTML = '';
@@ -1167,6 +1169,29 @@ function scanLink(im, box) {
   a.href = dir + '_src/' + (im || MAIN()); a.target = '_blank'; a.textContent = 'open the scan';
   a.title = "The puzzle's pages at full size" + (box ? ', this line outlined' : '') + ' (Ctrl+click: just this page, in a new tab)';
   a.onclick = e => { if (e.ctrlKey || e.metaKey || e.shiftKey) return; e.preventDefault(); e.stopPropagation(); scanViewer(im || MAIN(), box); };
+  return a;
+}
+
+// ---- back to the stages: on the local watch (?save=), each page's place in the watch's views, from the
+// packet's record (ocr.json stages: assembly's region boxes, each packet page's scan and leaf). The views
+// outline the box passed in the link and link on; nothing is worked out here.
+function stageUrl(im, tab) {
+  const st = ocr.stages, pg = st && st.pages[im || MAIN()];
+  if (!SAVE || !pg) return '';
+  const reg = (st.regions || []).find(g => g.scan === pg[0] && g.leaf === pg[1] && g.from !== 'page');
+  const run = ((params.get('base') || '').match(/\/proof\/([^/]+)\/?$/) || [])[1] || '';
+  const q = new URLSearchParams({pid: ID, run, scan: pg[0], leaf: pg[1], what: reg ? 'its region box' : 'its page',
+    from: reg ? `ocr.json stages.regions[${reg.in_box}] (the proof packet, from assembly)` : 'ocr.json stages.pages'});
+  if (reg) q.set('box', reg.box.map(Math.round).join(','));
+  return `/?${q}#${tab}/${encodeURIComponent(st.date || '')}`;
+}
+function stageLink(im) {
+  const u = stageUrl(im, 'pages');
+  if (!u) return document.createTextNode('');
+  const a = document.createElement('a');
+  a.className = 'ctxbtn'; a.style.marginLeft = '10px'; a.href = u; a.target = '_blank'; a.textContent = 'back to the stages ↗';
+  a.title = 'This page in the watch: Puzzles on the pages (its region box outlined), then In the boxes, Assembled, Issues';
+  a.onclick = e => e.stopPropagation();
   return a;
 }
 
@@ -1736,7 +1761,7 @@ function addRow(s, key, label, box, flags = [], src = null) {
     };
     row.toggleWide = () => show(!btn.dataset.on);
     btn.onclick = e => { e.stopPropagation(); row.toggleWide(); };
-    sc.append(btn, scanLink(im, box));
+    sc.append(btn, scanLink(im, box), stageLink(im));
     show(!!why);
     if (why) row.suspect = true;
     const nm = row.querySelector('.num');
