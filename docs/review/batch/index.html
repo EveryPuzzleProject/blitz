@@ -482,6 +482,23 @@ function wireRestart() {
     busy(b, 'applying its answer…');
     try { await postJSON('/api/restart-continue', {pid: b.dataset.continue, run: D.run, by: 'person'}); await reload(); } catch (e) { fail(b, e); }
   });
+  // a person's drop: not a crossword (the shared vocabulary's not-a-puzzle), with an optional note; Restore undoes it
+  document.querySelectorAll('[data-drop]').forEach(b => b.onclick = () => {  // a second step in place: what it is, then drop
+    const pid = b.dataset.drop, box = document.createElement('span');
+    box.innerHTML = `<input type="text" placeholder="what is it? (optional)" style="font:inherit;font-size:12px;width:12em"> <button class="btn go">Drop it</button> <button class="btn">Cancel</button>`;
+    b.replaceWith(box);
+    const [inp, go, no] = [box.querySelector('input'), ...box.querySelectorAll('button')];
+    inp.focus();
+    no.onclick = () => draw();
+    go.onclick = async () => {
+      busy(go, 'dropping…');
+      try { await postJSON('/api/batch', {pid, choice: 'drop', note: inp.value.trim(), by: 'person', source: 'the batch page'}); await reload(); } catch (e) { fail(go, e); }
+    };
+  });
+  document.querySelectorAll('[data-restore]').forEach(b => b.onclick = async () => {
+    busy(b, 'restoring…');
+    try { await postJSON('/api/batch', {pid: b.dataset.restore, choice: '', note: 'restored on the batch page', by: 'person'}); await reload(); } catch (e) { fail(b, e); }
+  });
   document.querySelectorAll('[data-gap]').forEach(b => b.onclick = async () => {
     const note = document.querySelector(`[data-gapnote="${b.dataset.gap}/${b.dataset.part}"]`)?.value.trim();
     if (!note) { alert('Say how you know it isn\'t printed: the proof page shows it.'); return; }
@@ -566,7 +583,9 @@ function draw() {
         ${unsureHtml(p, rows)}`}</div>
       <div class="side"><span class="pill ${k[1]}">${k[0]}</span><span class="state">${stateLine(p)}</span>
         ${DATA && kindOf(p) === 'notready' ? '<span class="meta">needs work: not open for review yet</span>'
-          : `<a class="open" href="${proofUrl(p.pid, '', rows)}" target="_blank">Proof page ↗</a>`}</div></div>`;
+          : `<a class="open" href="${proofUrl(p.pid, '', rows)}" target="_blank">Proof page ↗</a>`}
+        ${DATA ? '' : kindOf(p) === 'drop' ? `<button class="btn" data-restore="${esc(p.pid)}" title="it's a crossword after all: back in the batch">Restore</button>`
+          : `<button class="btn" data-drop="${esc(p.pid)}" title="this isn't a crossword: drop it from the batch (Restore undoes it)">Not a crossword</button>`}</div></div>`;
   }).join('') || '<p class="meta">None.</p>';
   rows.forEach(p => { const row = document.getElementById(p.pid); if (row && p.maps.length) drawOverlay(row.querySelector('.maps svg'), p.pid, 0, 2); });
   if (!DATA) wireRestart();
