@@ -237,3 +237,12 @@ def test_proof_and_batch_pages_carry_the_feature():
     page = (src / "proof.html").read_text(encoding="utf-8")
     assert "['feature', 'Feature']" in page and "  feature: t =>" in page
     assert "p.feature" in (src / "batch.html").read_text(encoding="utf-8")
+
+
+def test_proof_page_switches_between_the_clue_sets():
+    # Hard only / Easy only / Both, named from the sets' keys, remembered per viewer (localStorage in try/catch)
+    from pathlib import Path
+    page = (Path(__file__).parents[1] / "src" / "blitz" / "proof.html").read_text(encoding="utf-8")
+    for needed in ("const showClue = k =>", "keys.filter(showClue)", "localStorage.setItem('proof-clueset'", "`${b.key} only`",
+                   "--setbg"):
+        assert needed in page, needed

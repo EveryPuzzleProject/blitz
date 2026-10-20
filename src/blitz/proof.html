@@ -124,9 +124,13 @@ h2 .quick { margin-left: 8px; font-size: 12px; padding: 2px 10px; }
 .row.focus { background: #fbf7ef; box-shadow: inset 3px 0 0 var(--ink); }
 .lab { font-weight: 600; font-size: 13px; padding-top: 2px; }
 /* a second clue set's clue (xd "A1 ^Easy: ..."), under its clue: tucked in, its set named */
-.row.metarow { background: #fbfaf6; border-bottom-style: dashed; }
+:root { --setbg: #f3efe2; --setedge: #c9b98a; --setink: #6a5a2a; }  /* the second clue set's rows (one theme: light) */
+.row.metarow { background: var(--setbg); box-shadow: inset 3px 0 0 var(--setedge); border-bottom-style: dashed; }
+.setswitch { display: inline-flex; gap: 4px; margin: 6px 0 2px; flex-wrap: wrap; align-items: center; }
+.setswitch button { font: inherit; font-size: 12px; padding: 3px 10px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); cursor: pointer; }
+.setswitch button.on { background: var(--ink); color: var(--paper); border-color: var(--ink); }
 .row.metarow .lab { font-weight: 500; color: var(--muted); padding-left: 8px; }
-.metakey { display: block; font-size: 11px; font-weight: 600; color: #6a5a2a; }
+.metakey { display: block; font-size: 11px; font-weight: 600; color: var(--setink); }
 .setsnote { margin: 4px 14px 8px; font-size: 13px; color: var(--muted); }
 .setsnote canvas { display: inline-block; vertical-align: middle; height: 52px !important; width: auto !important; margin: 4px 10px 4px 0; border: 1px solid #eee; }
 #rail { position: fixed; right: 3px; width: 12px; z-index: 6; border-left: 1px solid var(--line); }
@@ -681,6 +685,12 @@ function strip(box, im) {
 
 // Two clue sets printed for the grid (assembly's record, ocr.clue_sets): which is the clues and which
 // the ^Key line under each, with the printed headings they were named from
+// Which clue set's rows the page builds (a viewer's choice, remembered in this browser): 'both' (the
+// default), 'primary' (the set printed with the grid) or 'meta' (the other set's ^Key rows). Rows not
+// built aren't counted on the rail or walked; the note says how many of your edits are in hidden rows.
+let setView = 'both';
+try { setView = localStorage.getItem('proof-clueset') || 'both'; } catch (e) {}
+const showClue = k => !ocr.clue_sets || setView === 'both' || (setView === 'meta') === !!setKeyOf(k);
 function setsNote() {
   const [a, b] = ocr.clue_sets, n = document.createElement('div');
   n.className = 'setsnote';
@@ -689,6 +699,18 @@ function setsNote() {
     each clue of the ${esc(b.key)} set is the row under its clue (the xd's <code>^${esc(b.key)}</code> line), checked the same way.
     <span class="hint">Assembly named them ${said(a)} and ${said(b)}.</span>`;
   for (const c of [a, b]) if (c.box && c.image && images[c.image]) n.append(strip(c.box, c.image));
+  const sw = document.createElement('div');
+  sw.className = 'setswitch';
+  const hidden = Object.keys(cur.edits).filter(k => k.startsWith('clue:') && !showClue(k.slice(5))).length;
+  sw.innerHTML = `<span class="hint">Show:</span>` + [['primary', `${a.key || 'First'} only`], ['meta', `${b.key} only`], ['both', 'Both']]
+    .map(([v, t]) => `<button data-set="${v}" class="${setView === v ? 'on' : ''}">${esc(t)}</button>`).join('')
+    + (setView !== 'both' ? ` <span class="hint">showing ${esc(setView === 'meta' ? b.key : a.key || 'the first')} clues only${hidden ? `; ${plural(hidden, 'edit')} of yours in the hidden rows still count` : ''}</span>` : '');
+  sw.querySelectorAll('button').forEach(x => x.onclick = () => {
+    setView = x.dataset.set;
+    try { localStorage.setItem('proof-clueset', setView); } catch (e) {}
+    render();
+  });
+  n.append(sw);
   return n;
 }
 
@@ -738,7 +760,7 @@ function render() {
     const s = sec(d, name + ' clues', `the ${name} clues`, 'printed line above, our text below; the label says where the clue sits in our grid');
     const keys = Object.keys(ocr.clues).filter(k => k[0] === d).sort(clueOrder);
     if (ocr.clue_sets && d === 'A') s.append(setsNote());
-    for (const k of keys) {
+    for (const k of keys.filter(showClue)) {
       const src = sourceFor(k);
       addRow(s, 'clue:' + k, k, src.box, ocr.clues[k].flags || [], src);
     }
@@ -1886,6 +1908,7 @@ function refresh(key) {
   progress(); historyButtons();
 }
 function jumpTo(key) {
+  if (key.startsWith('clue:') && !showClue(key.slice(5))) { setView = 'both'; render(); }  // a link to a hidden set's row
   const i = rows.findIndex(r => r.dataset.key === key);
   if (i >= 0) setFocus(i);
   else (document.querySelector('section[data-sec=grid]') || document.getElementById('blankpanel'))?.scrollIntoView({block: 'center'});
