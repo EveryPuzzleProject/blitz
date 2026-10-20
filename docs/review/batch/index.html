@@ -116,6 +116,7 @@ table.mh details img { max-height: 44px; }
 #rerun .chg { font-size: 13px; } #rerun del { color: var(--person); } #rerun ins { color: var(--ship); text-decoration: none; }
 @media (max-width: 560px) { .row, .row.withpage { grid-template-columns: 76px minmax(0, 1fr); } img.pg, .maps { width: 76px; }
   .maps .leaves { font-size: 11px; line-height: 1.6; } header { position: static; } .mini { width: 48px; height: 48px; } .side { grid-column: 2; flex-direction: row; flex-wrap: wrap; align-items: center; } }
+.feat { font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: #6a5a2a; }
 </style></head>
 <body><div class="wrap">
 <header>
@@ -384,7 +385,7 @@ function draw() {
       : p.page ? `<a href="${esc(U(p.page))}" target="_blank"><img class="pg" loading="lazy" src="${esc(U(p.page))}" alt="the puzzle's page"></a>` : mini(p.grid);
     const head = checked(p) && (!i || checked(rows[i - 1]) !== checked(p)) ? `<div class="checked">${CHECKED[checked(p)]}</div>` : '';
     return `${head}<div class="row withpage" id="${esc(p.pid)}">${pic}
-      <div><div class="t">${p.title ? esc(p.title) : '<span class="none">no title found</span>'}</div>
+      <div>${p.feature ? `<div class="feat" title="the feature (a sub-series it runs in)${p.feature_line ? ', from printed line B' + p.feature_line : ''}: our own Feature header until the export maps it">${esc(p.feature)}</div>` : ''}<div class="t">${p.title ? esc(p.title) : '<span class="none">no title found</span>'}</div>
         <div class="meta">${esc(p.date)} · ${p.grid.length}×${(p.grid[0] || '').length}${p.byline ? ' · ' + esc(p.byline) : ''}${p.cryptic ? ' · cryptic' : ''} · ${p.changes} changes, ${p.unsure_items.length} unsure, ${p.blanks} blanks</div>
         ${why ? `<ul class="why">${why}</ul>` : ''}
         ${verdict ? `<div class="verdict">${esc(verdict)}</div>` : ''}
