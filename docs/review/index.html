@@ -945,8 +945,14 @@ async function restorePuzzle(xdid, note) {
 // known issues: true of the puzzle, not mistakes in our transcription; the reviewer acknowledges each one
 function knownIssues() {
   const out = [];
+  const gapKey = (rev?.gaps || []).find(g => g.part === 'key');
   if (!hasKey()) out.push({id: 'known:no-answers', name: 'no answer key',
-    text: "No answer key: the answers weren't printed with this puzzle (often they ran in a later issue), so our letters can't be checked against them."});
+    text: gapKey ? `No answer key printed: confirmed by ${gapKey.by}${gapKey.note ? ` (${gapKey.note})` : ''}, so our letters can't be checked against one.`
+      : "No answer key: the answers weren't printed with this puzzle (often they ran in a later issue), so our letters can't be checked against them."});
+  // parts confirmed not printed (review.json's gaps: the ledger's gap: records, each with who said so and why)
+  for (const g of rev?.gaps || []) if (g.part !== 'key')
+    out.push({id: 'known:gap-' + g.part, name: `no ${g.part} printed`,
+      text: `No ${g.part} printed with this puzzle: confirmed by ${g.by}${g.note ? ` (${g.note})` : ''}. The xd has none; if you see one on the scan, say so.`});
   return out;
 }
 // everything the summary asks about: the parts on the page, then the known issues

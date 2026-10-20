@@ -21,16 +21,17 @@
   --bg: #f5f3ef; --paper: #fffdf9; --ink: #23211d; --muted: #77716a; --line: #e2ddd4;
   --ship: #2e7d4f; --ship-bg: #e6f2ea; --glance: #8a6d12; --glance-bg: #f6eed4;
   --person: #b3412f; --person-bg: #f7e3df; --drop: #6b6670; --drop-bg: #ebe8ee; --accent: #1f5fbf;
+  --rev: #3a5a9a; --rev-bg: #e3eaf6;
   --serif: Georgia, "Times New Roman", serif; --sans: system-ui, "Segoe UI", Arial, sans-serif;
 }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
   --bg: #1b1a18; --paper: #24221f; --ink: #ece8e1; --muted: #a39d94; --line: #3a3732;
   --ship: #7cc49a; --ship-bg: #22352a; --glance: #e0c069; --glance-bg: #3a3320; --person: #f09a88; --person-bg: #3d2622;
-  --drop: #b8b2be; --drop-bg: #302d33; --accent: #8ab4f0; color-scheme: dark } }
+  --drop: #b8b2be; --drop-bg: #302d33; --accent: #8ab4f0; --rev: #9db8ea; --rev-bg: #252f42; color-scheme: dark } }
 :root[data-theme="dark"] {
   --bg: #1b1a18; --paper: #24221f; --ink: #ece8e1; --muted: #a39d94; --line: #3a3732;
   --ship: #7cc49a; --ship-bg: #22352a; --glance: #e0c069; --glance-bg: #3a3320; --person: #f09a88; --person-bg: #3d2622;
-  --drop: #b8b2be; --drop-bg: #302d33; --accent: #8ab4f0; color-scheme: dark }
+  --drop: #b8b2be; --drop-bg: #302d33; --accent: #8ab4f0; --rev: #9db8ea; --rev-bg: #252f42; color-scheme: dark }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 var(--sans); padding: 0 16px 40px; }
 .wrap { max-width: 1040px; margin: 0 auto; }
@@ -82,6 +83,12 @@ li.d { color: var(--person); } li.g { color: var(--muted); }
 .pill { font-size: 12px; font-weight: 600; border-radius: 10px; padding: 2px 9px; white-space: nowrap; }
 .p-ship { color: var(--ship); background: var(--ship-bg); } .p-glance { color: var(--glance); background: var(--glance-bg); }
 .p-person { color: var(--person); background: var(--person-bg); } .p-drop { color: var(--drop); background: var(--drop-bg); }
+.p-rev { color: var(--rev); background: var(--rev-bg); }
+/* a not-ready puzzle: what's missing, the stage that should have read it, and what restarts it */
+.block { font-size: 13px; margin-top: 6px; padding: 6px 10px; background: var(--person-bg); border-left: 3px solid var(--person); border-radius: 0 6px 6px 0; }
+.block b { color: var(--person); } .block .st { color: var(--muted); }
+.check { font-size: 12px; margin-top: 4px; color: var(--muted); } .check.no { color: var(--person); }
+.doubts { font-size: 12px; color: var(--muted); margin: 4px 0 0; }
 .state { font-size: 12px; color: var(--muted); }
 .votes { font-size: 13px; color: var(--fg, inherit); } .votes .you { font-weight: 600; }
 .checked { margin: 18px 0 6px; padding-top: 8px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); }
@@ -123,7 +130,7 @@ table.mh details img { max-height: 44px; }
   <div class="sitenav" id="sitenav" hidden><a href="./">← All batches</a> · <a href="../?browse">Browse every puzzle</a></div>
   <h1><span id="h1">Batch</span> <select id="runsel" title="Which run of the batch"></select></h1>
   <div class="sub" id="runnote"></div>
-  <div class="sub" id="about">Each puzzle sorted by what the pipeline found. Triage's guess is the coloured label; Ready or Not ready is a person's decision on the proof page, and only Ready puzzles are imported. Next on the proof page walks the list shown here.</div>
+  <div class="sub" id="about">Each puzzle sorted by where it stands. <b>Not ready for review</b>: a printed part is missing or broken in a way the proof page can't fix; the card says which part, and the stage to restart it from. <b>Ready for review</b>: every part is there, or a gap is confirmed and labelled; doubts the proof page can settle are listed. <b>Reviewed</b>: a person said Ready or Not ready (only Ready puzzles are imported). Next on the proof page walks the list shown here.</div>
   <div class="bar" id="bar"></div>
   <div class="chips" id="chips"></div>
   <div class="chips" id="causechips"></div>
@@ -150,11 +157,19 @@ table.mh details img { max-height: 44px; }
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const params = new URLSearchParams(location.search);
-const KIND = {person: ['Needs a person', 'p-person', 'var(--person)'], glance: ['Glance', 'p-glance', 'var(--glance)'],
-              ship: ['Looks ready', 'p-ship', 'var(--ship)'], drop: ['Not a crossword', 'p-drop', 'var(--drop)']};
-const ORDER = ['person', 'glance', 'ship', 'drop'];
-const KINDOF = {'needs attention': 'person', glance: 'glance', ship: 'ship', 'not a crossword': 'drop'};
-const kindOf = p => p.choice === 'drop' ? 'drop' : KINDOF[p.triage];
+// a puzzle's disposition (xword-ocr triage.py, batchpage.view): not ready for review (a printed part is
+// missing or broken in a way the proof page can't fix: it needs an intervention first), ready for review
+// (every part there, or a gap confirmed and labelled), reviewed (a person said Ready or Not ready, under
+// the ship rule). A snapshot made before the dispositions has only triage's old decision.
+const KIND = {notready: ['Not ready for review', 'p-person', 'var(--person)'], ready: ['Ready for review', 'p-ship', 'var(--ship)'],
+              reviewed: ['Reviewed', 'p-rev', 'var(--rev)'], drop: ['Not a crossword', 'p-drop', 'var(--drop)']};
+const ORDER = ['notready', 'ready', 'reviewed', 'drop'];
+const KINDOF = {'not ready': 'notready', ready: 'ready', reviewed: 'reviewed', 'not a crossword': 'drop',
+                'needs attention': 'notready', glance: 'ready', ship: 'ready'};
+const kindOf = p => p.choice === 'drop' ? 'drop' : KINDOF[p.disposition || p.triage];
+// a stage to restart from, as the person will see it
+const STAGENAME = {parts: 'parts (the boxes on the page)', assembly: 'assembly (what was linked)', 'key reading': 'key reading',
+                   harvest: 'harvest (a page never found)', 'proof packet': 'the proof packet'};
 // the proof page opens at a row given as ?k=<its key>: clue:A68 for a clue, line:B4 for a printed line
 const KEY = a => /^[AD]\d+$/.test(a) ? 'clue:' + a : /^[BL]\d+$/.test(a) ? 'line:B' + a.slice(1) : '';
 let D, filter = params.get('f') || 'all', cause = params.get('cause') || '';
@@ -336,6 +351,29 @@ function said(p) {
     + ` <span class="meta">${esc(s.yours ? s.who + ' (you)' : s.who)} ${esc((s.at || '').slice(0, 10))}</span>${s.note ? ': ' + esc(s.note) : ''}`).join('<br>')}`
     + `${p.rule === 'yours' && p.said.some(s => !s.yours && s.answer === 'notready') ? '<br><span class="meta">your decision overrides theirs</span>' : ''}</div>`;
 }
+// what keeps a not-ready puzzle from review (triage's blocking: one per part), each with the stage that
+// should have read it, where it restarts. The same part named twice (a list missing and its clues
+// unread) shows once.
+function blockHtml(p) {
+  if (kindOf(p) !== 'notready' || !(p.blocking || []).length) return '';
+  const seen = new Set(), items = [];
+  for (const b of p.blocking) {
+    const key = b.restart + '|' + b.part;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    items.push(`<div>Missing or broken: <b>${esc(b.part)}</b> <span class="st">· restart from ${esc(STAGENAME[b.restart] || b.restart)} · ${esc(b.code)}${b.detail && b.detail !== 'from the verdict' ? ': ' + esc(b.detail.slice(0, 90)) : ''}</span></div>`);
+  }
+  return `<div class="block">${items.join('')}</div>`;
+}
+// the agent's check of the disposition (triage/<run>/check.json), from the recorded signals only
+function checkHtml(p) {
+  const c = p.check;
+  if (!c) return '';
+  const agree = c.agrees !== false;
+  return `<div class="check${agree ? '' : ' no'}" title="${esc(c.by || 'the disposition check')}, from the records only">`
+    + `${agree ? '✓ checked' : '✗ the check disagrees'} (${esc(c.by || 'agent')}): ${esc(c.says || '')}`
+    + (c.part ? ` · missing: <b>${esc(c.part)}</b>` : '') + (c.restart ? ` · restart from ${esc(c.restart)}` : '') + `</div>`;
+}
 function draw() {
   const snap = D.snapshot;
   document.title = snap ? `${snap.title || snap.name}: the batch` : `Batch ${D.run}`;
@@ -346,9 +384,10 @@ function draw() {
     $('#runsel').hidden = BATCHES.length < 2;
     $('#runsel').innerHTML = BATCHES.map(b => `<option value="${esc(b.name)}"${b.name === snap.name ? ' selected' : ''}>${esc(b.title || b.name)}</option>`).join('');
     $('#runsel').onchange = e => { params.set('b', e.target.value); setUrl(); location.reload(); };
-    $('#about').innerHTML = `Every puzzle in this batch, sorted by what the pipeline found when it read the scans: the coloured label is its guess,
-      and the list under each puzzle says why. Open one on the proof page to check it against the scan, fix what's wrong and say whether
-      it's ready; <b>Next</b> there walks the list shown here. Pages that turned out not to be crosswords are under <i>Not a crossword</i>.`;
+    $('#about').innerHTML = `Every puzzle in this batch that is ready for review: all its parts were read from the scans (or a part is
+      confirmed not printed, and labelled so). Open one on the proof page to check it against the scan, fix what's wrong and say whether
+      it's ready; <b>Next</b> there walks the list shown here. Puzzles still <i>not ready</i> are missing a part the pipeline is being
+      sent back to read; pages that turned out not to be crosswords are under <i>Not a crossword</i>.`;
   } else {
     $('#runsel').innerHTML = D.runs.map(r => `<option value="${esc(r)}"${r === D.run ? ' selected' : ''}>${esc(r)}${tag(r) ? ' (' + esc(tag(r)) + ')' : ''}</option>`).join('');
     $('#runsel').onchange = e => { params.set('run', e.target.value); setUrl(); load(); };
@@ -373,7 +412,10 @@ function draw() {
   $('#list').innerHTML = rows.map((p, i) => {
     const k = KIND[kindOf(p)], c = causeOf(p.pid);
     const rs = p.reasons.filter(r => r.code !== 'verdict');
-    const why = [...rs.filter(r => r.class === 'defect' && r.code !== 'not-a-crossword').map(r => `<li class="${r.severity === 'glance' ? 'g' : 'd'}"><a href="${proofUrl(p.pid, r.row, rows)}" target="_blank">${esc(r.code)}</a>${r.detail && r.detail !== 'from the verdict' ? ': ' + esc(r.detail) : ''}</li>`),
+    const stageSev = r => r.severity === 'stage' || r.severity === 'attention';
+    // a not-ready puzzle's stage defects are in its block (blockHtml); the list is what the proof page settles
+    const inBlock = r => (p.blocking || []).length && kindOf(p) === 'notready' && stageSev(r);
+    const why = [...rs.filter(r => r.class === 'defect' && r.code !== 'not-a-crossword' && !inBlock(r)).map(r => `<li class="${stageSev(r) ? 'd' : 'g'}"><a href="${proofUrl(p.pid, r.row, rows)}" target="_blank">${esc(r.code)}</a>${r.detail && r.detail !== 'from the verdict' ? ': ' + esc(r.detail) : ''}</li>`),
                  ...rs.filter(r => r.class === 'gap').map(r => `<li class="g">gap: ${esc(r.code)}${r.detail && r.detail !== 'from the verdict' ? ': ' + esc(r.detail) : ''}</li>`)].join('');
     const verdict = (p.reasons.find(r => r.code === 'verdict') || {}).detail;
     // the puzzle's pages with what it took outlined (grid, clue lists, lines, key) and the other
@@ -387,7 +429,8 @@ function draw() {
     return `${head}<div class="row withpage" id="${esc(p.pid)}">${pic}
       <div>${p.feature ? `<div class="feat" title="the feature (a sub-series it runs in)${p.feature_line ? ', from printed line B' + p.feature_line : ''}: our own Feature header until the export maps it">${esc(p.feature)}</div>` : ''}<div class="t">${p.title ? esc(p.title) : '<span class="none">no title found</span>'}</div>
         <div class="meta">${esc(p.date)} · ${p.grid.length}×${(p.grid[0] || '').length}${p.byline ? ' · ' + esc(p.byline) : ''}${p.cryptic ? ' · cryptic' : ''} · ${p.changes} changes, ${p.unsure_items.length} unsure, ${p.blanks} blanks</div>
-        ${why ? `<ul class="why">${why}</ul>` : ''}
+        ${blockHtml(p)}${checkHtml(p)}
+        ${why ? `<div class="doubts">${kindOf(p) === 'notready' ? 'Also, for the proof page later:' : 'To check on the proof page:'}</div><ul class="why">${why}</ul>` : ''}
         ${verdict ? `<div class="verdict">${esc(verdict)}</div>` : ''}
         ${said(p)}
         ${kindOf(p) === 'drop' && p.note ? `<div class="verdict"><b>Dropped:</b> ${esc(p.note)}</div>` : ''}
@@ -395,7 +438,8 @@ function draw() {
         ${p.unsure_items.length ? `<details class="uns"><summary>Not sure (${p.unsure_items.length})</summary><ul>${p.unsure_items.map(u =>
           `<li>${KEY(u.key) ? `<a href="${proofUrl(p.pid, KEY(u.key), rows)}" target="_blank">${esc(u.key)}</a>` : esc(u.key)}: ${esc(u.text)}</li>`).join('')}</ul></details>` : ''}</div>
       <div class="side"><span class="pill ${k[1]}">${k[0]}</span><span class="state">${stateLine(p)}</span>
-        <a class="open" href="${proofUrl(p.pid, '', rows)}" target="_blank">Proof page ↗</a></div></div>`;
+        ${DATA && kindOf(p) === 'notready' ? '<span class="meta">being fixed: not open for review yet</span>'
+          : `<a class="open" href="${proofUrl(p.pid, '', rows)}" target="_blank">Proof page ↗</a>`}</div></div>`;
   }).join('') || '<p class="meta">None.</p>';
   rows.forEach(p => { const row = document.getElementById(p.pid); if (row && p.maps.length) drawOverlay(row.querySelector('.maps svg'), p.pid, 0, 2); });
   document.querySelectorAll('.maps > a').forEach(a => a.onclick = e => {
