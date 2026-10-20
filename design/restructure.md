@@ -182,6 +182,14 @@ CLAUDE.md, "Views never compute").
 - **Every value a view needs must be recorded by its milestone.** A gap shows as "not
   recorded" on the page, and that list is the milestones' to-do list.
 
+**Internal and public (decided 2026-10-20).** The tools split into two sides:
+- **The internal control room** is local, for the maintainer or a trusted harvester. It has a dashboard of batches (each one's stage, triage and exception counts) and every stage's view, chained: harvest, layout boxes, parts, assembly, triage, runs, spend. Interventions happen only here: draw a box, request a page, re-run from a stage, an agent's remedies, the Notes rule, import and export.
+- **The public review site** is for volunteers. It shows only the batch page and proof pages (plus Browse and key squares) of puzzles that are ready for review. Its actions are review: Ready / Not ready, edits, comments, restores.
+
+The flow: the control room gets puzzles ready for review, then publishes the batch's review pages. The community reviews. `site-import` brings their decisions back to the ledger. In the control room, the maintainer decides whether the batch ships as xd and goes to gxd.
+
+So the hosted viewer covers only the review pages; stage views and interventions are never hosted. The internal dashboard is a v3 deliverable of its own: today the watch page has stage tabs but no batch list, and `/review/`'s batch landing page is only the public half. The hosted proof page drops internal cues (stage links, raw triage codes) or words them for volunteers.
+
 **The harvest split.** Harvest is standalone rather than a folder in blitz because finding
 and fetching a publication's scans is useful beyond this pipeline (the catalog, the universe
 estimate), and its contract is clean.
