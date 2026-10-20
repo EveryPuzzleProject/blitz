@@ -131,6 +131,7 @@ def test_site_import_combines_helpers(monkeypatch):
         "reports?select=*&order=at": [{"xdid": "p1", "target": "clue:D2", "user_id": uid["a"], "text": "Long tune."}],
         "proofs?select=*&order=at": [{"xdid": "p1", "user_id": uid["b"], "who": "Bo", "decision": "ready", "at": "t",
                                       "review": {"edits": {"clue:A1": "Feline."}, "status": {"A": {"v": "ok"}}}}],
+        "restores?select=*&order=at": [],  # dropped puzzles a helper put back (schema-7)
     }
     # the key-squares page: two guests who gave no name are told apart
     data["flags?select=xdid,sq,source,open,card&page=eq.key-squares&order=xdid,sq"] = [
