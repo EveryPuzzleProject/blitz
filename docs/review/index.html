@@ -305,6 +305,8 @@ body.side .typed { margin-top: 0; }
 .typedgrid.over div.blk { background: transparent; }
 .typedgrid div.unsure { box-shadow: inset 0 0 0 2px var(--flag); }
 .typedgrid div.cur { background: #e2ecfb !important; }
+/* a square where the key reader's black squares differ from the grid's (ocr.json key_differ: assembly's record) */
+.typedgrid div.kdiff { outline: 3px dashed #7a3fbf; outline-offset: -3px; }
 /* a finding's suggested letter for a square (the text step's, from review.json findings): in the corner, to confirm */
 .typedgrid div.sug, .acells > span.sug { box-shadow: inset 0 0 0 2px #c46e00; }
 .typedgrid div.sug::after, .acells > span.sug::after { content: attr(data-sug); position: absolute; right: 1px; top: 0; font: 700 10px/1 var(--sans); color: #c46e00; }
@@ -888,6 +890,7 @@ function summarySection() {
     <textarea id="overall"></textarea>
     <div class="decide"><button class="ready"></button><div id="askready"></div><button class="notready"></button></div>
     <div id="sendback"></div>
+    <div id="dropit"></div>
     <div style="display:flex;justify-content:flex-end"><button class="good" id="submit">Submit my review</button></div>
     <div id="after"></div></div>`;
   const ta = s.querySelector('#overall');
@@ -1063,6 +1066,24 @@ function paintSendBack(s) {
     cur.decision = 'notready'; delete el.dataset.open; askDone(); save(); paintSummary();
   });
 }
+// On the local watch only (?save=): the maintainer drops a page that isn't a crossword, as on the batch
+// page (its /api/batch: a person's drop, the shared vocabulary's not-a-puzzle; Restore on the batch page
+// undoes it). A volunteer on the site sends it back instead (Send it back: This isn't a crossword).
+function paintDrop(s) {
+  const el = s.querySelector('#dropit');
+  if (!el || !SAVE || sb) { if (el) el.innerHTML = ''; return; }
+  el.innerHTML = `<button class="plain" data-a="drop" title="drop it from the batch; Restore on the batch page undoes it">Not a crossword: drop it…</button>`;
+  el.querySelector('[data-a=drop]').onclick = () => {
+    el.innerHTML = `<input type="text" placeholder="what is it? (optional, kept with the decision)" style="width:60%"> <button class="bad solid" data-a="go">Drop it</button> <button class="plain" data-a="no">Cancel</button> <span class="hint" id="dropped"></span>`;
+    el.querySelector('input').focus();
+    el.querySelector('[data-a=no]').onclick = () => paintDrop(s);
+    el.querySelector('[data-a=go]').onclick = async () => {
+      const r = await fetch(new URL('/api/batch', location.href), {method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({pid: ID, choice: 'drop', note: el.querySelector('input').value.trim(), by: cur.who === 'You' ? 'person' : cur.who || 'person', source: 'the proof page'})});
+      el.innerHTML = `<span class="hint">${r.ok ? 'Dropped as not a crossword: it leaves the batch (Restore on the batch page undoes it).' : "Couldn't drop it: " + esc(r.statusText)}</span>`;
+    };
+  };
+}
 function askDone() { const b = document.getElementById('askready'); if (b) b.innerHTML = ''; }
 function paintSummary() {
   const s = document.getElementById('summary'); if (!s) return;
@@ -1107,6 +1128,7 @@ function paintSummary() {
   const n = Object.keys(cur.edits).length, imp = implied(), d = decision();
   const todo = reviewIds().filter(id => !cur.status[id]).length, bad = parts.filter(p => cur.status[p.dataset.sec]?.v === 'bad').length;
   paintSendBack(s);
+  paintDrop(s);
   const r = s.querySelector('.ready'), nr = s.querySelector('.notready');
   r.innerHTML = `✓ Ready: the puzzle matches the scan${n ? ' as edited' : ''}<small>${n ? `with my ${plural(n, 'edit')}` : 'no edits needed'}${todo ? ` · ${todo} not marked yet` : ''}</small>`;
   nr.innerHTML = `✗ Not ready: something's wrong I couldn't fix<small>${bad ? `you marked ${plural(bad, 'part')} with a problem` : 'say what in the box above'}</small>`;
@@ -2174,6 +2196,7 @@ function moveSel(k) {
 function cells(cls) {
   const g = ocr.answers, H = g.length, W = g[0].length;
   const low = new Set(ocr.answers_low_confidence || []), sug = suggestions();
+  const kdiff = Object.fromEntries(((ocr.key_differ || {}).squares || []).map(q => [q.cell, q]));
   const d = document.createElement('div');
   d.className = 'typedgrid ' + cls;
   d.style.gridTemplate = `repeat(${H}, minmax(0, 1fr)) / repeat(${W}, minmax(0, 1fr))`;
@@ -2186,6 +2209,8 @@ function cells(cls) {
     if (h.length > 1) { x.style.boxShadow = `inset 0 0 0 2.5px ${h[h.length-1].color}`; x.title += ': ' + h.map(v => `${v.who} ${v.value}`).join(' → '); }
     else if (low.has(`r${r+1}c${c+1}`)) { x.classList.add('unsure'); x.title += ': the OCR was unsure of this letter'; }
     if (ch !== '#') { paintSpecial(x, r, c); markSuggest(x, r, c, sug); }
+    const kd = kdiff[`r${r+1}c${c+1}`];
+    if (kd) { x.classList.add('kdiff'); x.title += `: the key reader read this square as ${kd.key === 'black' ? 'black' : 'a letter'}; the grid has it ${kd.grid === 'black' ? 'black' : 'as a letter square'} (assembly's record)`; }
     if (selCell && selCell[0] === r && selCell[1] === c) x.classList.add('cur');
     x.onclick = e => markMode ? markSquare(r, c, document.querySelector('#gnotes')) : pickSquare(r, c, e);
     d.append(x);
@@ -2214,7 +2239,11 @@ function drawGrid(s) {
       + `<button class="sugbtn" data-r="${r}" data-c="${c}" data-l="${esc(v.letter)}" title="Set this square to ${esc(v.letter)}: your edit, with a note">Use ${esc(v.letter)}</button>`).join('; ')
       + (vs.length > 1 && new Set(vs.map(v => v.letter)).size > 1 ? ' <span class="hint">(the findings disagree: check the scan)</span>' : '') + '</div>';
   });
-  g.innerHTML = (confirm.length ? `<div class="m-flag" style="padding:6px 8px;border-radius:6px;margin-bottom:8px"><b>Suggested by the text step, to confirm:</b>${confirm.join('')}</div>` : '') + notes.join('');
+  const kd = ocr.key_differ;
+  const kdNote = kd && kd.squares.length ? `<div class="m-flag" style="padding:6px 8px;border-radius:6px;margin-bottom:8px;border-left:3px dashed #7a3fbf"><b>The key reader saw ${kd.squares.length === 1 ? 'one square' : kd.squares.length + ' squares'} differently from the grid</b> (dashed):
+    ${kd.squares.map(q => `${esc(q.cell.toUpperCase())}: the grid has it ${q.grid === 'black' ? 'black' : 'as a letter'}, the key reader read ${q.key === 'black' ? 'black' : 'a letter'}`).join('; ')}.
+    ${kd.key_reader ? "The grid's black squares are symmetric and the key reader's aren't, so the key reader most likely misread them: check them on the printed key; nothing in the xd changes." : 'Check them against the printed key and the grid.'}</div>` : '';
+  g.innerHTML = kdNote + (confirm.length ? `<div class="m-flag" style="padding:6px 8px;border-radius:6px;margin-bottom:8px"><b>Suggested by the text step, to confirm:</b>${confirm.join('')}</div>` : '') + notes.join('');
   g.querySelectorAll('.sugbtn').forEach(b => b.onclick = () => fixSquare(+b.dataset.r, +b.dataset.c, b.dataset.l));
   if (open) g.prepend(open);
   s.querySelector('#gspecial').innerHTML = specialList();
