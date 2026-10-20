@@ -76,6 +76,11 @@ li.d { color: var(--person); } li.g { color: var(--muted); }
 .block b { color: var(--person); } .block .st { color: var(--muted); }
 .check { font-size: 12px; margin-top: 4px; color: var(--muted); } .check.no { color: var(--person); }
 .doubts { font-size: 12px; color: var(--muted); margin: 4px 0 0; }
+.block .go { font-size: 12px; margin: 3px 0 0; } .block .go a { margin-right: 8px; }
+.restart { font-size: 13px; margin-top: 6px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); }
+.restart input[type=text] { font: inherit; font-size: 12px; width: min(340px, 100%); border: 1px solid var(--line); border-radius: 5px; padding: 2px 6px; background: var(--bg); color: var(--ink); }
+.restart ol { margin: 4px 0 0; padding-left: 20px; } .restart li.failed { color: var(--person); } .restart li.waiting { color: var(--glance); }
+.restart .busy { color: var(--muted); }
 .state { font-size: 12px; color: var(--muted); }
 .votes { font-size: 13px; color: var(--fg, inherit); } .votes .you { font-weight: 600; }
 .checked { margin: 18px 0 6px; padding-top: 8px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); }
@@ -341,7 +346,7 @@ function said(p) {
 // should have read it, where it restarts. The same part named twice (a list missing and its clues
 // unread) shows once.
 function blockHtml(p) {
-  if (kindOf(p) !== 'notready' || !(p.blocking || []).length) return '';
+  if (kindOf(p) !== 'notready' || !(p.blocking || []).length) return !DATA && p.restart ? restartHtml(p) : '';
   const seen = new Set(), items = [];
   for (const b of p.blocking) {
     const key = b.restart + '|' + b.part;
@@ -349,7 +354,86 @@ function blockHtml(p) {
     seen.add(key);
     items.push(`<div>Missing or broken: <b>${esc(b.part)}</b> <span class="st">· restart from ${esc(STAGENAME[b.restart] || b.restart)} · ${esc(b.code)}${b.detail && b.detail !== 'from the verdict' ? ': ' + esc(b.detail.slice(0, 90)) : ''}</span></div>`);
   }
-  return `<div class="block">${items.join('')}</div>`;
+  return `<div class="block">${items.join('')}${chainLinks(p)}</div>${DATA ? '' : restartHtml(p)}`;
+}
+// the watch's views at this puzzle's place: its issue, its grid's page, the region box assembly read it
+// from (the record and its source go in the link; the view outlines it and links on)
+function watchUrl(p, tabName) {
+  const c = p.chain; if (!c) return '';
+  const q = new URLSearchParams({pid: p.pid, run: D.run, scan: c.scan, leaf: c.leaf, what: c.what, from: c.source});
+  if (c.box) q.set('box', c.box.join(','));
+  return `/?${q}#${tabName}/${encodeURIComponent(c.date)}`;
+}
+function chainLinks(p) {
+  if (DATA || !p.chain) return '';
+  const views = [['pages', 'Mark it on the page (Puzzles on the pages)'], ['boxes', 'In the boxes'], ['assembled', 'Assembled'], ['issues', 'Issues']];
+  return `<div class="go">${views.map(([t, label], i) => `<a href="${esc(watchUrl(p, t))}" target="_blank"${i ? '' : ' style="font-weight:600"'}>${esc(label)} ↗</a>`).join('')}
+    <a href="/viewer/${esc(p.chain.date)}" target="_blank">issue viewer ↗</a></div>`;
+}
+// One action: re-run this puzzle from the stage, its pages read with the boxes recorded on them
+// (xword-ocr restart.py); each step is a ledger decision, shown here as it went.
+const GAPS = {'title-none': 'title', 'byline-none': 'byline', 'key-missing': 'key'};
+const STEPNAME = {assembly: 'parts and assembly', 'text step packet': 'its text step packet', 'text step': 'the text step', 'proof packet': 'its proof packet', triage: 'triage'};
+function restartHtml(p) {
+  const r = p.restart, stages = [...new Set((p.blocking || []).map(b => b.restart))];
+  const runnable = stages.filter(x => x === 'parts' || x === 'assembly');
+  const gaps = [...new Set((p.blocking || []).map(b => GAPS[b.code]).filter(Boolean))];
+  let html = '';
+  if (r) html += `<div><b>Sent back to ${esc(r.stage)}</b> by ${esc(r.by)} ${esc((r.at || '').slice(0, 16).replace('T', ' '))}${r.note ? ': ' + esc(r.note) : ''}
+    <span class="meta">(pages read with their boxes: ${r.pages.map(x => 'leaf ' + x[1]).join(', ') || 'none'})</span></div>
+    <ol>${r.steps.map(x => `<li class="${esc(x.status)}"><b>${esc(STEPNAME[x.step] || x.step)}</b>: ${esc(x.status)}${x.note ? ' · ' + esc(x.note) : ''}</li>`).join('')}</ol>
+    ${r.steps.some(x => x.step === 'text step' && x.status === 'waiting') ? `<div class="meta">The text step reads it next: Fable, so on your go-ahead (listed under <i>Needs the text step</i> above). Then:
+      <button class="btn" data-continue="${esc(p.pid)}">Continue: apply its answer, proof packet, triage</button></div>` : ''}`;
+  if (runnable.length) {
+    // the pages to read with their recorded boxes: the grid's by default; a key's page (a key box drawn
+    // there), or another leaf of the scan (a page the puzzle goes on to)
+    const pages = (p.maps || []).map(m => m.page.split(', leaf ')).map(([sc, lf]) => [sc, +lf]);
+    const home = p.chain ? [p.chain.scan, p.chain.leaf] : pages[0];
+    const opts = pages.map(([sc, lf]) => `<label class="meta"><input type="checkbox" data-pg="${esc(p.pid)}" value="${esc(sc)}|${lf}"${home && sc === home[0] && lf === home[1] ? ' checked' : ''}> leaf ${lf}</label>`).join(' ');
+    html += `<div style="margin-top:4px">${r ? 'Again: ' : ''}After fixing the boxes (link above), re-run just this puzzle from <b>${esc(runnable[0])}</b>, reading
+      ${opts} <label class="meta">leaf <input type="text" data-pgmore="${esc(p.pid)}" size="3" style="width:3em" placeholder="#"></label> with their boxes:
+      <input type="text" data-note="${esc(p.pid)}" placeholder="what you changed (optional)">
+      <button class="btn go" data-restart="${esc(p.pid)}" data-stage="${esc(runnable[0])}">Re-run from ${esc(runnable[0])}</button></div>`;
+  }
+  for (const g of gaps) html += `<div style="margin-top:4px">No ${esc(g)} printed with it? <input type="text" data-gapnote="${esc(p.pid)}/${g}" placeholder="how you know (required)">
+    <button class="btn" data-gap="${esc(p.pid)}" data-part="${g}">Confirm: no ${esc(g)} printed</button></div>`;
+  return html ? `<div class="restart">${html}</div>` : '';
+}
+async function postJSON(url, body) {
+  const r = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || j.error) throw new Error(j.error || r.statusText);
+  return j;
+}
+function restartPages(p) {
+  const out = [...document.querySelectorAll(`[data-pg="${p.pid}"]:checked`)].map(x => { const [sc, lf] = x.value.split('|'); return [sc, +lf]; });
+  const more = +(document.querySelector(`[data-pgmore="${p.pid}"]`)?.value || 0), scan = p.chain ? p.chain.scan : (out[0] || [])[0];
+  if (more && scan && !out.some(([, lf]) => lf === more)) out.push([scan, more]);
+  return out;
+}
+function wireRestart() {
+  const busy = (b, t) => { b.disabled = true; b.insertAdjacentHTML('afterend', `<span class="busy"> ${t}</span>`); };
+  const reload = async () => { const r = await fetch('/api/batch?run=' + encodeURIComponent(D.run), {cache: 'no-cache'}); D = await r.json(); draw(); drawRerun(); };
+  const fail = (b, e) => { b.disabled = false; b.nextElementSibling?.remove(); alert(e.message); };
+  document.querySelectorAll('[data-restart]').forEach(b => b.onclick = async () => {
+    const p = D.puzzles.find(x => x.pid === b.dataset.restart), note = document.querySelector(`[data-note="${p.pid}"]`)?.value || '';
+    busy(b, 'assembling the issue again and reading this puzzle (about a minute)…');
+    try {
+      await postJSON('/api/restart', {pid: p.pid, run: D.run, stage: b.dataset.stage, part: (p.blocking[0] || {}).part || '',
+        pages: restartPages(p), note, by: 'person', go: true});
+      await reload();
+    } catch (e) { fail(b, e); }
+  });
+  document.querySelectorAll('[data-continue]').forEach(b => b.onclick = async () => {
+    busy(b, 'applying its answer…');
+    try { await postJSON('/api/restart-continue', {pid: b.dataset.continue, run: D.run, by: 'person'}); await reload(); } catch (e) { fail(b, e); }
+  });
+  document.querySelectorAll('[data-gap]').forEach(b => b.onclick = async () => {
+    const note = document.querySelector(`[data-gapnote="${b.dataset.gap}/${b.dataset.part}"]`)?.value.trim();
+    if (!note) { alert('Say how you know it isn\'t printed: the proof page shows it.'); return; }
+    busy(b, 'recording it, making its proof packet again…');
+    try { await postJSON('/api/gap', {pid: b.dataset.gap, run: D.run, part: b.dataset.part, note, by: 'person'}); await reload(); } catch (e) { fail(b, e); }
+  });
 }
 // the agent's check of the disposition (triage/<run>/check.json), from the recorded signals only
 function checkHtml(p) {
@@ -428,6 +512,8 @@ function draw() {
           : `<a class="open" href="${proofUrl(p.pid, '', rows)}" target="_blank">Proof page ↗</a>`}</div></div>`;
   }).join('') || '<p class="meta">None.</p>';
   rows.forEach(p => { const row = document.getElementById(p.pid); if (row && p.maps.length) drawOverlay(row.querySelector('.maps svg'), p.pid, 0, 2); });
+  if (!DATA) wireRestart();
+  if (location.hash && !draw.jumped) { draw.jumped = true; const el = document.getElementById(decodeURIComponent(location.hash.slice(1))); if (el) setTimeout(() => el.scrollIntoView({block: 'center'}), 300); }
   document.querySelectorAll('.maps > a').forEach(a => a.onclick = e => {
     if (e.ctrlKey || e.metaKey || e.shiftKey) return;  // a new tab, as asked
     e.preventDefault();
