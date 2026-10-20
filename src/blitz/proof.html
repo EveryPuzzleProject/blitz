@@ -105,6 +105,12 @@ h2 .quick { margin-left: 8px; font-size: 12px; padding: 2px 10px; }
 .decide .ready { border-color: var(--ok); color: var(--ok); } .decide .ready.sel { background: var(--ok); color: #fff; }
 .decide .notready { border-color: var(--bad); color: var(--bad); } .decide .notready.sel { background: var(--bad); color: #fff; }
 .decide button:disabled { opacity: .4; cursor: default; }
+/* sending a puzzle back: rarer than Ready / Not ready, so a quiet link that opens a short form */
+#sendback { margin: 2px 0 10px; font-size: 13px; } #sendback > a { color: var(--muted); cursor: pointer; text-decoration: underline; }
+#sendback .sbform { margin-top: 6px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+#sendback label { display: block; margin: 3px 0; } #sendback select, #sendback textarea { font: inherit; font-size: 13px; }
+#sendback textarea { width: 100%; min-height: 40px; margin: 6px 0; }
+#sendback .sent { color: var(--bad); }
 .ask { border: 1px solid #d9cfa8; background: #fffbea; border-radius: 8px; padding: 10px 14px; margin: -2px 0 10px; font-size: 13px; }
 .ask p { margin: 0 0 8px; }
 .ask .acts { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
@@ -283,6 +289,12 @@ body.side .typed { margin-top: 0; }
 .typedgrid.over div.blk { background: transparent; }
 .typedgrid div.unsure { box-shadow: inset 0 0 0 2px var(--flag); }
 .typedgrid div.cur { background: #e2ecfb !important; }
+/* a finding's suggested letter for a square (the text step's, from review.json findings): in the corner, to confirm */
+.typedgrid div.sug, .acells > span.sug { box-shadow: inset 0 0 0 2px #c46e00; }
+.typedgrid div.sug::after, .acells > span.sug::after { content: attr(data-sug); position: absolute; right: 1px; top: 0; font: 700 10px/1 var(--sans); color: #c46e00; }
+.findings { margin: 6px 0 0; padding-left: 18px; font-size: 13px; } .findings li { margin: 2px 0; }
+.findings .st { color: var(--muted); font-size: 12px; }
+.sugbtn { font: 600 12px var(--sans); border: 1px solid #c46e00; color: #c46e00; background: #fff; border-radius: 5px; padding: 1px 7px; cursor: pointer; margin-left: 4px; }
 /* on the scan, the selected square is ringed, never filled: the printed letter stays readable */
 .typedgrid.hit div.cur, .typedgrid.over div.cur { background: transparent !important; outline: 2.5px solid #1f5fbf; outline-offset: 1px; z-index: 1; }
 /* circled and shaded squares (xd's Special): a ring or a tint; a reviewer's mark is ringed in their colour */
@@ -338,7 +350,7 @@ footer button:disabled { opacity: .4; cursor: default; }
     <button class="t" id="redo" title="Redo (Ctrl+Y)">↷ Redo</button>
   </div>
   <div class="grp"><span>You are</span><input id="who" placeholder="your name (optional)"></div>
-  <div class="grp"><button class="t" id="pagebtn">Whole page</button> <button class="t" id="blankbtn">Blank grid</button> <a class="ctxbtn" id="scanlink" target="_blank">Original scan ↗</a> <a class="ctxbtn" id="srclink" target="_blank">archive.org ↗</a></div>
+  <div class="grp"><button class="t" id="pagebtn">Whole page</button> <button class="t" id="blankbtn">Blank grid</button> <a class="ctxbtn" id="scanlink" target="_blank">Original scan ↗</a> <a class="ctxbtn" id="srclink" target="_blank">archive.org ↗</a> <a class="ctxbtn" id="stagelink" target="_blank" hidden title="the grid's page in the watch's views: the boxes, what was read in them, what assembly linked">Stages ↗</a></div>
   <div class="progress" id="progress"></div>
   <div class="legend" id="legend"></div>
 </header>
@@ -586,6 +598,11 @@ async function load() {
     edits: {...rev.corrections}, comments: [], summary: 'verdict' in rev ? rev.verdict : rev.note};
   for (const t of rev.tool_notes || []) if (t.target !== 'other') agent.comments.push({key: t.target, text: t.note});
   for (const [k, v] of Object.entries(rev.unsure || {})) agent.comments.push({key: k, text: 'Not sure: ' + v});
+  for (const f of rev.findings || []) {
+    if (f.row) agent.comments.push({key: f.row, text: findingText(f)});
+    for (const c of f.status === 'open' ? f.cells || [] : [])
+      agent.comments.push({key: 'cell:' + c.cell, text: `Finding ${f.n}: suggests ${c.suggest} here (the key reads ${c.read}), for ${f.target} ${f.suggest}. Confirm it on the grid.`});
+  }
   for (const [k, v] of Object.entries(rev.sic || {})) agent.comments.push({key: k, text: 'Printed this way, kept as printed: ' + v});
   agent.looked = rev.confirm || [];
   if (!store.cur) store.cur = {who: SITE ? '' : 'Reviewer ' + (store.past.length + 2), edits: {}, comments: [], status: {}};
@@ -721,6 +738,8 @@ function render() {
   sl.href = dir + '_src/page.jpg';
   sl.onclick = e => { if (e.ctrlKey || e.metaKey || e.shiftKey) return; e.preventDefault(); scanViewer('page.jpg'); };
   document.getElementById('srclink').href = ocr.source || '#';
+  const stl = document.getElementById('stagelink');
+  if (stl) { stl.hidden = !stageUrl(MAIN(), 'pages'); stl.href = stageUrl('page.jpg', 'pages') || '#'; }
   legend();
   const main = document.getElementById('main');
   main.innerHTML = '';
@@ -732,7 +751,7 @@ function render() {
   if (summaries.length) {
     const s = document.createElement('section');
     s.innerHTML = `<h2>What earlier reviewers said</h2><div style="padding:10px 14px" class="margin">` +
-      summaries.map(r => noteHtml(r, r.summary)).join('') + '</div>';
+      summaries.map(r => noteHtml(r, r.summary) + (r === rounds[0] ? findingsList() : '')).join('') + '</div>';
     main.append(s);
   }
   if (ocr.lines && ocr.evidence && rev.model !== 'xword-ocr assembly') main.append(opsList());
@@ -850,6 +869,7 @@ function summarySection() {
     <div style="font-size:13px">Anything else the next reviewer should know? <span style="color:var(--muted)">(optional)</span></div>
     <textarea id="overall"></textarea>
     <div class="decide"><button class="ready"></button><div id="askready"></div><button class="notready"></button></div>
+    <div id="sendback"></div>
     <div style="display:flex;justify-content:flex-end"><button class="good" id="submit">Submit my review</button></div>
     <div id="after"></div></div>`;
   const ta = s.querySelector('#overall');
@@ -885,7 +905,8 @@ function summarySection() {
 // when ready with no edits, since edits aren't applied on import yet
 // the same review, to a local server (?save=): plain text, so the browser sends it without asking first
 async function saveLocal(d) {
-  const review = {edits: cur.edits, comments: cur.comments, status: cur.status, note: cur.note || '', xd: rev?.xd_fp || ''};
+  const review = {edits: cur.edits, comments: cur.comments, status: cur.status, note: cur.note || '', xd: rev?.xd_fp || '',
+                  ...(d === 'notready' && cur.sendback ? {sendback: cur.sendback} : {})};
   const who = (cur.who === 'You' ? '' : cur.who || '').slice(0, 40);
   const r = await fetch(SAVE, {method: 'POST', headers: {'Content-Type': 'text/plain'},
     body: JSON.stringify({xdid: ID, who, decision: d, review, at: new Date().toISOString()})});
@@ -902,7 +923,8 @@ async function submitReview(d) {
   const who = (cur.who === 'You' ? '' : cur.who || '').slice(0, 40);
   // xd: the version of the puzzle this page showed (the packet's fingerprint of its .xd), so the import knows
   // exactly what was proofed and a later change to the puzzle lapses the proof
-  const review = {edits: cur.edits, comments: cur.comments, status: cur.status, note: cur.note || '', xd: rev?.xd_fp || ''};
+  const review = {edits: cur.edits, comments: cur.comments, status: cur.status, note: cur.note || '', xd: rev?.xd_fp || '',
+                  ...(d === 'notready' && cur.sendback ? {sendback: cur.sendback} : {})};
   const p = await sb.from('proofs').upsert({xdid: ID, user_id: uid, who, decision: d, review, at});
   if (p.error) throw p.error;
   const bad = Object.entries(cur.status).filter(([, x]) => x.v === 'bad').map(([id, x]) => `${PART[id]?.name || id}: ${x.note || 'a problem'}`);
@@ -930,8 +952,14 @@ async function restorePuzzle(xdid, note) {
 // known issues: true of the puzzle, not mistakes in our transcription; the reviewer acknowledges each one
 function knownIssues() {
   const out = [];
+  const gapKey = (rev?.gaps || []).find(g => g.part === 'key');
   if (!hasKey()) out.push({id: 'known:no-answers', name: 'no answer key',
-    text: "No answer key: the answers weren't printed with this puzzle (often they ran in a later issue), so our letters can't be checked against them."});
+    text: gapKey ? `No answer key printed: confirmed by ${gapKey.by}${gapKey.note ? ` (${gapKey.note})` : ''}, so our letters can't be checked against one.`
+      : "No answer key: the answers weren't printed with this puzzle (often they ran in a later issue), so our letters can't be checked against them."});
+  // parts confirmed not printed (review.json's gaps: the ledger's gap: records, each with who said so and why)
+  for (const g of rev?.gaps || []) if (g.part !== 'key')
+    out.push({id: 'known:gap-' + g.part, name: `no ${g.part} printed`,
+      text: `No ${g.part} printed with this puzzle: confirmed by ${g.by}${g.note ? ` (${g.note})` : ''}. The xd has none; if you see one on the scan, say so.`});
   return out;
 }
 // everything the summary asks about: the parts on the page, then the known issues
@@ -956,7 +984,7 @@ function readyClicked() {
   const ready = () => {
     for (const id of open) cur.status[id] = {v: 'ok', auto: true};
     for (const id of bad) cur.status[id] = {v: 'ok', was: 'bad', note: cur.status[id].note || ''};
-    cur.decision = 'ready'; askDone(); save(); progress();
+    cur.decision = 'ready'; delete cur.sendback; askDone(); save(); progress();
   };
   if (!open.length && !bad.length) return ready();
   const name = id => `<b>${esc(nameOf(id))}</b>`, list = xs => xs.map(name).join(xs.length > 2 ? ', ' : ' and ');
@@ -978,6 +1006,44 @@ function readyClicked() {
     const t = document.querySelector(`section[data-sec="${go}"]`);
     t.scrollIntoView({block: 'start'}); scrollBy(0, -70);
   };
+}
+// Send back: a Not ready that says what's wrong, from the packet's list (review.json send_back: xword-ocr
+// problems.py, the same words triage and the pipeline's agents use). It sends the puzzle back to be read
+// again; it's for a problem no edit here fixes, so it's a link under the two decisions, not a third button.
+function paintSendBack(s) {
+  const el = s.querySelector('#sendback'), sb = rev?.send_back;
+  if (!el || !sb) { if (el) el.innerHTML = ''; return; }
+  const kind = sb.kinds.find(k => k.id === cur.sendback?.kind);
+  if (cur.sendback && !el.dataset.open) {
+    el.innerHTML = `<span class="sent">Sending it back: <b>${esc(kind ? kind.says : cur.sendback.kind)}</b>${cur.sendback.part ? ` (${esc(sb.parts[cur.sendback.part])})` : ''}${cur.sendback.note ? `: ${esc(cur.sendback.note)}` : ''}.</span>
+      <a data-a="edit">change</a> · <a data-a="undo">don't send it back</a>`;
+  } else if (!el.dataset.open) {
+    el.innerHTML = `<a data-a="open">Is something badly wrong that no edit can fix (a part missing, the text garbled, not a crossword)? Send it back…</a>`;
+  } else {
+    const cur_ = cur.sendback || {};
+    el.innerHTML = `<div class="sbform"><div><b>Send this puzzle back to be read again.</b> What's wrong?</div>
+      ${sb.kinds.map(k => `<label><input type="radio" name="sbkind" value="${esc(k.id)}"${cur_.kind === k.id ? ' checked' : ''}> ${esc(k.says)}</label>`).join('')}
+      <div id="sbpart"></div>
+      <textarea placeholder="Anything that helps find it (optional; needed for Something else)">${esc(cur_.note || '')}</textarea>
+      <div class="acts"><button class="plain" data-a="cancel">Cancel</button> <button class="bad solid" data-a="send">Send it back (Not ready)</button></div></div>`;
+    const partSel = () => {
+      const k = sb.kinds.find(x => x.id === el.querySelector('[name=sbkind]:checked')?.value);
+      el.querySelector('#sbpart').innerHTML = k && k.parts.length ? `<label>Which part? <select><option value="">(not sure)</option>${k.parts.map(p => `<option value="${esc(p)}"${cur_.part === p ? ' selected' : ''}>${esc(sb.parts[p])}</option>`).join('')}</select></label>` : '';
+    };
+    el.querySelectorAll('[name=sbkind]').forEach(r => r.onchange = partSel);
+    partSel();
+  }
+  el.querySelectorAll('a[data-a], button[data-a]').forEach(b => b.onclick = () => {
+    const a = b.dataset.a;
+    if (a === 'open' || a === 'edit') { el.dataset.open = '1'; return paintSendBack(s); }
+    if (a === 'cancel') { delete el.dataset.open; return paintSendBack(s); }
+    if (a === 'undo') { delete cur.sendback; if (cur.decision === 'notready') delete cur.decision; save(); return paintSummary(); }
+    const kind = el.querySelector('[name=sbkind]:checked')?.value, note = el.querySelector('textarea').value.trim();
+    if (!kind) return alert('Choose what is wrong.');
+    if (kind === 'other' && !note) return alert('Say what is wrong.');
+    cur.sendback = {kind, part: el.querySelector('#sbpart select')?.value || '', note};
+    cur.decision = 'notready'; delete el.dataset.open; askDone(); save(); paintSummary();
+  });
 }
 function askDone() { const b = document.getElementById('askready'); if (b) b.innerHTML = ''; }
 function paintSummary() {
@@ -1022,6 +1088,7 @@ function paintSummary() {
   });
   const n = Object.keys(cur.edits).length, imp = implied(), d = decision();
   const todo = reviewIds().filter(id => !cur.status[id]).length, bad = parts.filter(p => cur.status[p.dataset.sec]?.v === 'bad').length;
+  paintSendBack(s);
   const r = s.querySelector('.ready'), nr = s.querySelector('.notready');
   r.innerHTML = `✓ Ready: the puzzle matches the scan${n ? ' as edited' : ''}<small>${n ? `with my ${plural(n, 'edit')}` : 'no edits needed'}${todo ? ` · ${todo} not marked yet` : ''}</small>`;
   nr.innerHTML = `✗ Not ready: something's wrong I couldn't fix<small>${bad ? `you marked ${plural(bad, 'part')} with a problem` : 'say what in the box above'}</small>`;
@@ -1136,6 +1203,72 @@ function scanLink(im, box) {
   a.title = "The puzzle's pages at full size" + (box ? ', this line outlined' : '') + ' (Ctrl+click: just this page, in a new tab)';
   a.onclick = e => { if (e.ctrlKey || e.metaKey || e.shiftKey) return; e.preventDefault(); e.stopPropagation(); scanViewer(im || MAIN(), box); };
   return a;
+}
+
+// ---- back to the stages: on the local watch (?save=), each page's place in the watch's views, from the
+// packet's record (ocr.json stages: assembly's region boxes, each packet page's scan and leaf). The views
+// outline the box passed in the link and link on; nothing is worked out here.
+function stageUrl(im, tab) {
+  const st = ocr.stages, pg = st && st.pages[im || MAIN()];
+  if (!SAVE || !pg) return '';
+  const reg = (st.regions || []).find(g => g.scan === pg[0] && g.leaf === pg[1] && g.from !== 'page');
+  const run = ((params.get('base') || '').match(/\/proof\/([^/]+)\/?$/) || [])[1] || '';
+  const q = new URLSearchParams({pid: ID, run, scan: pg[0], leaf: pg[1], what: reg ? 'its region box' : 'its page',
+    from: reg ? `ocr.json stages.regions[${reg.in_box}] (the proof packet, from assembly)` : 'ocr.json stages.pages'});
+  if (reg) q.set('box', reg.box.map(Math.round).join(','));
+  return `/?${q}#${tab}/${encodeURIComponent(st.date || '')}`;
+}
+function stageLink(im) {
+  const u = stageUrl(im, 'pages');
+  if (!u) return document.createTextNode('');
+  const a = document.createElement('a');
+  a.className = 'ctxbtn'; a.style.marginLeft = '10px'; a.href = u; a.target = '_blank'; a.textContent = 'back to the stages ↗';
+  a.title = 'This page in the watch: Puzzles on the pages (its region box outlined), then In the boxes, Assembled, Issues';
+  a.onclick = e => e.stopPropagation();
+  return a;
+}
+
+// ---- the text step's findings (review.json findings: textstep.findings) ----
+// Each is a record: its target row, what was read, what it suggests and why. A key misread names its
+// squares; a square's suggestion stays open (marked on the grid) until a reviewer's letter settles it.
+const KINDNAME = {'key-misread': 'key misread?', misprint: 'misprint, kept', 'cut-off': 'cut off', other: 'finding'};
+function findingText(f) {
+  if (f.status === 'key read again since')
+    return `Finding ${f.n} (${KINDNAME[f.kind] || f.kind}): when the text step looked, the key read “${f.read}” and it suggested “${f.suggest}”${f.why ? ` (${f.why})` : ''}. The key has been read again since and reads “${f.now}”: check it against the scan.${f.source && !/^LLM/.test(f.source) ? ` (${f.source})` : ''}`;
+  const st = f.status === 'reads right now' ? ' The key reads it this way now (read again since): nothing to confirm.' : '';
+  const sq = f.status === 'open' && (f.cells || []).length ? ` Square${f.cells.length > 1 ? 's' : ''} ${f.cells.map(c => cellName(c.cell) + ' ' + c.read + '→' + c.suggest).join(', ')}: confirm on the grid.` : '';
+  return `Finding ${f.n} (${KINDNAME[f.kind] || f.kind}): reads “${f.read}”, suggests “${f.suggest}”${f.why ? ': ' + f.why : ''}.${sq}${st}${f.source && !/^LLM/.test(f.source) ? ` (${f.source})` : ''}`;
+}
+const cellName = c => c.toUpperCase();  // r15c1 -> R15C1, as the grid's edge labels read
+// the squares a finding suggests a letter for, still open: {"r,c": [{letter, finding}]}; a square a
+// reviewer has set since (to any letter) is settled
+function suggestions() {
+  const out = {};
+  for (const f of rev?.findings || []) if (f.status === 'open') for (const c of f.cells || []) {
+    const m = /^r(\d+)c(\d+)$/.exec(c.cell); if (!m) continue;
+    const r = +m[1] - 1, col = +m[2] - 1, k = 'cell:' + c.cell;
+    if (history(k).length > 1) continue;
+    (out[`${r},${col}`] ||= []).push({letter: c.suggest, read: c.read, f});
+  }
+  return out;
+}
+function markSuggest(x, r, c, sug) {
+  const s = sug[`${r},${c}`];
+  x.classList.toggle('sug', !!s);
+  if (s) { x.dataset.sug = [...new Set(s.map(v => v.letter))].join('/'); x.title += `: suggested ${s.map(v => `${v.letter} (finding ${v.f.n}, ${v.f.target} ${v.f.suggest})`).join(' or ')}`; }
+  else delete x.dataset.sug;
+}
+// the findings as a list of links to their rows (the verdict's items), with what's still open
+function findingsList() {
+  const fs = rev?.findings || [];
+  if (!fs.length) return '';
+  const sug = suggestions();
+  return `<ul class="findings">${fs.map(f => {
+    const open = (f.cells || []).filter(c => { const m = /^r(\d+)c(\d+)$/.exec(c.cell); return m && sug[`${+m[1]-1},${+m[2]-1}`]; });
+    const st = f.status === 'reads right now' ? 'reads right now' : f.status === 'key read again since' ? `key read again since: reads “${f.now}” now` : f.status === 'open' ? (open.length ? `${open.length} square${open.length > 1 ? 's' : ''} to confirm` : 'settled on the grid') : 'on its row';
+    const anchor = f.row ? f.row.replace(/^(clue|line):/, '').replace(/^B/, 'B') : '';
+    return `<li>${anchor ? `<a href="#${esc(anchor)}">${esc(f.target)}</a>` : esc(f.target)} ${esc(KINDNAME[f.kind] || f.kind)}: “${esc(f.read)}” → “${esc(f.suggest)}” <span class="st">${esc(st)}</span></li>`;
+  }).join('')}</ul>`;
 }
 
 // ---- a pop-up over the page ----
@@ -1601,8 +1734,10 @@ function opsList() {
     `${go('B' + L.n, 'B' + L.n)}: ${L.keep ? 'kept' : 'discarded'}, ${esc(LABELS[L.label] || L.label)}`);
   const blanks = Object.entries(rev.blanks || {}).map(([k, b]) => `${go(k, k)}: fill-in blank “${esc(b.printed)}”${b.by === 'rule' ? ' <span class="hint">(by rule)</span>' : ''}`);
   const unsure = Object.entries(rev.unsure || {}).map(([k, v]) => `${/^(clue|line):/.test(k) ? go(k.replace(/^(clue|line):/, ''), k.replace(/^(clue|line):/, '')) : esc(k)}: ${esc(v)}`);
+  const found = (rev.findings || []).map(f => `${f.row ? go(f.row.replace(/^(clue|line):/, ''), f.target) : esc(f.target)}: ${esc(KINDNAME[f.kind] || f.kind)} “${esc(short(f.read))}” → “${esc(short(f.suggest))}”`
+    + ` <span class="hint">${esc(f.status === 'open' ? 'to confirm on the grid' : f.status || 'on its row')}</span>`);
   const asked = (rev.requests || []).map(q => `${q.key ? go(q.key.replace(/^(clue|line):/, ''), q.key.replace(/^(clue|line):/, '')) + ': ' : ''}${esc(q.kind || 'other')}: ${esc(q.what || '')}${q.where ? ` <span class="hint">(${esc(q.where)})</span>` : ''}`);
-  for (const [name, items] of [['clues changed', clue], ['lines corrected', lines], ['headers taken from', heads], ['header values given', typed],
+  for (const [name, items] of [['findings', found], ['clues changed', clue], ['lines corrected', lines], ['headers taken from', heads], ['header values given', typed],
     ['other lines labelled', labels], ['fill-in blanks', blanks], ['not sure', unsure], ['asked for', asked]]) if (items.length) groups.push([name, items]);
   const s = document.createElement('section');
   if (!groups.length) return s;
@@ -1659,7 +1794,7 @@ function addRow(s, key, label, box, flags = [], src = null) {
     };
     row.toggleWide = () => show(!btn.dataset.on);
     btn.onclick = e => { e.stopPropagation(); row.toggleWide(); };
-    sc.append(btn, scanLink(im, box));
+    sc.append(btn, scanLink(im, box), stageLink(im));
     show(!!why);
     if (why) row.suspect = true;
     const nm = row.querySelector('.num');
@@ -1699,12 +1834,14 @@ function addRow(s, key, label, box, flags = [], src = null) {
   } else if (isClue) ab.innerHTML = `<div class="dir">${hasKey() ? '' : 'no answer key to check against'}</div>`;
   const txt = row.querySelector('.txt');
   row.paint = () => {
+    const sug = suggestions();
     row.querySelectorAll('.acells > span').forEach(x => {
       const [r, c] = x.dataset.cell.split(',').map(Number), k = `cell:r${r+1}c${c+1}`, hh = history(k);
       setSquare(x, final(k));
       x.style.boxShadow = hh.length > 1 ? `inset 0 0 0 2px ${hh[hh.length-1].color}` : '';
       x.title = cellRef(r, c) + (hh.length > 1 ? ': ' + hh.map(v => `${v.who} ${v.value}`).join(' → ') : '');
       paintSpecial(x, r, c);
+      markSuggest(x, r, c, sug);
     });
     const h = moved ? history(key, src.text) : history(key), fin = h[h.length - 1].value;
     row.look = row.suspect || h.length > 1 || flags.length || odd || commentsFor(key).length;
@@ -2003,7 +2140,7 @@ function moveSel(k) {
 }
 function cells(cls) {
   const g = ocr.answers, H = g.length, W = g[0].length;
-  const low = new Set(ocr.answers_low_confidence || []);
+  const low = new Set(ocr.answers_low_confidence || []), sug = suggestions();
   const d = document.createElement('div');
   d.className = 'typedgrid ' + cls;
   d.style.gridTemplate = `repeat(${H}, minmax(0, 1fr)) / repeat(${W}, minmax(0, 1fr))`;
@@ -2015,7 +2152,7 @@ function cells(cls) {
     x.title = cellRef(r, c);
     if (h.length > 1) { x.style.boxShadow = `inset 0 0 0 2.5px ${h[h.length-1].color}`; x.title += ': ' + h.map(v => `${v.who} ${v.value}`).join(' → '); }
     else if (low.has(`r${r+1}c${c+1}`)) { x.classList.add('unsure'); x.title += ': the OCR was unsure of this letter'; }
-    if (ch !== '#') paintSpecial(x, r, c);
+    if (ch !== '#') { paintSpecial(x, r, c); markSuggest(x, r, c, sug); }
     if (selCell && selCell[0] === r && selCell[1] === c) x.classList.add('cur');
     x.onclick = e => markMode ? markSquare(r, c, document.querySelector('#gnotes')) : pickSquare(r, c, e);
     d.append(x);
@@ -2037,7 +2174,15 @@ function drawGrid(s) {
   const notes = [];
   for (const r of rounds) for (const c of r.comments)
     if (c.key.startsWith('cell:') || c.key.startsWith('special:')) notes.push(`<b>${esc(c.key.split(':')[1])}</b> ` + noteHtml(r, c.text, c.why, c));
-  g.innerHTML = notes.join('');
+  const sug = suggestions();
+  const confirm = Object.entries(sug).map(([rc, vs]) => {
+    const [r, c] = rc.split(',').map(Number);
+    return `<div><b>${esc(cellRef(r, c))}</b> reads ${esc(vs[0].read)}; ` + vs.map(v => `finding ${v.f.n} (${esc(v.f.target)} ${esc(v.f.suggest)}) suggests <b>${esc(v.letter)}</b>`
+      + `<button class="sugbtn" data-r="${r}" data-c="${c}" data-l="${esc(v.letter)}" title="Set this square to ${esc(v.letter)}: your edit, with a note">Use ${esc(v.letter)}</button>`).join('; ')
+      + (vs.length > 1 && new Set(vs.map(v => v.letter)).size > 1 ? ' <span class="hint">(the findings disagree: check the scan)</span>' : '') + '</div>';
+  });
+  g.innerHTML = (confirm.length ? `<div class="m-flag" style="padding:6px 8px;border-radius:6px;margin-bottom:8px"><b>Suggested by the text step, to confirm:</b>${confirm.join('')}</div>` : '') + notes.join('');
+  g.querySelectorAll('.sugbtn').forEach(b => b.onclick = () => fixSquare(+b.dataset.r, +b.dataset.c, b.dataset.l));
   if (open) g.prepend(open);
   s.querySelector('#gspecial').innerHTML = specialList();
 }

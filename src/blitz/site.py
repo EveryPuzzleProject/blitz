@@ -411,7 +411,9 @@ def fetch_decisions(agreed_only: bool = False) -> dict:
         get(r["xdid"]).setdefault("proofs", {})[r.get("who") or who(r)] = {
             "decision": r["decision"], "edits": rv.get("edits", {}), "comments": rv.get("comments", []),
             "parts": rv.get("status", {}), "note": rv.get("note", ""), "at": r["at"],
-            "xd": rv.get("xd", "")}  # the xd version the page showed (packet xd_fp); "" before 2026-10-13
+            "xd": rv.get("xd", ""),  # the xd version the page showed (packet xd_fp); "" before 2026-10-13
+            # sent back: a Not ready with what's wrong (xword-ocr problems.py: kind, part, note)
+            **({"sendback": rv["sendback"]} if rv.get("sendback") and r["decision"] == "notready" else {})}
     # puts back of puzzles dropped as not crosswords (site/schema-7-drops.sql): per helper, a note and when;
     # the importer records each as a person's keep on drop:<pid> in the publication's ledger
     try:
