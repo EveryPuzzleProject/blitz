@@ -105,6 +105,12 @@ h2 .quick { margin-left: 8px; font-size: 12px; padding: 2px 10px; }
 .decide .ready { border-color: var(--ok); color: var(--ok); } .decide .ready.sel { background: var(--ok); color: #fff; }
 .decide .notready { border-color: var(--bad); color: var(--bad); } .decide .notready.sel { background: var(--bad); color: #fff; }
 .decide button:disabled { opacity: .4; cursor: default; }
+/* sending a puzzle back: rarer than Ready / Not ready, so a quiet link that opens a short form */
+#sendback { margin: 2px 0 10px; font-size: 13px; } #sendback > a { color: var(--muted); cursor: pointer; text-decoration: underline; }
+#sendback .sbform { margin-top: 6px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+#sendback label { display: block; margin: 3px 0; } #sendback select, #sendback textarea { font: inherit; font-size: 13px; }
+#sendback textarea { width: 100%; min-height: 40px; margin: 6px 0; }
+#sendback .sent { color: var(--bad); }
 .ask { border: 1px solid #d9cfa8; background: #fffbea; border-radius: 8px; padding: 10px 14px; margin: -2px 0 10px; font-size: 13px; }
 .ask p { margin: 0 0 8px; }
 .ask .acts { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
@@ -863,6 +869,7 @@ function summarySection() {
     <div style="font-size:13px">Anything else the next reviewer should know? <span style="color:var(--muted)">(optional)</span></div>
     <textarea id="overall"></textarea>
     <div class="decide"><button class="ready"></button><div id="askready"></div><button class="notready"></button></div>
+    <div id="sendback"></div>
     <div style="display:flex;justify-content:flex-end"><button class="good" id="submit">Submit my review</button></div>
     <div id="after"></div></div>`;
   const ta = s.querySelector('#overall');
@@ -898,7 +905,8 @@ function summarySection() {
 // when ready with no edits, since edits aren't applied on import yet
 // the same review, to a local server (?save=): plain text, so the browser sends it without asking first
 async function saveLocal(d) {
-  const review = {edits: cur.edits, comments: cur.comments, status: cur.status, note: cur.note || '', xd: rev?.xd_fp || ''};
+  const review = {edits: cur.edits, comments: cur.comments, status: cur.status, note: cur.note || '', xd: rev?.xd_fp || '',
+                  ...(d === 'notready' && cur.sendback ? {sendback: cur.sendback} : {})};
   const who = (cur.who === 'You' ? '' : cur.who || '').slice(0, 40);
   const r = await fetch(SAVE, {method: 'POST', headers: {'Content-Type': 'text/plain'},
     body: JSON.stringify({xdid: ID, who, decision: d, review, at: new Date().toISOString()})});
@@ -915,7 +923,8 @@ async function submitReview(d) {
   const who = (cur.who === 'You' ? '' : cur.who || '').slice(0, 40);
   // xd: the version of the puzzle this page showed (the packet's fingerprint of its .xd), so the import knows
   // exactly what was proofed and a later change to the puzzle lapses the proof
-  const review = {edits: cur.edits, comments: cur.comments, status: cur.status, note: cur.note || '', xd: rev?.xd_fp || ''};
+  const review = {edits: cur.edits, comments: cur.comments, status: cur.status, note: cur.note || '', xd: rev?.xd_fp || '',
+                  ...(d === 'notready' && cur.sendback ? {sendback: cur.sendback} : {})};
   const p = await sb.from('proofs').upsert({xdid: ID, user_id: uid, who, decision: d, review, at});
   if (p.error) throw p.error;
   const bad = Object.entries(cur.status).filter(([, x]) => x.v === 'bad').map(([id, x]) => `${PART[id]?.name || id}: ${x.note || 'a problem'}`);
@@ -975,7 +984,7 @@ function readyClicked() {
   const ready = () => {
     for (const id of open) cur.status[id] = {v: 'ok', auto: true};
     for (const id of bad) cur.status[id] = {v: 'ok', was: 'bad', note: cur.status[id].note || ''};
-    cur.decision = 'ready'; askDone(); save(); progress();
+    cur.decision = 'ready'; delete cur.sendback; askDone(); save(); progress();
   };
   if (!open.length && !bad.length) return ready();
   const name = id => `<b>${esc(nameOf(id))}</b>`, list = xs => xs.map(name).join(xs.length > 2 ? ', ' : ' and ');
@@ -997,6 +1006,44 @@ function readyClicked() {
     const t = document.querySelector(`section[data-sec="${go}"]`);
     t.scrollIntoView({block: 'start'}); scrollBy(0, -70);
   };
+}
+// Send back: a Not ready that says what's wrong, from the packet's list (review.json send_back: xword-ocr
+// problems.py, the same words triage and the pipeline's agents use). It sends the puzzle back to be read
+// again; it's for a problem no edit here fixes, so it's a link under the two decisions, not a third button.
+function paintSendBack(s) {
+  const el = s.querySelector('#sendback'), sb = rev?.send_back;
+  if (!el || !sb) { if (el) el.innerHTML = ''; return; }
+  const kind = sb.kinds.find(k => k.id === cur.sendback?.kind);
+  if (cur.sendback && !el.dataset.open) {
+    el.innerHTML = `<span class="sent">Sending it back: <b>${esc(kind ? kind.says : cur.sendback.kind)}</b>${cur.sendback.part ? ` (${esc(sb.parts[cur.sendback.part])})` : ''}${cur.sendback.note ? `: ${esc(cur.sendback.note)}` : ''}.</span>
+      <a data-a="edit">change</a> · <a data-a="undo">don't send it back</a>`;
+  } else if (!el.dataset.open) {
+    el.innerHTML = `<a data-a="open">Is something badly wrong that no edit can fix (a part missing, the text garbled, not a crossword)? Send it back…</a>`;
+  } else {
+    const cur_ = cur.sendback || {};
+    el.innerHTML = `<div class="sbform"><div><b>Send this puzzle back to be read again.</b> What's wrong?</div>
+      ${sb.kinds.map(k => `<label><input type="radio" name="sbkind" value="${esc(k.id)}"${cur_.kind === k.id ? ' checked' : ''}> ${esc(k.says)}</label>`).join('')}
+      <div id="sbpart"></div>
+      <textarea placeholder="Anything that helps find it (optional; needed for Something else)">${esc(cur_.note || '')}</textarea>
+      <div class="acts"><button class="plain" data-a="cancel">Cancel</button> <button class="bad solid" data-a="send">Send it back (Not ready)</button></div></div>`;
+    const partSel = () => {
+      const k = sb.kinds.find(x => x.id === el.querySelector('[name=sbkind]:checked')?.value);
+      el.querySelector('#sbpart').innerHTML = k && k.parts.length ? `<label>Which part? <select><option value="">(not sure)</option>${k.parts.map(p => `<option value="${esc(p)}"${cur_.part === p ? ' selected' : ''}>${esc(sb.parts[p])}</option>`).join('')}</select></label>` : '';
+    };
+    el.querySelectorAll('[name=sbkind]').forEach(r => r.onchange = partSel);
+    partSel();
+  }
+  el.querySelectorAll('a[data-a], button[data-a]').forEach(b => b.onclick = () => {
+    const a = b.dataset.a;
+    if (a === 'open' || a === 'edit') { el.dataset.open = '1'; return paintSendBack(s); }
+    if (a === 'cancel') { delete el.dataset.open; return paintSendBack(s); }
+    if (a === 'undo') { delete cur.sendback; if (cur.decision === 'notready') delete cur.decision; save(); return paintSummary(); }
+    const kind = el.querySelector('[name=sbkind]:checked')?.value, note = el.querySelector('textarea').value.trim();
+    if (!kind) return alert('Choose what is wrong.');
+    if (kind === 'other' && !note) return alert('Say what is wrong.');
+    cur.sendback = {kind, part: el.querySelector('#sbpart select')?.value || '', note};
+    cur.decision = 'notready'; delete el.dataset.open; askDone(); save(); paintSummary();
+  });
 }
 function askDone() { const b = document.getElementById('askready'); if (b) b.innerHTML = ''; }
 function paintSummary() {
@@ -1041,6 +1088,7 @@ function paintSummary() {
   });
   const n = Object.keys(cur.edits).length, imp = implied(), d = decision();
   const todo = reviewIds().filter(id => !cur.status[id]).length, bad = parts.filter(p => cur.status[p.dataset.sec]?.v === 'bad').length;
+  paintSendBack(s);
   const r = s.querySelector('.ready'), nr = s.querySelector('.notready');
   r.innerHTML = `✓ Ready: the puzzle matches the scan${n ? ' as edited' : ''}<small>${n ? `with my ${plural(n, 'edit')}` : 'no edits needed'}${todo ? ` · ${todo} not marked yet` : ''}</small>`;
   nr.innerHTML = `✗ Not ready: something's wrong I couldn't fix<small>${bad ? `you marked ${plural(bad, 'part')} with a problem` : 'say what in the box above'}</small>`;
