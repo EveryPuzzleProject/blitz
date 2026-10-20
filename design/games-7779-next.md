@@ -5,6 +5,85 @@ and the exceptions queue (a diagnosis per stage, not line edits). The goal is un
 puzzle from hands-off assembly to an xd file in the games repo, nearly hands off, with tokens
 spent only where they buy the most. The baseline to beat is an agent reading every puzzle.
 
+## Next round: start here (written 2026-10-20)
+
+The sections below "Where it stands" record how the plan was made (2026-10-17/18). This
+section is the current state and the agenda. Start a fresh session with this section as
+its brief; the long sessions that built this round are out of context.
+
+### State on 2026-10-20
+
+- **The v2 pipeline on main** (xword-ocr, blitz, games):
+  - assembly only links text, and `headers.propose` guesses the headers;
+  - the text step's findings are records;
+  - a second clue set is carried as `^Easy` clue metadata, plus a Feature header;
+  - triage puts each puzzle in one of three states: **Needs work**, **Ready for review**,
+    **Reviewed** (memory: review-dispositions);
+  - the restart loop and agent remedies ("check these, fix what you can, flag the rest");
+  - crowd decisions reach the import under the ship rule: one Ready and no Not ready ships;
+    any Not ready comes to the maintainer;
+  - the batch page, local and hosted.
+- **Runs** (games `pipeline/triage/runs.json`):
+  - **run14-feature is current**, and it's what's published on the site: 76 open puzzles and
+    6 dropped.
+  - **run15-restart** is a trial carrying the restart loop and dispositions: 10 Needs work, 64
+    Ready for review. It becomes current once the PRs below merge.
+- **Decisions:** 2 Ready, both the maintainer's (1977-09-01 L026 and L032). Nothing imported;
+  `games/xd` has no GAMES 1977-79 puzzles yet.
+- **The review site:** `/review/` opens a batch landing page. GAMES 1977-79 is there with its
+  batch page and proof pages. The old v1 pages are gone.
+
+### Agenda, in order
+
+1. **Merge the stranded work:** EveryPuzzleProject/xword-ocr#35, EveryPuzzleProject/blitz#37,
+   EveryPuzzleProject/games#13. These are commits pushed after their PRs (xword-ocr#34,
+   blitz#36, games#12) had been merged: key squares recorded, Not a crossword from the batch
+   card and proof page, the Easy-only view.
+2. **Make run15-restart current and republish** its proofs (`blitz site-publish`) and the batch
+   snapshot (`blitz site-publish-batch`, taken from a running watch). Keep the drops marked.
+3. **Work the 10 Needs work** on the local batch page: run the remedy agent, then the harvest for
+   the pages it requested. Whatever is left is for the maintainer, with each diagnosis on its
+   card.
+4. **Review the Ready ones:** the maintainer, and volunteers if invited. Run `blitz site-import`
+   to bring site decisions into the ledger.
+5. **Decide the Notes rule** (a batch page tool), and how Feature reaches the gxd export
+   (`Category:` is the candidate; mention it to Saul).
+6. **Import** the shipped puzzles into `games/xd` (`import-batch`, ids assigned last), then
+   open a games PR.
+7. **gxd export:** `^Easy` lines kept, Notes by the rule, Feature mapped, gaps labelled.
+8. **Fill in the blog post's part 3 numbers** (blitz `claude/v2-pipeline-blog`).
+
+Then **v3, before the rest of GAMES** (design/restructure.md: harvest standalone, blitz
+orchestrates, the viewer without the code, the internal control room and the public review
+site). GAMES 1980-82 is the first v3 batch, run as a pure orchestration session: it gives the
+per-puzzle cost baseline against the 10% target.
+
+### Known defects (not blocking 1977-79)
+
+- **1979-09-01 L064:** about 40 Hard clues never read; a request is raised.
+- **Every Ornery puzzle:** a page number ("38") stuck to an Easy clue. The reading should drop
+  page numbers from clue lines.
+- **Region boxes that start at the grid** can cut off a title or byline above it. If this
+  recurs, pad the regions upward.
+- **The key reader** read a column of a hand-lettered key's black squares as letters (three
+  run15 puzzles). It's recorded and shown now, but the reader itself isn't fixed.
+- **Hands-off runs ignore earlier box decisions** from the harvest tool. In v3 the
+  orchestrator applies every standing decision to every run.
+
+### How to run it locally
+
+```
+uv run xword-ocr watch --out harvests/games-7779 --start 1977-01-01 --end 1979-12-31
+```
+
+Run it from `~/Projects/xword-ocr`, with xword-ocr, blitz and games pulled. The batch page is
+at http://127.0.0.1:8765/batch/. It uses `../games/fixes/fixes.toml` for the ledger and run
+registry, and the blitz checkout beside xword-ocr for the proof page.
+
+**When several sessions run at once:** merge a session's PRs only when it reports done. A
+session that keeps pushing to a branch after its PR is merged strands those commits (that's
+what item 1 recovers).
+
 ## Where it stands
 
 - **81 puzzles** (the 75 from the box review plus 6 extras) went through assembly, the text
