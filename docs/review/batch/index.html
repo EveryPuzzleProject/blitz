@@ -88,6 +88,9 @@ li.d { color: var(--person); } li.g { color: var(--muted); }
 .block { font-size: 13px; margin-top: 6px; padding: 6px 10px; background: var(--person-bg); border-left: 3px solid var(--person); border-radius: 0 6px 6px 0; }
 .block b { color: var(--person); } .block .st { color: var(--muted); }
 .check { font-size: 12px; margin-top: 4px; color: var(--muted); } .check.no { color: var(--person); }
+/* the remedy agent's outcome (remedy:<pid>): what it did, or for a person, its diagnosis */
+.remedy { font-size: 13px; margin-top: 6px; padding: 5px 10px; border-left: 3px solid var(--accent); background: var(--paper); }
+.remedy.for-you { border-color: var(--person); } .remedy b { font-weight: 600; }
 .doubts { font-size: 12px; color: var(--muted); margin: 4px 0 0; }
 .block .go { font-size: 12px; margin: 3px 0 0; } .block .go a { margin-right: 8px; }
 .restart { font-size: 13px; margin-top: 6px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); }
@@ -309,14 +312,23 @@ document.addEventListener('visibilitychange', async () => {
 });
 const causeOf = pid => ((D.causes || {}).causes || []).find(c => c.pids.includes(pid));
 function shown() {
-  return D.puzzles.filter(p => (filter === 'all' || (filter === 'held' ? p.held_for_you : kindOf(p) === filter)) && (!cause || (causeOf(p.pid) || {}).id === cause))
+  return D.puzzles.filter(p => (filter === 'all' || (filter === 'held' ? p.held_for_you : filter === 'foryou' ? forYou(p) : kindOf(p) === filter)) && (!cause || (causeOf(p.pid) || {}).id === cause))
     .sort((a, b) => checked(a) - checked(b) || ORDER.indexOf(kindOf(a)) - ORDER.indexOf(kindOf(b)) || a.pid.localeCompare(b.pid));
+}
+// left for a person by the remedy agent (it couldn't fix it by sending it back through the pipeline)
+const forYou = p => kindOf(p) === 'notready' && (p.remedy || {}).answer === 'for-you';
+const REMEDY = {fixed: 'Fixed by the agent', waiting: 'Sent back by the agent, waiting', 'for-you': "For you: the agent couldn't fix it"};
+function remedyHtml(p) {
+  const m = p.remedy;
+  if (!m || DATA) return '';
+  return `<div class="remedy ${esc(m.answer)}"><b>${esc(REMEDY[m.answer] || m.answer)}</b>${m.stage ? ` (restart from ${esc(STAGENAME[m.stage] || m.stage)})` : ''}:
+    ${esc(m.note)} <span class="meta">${esc(m.by)} ${esc((m.at || '').slice(0, 16).replace('T', ' '))}</span></div>`;
 }
 // a link into the proof page that walks the list on screen: its Next goes to the next row here. From a
 // snapshot the list goes in the link (?walk=<label>&pids=...): there's no server to ask for it.
 function proofUrl(pid, k, rows) {
   const c = ((D.causes || {}).causes || []).find(x => x.id === cause);
-  const label = [filter === 'held' ? 'Held for you' : filter !== 'all' ? KIND[filter][0] : '', c ? c.title : ''].filter(Boolean).join(' · ') || 'all puzzles';
+  const label = [filter === 'held' ? 'Held for you' : filter === 'foryou' ? 'For you' : filter !== 'all' ? KIND[filter][0] : '', c ? c.title : ''].filter(Boolean).join(' · ') || 'all puzzles';
   const back = '&back=' + encodeURIComponent(location.pathname + location.search);
   if (DATA) return `${SITE ? '../' : params.get('proof') || '/proof/'}?p=${encodeURIComponent(pid)}`
     + (!SITE && params.get('base') ? '&base=' + encodeURIComponent(params.get('base')) : '')
@@ -487,7 +499,8 @@ function draw() {
   const rows = shown();
   $('#chips').innerHTML = `<button class="chip ${filter === 'all' ? 'on' : ''}" data-f="all">All <b>${D.puzzles.length}</b></button>`
     + ORDER.map(k => `<button class="chip ${filter === k ? 'on' : ''}" data-f="${k}">${KIND[k][0]} <b>${count(k)}</b></button>`).join('')
-    + (DATA ? '' : `<button class="chip held ${filter === 'held' ? 'on' : ''}" data-f="held" title="a reviewer said Not ready and you haven't decided">Held for you <b>${(D.chosen || {}).held_for_you || 0}</b></button>`
+    + (DATA ? '' : `<button class="chip held ${filter === 'foryou' ? 'on' : ''}" data-f="foryou" title="not ready, and the remedy agent couldn't fix it: its diagnosis is on the card">For you <b>${D.puzzles.filter(forYou).length}</b></button>`
+      + `<button class="chip held ${filter === 'held' ? 'on' : ''}" data-f="held" title="a reviewer said Not ready and you haven't decided">Held for you <b>${(D.chosen || {}).held_for_you || 0}</b></button>`
       + `<span class="meta">${ready} ship</span>`)
     + (rows.length ? `<a class="walk" href="${proofUrl(rows[0].pid, '', rows)}" target="_blank">Walk these ${rows.length} on the proof page →</a>` : '');
   const cs = (D.causes || {}).causes || [];
@@ -514,7 +527,7 @@ function draw() {
     return `${head}<div class="row withpage" id="${esc(p.pid)}">${pic}
       <div>${p.feature ? `<div class="feat" title="the feature (a sub-series it runs in)${p.feature_line ? ', from printed line B' + p.feature_line : ''}: our own Feature header until the export maps it">${esc(p.feature)}</div>` : ''}<div class="t">${p.title ? esc(p.title) : '<span class="none">no title found</span>'}</div>
         <div class="meta">${esc(p.date)} · ${p.grid.length}×${(p.grid[0] || '').length}${p.byline ? ' · ' + esc(p.byline) : ''}${p.cryptic ? ' · cryptic' : ''} · ${p.changes} changes, ${p.unsure_items.length} unsure, ${p.blanks} blanks</div>
-        ${blockHtml(p)}${checkHtml(p)}
+        ${remedyHtml(p)}${blockHtml(p)}${checkHtml(p)}
         ${why ? `<div class="doubts">${kindOf(p) === 'notready' ? 'Also, for the proof page later:' : 'To check on the proof page:'}</div><ul class="why">${why}</ul>` : ''}
         ${verdict ? `<div class="verdict">${esc(verdict)}</div>` : ''}
         ${said(p)}
