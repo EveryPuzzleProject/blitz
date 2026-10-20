@@ -349,6 +349,9 @@ const REMEDY = {fixed: 'Fixed by the agent', waiting: 'Sent back by the agent, w
 function remedyHtml(p) {
   const m = p.remedy;
   if (!m || DATA) return '';
+  // flagged when it needed work, ready since (a later fix or a change to triage): kept for the record, settled
+  if (m.answer === 'for-you' && kindOf(p) !== 'notready')
+    return `<div class="remedy"><b>Settled since:</b> the agent had flagged it (${esc(m.note.slice(0, 160))}${m.note.length > 160 ? '…' : ''}); it's ${esc(KIND[kindOf(p)][0].toLowerCase())} now.</div>`;
   return `<div class="remedy ${esc(m.answer)}"><b>${esc(REMEDY[m.answer] || m.answer)}</b>${m.stage ? ` (restart from ${esc(STAGENAME[m.stage] || m.stage)})` : ''}:
     ${esc(m.note)} <span class="meta">${esc(m.by)} ${esc((m.at || '').slice(0, 16).replace('T', ' '))}</span></div>`;
 }
