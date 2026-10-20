@@ -1431,7 +1431,7 @@ const take = {
   author: t => [take.byline(t)[0].replace(/^by\s+/i, '').replace(/^(?:Mr|Ms|Miss)\.?\s+(?=[A-Z])/, '').trim(), 'the name in the byline, "by" dropped'],
   editor: t => { const m = /edited by\s+(\S.*)$/i.exec(t); return m ? [m[1].trim(), 'the name after "edited by"'] : [t, '']; },
   // the feature (a sub-series, "The World's Most Ornery Crossword Puzzle"): the line, or what a clue set's heading names
-  feature: t => { const m = /\bclues\s+for\s+(?:the\s+)?([^(]*?)[\s.:]*(?:\(.*)?$/i.exec(t);
+  feature: t => { const m = /\bclues\s+for\s+(?:the\s+)?([^(.:;!?]*?)\s*(?:[(.:;!?].*)?$/i.exec(t);
     if (m && /\b(?:cross-?words?|puzzles?|acrostics?|cryptics?|diagramless)\b/i.test(m[1])) return [m[1].trim(), 'the name after "Clues for"'];
     const v = t.replace(/[\s.:!]+$/, ''); return [v, v === t ? '' : 'trailing punctuation dropped']; },
   date: t => [t, '']};
