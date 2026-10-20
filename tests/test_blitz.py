@@ -217,3 +217,32 @@ def test_the_proof_page_marks_circled_squares():
                    "k.startsWith('special:') && hasKey()", "k.startsWith('special:') && !hasKey()"):
         assert needed in page, needed
     assert "prompt(" not in page
+
+
+def test_proof_page_shows_a_second_clue_sets_lines_as_rows_of_their_own():
+    # xd clue metadata ("A1 ^Easy: ..."): ocr.clues["A1^Easy"], edited as clue:A1^Easy, sorted under A1,
+    # sharing A1's slot; the sets' printed headings (ocr.clue_sets) shown as the record says
+    from pathlib import Path
+
+    page = (Path(__file__).parents[1] / "src" / "blitz" / "proof.html").read_text(encoding="utf-8")
+    for needed in ("const slotOf = k => k.split('^')[0]", ".sort(clueOrder)", "function setsNote()", "metarow",
+                   "setKeyOf(k) === setKeyOf(label)", "NUM[slotOf(k)]"):
+        assert needed in page, needed
+
+
+def test_proof_and_batch_pages_carry_the_feature():
+    # the feature (a sub-series) is a header row like the others (ev:feature, meta:feature), and shows on the batch page
+    from pathlib import Path
+    src = Path(__file__).parents[1] / "src" / "blitz"
+    page = (src / "proof.html").read_text(encoding="utf-8")
+    assert "['feature', 'Feature']" in page and "  feature: t =>" in page
+    assert "p.feature" in (src / "batch.html").read_text(encoding="utf-8")
+
+
+def test_proof_page_switches_between_the_clue_sets():
+    # Hard only / Easy only / Both, named from the sets' keys, remembered per viewer (localStorage in try/catch)
+    from pathlib import Path
+    page = (Path(__file__).parents[1] / "src" / "blitz" / "proof.html").read_text(encoding="utf-8")
+    for needed in ("const showClue = k =>", "keys.filter(showClue)", "localStorage.setItem('proof-clueset'", "`${b.key} only`",
+                   "--setbg"):
+        assert needed in page, needed
