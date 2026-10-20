@@ -796,7 +796,8 @@ function render() {
   main.append(blankSection(why, hasKey()));
   if (hasKey()) main.append(gridSection());
   for (const [d, name] of [['A', 'Across'], ['D', 'Down']]) {
-    const s = sec(d, name + ' clues', `the ${name} clues`, 'printed line above, our text below; the label says where the clue sits in our grid');
+    const only = ocr.clue_sets && setView !== 'both' ? (setView === 'meta' ? ocr.clue_sets[1] : ocr.clue_sets[0])?.key : '';
+    const s = sec(d, name + ' clues' + (only ? ` · ${only}` : ''), `the ${name} clues`, 'printed line above, our text below; the label says where the clue sits in our grid');
     const keys = Object.keys(ocr.clues).filter(k => k[0] === d).sort(clueOrder);
     if (ocr.clue_sets && d === 'A') s.append(setsNote());
     for (const k of keys.filter(showClue)) {
@@ -1817,11 +1818,14 @@ function addRow(s, key, label, box, flags = [], src = null) {
   row.dataset.key = key;
   if (key.startsWith('clue:')) row.id = key.slice(5);  // #A15: a link to this row
   const isClue = key.startsWith('clue:'), meta = isClue ? setKeyOf(label) : '', slot = isClue ? slotOf(label) : label;
-  if (meta) row.classList.add('metarow');
+  // the other set shown on its own (the switch's "only"): its rows look like any clue rows, the set named once
+  // in the section's heading; the contrast (tint, A1 ^Easy, the back-reference) is for Both. Edits keep their key.
+  const solo = meta && setView === 'meta', cl = meta ? slot : label;
+  if (meta && !solo) row.classList.add('metarow');
   const moved = src && src.label !== label;
   const pn = isClue ? (src ? printedNumber(src.label, src.flags || []) : printedNumber(label, flags)) : '';
   const odd = isClue && (pn !== slot.slice(1) || !NUM[slot]);
-  row.innerHTML = `<div class="lab"${meta ? ` title="${esc(slot)}'s clue in the ${esc(meta)} set (the other clue set printed for this grid): the xd's ${esc(slot)} ^${esc(meta)} line"` : ''}>${meta ? `${esc(slot)}<span class="metakey">^${esc(meta)}</span>` : esc(label)}</div>
+  row.innerHTML = `<div class="lab"${meta ? ` title="${esc(slot)}'s clue in the ${esc(meta)} set (the other clue set printed for this grid): the xd's ${esc(slot)} ^${esc(meta)} line"` : ''}>${meta && !solo ? `${esc(slot)}<span class="metakey">^${esc(meta)}</span>` : esc(cl)}</div>
     <div class="body"><div class="scan"></div><div>
       <div class="typed">${isClue ? `<span class="num${odd ? ' odd' : ''}" title="the number printed beside this clue">${esc(pn)}.</span>` : ''}<span class="txt" spellcheck="false"></span></div>
       ${key.startsWith('other:') ? `<div class="keep">
@@ -1859,16 +1863,16 @@ function addRow(s, key, label, box, flags = [], src = null) {
     btn.onclick = e => { e.stopPropagation(); showPage(); };
     sc.append(document.createElement('br'), btn, scanLink());
   }
-  const ab = row.querySelector('.abox'), as = isClue && !meta && answerStrip(label);
+  const ab = row.querySelector('.abox'), as = isClue && (!meta || solo) && answerStrip(cl);
   // our letters for the entry whenever there's an answer key; the scan strip above them only
   // when the key was straightened (a typed grid's key is on the answer page instead)
-  if (meta) ab.innerHTML = `<div class="dir" title="the same entry as ${esc(slot)}, above">${esc(slot)}: <b>${esc(answerFor(slot))}</b></div>`;
-  else if (as || (isClue && hasKey() && entryCells(label).length)) {
+  if (meta && !solo) ab.innerHTML = `<div class="dir" title="the same entry as ${esc(slot)}, above">${esc(slot)}: <b>${esc(answerFor(slot))}</b></div>`;
+  else if (as || (isClue && hasKey() && entryCells(cl).length)) {
     if (as) ab.append(as);
     const ac = document.createElement('div');
     ac.className = 'acells';
     ac.title = label[0] === 'D' ? 'Down answer, laid out across' : 'Across answer';
-    for (const [r, c] of entryCells(label)) {
+    for (const [r, c] of entryCells(cl)) {
       const x = document.createElement('span');
       x.dataset.cell = `${r},${c}`;
       x.dataset.rc = `${r},${c}`;
@@ -1876,14 +1880,14 @@ function addRow(s, key, label, box, flags = [], src = null) {
       ac.append(x);
     }
     ab.append(ac);
-    if (label[0] === 'D') ab.insertAdjacentHTML('beforeend', '<div class="dir">↓ Down, laid out across</div>');
+    if (cl[0] === 'D') ab.insertAdjacentHTML('beforeend', '<div class="dir">↓ Down, laid out across</div>');
     // the whole key: a pop-up of the printed key with this entry marked, or (a typed grid's key, on its
     // page) straight to the answer key at the top
     const wk = document.createElement('button');
     wk.className = 'ctxbtn wholekey';
     wk.textContent = as ? '⤢ the whole key' : '↑ the whole key';
     wk.title = as ? 'The printed answer key with this entry marked' : 'Go to the answer key';
-    wk.onclick = e => { e.stopPropagation(); as ? keyPopup(label) : goKey(label); };
+    wk.onclick = e => { e.stopPropagation(); as ? keyPopup(cl) : goKey(cl); };
     ab.append(wk);
     if (as) { as.classList.add('keystrip'); as.title = 'Click: the whole answer key, this entry marked'; as.onclick = wk.onclick; }
   } else if (isClue) ab.innerHTML = `<div class="dir">${hasKey() ? '' : 'no answer key to check against'}</div>`;
@@ -1940,7 +1944,7 @@ function addRow(s, key, label, box, flags = [], src = null) {
       save(); render();
     });
     const m = row.querySelector('.margin'), open = m.querySelector('.compose');
-    const cellNotes = isClue && !meta ? entryCells(label).flatMap(([r, c]) => [`cell:r${r+1}c${c+1}`, spKey(r, c)].flatMap(k => commentsFor(k).map(x => [...x, `r${r+1}c${c+1}`]))) : [];
+    const cellNotes = isClue && (!meta || solo) ? entryCells(cl).flatMap(([r, c]) => [`cell:r${r+1}c${c+1}`, spKey(r, c)].flatMap(k => commentsFor(k).map(x => [...x, `r${r+1}c${c+1}`]))) : [];
     m.innerHTML = commentsFor(key).map(([r, c]) => noteHtml(r, c.text, c.why, c)).join('') +
       cellNotes.map(([r, c, at]) => noteHtml(r, `(square ${at}) ${c.text}`, c.why, c)).join('') + '<button class="addc">💬 Comment</button>';
     if (open) m.prepend(open);
