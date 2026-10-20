@@ -439,6 +439,7 @@ function wireRestart() {
 function checkHtml(p) {
   const c = p.check;
   if (!c) return '';
+  if (c.stale) return `<div class="check" title="the check read the records before this puzzle was sent back">(the agent's check is from before its restart: ${esc(c.says || '')})</div>`;
   const agree = c.agrees !== false;
   return `<div class="check${agree ? '' : ' no'}" title="${esc(c.by || 'the disposition check')}, from the records only">`
     + `${agree ? '✓ checked' : '✗ the check disagrees'} (${esc(c.by || 'agent')}): ${esc(c.says || '')}`
