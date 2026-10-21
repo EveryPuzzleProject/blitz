@@ -34,7 +34,7 @@ from .work import Stop
 
 # What a helper's page needs from a packet (the clue crops and agent sheets stay local).
 FILES = ("ocr.json", "review.json", "sheets/shown.json", "page.jpg", "clue_page.jpg", "continued_page.jpg", "grid.png",
-         "answers.png", "answer_page.jpg", "_src/page.jpg", "_src/clue_page.jpg", "_src/continued_page.jpg")
+         "answers.png", "answer_page.jpg", "cover.jpg", "_src/page.jpg", "_src/clue_page.jpg", "_src/continued_page.jpg")
 SUPABASE_JS = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"
 
 
