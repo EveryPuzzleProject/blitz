@@ -376,8 +376,9 @@ function remedyHtml(p) {
   return `<div class="remedy ${esc(m.answer)}"><b>${esc(REMEDY[m.answer] || m.answer)}</b>${m.stage ? ` (restart from ${esc(STAGENAME[m.stage] || m.stage)})` : ''}:
     ${esc(m.note)} <span class="meta">${esc(m.by)} ${esc((m.at || '').slice(0, 16).replace('T', ' '))}</span></div>`;
 }
-// Next walks past set-aside puzzles (not a priority now), unless the list on screen is the set-aside one
-const walkable = (rows, pid = '') => filter === 'setaside' ? rows : rows.filter(r => r.pid === pid || kindOf(r) !== 'setaside');
+// Next walks past set-aside puzzles (not a priority now), unless the list on screen is the set-aside one, locally
+// (on a snapshot they aren't open for review)
+const walkable = (rows, pid = '') => filter === 'setaside' && !DATA ? rows : rows.filter(r => r.pid === pid || kindOf(r) !== 'setaside');
 // a link into the proof page that walks the list on screen: its Next goes to the next row here. From a
 // snapshot the list goes in the link (?walk=<label>&pids=...): there's no server to ask for it.
 function proofUrl(pid, k, rows) {
