@@ -36,9 +36,18 @@ and blitz's CLAUDE.md ("The pipeline: runs quietly in the background", "The nort
 
 Each step is a command or an agent pass; stop only where marked **(ask)**.
 
-1. **Re-assemble with current code**, compute only, from the 2026-10-15 harvest. Run the
-   request loop for pages assembly asks for (`xword-ocr requests --out harvests/games-8082 --run`;
-   **ask** if it would take over ~10 minutes).
+1. **Re-assemble with current code**, compute only, from the 2026-10-15 harvest. **No
+   re-harvest:** the pages, OCR, region boxes and answer grids found are reused; only the stages
+   after OCR run again. Two things first:
+   - **Re-read the answer keys' letters** with the key-reader fix of 2026-10-18 (letters on a
+     key's edge row or against a heavy border; xword-ocr#27). 1977-79 needed the same step
+     (run10, all answer grids re-read). It's compute only, from the stored page images.
+   - Assembly reads parts from the stored OCR, so the clue-reading fixes (blanks, two-page lists,
+     columns) apply without new OCR.
+
+   Then run the request loop for pages assembly asks for, including keys on the other uploader's
+   scan and issue covers (`xword-ocr requests --out harvests/games-8082 --run`; **ask** if it would
+   take over ~10 minutes). Those are the only downloads.
 2. **Text-step packets** for every puzzle (`scripts/text_trial.py <run> --all` with
    XWORD_HARVEST=games-8082, XWORD_START=1980-01-01, XWORD_END=1982-12-31). Register the run.
 3. **The text step (ask):** report the count and Fable estimate, then run the `xword-text`
