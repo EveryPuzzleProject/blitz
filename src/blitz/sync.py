@@ -116,8 +116,12 @@ def sync(pub: str, folder: Path, *, xword_ocr: Path, repo: Path, by: str, decisi
     in_batch = {x for x in mine if (folder / x / "ocr.json").exists()}
     report["decisions"] = str(decisions)
     report["outside_batch"] = sorted(set(mine) - in_batch)
+    def versions(x):  # the packet's xd_fp and the ones it carries (the same puzzle, only how we made it differs)
+        rv = json.loads((folder / x / "review.json").read_text(encoding="utf-8"))
+        return {rv.get("xd_fp") or "", *(rv.get("xd_fp_same") or [])}
+
     stale = sorted(x for x in in_batch for p in (mine[x].get("proofs") or {}).values()
-                   if p.get("xd") and (json.loads((folder / x / "review.json").read_text(encoding="utf-8")).get("xd_fp") or "") != p["xd"])
+                   if p.get("xd") and p["xd"] not in versions(x))
     report["proofs_of_older_versions"] = sorted(set(stale))
 
     # 2. the dry run
