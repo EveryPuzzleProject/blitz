@@ -82,6 +82,7 @@ button.good:disabled, button.bad:disabled { opacity: .4; cursor: default; }
 .chip.ok { background: var(--ok); color: #fff; } .chip.bad { background: var(--bad); color: #fff; } .chip.none { color: var(--muted); font-weight: normal; }
 h2 .quick { margin-left: 8px; font-size: 12px; padding: 2px 10px; }
 #summary table { width: 100%; border-collapse: collapse; font-size: 13px; }
+@media (max-width: 560px) { #summary td.go { display: none; } }
 #summary td { padding: 7px 14px; border-bottom: 1px solid #f1ede6; vertical-align: top; }
 #summary td.st { width: 72px; white-space: nowrap; }
 #summary td.st button { width: 28px; height: 26px; border-radius: 6px; font: 600 14px/1 var(--sans); cursor: pointer; background: #fff; margin-right: 4px; }
@@ -103,6 +104,7 @@ h2 .quick { margin-left: 8px; font-size: 12px; padding: 2px 10px; }
 .decide button { display: block; width: 100%; text-align: left; font: inherit; font-size: 15px; padding: 10px 14px; border: 2px solid; border-radius: 8px; margin-bottom: 8px; background: #fff; cursor: pointer; }
 .decide button small { display: block; font-size: 12px; opacity: .85; }
 .decide .ready { border-color: var(--ok); color: var(--ok); } .decide .ready.sel { background: var(--ok); color: #fff; }
+.decide .ready.dim { opacity: .4; border-style: dashed; }
 .decide .notready { border-color: var(--bad); color: var(--bad); } .decide .notready.sel { background: var(--bad); color: #fff; }
 .decide button:disabled { opacity: .4; cursor: default; }
 /* an ask: a short value the pipeline didn't find (review.json asks: xword-ocr problems.ASK_REVIEWER) */
@@ -124,7 +126,7 @@ h2 .quick { margin-left: 8px; font-size: 12px; padding: 2px 10px; }
 .submitted { background: var(--okbg); border: 1px solid #b9dcbc; border-radius: 6px; padding: 10px 12px; font-size: 13px; }
 
 /* a proof row: scan strip over the typed line, comments in the margin */
-.row { display: grid; grid-template-columns: 58px minmax(0, 1fr) var(--aw, 360px) 250px; gap: 0 12px; padding: 6px 14px; border-bottom: 1px solid #f1ede6; }
+.row { display: grid; grid-template-columns: 58px minmax(0, 1fr) minmax(0, min(var(--aw, 360px), 32%)) 250px; gap: 0 12px; padding: 6px 14px; border-bottom: 1px solid #f1ede6; }
 @media (max-width: 700px) {  /* a phone: the answer and the comments go under the line, not beside it */
   .row { grid-template-columns: 40px minmax(0, 1fr); padding: 6px 10px; }
   .row .abox, .row .margin { grid-column: 2; }
@@ -141,7 +143,9 @@ h2 .quick { margin-left: 8px; font-size: 12px; padding: 2px 10px; }
 .row.metarow .lab { font-weight: 500; color: var(--muted); padding-left: 8px; }
 .metakey { display: block; font-size: 11px; font-weight: 600; color: var(--setink); }
 .setsnote { margin: 4px 14px 8px; font-size: 13px; color: var(--muted); }
-.setsnote canvas { display: inline-block; vertical-align: middle; height: 52px !important; width: auto !important; margin: 4px 10px 4px 0; border: 1px solid #eee; }
+.setsnote canvas { display: block; height: 80px !important; width: auto !important; border: 1px solid #eee; }
+.setthumb { display: inline-flex; flex-direction: column; align-items: center; gap: 2px; vertical-align: top; margin: 6px 10px 4px 0; padding: 3px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); cursor: zoom-in; font: 12px var(--sans); color: var(--muted); }
+.setthumb:hover { border-color: var(--ink); }
 #rail { position: fixed; right: 3px; width: 12px; z-index: 6; border-left: 1px solid var(--line); }
 #rail .tick { position: absolute; left: 1px; width: 10px; height: 4px; border: 0; padding: 0; border-radius: 2px; cursor: pointer; background: #9a958d; }
 #rail .tick.unsure { background: #d08a00; height: 5px; }
@@ -162,11 +166,25 @@ h2 .quick { margin-left: 8px; font-size: 12px; padding: 2px 10px; }
 .xdcol .kd button { border: 1px solid var(--line); background: #fff; border-radius: 12px; padding: 2px 12px; cursor: pointer; font: inherit; font-size: 13px; }
 .xdcol .kd button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
 .xdcol select.lbl { font: inherit; font-size: 12px; max-width: 240px; }
+.xdcol .tags { display: flex; gap: 4px; flex-wrap: wrap; } .htag { font-size: 12px; font-weight: 600; border-radius: 10px; padding: 1px 9px; background: #e7eefb; color: #1f5fbf; text-decoration: none; }
+.hdrs tr.flash { animation: flash 1.6s ease-out; } @keyframes flash { from { background: #fff1b8; } to { background: transparent; } }
+.hdrs { margin: 10px 14px 4px; } .hdrhead { font-weight: 600; margin-bottom: 4px; } .hdrhead .hint { font-weight: 400; }
+.hdrs table { border-collapse: collapse; width: 100%; font-size: 13px; }
+.hdrs th { text-align: left; color: var(--muted); font-weight: 600; width: 80px; padding: 5px 8px 5px 0; vertical-align: top; }
+.hdrs td { padding: 5px 8px 5px 0; border-top: 1px solid var(--line); vertical-align: top; } .hdrs tr:first-child td { border-top: 0; }
+.hdrs td.hv { width: 45%; } .hdrs td.hs { color: var(--ink); }
+.hdrs .v { font-family: var(--serif); font-size: 15px; font-weight: 600; outline: none; border-bottom: 1px dashed var(--line); min-width: 4em; display: inline-block; }
+.hdrs .v[data-empty]:not(:focus)::before { content: '(none)'; color: var(--muted); font-weight: 400; font-style: italic; }
+.hdrs .ovr { font-size: 12px; } .hdrs .askline { font-size: 12px; color: #6b3d00; background: #fff6e8; border-left: 3px solid #c46e00; padding: 3px 6px; margin-top: 3px; }
+.hdrs .evch { display: inline-block; margin-left: 6px; font-size: 12px; } .hdrs .evch summary { cursor: pointer; color: var(--muted); }
+.hdrs .evch select { font: inherit; font-size: 12px; max-width: 260px; }
+.hdrs .metaimg { max-height: 40px; }
+@media (max-width: 560px) { .hdrs td.hv { width: auto; } .hdrs tr { display: grid; grid-template-columns: 70px 1fr; } .hdrs td.hs { grid-column: 2; border-top: 0; } }
 /* what the text step did: one line of counts, opening to every operation, each linked to its row */
 .ops { padding: 10px 14px; } .ops summary { cursor: pointer; } .ops .hint { color: var(--muted); font-size: 12px; }
 .ops .opg { margin-top: 8px; } .ops .opn { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
 .ops ul { margin: 2px 0 0; padding-left: 18px; font-size: 13px; } .ops li { margin: 2px 0; } .ops a:visited { color: var(--muted); }
-.abox { padding-top: 2px; }
+.abox { padding-top: 2px; overflow-x: auto; }
 .keep { margin: 4px 0 0 3px; font-size: 12px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .keep > span { color: var(--muted); }
 .keep button { border: 1px solid var(--line); background: #fff; border-radius: 12px; padding: 2px 10px; font: inherit; cursor: pointer; }
@@ -213,16 +231,18 @@ del { text-decoration: line-through; opacity: .8; }
 .was q { font-family: var(--serif); font-size: 13px; color: #555; }
 body:not(.show-changes) .chg, body:not(.show-changes) .was { display: none; }
 body.show-changes .fintext { display: none; }
+.row.nochg .chg { display: none; } body.show-changes .row.nochg .fintext { display: inline; }
+.was .chgtog { font-size: 11px; margin-left: 6px; }
 .marks { font-size: 11px; display: flex; gap: 4px; flex-wrap: wrap; margin: 3px 0 0 2.6em; padding-left: 3px; }
 .marks:empty { display: none; }
 .marks b { font-weight: 600; border-radius: 8px; padding: 0 6px; }
 .m-flag { background: var(--flagbg); color: var(--flag); }
-.fitb { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; font-weight: 600; letter-spacing: .03em; color: var(--muted);
-  border: 1px solid var(--line); border-radius: 9px; padding: 0 2px 0 7px; margin-right: 4px; background: var(--paper); }
-.fitb button { border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 12px; line-height: 1; padding: 1px 4px; border-radius: 7px; }
-.fitb button:hover { background: var(--line); color: var(--ink); }
-.fitb.off { text-decoration: line-through; opacity: .6; }
+.fitb { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--muted); margin-right: 6px; font-style: italic; }
+.fitb button { border: 0; background: none; color: #1f5fbf; cursor: pointer; font: inherit; font-style: normal; text-decoration: underline; padding: 0; }
+.fitb.off { opacity: .7; }
 .note.unsure { border-left-color: #d08a00; background: #fff6e0; } .note.unsure .by { color: #a86d00; }
+.note.unsure.settled { opacity: .6; }
+.note .settle { font: 600 11px var(--sans); border: 1px solid var(--ok); color: var(--ok); background: #fff; border-radius: 10px; padding: 1px 8px; cursor: pointer; margin-left: 4px; }
 .m-ok { background: #e8f3e9; color: var(--ok); }
 body:not(.show-marks) .marks { display: none; }
 .margin { font-size: 12px; }
@@ -234,7 +254,7 @@ body:not(.show-notes) .margin .note { display: none; }
 .row:hover .addc, .row.focus .addc { visibility: visible; }
 .compose { background: #fff; border: 1px solid #1f5fbf; border-radius: 5px; padding: 6px; margin-bottom: 4px; }
 .compose .q { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
-.compose textarea { width: 100%; font: inherit; font-size: 12px; border: 1px solid var(--line); border-radius: 3px; resize: vertical; min-height: 34px; }
+.compose textarea { width: 100%; font: inherit; font-size: 12px; border: 1px solid var(--line); border-radius: 3px; resize: vertical; min-height: 64px; field-sizing: content; max-height: 240px; }
 .compose .chips { display: flex; gap: 4px; flex-wrap: wrap; margin: 4px 0; }
 .compose .chips button, .compose .acts button { font: inherit; font-size: 11px; border: 1px solid var(--line); background: #faf8f4; border-radius: 10px; padding: 1px 7px; cursor: pointer; }
 .compose .acts { display: flex; gap: 4px; justify-content: flex-end; }
@@ -257,11 +277,14 @@ body:not(.show-notes) .margin .note { display: none; }
 .lbpage.key img { width: 100%; height: auto; max-height: none; }
 .lbpage.big img { max-width: none; max-height: none; cursor: zoom-out; }
 .lbpage.key img { cursor: default; }
+/* on a phone the viewer is the whole screen, Close always in reach; nothing may widen the page under it */
+html { overflow-x: clip; }
+@media (max-width: 560px) { .lightbox { padding: 0; } .lbcard { border-radius: 0; height: 100%; } .lbhead { position: sticky; top: 0; } }
 .lbmark { position: absolute; border: 2px solid rgba(199,119,0,.9); background: rgba(255,200,0,.14); pointer-events: none; }
 .lbcell { position: absolute; background: rgba(31,95,191,.22); box-shadow: inset 0 0 0 2px #1f5fbf; pointer-events: none; }
 .lbfoot { padding: 8px 12px; border-top: 1px solid var(--line); font-size: 12px; display: flex; gap: 6px 10px; flex-wrap: wrap; align-items: center; }
 .lbfoot .nr { color: var(--flag); }
-.abox canvas.keystrip { cursor: zoom-in; }
+.abox canvas.keystrip { cursor: zoom-in; max-width: 100%; height: auto; }
 .abox .wholekey { display: block; margin-top: 2px; }
 
 body.side .row .body { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
@@ -290,7 +313,7 @@ body.side .typed { margin-top: 0; }
 .typedgrid div.gap { background: transparent !important; border-color: transparent !important; box-shadow: none !important; }
 .typedgrid.over div { color: rgba(220, 20, 60, .85); }
 .typedgrid.over div.blk { background: transparent; }
-.typedgrid div.unsure { box-shadow: inset 0 0 0 2px var(--flag); }
+body.show-unsure .typedgrid div.unsure { box-shadow: inset 0 0 0 2px var(--flag); }
 .typedgrid div.cur { background: #e2ecfb !important; }
 /* a square where the key reader's black squares differ from the grid's (ocr.json key_differ: assembly's record) */
 .typedgrid div.kdiff { outline: 3px dashed #7a3fbf; outline-offset: -3px; }
@@ -310,6 +333,10 @@ body.side .typed { margin-top: 0; }
 .typedgrid.over div.sp-shaded { background-color: rgba(220, 20, 60, .2) !important; }
 .typedgrid.hit div.sp-circle::after { border-color: transparent; }
 .typedgrid.hit div.sp-shaded { background-color: transparent !important; }
+.gmodes { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin: 0 0 10px; }
+.linkbtn { border: 0; background: none; padding: 0; font: inherit; color: #1f5fbf; text-decoration: underline; cursor: pointer; }
+.ukbox { display: inline-block; width: 11px; height: 11px; box-shadow: inset 0 0 0 2px #c77700; vertical-align: -1px; }
+.keyhelp { margin: 0 0 8px; } .keyhelp summary { cursor: pointer; color: var(--muted); font-size: 12px; } .keyhelp p { margin: 6px 0; }
 .marktool { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; margin: 0 0 8px; }
 .marktool > span { color: var(--muted); font-size: 12px; margin-right: 2px; }
 .splist { font-size: 13px; margin: 0 0 8px; }
@@ -325,20 +352,30 @@ footer button { font: inherit; padding: 8px 16px; border-radius: 6px; cursor: po
 footer button.primary { background: var(--ok); color: #fff; border-color: var(--ok); }
 footer button:disabled { opacity: .4; cursor: default; }
 #help { font-size: 12px; color: var(--muted); flex-basis: 100%; }
+section.collapsed > :not(h2) { display: none !important; } h2.fold { cursor: pointer; }
+.printed { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin: 12px 0; }
+.printed > .hint { align-self: center; }
+.pcover { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 12px; color: var(--muted); text-decoration: none; margin-right: 100px; order: -1; align-self: center; }
+@media (max-width: 560px) { .pcover { margin-right: 24px; } }
+.pcover img { height: 120px; width: auto; border: 1px solid var(--line); box-shadow: 2px 2px 0 var(--line); background: #fff; }
+.pcover:hover span { text-decoration: underline; }
+.printed { justify-content: flex-start; } .printed .pcover + .hint { margin-left: 0; }
+.pthumb { display: flex; flex-direction: column; align-items: center; gap: 3px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); padding: 4px; cursor: zoom-in; font: 12px var(--sans); color: var(--muted); }
+.pthumb img { height: 120px; width: auto; display: block; background: #fff; }
+.pthumb:hover { border-color: var(--ink); }
 </style>
 </head>
-<body class="show-changes show-notes show-marks">
+<body class="show-changes show-notes show-marks show-unsure">
 <div id="sitebar" hidden>
   <b>Help check old crosswords.</b> Compare our text with the printed scan, line by line; fix what's wrong,
   then say whether each part looks good. <a href="batch/">All batches</a>
-  <span class="pickgrp"><select id="order" title="Which puzzles come first"><option value="date">By date</option><option value="worst">Worst first</option></select> Puzzle <select id="pick"></select> <button class="t" id="browsebtn" title="Every open puzzle, with a picture of its grid">▦ Browse</button> <a class="t" id="batchlink" href="batch/" title="Every puzzle in this puzzle's batch, sorted by what the pipeline found, with why">The batch</a> <button class="t" id="nextpz">Next puzzle →</button></span>
+  <span class="pickgrp"><select id="order" title="Which puzzles come first"><option value="date">By date</option><option value="worst">Worst first</option></select> <span id="picklabel">Puzzle</span> <select id="pick"></select> <button class="t" id="browsebtn" title="Every open puzzle, with a picture of its grid">▦ Browse</button> <a class="t" id="batchlink" href="batch/" title="Every puzzle in this puzzle's batch, sorted by what the pipeline found, with why">The batch</a> <button class="t" id="nextpz">Next puzzle →</button></span>
 </div>
 <div id="walkbar" hidden style="background:#eef4ff;border-bottom:1px solid #c9d8f2;padding:6px 16px;font-size:13px;display:flex;gap:10px;align-items:center;flex-wrap:wrap"></div>
 <div id="browse" hidden><div class="tabs"></div><div class="cards"></div></div>
 <header>
   <h1 id="title">…</h1>
-  <div class="grp"><span>Layers</span>
-    <button class="t on" data-layer="changes" title="C">Changes</button>
+  <div class="grp"><span>Show</span>
     <button class="t on" data-layer="notes" title="N">Comments</button>
     <button class="t on" data-layer="marks">Markers</button>
   </div>
@@ -346,7 +383,7 @@ footer button:disabled { opacity: .4; cursor: default; }
     <button class="t on" data-cmp="stack">Stacked</button>
     <button class="t" data-cmp="side">Side by side</button>
   </div>
-  <div class="grp"><span>Show</span>
+  <div class="grp"><span>Rows</span>
     <button class="t on" data-show="all">Everything</button>
     <button class="t" data-show="look">Look here first</button>
   </div>
@@ -355,13 +392,13 @@ footer button:disabled { opacity: .4; cursor: default; }
     <button class="t" id="redo" title="Redo (Ctrl+Y)">↷ Redo</button>
   </div>
   <div class="grp"><span>You are</span><input id="who" placeholder="your name (optional)"></div>
-  <div class="grp"><button class="t" id="pagebtn">Whole page</button> <button class="t" id="blankbtn">Blank grid</button> <a class="ctxbtn" id="scanlink" target="_blank">Original scan ↗</a> <a class="ctxbtn" id="srclink" target="_blank">archive.org ↗</a> <a class="ctxbtn" id="stagelink" target="_blank" hidden title="the grid's page in the watch's views: the boxes, what was read in them, what assembly linked">Stages ↗</a></div>
+  <div class="grp"><a class="ctxbtn" id="stagelink" target="_blank" hidden title="the grid's page in the watch's views: the boxes, what was read in them, what assembly linked">Stages ↗</a></div>
   <div class="progress" id="progress"></div>
   <div class="legend" id="legend"></div>
 </header>
 <main id="main"></main>
 <footer>
-  <span id="help"><kbd>J</kbd>/<kbd>K</kbd> next/previous line · <kbd>E</kbd> edit · <kbd>Enter</kbd>/<kbd>Esc</kbd> stop editing · <kbd>Z</kbd> or click the scan: more of the page · <kbd>M</kbd> comment · arrows move on the answer key · <kbd>Enter</kbd> on a square: several letters (a rebus) · <kbd>Ctrl+Z</kbd>/<kbd>Ctrl+Y</kbd> undo/redo · <kbd>C</kbd> changes · <kbd>N</kbd> comments · hold <kbd>Space</kbd> on the answer key to put our letters on the scan</span>
+  <span id="help"><kbd>J</kbd>/<kbd>K</kbd> next/previous line · <kbd>E</kbd> edit · <kbd>Enter</kbd>/<kbd>Esc</kbd> stop editing · <kbd>Z</kbd> or click the scan: more of the page · <kbd>M</kbd> comment · arrows move on the answer key · <kbd>Enter</kbd> on a square: several letters (a rebus) · <kbd>Ctrl+Z</kbd>/<kbd>Ctrl+Y</kbd> undo/redo · <kbd>C</kbd> show or hide this line's changes · <kbd>N</kbd> comments · hold <kbd>Space</kbd> on the answer key to put our letters on the scan</span>
 </footer>
 
 <script>
@@ -610,7 +647,11 @@ async function load() {
   }
   for (const [k, v] of Object.entries(rev.sic || {})) agent.comments.push({key: k, text: 'Printed this way, kept as printed: ' + v});
   agent.looked = rev.confirm || [];
-  if (!store.cur) store.cur = {who: SITE ? '' : 'Reviewer ' + (store.past.length + 2), edits: {}, comments: [], status: {}};
+  // the name you last typed, in this browser: typed once, kept for every puzzle after
+  let known = '';
+  try { known = localStorage.getItem('proof-who') || ''; } catch (e) {}
+  if (!store.cur) store.cur = {who: SITE ? known : 'Reviewer ' + (store.past.length + 2), edits: {}, comments: [], status: {}};
+  if (SITE && store.cur.who === 'You' && known && !store.cur.submitted) store.cur.who = known;
   rounds = [agent, ...remote, ...store.past, store.cur];
   cur = store.cur;
   cur.status = cur.status || {};
@@ -720,7 +761,15 @@ function setsNote() {
   n.innerHTML = `<b>Two clue sets are printed for this grid.</b> The ${esc(a.key || 'first')} set, printed with the grid, is the clues;
     each clue of the ${esc(b.key)} set is the row under its clue (the xd's <code>^${esc(b.key)}</code> line), checked the same way.
     <span class="hint">Assembly named them ${said(a)} and ${said(b)}.</span>`;
-  for (const c of [a, b]) if (c.box && c.image && images[c.image]) n.append(strip(c.box, c.image));
+  // each set's block as assembly boxed it: a labelled thumbnail that opens its page, the block outlined
+  for (const c of [a, b]) if (c.box && c.image && images[c.image]) {
+    const t = document.createElement('button');
+    t.className = 'setthumb'; t.title = `The ${c.key || 'first'} clues on the page, outlined (click to open)`;
+    t.append(strip(c.box, c.image));
+    t.insertAdjacentHTML('beforeend', `<span>${esc(c.key || 'First')} clues ⤢</span>`);
+    t.onclick = () => scanViewer(c.image, c.box);
+    n.append(t);
+  }
   const sw = document.createElement('div');
   sw.className = 'setswitch';
   const hidden = Object.keys(cur.edits).filter(k => k.startsWith('clue:') && !showClue(k.slice(5))).length;
@@ -739,10 +788,6 @@ function setsNote() {
 function render() {
   document.getElementById('title').textContent = `${ocr.title} · ${ID}`;
   document.title = 'Proof ' + ID;
-  const sl = document.getElementById('scanlink');
-  sl.href = dir + '_src/page.jpg';
-  sl.onclick = e => { if (e.ctrlKey || e.metaKey || e.shiftKey) return; e.preventDefault(); scanViewer('page.jpg'); };
-  document.getElementById('srclink').href = ocr.source || '#';
   const stl = document.getElementById('stagelink');
   if (stl) { stl.hidden = !stageUrl(MAIN(), 'pages'); stl.href = stageUrl('page.jpg', 'pages') || '#'; }
   legend();
@@ -752,6 +797,18 @@ function render() {
   NUM = numbering();
   document.body.style.setProperty('--aw', ocr.grid[0].length * 24 + 4 + 'px');
 
+  const pp = scanPages();
+  if (pp.length) {
+    const st = document.createElement('section');
+    st.className = 'printed';
+    st.innerHTML = pp.map((q, j) => `<button class="pthumb" data-j="${j}" title="Open ${esc(q.label)}">`
+      + `<img loading="lazy" alt="${esc(q.label)}" src="${esc(q.key ? q.src : dir + q.name)}"><span>${esc(q.label)}</span></button>`).join('');
+    // the magazine itself, at the far left: the scan's source as the packet records it (a cover when the packet has one)
+    if (ocr.source) st.insertAdjacentHTML('afterbegin', `<a class="pcover" href="${esc(ocr.source)}" target="_blank" title="The whole magazine on the Internet Archive (slow to load)">`
+      + (ocr.cover ? `<img loading="lazy" alt="the magazine's cover" src="${esc(dir + ocr.cover)}">` : '') + `<span>archive.org ↗</span></a>`);
+    st.querySelectorAll('.pthumb').forEach(b => b.onclick = () => scanViewer(pp[+b.dataset.j].name));
+    main.append(st);
+  }
   const summaries = rounds.filter(r => r.summary);
   if (summaries.length) {
     const s = document.createElement('section');
@@ -1116,7 +1173,8 @@ function paintSummary() {
   paintSendBack(s);
   paintDrop(s);
   const r = s.querySelector('.ready'), nr = s.querySelector('.notready');
-  r.innerHTML = `✓ Ready: the puzzle matches the scan${n ? ' as edited' : ''}<small>${n ? `with my ${plural(n, 'edit')}` : 'no edits needed'}${todo ? ` · ${todo} not marked yet` : ''}</small>`;
+  r.innerHTML = `✓ Ready: the puzzle matches the scan${n ? ' as edited' : ''}<small>${bad ? `not while ${bad > 1 ? 'parts are' : 'a part is'} marked with a problem (✗ above)` : `${n ? `with my ${plural(n, 'edit')}` : 'no edits needed'}${todo ? ` · ${todo} not marked yet` : ''}`}</small>`;
+  r.classList.toggle('dim', !!bad);  // a part with a problem makes it Not ready: Ready is drawn out of reach
   nr.innerHTML = `✗ Not ready: something's wrong I couldn't fix<small>${bad ? `you marked ${plural(bad, 'part')} with a problem` : 'say what in the box above'}</small>`;
   r.classList.toggle('sel', d === 'ready');
   nr.classList.toggle('sel', d === 'notready');
@@ -1345,7 +1403,17 @@ function scanViewer(name, box) {
     const body = lb.querySelector('.lbbody');
     body.innerHTML = `<div class="lbpage${p.key ? ' key' : ''}"><img alt="${esc(p.label)}" src="${esc(p.src)}"></div>`;
     const pg = body.firstChild, img = pg.querySelector('img');
-    if (!p.key) img.onclick = () => pg.classList.toggle('big');
+    // a click zooms in about three times, centred where you clicked (the outlined line, say); again zooms out
+    if (!p.key) img.onclick = e => {
+      const ir = img.getBoundingClientRect(), fx = (e.clientX - ir.left) / ir.width, fy = (e.clientY - ir.top) / ir.height;
+      const big = !pg.classList.contains('big');
+      pg.classList.toggle('big', big);
+      img.style.width = big ? Math.min(img.naturalWidth, ir.width * 3) + 'px' : '';
+      if (!big) return;
+      const br = body.getBoundingClientRect(), nr = img.getBoundingClientRect();
+      body.scrollLeft += nr.left - br.left + fx * nr.width - body.clientWidth / 2;
+      body.scrollTop += nr.top - br.top + fy * nr.height - body.clientHeight / 2;
+    };
     const mine = box && p.name === name && ocr.scales[p.name];
     if (mine) img.onload = () => {  // the box in that page's packet pixels, placed on the full-size scan
       const s = ocr.scales[p.name], W = img.naturalWidth * s, H = img.naturalHeight * s, [x0, y0, x1, y1] = box;
@@ -1356,7 +1424,7 @@ function scanViewer(name, box) {
     };
     lb.querySelector('.lbfoot').innerHTML = `<span>${esc(p.what)}${mine ? ' The line is outlined.' : ''}</span>`
       + (p.nr ? ` <span class="nr">${esc(p.nr)}</span>` : '')
-      + (p.key ? '' : ' <span class="hint">Click the page to see it full size.</span>') + ` <a class="ctxbtn" href="${esc(p.src)}" target="_blank">open it in a new tab ↗</a>`;
+      + (p.key ? '' : ' <span class="hint">Click anywhere on the page to zoom in there; click again to see it all.</span>') + ` <a class="ctxbtn" href="${esc(p.src)}" target="_blank">open it in a new tab ↗</a>`;
   };
   lb.page = d => { i = (i + d + pages.length) % pages.length; paint(); };
   paint();
@@ -1479,7 +1547,7 @@ function pageSection() {
 }
 function showBlank() {
   const s = document.getElementById('blankpanel');
-  s.style.display = ''; s.scrollIntoView({block: 'start'}); scrollBy(0, -70);
+  s.style.display = ''; s.classList.remove('collapsed'); const hb = s.querySelector('h2.fold button'); if (hb) hb.textContent = 'Hide'; s.scrollIntoView({block: 'start'}); scrollBy(0, -70);
 }
 function showPage(key) {
   const s = document.getElementById('pagepanel');
@@ -1511,9 +1579,9 @@ function blankSection(why, optional) {
   let s;
   if (optional) {
     s = document.createElement('section');
-    s.innerHTML = `<h2>Blank grid <span class="hint">optional: the answer key already shows the black squares</span><button class="t">Hide</button></h2>`;
-    s.querySelector('h2 button').onclick = () => { s.style.display = 'none'; };
-    s.style.display = 'none';
+    s.innerHTML = `<h2 class="fold">Blank grid <span class="hint">optional: the answer key already shows the black squares</span><button class="t">Show</button></h2>`;
+    s.classList.add('collapsed');
+    s.querySelector('h2').onclick = () => { const c = s.classList.toggle('collapsed'); s.querySelector('h2 button').textContent = c ? 'Show' : 'Hide'; };
   } else s = sec('blank', 'Blank grid', 'the blank grid', 'black squares and numbers');
   s.id = 'blankpanel';
   if (optional && !why.length) why = ['Nothing flagged: the checks found the blank grid agrees with the answer key.'];
@@ -1581,8 +1649,12 @@ function drawBlank(s) {
 // c: the comment itself, when it's one a reviewer made: yours get an edit button; an edited one says
 // who changed it and when (hover for what it said before)
 function noteHtml(r, text, why, c) {
-  if (/^Not sure/.test(text))  // the rail's amber, so a doubt reads the same in the margin and on the rail
-    return `<div class="note unsure"><span class="by">${esc(r.who)}</span>${esc(text)}</div>`;
+  if (/^Not sure/.test(text)) {  // the rail's amber, so a doubt reads the same in the margin and on the rail
+    // a reviewer settles a doubt with a comment of their own (settles: true), shown with their name
+    const ok = c ? rounds.flatMap(q => q.comments.filter(x => x.settles && x.key === c.key).map(() => q.who)) : [];
+    return `<div class="note unsure${ok.length ? ' settled' : ''}"><span class="by">${esc(r.who)}</span>${esc(text)}`
+      + (ok.length ? ` <i>· checked by ${esc([...new Set(ok)].join(', '))}</i>` : c && r !== cur ? ` <button class="settle" data-k="${esc(c.key)}" title="You looked at the scan and our text is right: says so, as your comment">✓ I checked: it's right</button>` : '') + '</div>';
+  }
   const ed = c?.edited ? ` <i title="${esc((c.history || []).map(h => `${h.who || r.who}: “${h.text}”`).join('\n'))}">· edited by ${esc(c.edited.who)}, ${esc(when(c.edited.at))}</i>` : '';
   const mine = c && r === cur && cur.comments.includes(c) ? `<button class="edc" data-ci="${cur.comments.indexOf(c)}" title="Edit your comment">✎ edit</button>` : '';
   return `<div class="note" style="border-left-color:${r.color}"><span class="by" style="color:${r.color}">${esc(r.who)}${r === cur && r.who !== 'You' ? ' (you)' : ''}${why ? ' <i>on their edit</i>' : ''}${ed}${mine}</span>${esc(text)}</div>`;
@@ -1660,100 +1732,92 @@ function outline(cv, text, part) {  // the part of a line a header takes, outlin
   }
   ctx.strokeRect(px + w * i / text.length, lw, w * part.length / text.length, cv.height - 2 * lw);
 }
-// The pipeline didn't find this value and asks the reviewer to (the packet's asks): a prompt in its row,
-// the scan one click away; what they type in the xd column is their edit, shown as theirs.
-function askBox(row, f, name) {
-  const ask = (rev?.asks || []).find(a => a.field === f);
-  if (!ask) return;
-  const typed = cur.edits['meta:' + (META[f] || f)];
-  const sc = row.querySelector('.scan');
-  const box = document.createElement('div');
-  box.className = 'askbox';
-  box.innerHTML = typed ? `<span class="done">✓ You gave the ${esc(name.toLowerCase())}: “${esc(typed)}”, recorded as yours.</span>`
-    : `<b>${esc(ask.says)}</b>Look on the page around the grid; if it's printed, type it as printed in the ${esc(name)} box to the right. If none is printed, say so in a comment.`;
-  if (!typed) box.append(scanLink(ask.image));
-  sc.prepend(box);
-}
+// The lines printed around the puzzle, one row each in the order they're printed (B1, B2, ...), as the rest of
+// the page goes: the scan, the OCR's text (editable), and a tag for what the line is (the headers it gives, or
+// kept or discarded, with the text step's label). Then the xd's headers in one compact table: each value
+// (editable), where it comes from (a line here, the issue's metadata, or none: a menu to change it), and the
+// pipeline's ask when it found none.
 function headerSection(hs) {
-  hs.insertAdjacentHTML('beforeend', `<div class="row colhead"><div></div><div>Printed: the scan and what the OCR read</div><div>In the xd file</div><div>Review</div></div>`);
-  const used = new Set(HEADERS.map(([f]) => evOf(f)).filter(n => typeof n === 'number'));
-  if (evOf('author') == null && typeof evOf('byline') === 'number') used.add(evOf('byline'));
-  const lineOpts = (sel, f) => `<option value="">not found</option>`
-    + (ocr.lines || []).map(L => `<option value="${L.n}" ${String(sel) === String(L.n) ? 'selected' : ''}>B${L.n}: ${esc(L.text.slice(0, 30))}</option>`).join('')
-    + (ocr.metadata || []).map(m => `<option value="${m.id}" ${sel === m.id ? 'selected' : ''}>${esc(m.name)}: ${esc(String(m.value).slice(0, 30))}</option>`).join('');
-  const valueBox = (row, f, name) => {  // the xd's value: the rule's result, or a reviewer's own
-    const [derived, rule] = headerValue(f), k = 'meta:' + (META[f] || f), h = history(k, derived), last = h[h.length - 1];
-    const own = h.length > 1 && last.value !== derived;
-    row.querySelector('.abox').innerHTML = `<div class="xdcol"><div class="val"><span class="k">${esc(name)}:</span> <span class="v" contenteditable="true" spellcheck="false"></span></div>
-      ${rule && rule !== 'not found' && (f === 'date' || derived !== final('line:B' + evOf(f))) ? `<div class="hint">${esc(rule)}</div>` : ''}
-      ${own ? `<div class="ovr" style="color:${last.color}">${esc(last.who)}'s value; the rule gives “${esc(derived)}” <button class="undo">use the rule's</button></div>` : ''}</div>`;
-    const sp = row.querySelector('.xdcol .v');
-    sp.textContent = own ? last.value : derived;
-    if (own) sp.style.color = last.color;
-    sp.onclick = e => e.stopPropagation();
-    sp.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); sp.blur(); } };
-    // your value: saved as your edit; the rule's value again: your edit dropped, or (when an earlier
-    // round gave its own) saved, so it shows as you setting it back
-    const set = t => {
-      if (t === derived && !rounds.slice(0, -1).some(r => k in r.edits)) delete cur.edits[k]; else cur.edits[k] = t;
-      save(); render();
-    };
-    sp.onblur = () => { const t = sp.textContent.trim(); if (t !== (own ? last.value : derived)) set(t); };
-    row.querySelector('.undo')?.addEventListener('click', e => { e.stopPropagation(); set(derived); });
+  hs.insertAdjacentHTML('beforeend', `<div class="row colhead"><div></div><div>Printed near the puzzle: the scan and what the OCR read</div><div>What the line is</div><div>Review</div></div>`);
+  // every change here goes through the undo history, like an edit anywhere else on the page
+  const hedit = (key, v) => {
+    const prev = key in cur.edits ? cur.edits[key] : undefined;
+    if (prev === v) return;
+    if (v === undefined) delete cur.edits[key]; else cur.edits[key] = v;
+    undoStack.push({key, from: prev, to: v}); redoStack.length = 0;
+    save(); refresh(key);
   };
-  const evPicker = (row, f) => {
-    const sc = row.querySelector('.scan');
-    sc.insertAdjacentHTML('afterbegin', `<div class="evsel">from <select>${lineOpts(evOf(f), f)}</select>${cur.edits['ev:' + f] !== undefined ? ' <span class="hint">(you changed it)</span>' : ''}</div>`);
-    const sel = sc.querySelector('.evsel select');
-    sel.onclick = e => e.stopPropagation();
-    sel.onchange = () => {
-      const v = !sel.value ? null : /^M/.test(sel.value) ? sel.value : +sel.value;
-      if (v === evDefault(f)) delete cur.edits['ev:' + f]; else cur.edits['ev:' + f] = v;
-      save(); render();
-    };
-  };
-  for (const [f, name] of HEADERS) {
-    const [derived, , n] = headerValue(f), L = n != null && lineN(n);
-    if (L) {  // from a printed line: the line (shared with every header that comes from it) and the value
-      addRow(hs, 'line:B' + L.n, name, L.box, [], L.image ? {image: L.image, label: name, text: L.text} : null);
-      const row = rows[rows.length - 1];
-      row.classList.add('hrow'); row.id = name; row.dataset.hdr = name;
-      outline(row.querySelector('.scan canvas.strip'), final('line:B' + L.n), derived);
-      evPicker(row, f);
-      valueBox(row, f, name);
-      continue;
-    }
-    addRow(hs, 'meta:' + (META[f] || f), name, null);  // nothing found for it, or computed (the Date)
-    const row = rows[rows.length - 1];
-    row.classList.add('hrow'); row.id = name; row.dataset.hdr = name;
-    row.querySelector('.typed').style.display = 'none';
-    const m = typeof n === 'string' && metaOf(n);
-    // a metadata value read from another page of the issue (the masthead's Editor) shows with its crop and source
-    row.querySelector('.scan').innerHTML = m ? `<div><b>${esc(m.name)}</b>: ${esc(m.value)} <span class="hint">(${m.image ? 'printed on another page of the issue' : "the puzzle's metadata, not printed"})</span></div>`
-      + (m.image ? `<img class="metaimg" src="${dir}${esc(m.image)}" alt="${esc(m.name)}, as printed">` : '') + (m.source ? `<div class="hint">${esc(m.source)}</div>` : '')
-      : `<div class="hint">${f === 'date' && !ocr.metadata ? `computed: the date of the issue it's in (${esc(ocr.issue_date || '')})` : 'not found near this puzzle'}</div>`;
-    evPicker(row, f);
-    valueBox(row, f, name);
-    askBox(row, f, name);
-  }
-  const rest = (ocr.lines || []).filter(L => !used.has(L.n));
-  if (!rest.length) return;
-  hs.insertAdjacentHTML('beforeend', `<div class="row colhead"><div></div><div>Other lines printed near the puzzle</div><div>Keep (in our record) or discard</div><div></div></div>`);
-  for (const L of rest) {
+  const setEv = (f, v) => hedit('ev:' + f, v === evDefault(f) ? undefined : v);
+  const from = {};  // a line's number -> the headers it gives (the Author rides on the Byline's line)
+  for (const [f, name] of HEADERS) { const n = headerValue(f)[2]; if (typeof n === 'number' && lineN(n)) (from[n] ||= []).push([f, name]); }
+  for (const L of ocr.lines || []) {
     addRow(hs, 'line:B' + L.n, 'B' + L.n, L.box, [], L.image ? {image: L.image, label: 'B' + L.n, text: L.text} : null);
-    const row = rows[rows.length - 1], ab = row.querySelector('.abox'), k = keptOf(L);
+    const row = rows[rows.length - 1], ab = row.querySelector('.abox'), gives = from[L.n] || [];
     row.id = 'B' + L.n;
     if (L.text.length > 80) row.querySelectorAll('.scan canvas.strip').forEach(c => { c.style.width = '100%'; });
-    const was = {converted: ' (from its earlier keep/discard)', rule: ' (by rule)', default: ' (a default)', assembly: " (assembly's)"}[L.by] || '';
+    ab.onclick = e => e.stopPropagation();
+    if (gives.length) {
+      row.classList.add('hrow'); row.dataset.hdr = gives.map(([, name]) => name).join(', ');
+      const t = gives.find(([f]) => f === 'title') || gives[0];
+      outline(row.querySelector('.scan canvas.strip'), final('line:B' + L.n), headerValue(t[0])[0]);
+      ab.innerHTML = `<div class="xdcol"><div class="tags">${gives.map(([f, name]) => `<a class="htag" href="#hdr-${f}" data-f="${f}" title="${esc(name)}: ${esc(headerValue(f)[0])}: see it, fix it or change where it comes from in the table below">${esc(name)}: ${esc(headerValue(f)[0])}</a>`).join('')}</div>
+        <div class="hint">click one to check or fix it in the headers table below</div></div>`;
+      ab.querySelectorAll('.htag').forEach(a => a.onclick = e => {
+        e.preventDefault();
+        const tr = document.getElementById('hdr-' + a.dataset.f);
+        tr.scrollIntoView({block: 'center'}); tr.classList.remove('flash'); void tr.offsetWidth; tr.classList.add('flash');
+      });
+      continue;
+    }
+    const k = keptOf(L), was = {converted: ' (from its earlier keep/discard)', rule: ' (by rule)', default: ' (a default)', assembly: " (assembly's)"}[L.by] || '';
     ab.innerHTML = `<div class="xdcol"><div class="kd"><button class="k1 ${k ? 'on' : ''}">Keep</button> <button class="k0 ${k ? '' : 'on'}">Discard</button></div>
       <div class="hint">the text step says it's${esc(was)} <select class="lbl">${Object.entries(LABELS).map(([v, d]) => `<option value="${v}" ${v === labelOf(L) ? 'selected' : ''}>${esc(d)}</option>`).join('')}</select></div>
       ${cur.edits['keep:B' + L.n] !== undefined || cur.edits['label:B' + L.n] !== undefined ? '<div class="hint">(you changed it)</div>' : ''}</div>`;
-    ab.onclick = e => e.stopPropagation();
     const dflt = () => L.keep ?? !DISCARD.includes(labelOf(L));
-    ab.querySelector('.k1').onclick = () => { if (dflt()) delete cur.edits['keep:B' + L.n]; else cur.edits['keep:B' + L.n] = true; save(); render(); };
-    ab.querySelector('.k0').onclick = () => { if (!dflt()) delete cur.edits['keep:B' + L.n]; else cur.edits['keep:B' + L.n] = false; save(); render(); };
-    ab.querySelector('.lbl').onchange = e => { const v = e.target.value; if (v === L.label) delete cur.edits['label:B' + L.n]; else cur.edits['label:B' + L.n] = v; save(); render(); };
+    ab.querySelector('.k1').onclick = () => hedit('keep:B' + L.n, dflt() ? undefined : true);
+    ab.querySelector('.k0').onclick = () => hedit('keep:B' + L.n, dflt() ? false : undefined);
+    ab.querySelector('.lbl').onchange = e => { const v = e.target.value; hedit('label:B' + L.n, v === L.label ? undefined : v); };
     if (!k) row.classList.add('discarded');
+  }
+  // the headers, compact: value, where it comes from, and the ask when the pipeline found none
+  const opts = (sel) => `<option value="">none</option>`
+    + (ocr.lines || []).map(L => `<option value="${L.n}" ${String(sel) === String(L.n) ? 'selected' : ''}>line B${L.n}: ${esc(L.text.slice(0, 30))}</option>`).join('')
+    + (ocr.metadata || []).map(m => `<option value="${m.id}" ${sel === m.id ? 'selected' : ''}>${esc(m.name)}: ${esc(String(m.value).slice(0, 30))}</option>`).join('');
+  const t = document.createElement('div');
+  t.className = 'hdrs';
+  t.innerHTML = `<div class="hdrhead">The xd file's headers <span class="hint">what we took from the lines above (and from the issue); click a value to fix it</span></div><table></table>`;
+  hs.append(t);
+  const tb = t.querySelector('table');
+  for (const [f, name] of HEADERS) {
+    const [derived, rule, n] = headerValue(f), k = 'meta:' + (META[f] || f), h = history(k, derived), last = h[h.length - 1];
+    const own = h.length > 1 && last.value !== derived, m = typeof n === 'string' && metaOf(n);
+    const ask = !derived && !own && (rev?.asks || []).find(a => a.field === f);
+    const tr = document.createElement('tr');
+    tr.id = 'hdr-' + f;
+    // anchors from the text step's list (#Title) land here too
+    tr.innerHTML = `<th id="${esc(name)}">${esc(name)}</th>
+      <td class="hv"><span class="v" contenteditable="true" spellcheck="false"></span>
+        ${own ? `<div class="ovr" style="color:${last.color}">${esc(last.who)}'s value; the rule gives “${esc(derived)}” <button class="undo">use the rule's</button></div>` : ''}
+        ${ask ? `<div class="askline"><b>${esc(ask.says)}</b> If it's printed, type it here as printed; if not, say so in a comment.</div>`
+          : !derived && !own && (f === 'title' || f === 'byline') ? `<div class="askline">None found. If the puzzle has a ${f} printed, click here and type it as printed.</div>` : ''}</td>
+      <td class="hs">${typeof n === 'number' && lineN(n) ? `<a href="#B${n}">from line B${n}</a>${rule ? ` <span class="hint">· ${esc(rule)}</span>` : ''}`
+        : m ? `${esc(m.name)} <span class="hint">(${m.image ? 'printed on another page of the issue' : "the issue's metadata, not printed"})</span>${m.image ? `<img class="metaimg" src="${dir}${esc(m.image)}" alt="${esc(m.name)}, as printed">` : ''}`
+        : f === 'date' && derived ? `<span class="hint">${esc(rule)}</span>` : '<span class="hint">not found</span>'}
+        ${cur.edits['ev:' + f] !== undefined ? ' <span class="hint">(you chose it)</span>' : ''}
+        <details class="evch"><summary>change</summary>from <select>${opts(evOf(f))}</select></details></td>`;
+    tb.append(tr);
+    const sp = tr.querySelector('.v');
+    sp.textContent = own ? last.value : derived;
+    if (own) sp.style.color = last.color;
+    if (!sp.textContent) sp.dataset.empty = '1';
+    sp.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); sp.blur(); } };
+    // your value: saved as your edit; the rule's value again: your edit dropped (or saved, over an earlier round's)
+    const set = v => hedit(k, v === derived && !rounds.slice(0, -1).some(r => k in r.edits) ? undefined : v);
+    sp.onblur = () => { const v = sp.textContent.trim(); if (v !== (own ? last.value : derived)) set(v); };
+    tr.querySelector('.undo')?.addEventListener('click', () => set(derived));
+    tr.querySelector('.askline')?.addEventListener('click', () => sp.focus());
+    const sel = tr.querySelector('.evch select');
+    sel.onchange = () => setEv(f, !sel.value ? null : /^M/.test(sel.value) ? sel.value : +sel.value);
   }
 }
 // What the text step did, as a list of operations, each a link (an anchor: Back returns to the list) to
@@ -1762,7 +1826,7 @@ function opsList() {
   const a = rounds[0], ed = a.edits, groups = [];
   const go = (anchor, label) => `<a href="#${esc(anchor)}">${esc(label)}</a>`;
   const short = t => t.length > 60 ? t.slice(0, 57) + '…' : t;
-  const why = key => (a.comments.find(c => c.key === key && !c.text.startsWith('Not sure'))?.text || '').replace(/^Changed by the LLM text step[^:]*: ?/, '').replace(/^Changed by the LLM text step\.$/, '');
+  const why = key => (a.comments.find(c => c.key === key && !c.text.startsWith('Not sure'))?.text || '').replace(/^Changed by the (?:LLM text step|AI reviewer)[^:]*: ?/, '').replace(/^Changed by the (?:LLM text step|AI reviewer)\.$/, '');
   const clue = Object.keys(ed).filter(k => k.startsWith('clue:')).map(k =>
     `${go(k.slice(5), k.slice(5))}: “${esc(short(base(k)))}” → “${esc(short(ed[k]))}”${why(k) ? ` <span class="hint">${esc(why(k))}</span>` : ''}`);
   const lines = Object.keys(ed).filter(k => k.startsWith('line:')).map(k =>
@@ -1783,7 +1847,7 @@ function opsList() {
   const s = document.createElement('section');
   if (!groups.length) return s;
   const one = (n, name) => n === 1 ? name.replace(/^(\w+?)s\b/, '$1') : name;
-  s.innerHTML = `<details class="ops"><summary><b>What the ${esc(a.who)} did</b> <span class="hint">${groups.map(([n, i]) => `${i.length} ${one(i.length, n)}`).join(' · ')}</span></summary>
+  s.innerHTML = `<details class="ops"><summary><b>What the ${esc(a.who)} did</b>${'model_id' in rev ? ` <span class="hint">(${esc(rev.model_id || 'model not recorded')})</span>` : ''} <span class="hint">${groups.map(([n, i]) => `${i.length} ${one(i.length, n)}`).join(' · ')}</span></summary>
     ${groups.map(([n, i]) => `<div class="opg"><div class="opn">${n}</div><ul>${i.map(x => `<li>${x}</li>`).join('')}</ul></div>`).join('')}</details>`;
   return s;
 }
@@ -1832,7 +1896,7 @@ function addRow(s, key, label, box, flags = [], src = null) {
       if (on && !wide) { wide = contextStrip(box, !!why, im); sc.insertBefore(wide, btn); }
       tight.style.display = on ? 'none' : ''; if (wide) wide.style.display = on ? '' : 'none';
       sc.classList.toggle('wide', on);
-      btn.textContent = on ? (why ? `⤡ wider view: ${why}` : '⤡ just the line') : '⤢ more of the page';
+      btn.textContent = on ? (why ? `⤡ just the line (shown wider: ${why})` : '⤡ just the line') : '⤢ more of the page';
       btn.classList.toggle('why', !!(on && why));
       btn.dataset.on = on ? '1' : '';
     };
@@ -1905,12 +1969,13 @@ function addRow(s, key, label, box, flags = [], src = null) {
       kind = nearby && !last.value ? `${me} discarded it`
         : nearby && !prev.value ? `${me} kept it` : `${me} ${d.kind}`;
       if (document.activeElement !== txt)
-        txt.innerHTML = out ? esc(text) : `<span class="fintext">${esc(fin)}</span><span class="chg">${nearby && !prev.value ? esc(fin) : d.html}</span>`;
+        txt.innerHTML = out ? esc(text) : `<span class="fintext" title="The final text, as the xd file has it (changes hidden: show changes, below)">${esc(fin)}</span><span class="chg" title="Changes shown: underlined was added, struck out was removed; the line below says what the OCR read">${nearby && !prev.value ? esc(fin) : d.html}</span>`;
     } else if (document.activeElement !== txt) txt.textContent = fin;
     // the earlier versions, oldest first, so it's clear what was there before
     row.querySelector('.was').innerHTML = h.length > 1 ? h.slice(0, -1).map((v, i) =>
       `${i ? ' → ' : ''}${v.who === 'OCR' ? `OCR read <q>${esc(v.value) || '(nothing)'}</q>` : nearby && !v.value ? esc(v.who) + ' left it out' : `${esc(v.who)} made it <q>${esc(v.value) || '(nothing)'}</q>`}`).join('') +
-      ` → <b style="color:${h[h.length-1].color}">${esc(kind)}</b>` : '';
+      ` → <b style="color:${h[h.length-1].color}">${esc(kind)}</b>`
+      + ` <button class="linkbtn chgtog" title="${row.classList.contains('nochg') ? 'Mark the changes in this line again' : 'Just the final text of this line, as the xd file has it'}">${row.classList.contains('nochg') ? 'show changes' : 'hide changes'}</button>` : '';
     const looked = rounds.filter(r => (r.looked || []).includes(key)).map(r => r.who);
     row.querySelector('.marks').innerHTML =
       (isClue && !NUM[slot] ? `<b class="m-flag">no ${esc(slot)} in our grid</b>` : '') +
@@ -1919,7 +1984,7 @@ function addRow(s, key, label, box, flags = [], src = null) {
       flags.filter(f => !f.startsWith('number-corrected') && !f.startsWith('fill-in blank')).map(f => `<b class="m-flag" title="${esc(f)}">${esc(f.split(':')[0])}</b>`).join('') +
       flags.filter(f => f.startsWith('fill-in blank')).map(f => {
         const printed = f.replace(/^fill-in blank:\s*/, '').replace(/\s*\(by rule\)$/, ''), off = cur.edits['fitb:' + label] === 'no';
-        return `<span class="fitb ${off ? 'off' : ''}" title="${off ? 'Not a fill-in blank (you took the tag off)' : `Tagged as a fill-in blank (printed “${esc(printed)}”)${/by rule/.test(f) ? ', by rule' : ''}; the export writes it as ___`}">FITB<button data-fitb="${esc(label)}" aria-label="${off ? 'Tag it again' : 'Not a fill-in blank'}">${off ? '↺' : '×'}</button></span>`;
+        return `<span class="fitb ${off ? 'off' : ''}" title="${off ? 'Not a fill-in blank (you took the tag off)' : `Tagged as a fill-in blank (printed “${esc(printed)}”)${/by rule/.test(f) ? ', by rule' : ''}; the export writes it as ___`}">${off ? 'not a fill-in-the-blank clue (you said so)' : `${/by rule/.test(f) ? 'a rule' : 'the LLM'} marked this a fill-in-the-blank clue`}<button data-fitb="${esc(label)}">${off ? 'undo' : 'it isn’t one'}</button></span>`;
       }).join('') +
       looked.map(w => `<b class="m-ok" title="${esc(w)} looked at this line and kept it">${esc(w)} looked</b>`).join('');
     row.querySelectorAll('[data-fitb]').forEach(b => b.onclick = e => {  // take the tag off, or put it back
@@ -1931,9 +1996,10 @@ function addRow(s, key, label, box, flags = [], src = null) {
     const m = row.querySelector('.margin'), open = m.querySelector('.compose');
     const cellNotes = isClue && (!meta || solo) ? entryCells(cl).flatMap(([r, c]) => [`cell:r${r+1}c${c+1}`, spKey(r, c)].flatMap(k => commentsFor(k).map(x => [...x, `r${r+1}c${c+1}`]))) : [];
     m.innerHTML = commentsFor(key).map(([r, c]) => noteHtml(r, c.text, c.why, c)).join('') +
-      cellNotes.map(([r, c, at]) => noteHtml(r, `(square ${at}) ${c.text}`, c.why, c)).join('') + '<button class="addc">💬 Comment</button>';
+      cellNotes.map(([r, c, at]) => noteHtml(r, `(square ${at}) ${c.text}`, c.why, c)).join('') + '<button class="addc">💬 Comment</button> <button class="addc flagc" title="You can’t settle this one from the scan: the next reviewer takes a second look. The rest of the part can still look good.">⚑ Not sure</button>';
     if (open) m.prepend(open);
     m.querySelector('.addc').onclick = () => compose(m, key, false);
+    m.querySelector('.flagc').onclick = () => compose(m, key, false, true);
   };
   txt.contentEditable = 'true';
   if (key.startsWith('other:')) {
@@ -1997,20 +2063,21 @@ function commentsFor(key) {
 }
 
 // an inline comment box in a margin; after an edit it asks why (optional)
-function compose(m, key, why) {
+// unsure: your doubt about one row, saved as a "Not sure" comment for a second look (it doesn't fail the part)
+function compose(m, key, why, unsure) {
   if (why && !(key in cur.edits)) { closeWhy(key); return; }   // the change put it back as it was: nothing to explain
   m.querySelector('.compose')?.remove();
   const box = document.createElement('div');
   box.className = 'compose';
   box.dataset.key = key;
   if (why) box.dataset.why = '1';
-  box.innerHTML = `<div class="q">${why ? 'You changed this. Say why? (optional)' : 'Comment for the next reviewer'}</div>
+  box.innerHTML = `<div class="q">${why ? 'You changed this. Say why? (optional)' : unsure ? "What aren't you sure of? The next reviewer takes a second look; you can still say the rest looks good." : 'Comment for the next reviewer'}</div>
     ${why ? `<div class="chips"><button>That's what the scan says</button><button>Hard to read: best guess</button><button>Printed wrong in the original</button></div>` : ''}
     <textarea></textarea><div class="acts"><button class="skip">${why ? 'Skip' : 'Cancel'}</button><button class="save">Save</button></div>`;
   m.prepend(box);
   const ta = box.querySelector('textarea');
   const done = keep => {
-    if (keep && ta.value.trim()) { cur.comments.push({key, text: ta.value.trim(), why, at: new Date().toISOString()}); save(); }
+    if (keep && (ta.value.trim() || unsure)) { cur.comments.push({key, text: unsure ? 'Not sure: ' + (ta.value.trim() || 'needs a second look') : ta.value.trim(), why, ...(unsure ? {flag: true} : {}), at: new Date().toISOString()}); save(); }
     box.remove(); refresh(key);
   };
   // a quick answer is the comment (after anything already typed): it saves and closes the box
@@ -2024,6 +2091,20 @@ function compose(m, key, why) {
   if (!why) ta.focus();
 }
 
+addEventListener('click', e => {
+  const t = e.target.closest('.chgtog');
+  if (!t) return;
+  e.stopPropagation();
+  const row = t.closest('.row'), off = row.classList.toggle('nochg');
+  t.textContent = off ? 'show changes' : 'hide changes';
+}, true);
+addEventListener('click', e => {
+  const b = e.target.closest('.note .settle');
+  if (!b) return;
+  e.stopPropagation();
+  cur.comments.push({key: b.dataset.k, text: "Checked against the scan: it's right.", settles: true, at: new Date().toISOString()});
+  save(); refresh(b.dataset.k);
+});
 // editing one of your comments in place: the text before each edit is kept with it (history), and
 // who changed it and when (edited), shown on the comment
 addEventListener('click', e => {
@@ -2081,6 +2162,8 @@ function historyButtons() {
 }
 function refresh(key) {
   if (key.startsWith('grid:')) { const y = scrollY; render(); scrollTo(0, y); return; }
+  // the title section's choices (where a header comes from, keep or discard, a line's label, a header's value): it's redrawn
+  if (/^(ev|keep|label|meta):/.test(key)) { const y = scrollY; render(); scrollTo(0, y); progress(); historyButtons(); return; }
   if (key.startsWith('cell:') || key.startsWith('special:')) {
     regrid(); rows.forEach(r => r.paint());
     const b = document.getElementById('blankpanel'); if (key.startsWith('special:') && b) drawBlank(b);
@@ -2089,6 +2172,8 @@ function refresh(key) {
   progress(); historyButtons();
 }
 function jumpTo(key) {
+  const hk = /^(?:ev|meta):(\w+)$/.exec(key), lk = /^(?:keep|label):(B\d+)$/.exec(key);  // the title section's: its header's row, or its line
+  if (hk || lk) { document.getElementById(hk ? 'hdr-' + (hk[1] === 'puzzle_number' ? 'number' : hk[1]) : lk[1])?.scrollIntoView({block: 'center'}); return; }
   if (key.startsWith('clue:') && !showClue(key.slice(5))) { setView = 'both'; render(); }  // a link to a hidden set's row
   const i = rows.findIndex(r => r.dataset.key === key);
   if (i >= 0) setFocus(i);
@@ -2099,19 +2184,22 @@ function jumpTo(key) {
 let selCell = null, gridMode = 'side';
 function gridSection() {
   const s = sec('grid', 'Answer key', 'the answer key', 'scan on the left, our letters on the right');
-  s.insertAdjacentHTML('beforeend', `<div class="gridwrap">
+  // the view switch sits above the grids, so it stays put while the layout under it changes
+  const g0 = G(), anySp = g0.some((row, r) => [...row].some((_, c) => final(spKey(r, c))));
+  s.insertAdjacentHTML('beforeend', `${ansImg ? `<div class="gmodes"><span class="hint">Compare:</span> <button class="t" data-g="side">Side by side</button> <button class="t" data-g="over">Our letters on the scan</button> <button class="t" data-g="blink">Blink</button>
+      <span class="hint">Click a square and type to fix it; arrow keys move.</span> <span class="hint" id="unsurekey"></span></div>` : ''}<div class="gridwrap">
     ${ansImg ? `<div class="gridbox" id="gscan"><img src="${dir}answers.png" alt="answer key scan"></div>`
       : `<div class="gridbox pagebox" id="gscan"><img src="${dir}answer_page.jpg" alt="the page with the answer key"><a class="ctxbtn" href="${dir}answer_page.jpg" target="_blank">open it larger ↗</a></div>`}
     <div class="gridbox" id="gtyped"></div>
     <div class="gridside">
-      <p><b>Spot the difference.</b> Look from one grid to the other, or put our letters <i>on</i> the scan:</p>
-      ${ansImg ? `<p><button class="t" data-g="side">Side by side</button> <button class="t" data-g="over">On the scan</button> <button class="t" data-g="blink">Blink</button></p>
-      <p>On the scan, a red letter sitting squarely on the printed one is a match; a doubled or smeared letter is a difference. Blink flips between them: differences jump.</p>`
-      : `<p><b>This grid was typed by hand</b> (its shape is too irregular for the reader to straighten), so the scan is the whole page the answer key is printed on. Compare it with our grid by eye; open it larger to zoom.</p>`}
-      <p>Click a square and type a letter to fix it; the arrow keys move to the next square. A coloured outline means a reviewer changed it (hover to see what it was).</p>
+      ${ansImg ? '' : `<p><b>This grid was typed by hand</b> (its shape is too irregular for the reader to straighten), so the scan is the whole page the answer key is printed on. Compare it with our grid by eye; open it larger to zoom.</p>`}
+      ${anySp ? markTool('fix its letter') : ''}
+      <details class="keyhelp"><summary>How the key works${anySp ? '' : ' (and circled or shaded squares)'}</summary>
+      ${ansImg ? `<p>Our letters on the scan: a red letter sitting squarely on the printed one is a match; a doubled or smeared letter is a difference. Blink flips between them: differences jump.</p>` : ''}
+      <p>A coloured outline means a reviewer changed the square (hover to see what it was).</p>
       <p>A square printed with several letters (a rebus): double-click it, or click it and press <kbd>Enter</kbd>, and type them all.</p>
       <p>Hover a square for its position. While you're writing a note, click a square to put its position in the note.</p>
-      ${markTool('fix its letter')}
+      ${anySp ? '' : markTool('fix its letter')}</details>
       <div class="splist" id="gspecial"></div>
       ${blankReasons().length ? `<p class="m-flag" style="padding:4px 8px;border-radius:6px">The blank grid may be worth a look: ${esc(blankReasons().join(' '))} <button class="ctxbtn" onclick="showBlank()">Open the blank grid</button></p>` : ''}
       <div class="margin" id="gnotes"></div>
@@ -2120,6 +2208,17 @@ function gridSection() {
   wireMarkTool(s);
   if (!ansImg) gridMode = 'side';
   drawGrid(s);
+  const nu = s.querySelectorAll('#gtyped .unsure').length, uk = s.querySelector('#unsurekey');
+  // the OCR's own doubts about letters, outlined in orange; a button takes the outlines off (and back)
+  if (uk && nu) {
+    const paint = () => {
+      const on = document.body.classList.contains('show-unsure');
+      uk.innerHTML = (on ? `<span class="ukbox"></span> Outlined: ${nu === 1 ? 'a letter' : nu + ' letters'} the OCR wasn't sure of. ` : `${nu === 1 ? 'A letter' : nu + ' letters'} the OCR wasn't sure of: not outlined. `)
+        + `<button class="linkbtn">${on ? 'Hide the outlines' : 'Outline them'}</button>`;
+      uk.querySelector('button').onclick = () => { document.body.classList.toggle('show-unsure'); paint(); };
+    };
+    paint();
+  }
   return s;
 }
 // a square's letters; several (a rebus square) set small in up to three lines, the way the
@@ -2325,10 +2424,11 @@ document.querySelectorAll('[data-show]').forEach(b => b.onclick = () => {
   document.querySelectorAll('[data-show]').forEach(x => x.classList.toggle('on', x === b)); applyShow();
 });
 document.getElementById('undo').onclick = undo;
-document.getElementById('blankbtn').onclick = () => showBlank();
-document.getElementById('pagebtn').onclick = () => showPage(rows[focus]?.dataset.key);
 document.getElementById('redo').onclick = redo;
-document.getElementById('who').onchange = e => { cur.who = e.target.value.trim() || 'You'; save(); render(); };
+document.getElementById('who').onchange = e => {
+  cur.who = e.target.value.trim() || 'You'; save(); render();
+  try { localStorage.setItem('proof-who', cur.who === 'You' ? '' : cur.who); } catch (e) {}
+};
 // prototype only: freeze this review as a finished round, so the page shows it the way the next reviewer will
 function handOn() {
   const {status, ...round} = cur;
@@ -2338,6 +2438,10 @@ function handOn() {
 }
 function say(t) { document.getElementById('help').textContent = t + ' (prototype: nothing is sent)'; }
 
+// when you've just been typing in a box and the focus slips out of it (a re-render, a stray click), your next
+// letters are words, not shortcuts: the single-letter keys wait until you've stopped typing for a moment
+let typedAt = 0;
+addEventListener('input', e => { if (e.target.matches?.('input, textarea, [contenteditable]')) typedAt = Date.now(); }, true);
 addEventListener('keydown', e => {
   const lb = document.querySelector('.lightbox');
   if (lb) {  // the pop-up has the keys: Esc closes it, the arrows page through the scans
@@ -2352,6 +2456,7 @@ addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && k === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
   if ((e.ctrlKey || e.metaKey) && k === 'y') { e.preventDefault(); redo(); return; }
   if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (Date.now() - typedAt < 1500 && (k.length === 1 || k === 'escape')) { typedAt = Date.now(); return; }
   if (selCell && /^[a-z]$/.test(k)) { fixSquare(...selCell, k); return; }
   if (selCell && k === 'enter') { e.preventDefault(); rebusBox(...selCell); return; }
   if (selCell && k.startsWith('arrow')) { e.preventDefault(); moveSel(k); return; }
@@ -2360,7 +2465,7 @@ addEventListener('keydown', e => {
   else if (k === 'e' && rows[focus]) { e.preventDefault(); rows[focus].querySelector('.txt').focus(); }
   else if (k === 'z' && rows[focus]) rows[focus].toggleWide?.();
   else if (k === 'm' && rows[focus]) { e.preventDefault(); compose(rows[focus].querySelector('.margin'), rows[focus].dataset.key, false); }
-  else if (k === 'c') document.querySelector('[data-layer=changes]').click();
+  else if (k === 'c') rows[focus]?.querySelector('.chgtog')?.click();
   else if (k === 'n') document.querySelector('[data-layer=notes]').click();
   else if (k === 'escape') { selCell = null; regrid(); }
   else if (k === ' ' && !e.repeat) {
@@ -2394,6 +2499,12 @@ function walkBar(items) {
     + (i + 1 < items.length ? ` <a href="${to(items[i + 1])}"><b>Next: ${esc(items[i + 1].title || items[i + 1].pid)} →</b></a>` : ' <span>last in this group</span>')
     + (back ? ` <a style="margin-left:auto" href="${esc(back)}">back to the batch</a>` : '');
   bar.hidden = false;
+  // walking a list: its Next is the only Next (the header's and the one after saving go there too), and
+  // the site-wide picker and Browse step aside
+  const nx = i >= 0 ? items[i + 1] : items[0], nb = document.getElementById('nextpz');
+  nb.onclick = () => { if (nx) location.href = to(nx); };
+  nb.disabled = !nx; nb.title = nx ? `Next: ${nx.title || nx.pid}` : 'the last in this list';
+  for (const id of ['order', 'picklabel', 'pick', 'browsebtn']) document.getElementById(id).hidden = true;
 }
 </script>
 </body>
