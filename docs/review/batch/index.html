@@ -47,12 +47,14 @@ h1 select { font: 14px var(--sans); vertical-align: 2px; background: var(--paper
 .chip.on { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
 .chip b { font-weight: 600; }
 .walk { margin-left: auto; font-size: 13px; }
+a.go, .walk.go { display: inline-block; background: var(--accent); color: var(--bg); font-weight: 600; text-decoration: none; border-radius: 6px; padding: 5px 12px; white-space: nowrap; }
+a.go:hover { filter: brightness(1.1); } a.tl { color: inherit; text-decoration: none; } a.tl:hover { text-decoration: underline; }
 .row { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; gap: 4px 14px; padding: 12px 0; border-bottom: 1px solid var(--line); }
 /* the grid as printed in either theme: white squares to fill, black blocks */
 .mini { width: 60px; height: 60px; display: grid; border: 1px solid #555; background: #fff; }
 .mini i { display: block; } .mini i.b { background: #1b1b1b; }
 .row.withpage { grid-template-columns: 200px minmax(0, 1fr) auto; }
-img.pg { width: 200px; display: block; border: 1px solid var(--line); background: #fff; }
+img.pg { width: 200px; aspect-ratio: auto 200 / 259; display: block; border: 1px solid var(--line); background: var(--paper); }
 .maps { width: 200px; } .maps > a { display: block; position: relative; }
 /* more pages: a pile behind the first, with how many */
 .maps > a.stack img.pg { box-shadow: 4px 4px 0 -1px var(--paper), 4px 4px 0 0 #999, 8px 8px 0 -1px var(--paper), 8px 8px 0 0 #bbb; }
@@ -71,7 +73,7 @@ img.pg { width: 200px; display: block; border: 1px solid var(--line); background
 #lightbox .pgwrap { max-width: min(1400px, 100%); box-shadow: 0 4px 24px rgba(0,0,0,.5); background: #fff; }
 #lightbox img { width: 100%; height: auto; }
 #lightbox .cap { position: fixed; left: 16px; top: 8px; color: #fff; font-size: 13px; } .leaves a.cur { font-weight: 700; color: var(--ink); text-decoration: none; }
-.legend { font-size: 12px; color: var(--muted); } .legend b { font-weight: 600; }
+.legend { font-size: 12px; color: var(--muted); } .mine { color: var(--ship); font-weight: 600; } .legend b { font-weight: 600; }
 .t { font: 600 15px/1.3 var(--serif); } .t .none { color: var(--muted); font-style: italic; font-weight: 400; }
 .meta { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 ul.why { margin: 4px 0 0; padding: 0; list-style: none; font-size: 13px; }
@@ -126,7 +128,7 @@ table.mh details img { max-height: 44px; }
   border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: inherit; text-decoration: none; }
 .bcard:hover { border-color: var(--ink); }
 .bcard .t { font-size: 17px; } .bcard .bar { grid-column: 1 / -1; margin: 4px 0 2px; }
-.bcard .go { color: var(--accent); white-space: nowrap; font-size: 13px; }
+.bcard a.go { color: var(--bg); } .started { color: var(--glance); }
 .bcard .pills { display: flex; flex-wrap: wrap; gap: 4px; grid-column: 1 / -1; }
 /* the puzzles waiting for the text step: what changed in their reading, old -> new */
 #rerun .row { grid-template-columns: 64px minmax(0, 1fr); } #rerun img.th { width: 60px; height: 60px; object-fit: contain; border: 1px solid var(--line); background: #fff; }
@@ -149,7 +151,7 @@ table.mh details img { max-height: 44px; }
 <details id="rerun" hidden></details>
 <main id="list"></main>
 <div id="lightbox" hidden><span class="cap"></span><div class="pgwrap"><img alt="the page, full size"><svg></svg></div></div>
-<details class="tools" id="tools"><summary>Batch tools: the agent's pass, spend, the Notes rule, the Editor from the masthead, import</summary>
+<details class="tools" id="tools" hidden><summary>Batch tools: the agent's pass, spend, the Notes rule, the Editor from the masthead, import</summary>
   <p class="meta" id="agent"></p><div id="spend"></div>
   <h2>Notes rule</h2>
   <p class="meta">Which labelled lines (kept on the proof page) go in gxd's Notes, for the whole publication. Tick labels to see every line the rule would take, then save it.</p>
@@ -182,7 +184,10 @@ const STAGENAME = {parts: 'parts (the boxes on the page)', assembly: 'assembly (
                    harvest: 'harvest (a page never found)', 'proof packet': 'the proof packet'};
 // the proof page opens at a row given as ?k=<its key>: clue:A68 for a clue, line:B4 for a printed line
 const KEY = a => /^[AD]\d+$/.test(a) ? 'clue:' + a : /^[BL]\d+$/.test(a) ? 'line:B' + a.slice(1) : '';
-let D, filter = params.get('f') || 'all', cause = params.get('cause') || '';
+// on the site a batch opens on the puzzles waiting for a check; locally on all of them
+const FDEF = window.BLITZ_SITE ? 'ready' : 'all';
+let D, filter = params.get('f') || FDEF, cause = params.get('cause') || '';
+const TAB = window.BLITZ_SITE ? '' : ' target="_blank"';
 // Where the records come from. Locally, the watch's API (xword-ocr watch: /api/batch, /api/overlay, the
 // images it serves). On the review site (config.js sets BLITZ_SITE), or given ?data=<folder>, a snapshot
 // of the same records as static files (blitz site-publish-batch): batch.json, overlay/<pid>-<n>.json and
@@ -219,9 +224,8 @@ async function landing() {
   $('#sitenav').hidden = false;
   $('#runsel').hidden = true;
   $('#h1').textContent = 'Help check old crosswords';
-  $('#about').innerHTML = `We turn scanned magazine crosswords into text, and every puzzle needs a person to check it against the scan.
-    Pick a batch to see its puzzles, sorted by what the pipeline found when it read them, then open one on the proof page:
-    compare our text with the printed page, fix what's wrong, and say whether it's ready.`;
+  $('#about').innerHTML = `We turn crosswords from scanned old magazines into text, and every puzzle needs a person to check it against the printed page.
+    Press <b>Start proofreading</b>: compare our text with the scan, fix what's wrong, and say whether it's ready. <b>Next</b> takes you to the next one.`;
   for (const id of ['#bar', '#chips', '#causechips', '#runnote']) $(id).innerHTML = '';
   $('#legend').hidden = true; $('#tools').hidden = true; $('#bar').style.display = 'none';
   const snaps = await Promise.all(BATCHES.map(b => fetch(`${FILES()}/batch/${b.name}/batch.json`, {cache: 'no-cache'})
@@ -235,11 +239,16 @@ async function landing() {
   for (const r of rows) if (!BATCHES.some(b => b.name === r.batch)) (other[r.batch || ''] ||= []).push(r);
   const card = (b, d) => {
     const n = k => d.puzzles.filter(p => kindOf(p) === k).length, all = d.puzzles.length;
-    return `<a class="bcard" href="?b=${encodeURIComponent(b.name)}${params.get('files') ? '&files=' + encodeURIComponent(params.get('files')) : ''}"><div><div class="t">${esc(b.title || b.name)}</div>
-      <div class="meta">${all} puzzles · as the pipeline left it on ${esc((b.at || '').slice(0, 10))}</div></div>
-      <span class="go">Open the batch →</span>
+    // the way in: straight to the first puzzle waiting for a check, Next walking the rest (as the batch's own button)
+    const list = `?b=${encodeURIComponent(b.name)}${params.get('files') ? '&files=' + encodeURIComponent(params.get('files')) : ''}`;
+    const ready = d.puzzles.filter(p => kindOf(p) === 'ready');
+    const start = ready.length ? `../?p=${encodeURIComponent(ready[0].pid)}&walk=${encodeURIComponent(KIND.ready[0])}&pids=${ready.map(p => p.pid).join(',')}`
+      + '&back=' + encodeURIComponent(location.pathname + list) : '';
+    return `<div class="bcard"><div><div class="t"><a class="tl" href="${list}">${esc(b.title || b.name)}</a></div>
+      <div class="meta"><b>${ready.length} puzzles waiting for a check</b> · ${all} in all · about 15 minutes each; stop whenever you like</div></div>
+      <span>${start ? `<a class="go" href="${start}">Start proofreading →</a> ` : ''}<a href="${list}">See the list</a></span>
       <div class="bar">${ORDER.map(k => `<span style="width:${100 * n(k) / all}%;background:${KIND[k][2]}"></span>`).join('')}</div>
-      <div class="pills">${ORDER.filter(n).map(k => `<span class="pill ${KIND[k][1]}">${KIND[k][0]} ${n(k)}</span>`).join('')}</div></a>`;
+      <div class="pills">${ORDER.filter(n).map(k => `<span class="pill ${KIND[k][1]}">${KIND[k][0]} ${n(k)}</span>`).join('')}</div></div>`;
   };
   const plain = (name, ps) => {
     const open = ps.filter(p => !p.dropped), pub = ((ps[0] || {}).xdid || '').match(/^[a-z]+/);
@@ -290,6 +299,12 @@ async function liveVotes() {
     if (me && r.user_id === me) v.you = r.decision;
   }
 }
+// a review begun in this browser and not sent: the proof page keeps it (proof2-<pid>) until you submit
+function started(pid) {
+  try { const c = (JSON.parse(localStorage.getItem('proof2-' + pid) || 'null') || {}).cur;
+        return !!c && !c.submitted && (Object.keys(c.edits || {}).length + (c.comments || []).length + Object.keys(c.status || {}).length > 0); }
+  catch (e) { return false; }
+}
 function votes(p) {
   if (LIVE) return LIVE[p.pid] || {up: 0, down: 0, you: ''};
   const v = {up: 0, down: 0, you: ''};
@@ -302,8 +317,8 @@ const CHECKED = ['', 'Checked by someone else', 'Checked by you'];
 function tally(p) {
   const v = votes(p);
   if (!v.up && !v.down) return '';
-  const bits = [v.up ? `👍 ${v.up}` : '', v.down ? `👎 ${v.down}` : ''].filter(Boolean).join(' · ');
-  return `<span class="votes" title="Ready ${v.up}, Not ready ${v.down}">${bits}${v.you ? ` <span class="you">(you ${v.you === 'ready' ? '👍' : '👎'})</span>` : ''}</span>`;
+  const bits = [v.up ? `${v.up} said Ready` : '', v.down ? `${v.down} said Not ready` : ''].filter(Boolean).join(' · ');
+  return `<span class="votes" title="what reviewers said on the proof page">${bits}${v.you ? ` <span class="you">(you: ${v.you === 'ready' ? 'Ready' : 'Not ready'})</span>` : ''}</span>`;
 }
 document.addEventListener('visibilitychange', async () => {
   if (document.hidden || !D) return;
@@ -371,7 +386,7 @@ function proofUrl(pid, k, rows) {
 function setUrl() {
   const q = new URLSearchParams();
   for (const x of ['run', 'b', 'data', 'files', 'proof', 'base']) if (params.get(x)) q.set(x, params.get(x));
-  if (filter !== 'all') q.set('f', filter);
+  if (filter !== FDEF) q.set('f', filter);
   if (cause) q.set('cause', cause);
   history.replaceState(null, '', '?' + q);
 }
@@ -384,7 +399,7 @@ function mini(grid) {
 // Ready and no Not ready ships; a Not ready is held for you
 function state(p) {
   if (p.choice === 'drop') return `dropped${p.by ? ' by ' + esc(p.by) : ''}`;
-  if (DATA) return tally(p) || 'not checked yet';  // a snapshot: what helpers said on the proof page, live
+  if (DATA) return tally(p) || (started(p.pid) ? '<b class="started">you started this</b>' : 'not checked yet');  // a snapshot: what helpers said on the proof page, live
   if (p.held_for_you) return `<b style="color:var(--person)">Held for you</b>`;
   const how = p.rule === 'crowd' ? ' · by the review rule' : p.by ? ' · ' + esc(p.by) : '';
   if (p.choice === 'ship') return `<b style="color:var(--ship)">Ships</b>${how}`;
@@ -529,10 +544,11 @@ function draw() {
     $('#runsel').hidden = BATCHES.length < 2;
     $('#runsel').innerHTML = BATCHES.map(b => `<option value="${esc(b.name)}"${b.name === snap.name ? ' selected' : ''}>${esc(b.title || b.name)}</option>`).join('');
     $('#runsel').onchange = e => { params.set('b', e.target.value); setUrl(); location.reload(); };
-    $('#about').innerHTML = `Every puzzle in this batch that is ready for review: all its parts were read from the scans (or a part is
-      confirmed not printed, and labelled so). Open one on the proof page to check it against the scan, fix what's wrong and say whether
-      it's ready; <b>Next</b> there walks the list shown here. Puzzles that <i>need work</i> are missing a part the pipeline is being
-      sent back to read; pages that turned out not to be crosswords are under <i>Not a crossword</i>.`;
+    // what to do here, in one line, and how far you've got (your proofs in the site's database)
+    const mine = LIVE ? D.puzzles.filter(p => kindOf(p) === 'ready' && votes(p).you).length : 0, open = D.puzzles.filter(p => kindOf(p) === 'ready').length;
+    $('#about').innerHTML = `<b>What to do:</b> press <b>Start proofreading</b>, compare each puzzle with its scan, fix what's wrong and say whether it's ready. <b>Next</b> takes you through the list. A puzzle takes about 15 minutes; stop whenever you like.`
+      + (mine ? ` <span class="mine">You've checked ${mine} · ${open - mine} to go.</span>` : '');
+    $('#legend').innerHTML = `On each page: <b style="color:#1f5fbf">blue</b>, the parts we read for this puzzle; <b style="color:#c46e00">orange</b>, its answer key; grey, other puzzles on the page.`;
   } else {
     $('#runsel').innerHTML = D.runs.map(r => `<option value="${esc(r)}"${r === D.run ? ' selected' : ''}>${esc(r)}${tag(r) ? ' (' + esc(tag(r)) + ')' : ''}</option>`).join('');
     $('#runsel').onchange = e => { params.set('run', e.target.value); setUrl(); load(); };
@@ -551,7 +567,7 @@ function draw() {
       + `<button class="chip ${filter === 'sentback' ? 'on' : ''}" data-f="sentback" title="reviewers sent these back from the proof page: triage called them ready, and they weren't (a measure of triage)">Sent back <b>${(D.chosen || {}).sent_back || 0}</b></button>`
       + `<button class="chip held ${filter === 'held' ? 'on' : ''}" data-f="held" title="a reviewer said Not ready and you haven't decided">Held for you <b>${(D.chosen || {}).held_for_you || 0}</b></button>`
       + `<span class="meta">${ready} ship</span>`)
-    + (rows.length ? `<a class="walk" href="${proofUrl(rows[0].pid, '', rows)}" target="_blank">Walk these ${rows.length} on the proof page →</a>` : '');
+    + (rows.length ? `<a class="walk${SITE ? ' go' : ''}" href="${proofUrl(rows[0].pid, '', rows)}"${TAB}>${SITE ? `Start proofreading these ${rows.length} →` : `Walk these ${rows.length} on the proof page →`}</a>` : '');
   const cs = (D.causes || {}).causes || [];
   $('#causechips').innerHTML = cs.length ? `<span class="meta">By cause:</span>` + cs.map(c => `<button class="chip ${cause === c.id ? 'on' : ''}" data-c="${esc(c.id)}" title="${esc(c.recommend)}">${esc(c.title)} <b>${c.puzzles.length}</b></button>`).join('') : '';
   document.querySelectorAll('[data-f]').forEach(b => b.onclick = () => { filter = b.dataset.f; setUrl(); draw(); });
@@ -562,7 +578,9 @@ function draw() {
     const stageSev = r => r.severity === 'stage' || r.severity === 'attention';
     // a not-ready puzzle's stage defects are in its block (blockHtml); the list is what the proof page settles
     const inBlock = r => (p.blocking || []).length && kindOf(p) === 'notready' && stageSev(r);
-    const why = [...rs.filter(r => r.class === 'defect' && r.code !== 'not-a-crossword' && !inBlock(r)).map(r => `<li class="${stageSev(r) ? 'd' : 'g'}"><a href="${proofUrl(p.pid, r.row, rows)}" target="_blank">${esc(r.code)}</a>${r.detail && r.detail !== 'from the verdict' ? ': ' + esc(r.detail) : ''}</li>`),
+    const why = [...rs.filter(r => r.class === 'defect' && r.code !== 'not-a-crossword' && !inBlock(r)).map(r => `<li class="${stageSev(r) ? 'd' : 'g'}">${SITE && r.detail && r.detail !== 'from the verdict'
+      ? `<a href="${proofUrl(p.pid, r.row, rows)}"${TAB} title="${esc(r.code)}">${esc(r.detail.replace(/^\d+: /, ''))}</a>`
+      : `<a href="${proofUrl(p.pid, r.row, rows)}"${TAB}>${esc(r.code)}</a>${r.detail && r.detail !== 'from the verdict' ? ': ' + esc(r.detail) : ''}`}</li>`),
                  ...rs.filter(r => r.class === 'gap').map(r => `<li class="g">gap: ${esc(r.code)}${r.detail && r.detail !== 'from the verdict' ? ': ' + esc(r.detail) : ''}</li>`)].join('');
     const verdict = (p.reasons.find(r => r.code === 'verdict') || {}).detail;
     // the puzzle's pages with what it took outlined (grid, clue lists, lines, key) and the other
@@ -574,7 +592,7 @@ function draw() {
       : p.page ? `<a href="${esc(U(p.page))}" target="_blank"><img class="pg" loading="lazy" src="${esc(U(p.page))}" alt="the puzzle's page"></a>` : mini(p.grid);
     const head = checked(p) && (!i || checked(rows[i - 1]) !== checked(p)) ? `<div class="checked">${CHECKED[checked(p)]}</div>` : '';
     return `${head}<div class="row withpage" id="${esc(p.pid)}">${pic}
-      <div>${p.feature ? `<div class="feat" title="the feature (a sub-series it runs in)${p.feature_line ? ', from printed line B' + p.feature_line : ''}: our own Feature header until the export maps it">${esc(p.feature)}</div>` : ''}<div class="t">${p.title ? esc(p.title) : '<span class="none">no title found</span>'}</div>
+      <div>${p.feature ? `<div class="feat" title="the feature (a sub-series it runs in)${p.feature_line ? ', from printed line B' + p.feature_line : ''}: our own Feature header until the export maps it">${esc(p.feature)}</div>` : ''}<div class="t">${DATA && kindOf(p) === 'notready' ? '' : `<a class="tl" href="${proofUrl(p.pid, '', rows)}"${TAB}>`}${p.title ? esc(p.title) : '<span class="none">no title found</span>'}${DATA && kindOf(p) === 'notready' ? '' : '</a>'}</div>
         <div class="meta">${esc(p.date)} · ${p.grid.length}×${(p.grid[0] || '').length}${p.byline ? ' · ' + esc(p.byline) : ''}${p.cryptic ? ' · cryptic' : ''} · ${p.changes} changes, ${p.unsure_items.length} unsure, ${p.blanks} blanks</div>
         ${sentBackHtml(p)}${remedyHtml(p)}${blockHtml(p)}${kindOf(p) === 'notready' ? '' : asksHtml(p)}
         ${kindOf(p) === 'notready' ? moreHtml(p, why, verdict, c, rows) : `${checkHtml(p)}
@@ -586,7 +604,7 @@ function draw() {
         ${unsureHtml(p, rows)}`}</div>
       <div class="side"><span class="pill ${k[1]}">${k[0]}</span><span class="state">${stateLine(p)}</span>
         ${DATA && kindOf(p) === 'notready' ? '<span class="meta">needs work: not open for review yet</span>'
-          : `<a class="open" href="${proofUrl(p.pid, '', rows)}" target="_blank">Proof page ↗</a>`}
+          : `<a class="open${SITE ? ' go' : ''}" href="${proofUrl(p.pid, '', rows)}"${TAB}>${SITE ? 'Proofread →' : 'Proof page ↗'}</a>`}
         ${DATA ? '' : kindOf(p) === 'drop' ? `<button class="btn" data-restore="${esc(p.pid)}" title="it's a crossword after all: back in the batch">Restore</button>`
           : `<button class="btn" data-drop="${esc(p.pid)}" title="this isn't a crossword: drop it from the batch (Restore undoes it)">Not a crossword</button>`}</div></div>`;
   }).join('') || '<p class="meta">None.</p>';
