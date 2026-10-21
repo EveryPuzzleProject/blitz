@@ -140,6 +140,23 @@ the publication's repo. Pushing, rebuilding packets for the changed puzzles and 
 printed as next steps. A sign-off lapses when the puzzle's xd changes later, so readiness always
 means "a person said this exact version is ready".
 
+### Working on the site's pages
+
+To change the proof page or the batch page (`src/blitz/proof.html`, `batch.html`) and see each edit
+in seconds, run the site locally over a copy of real data:
+
+```
+uv run python tools/review_dev.py --data <folder> [--port 8795]
+```
+
+It serves the pages as the site does (the volunteer's view, no `site-build`), reloads the open tab
+whenever either file is saved, and stands in for Supabase: Ready, Not ready, edits and comments are
+kept in `<folder>/db/`, never on the real site. `<folder>` holds `packets/` (proof packets, copied
+once from a harvest's `proof/<run>/`, with its `dropped.json`) and `files/batch/` (a batch snapshot:
+`batches.json` and `<name>/`, from `site-publish-batch --dry-run` or the published copy). Open
+`http://localhost:8795/review/batch/`. When the pages are right, `blitz site-build` and commit
+`docs/review/` as usual.
+
 ### Key squares
 
 The quickest way for people to help: one doubtful answer-key letter at a time, at
