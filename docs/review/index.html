@@ -327,6 +327,7 @@ body.side .typed { margin-top: 0; }
 .typedgrid.over div { color: rgba(220, 20, 60, .85); }
 .typedgrid.over div.blk { background: transparent; }
 body.show-unsure .typedgrid div.unsure { box-shadow: inset 0 0 0 2px var(--flag); }
+body.show-fixed .typedgrid div.fixed { box-shadow: inset 0 0 0 2.5px var(--fixc); }
 .typedgrid div.cur { background: #e2ecfb !important; }
 /* a square where the key reader's black squares differ from the grid's (ocr.json key_differ: assembly's record) */
 .typedgrid div.kdiff { outline: 3px dashed #7a3fbf; outline-offset: -3px; }
@@ -378,7 +379,7 @@ section.collapsed > :not(h2) { display: none !important; } h2.fold { cursor: poi
 .pthumb:hover { border-color: var(--ink); }
 </style>
 </head>
-<body class="show-changes show-notes show-marks show-unsure">
+<body class="show-changes show-notes show-marks show-unsure show-fixed">
 <div id="sitebar" hidden>
   <b>Help check old crosswords.</b> Compare our text with the printed scan, line by line; fix what's wrong,
   then say whether each part looks good. <a href="batch/">All batches</a>
@@ -2203,7 +2204,7 @@ function gridSection() {
   // the view switch sits above the grids, so it stays put while the layout under it changes
   const g0 = G(), anySp = g0.some((row, r) => [...row].some((_, c) => final(spKey(r, c))));
   s.insertAdjacentHTML('beforeend', `${ansImg ? `<div class="gmodes"><span class="hint">Compare:</span> <button class="t" data-g="side">Side by side</button> <button class="t" data-g="over">Our letters on the scan</button> <button class="t" data-g="blink">Blink</button>
-      <span class="hint">Click a square and type to fix it; arrow keys move.</span> <span class="hint" id="unsurekey"></span></div>` : ''}<div class="gridwrap">
+      <span class="hint">Click a square and type to fix it; arrow keys move.</span> <span class="hint" id="unsurekey"></span> <span class="hint" id="fixedkey"></span></div>` : ''}<div class="gridwrap">
     ${ansImg ? `<div class="gridbox" id="gscan"><img src="${dir}answers.png" alt="answer key scan"></div>`
       : `<div class="gridbox pagebox" id="gscan"><img src="${dir}answer_page.jpg" alt="the page with the answer key"><a class="ctxbtn" href="${dir}answer_page.jpg" target="_blank">open it larger ↗</a></div>`}
     <div class="gridbox" id="gtyped"></div>
@@ -2310,7 +2311,7 @@ function cells(cls) {
     if (ch === '#') x.className = 'blk'; else setSquare(x, ch);
     x.dataset.rc = `${r},${c}`;
     x.title = cellRef(r, c);
-    if (h.length > 1) { x.style.boxShadow = `inset 0 0 0 2.5px ${h[h.length-1].color}`; x.title += ': ' + h.map(v => `${v.who} ${v.value}`).join(' → '); }
+    if (h.length > 1) { x.classList.add('fixed'); x.style.setProperty('--fixc', h[h.length-1].color); x.title += ': ' + h.map(v => `${v.who} ${v.value}`).join(' → '); }
     else if (low.has(`r${r+1}c${c+1}`)) { x.classList.add('unsure'); x.title += ': the OCR was unsure of this letter'; }
     if (ch !== '#') { paintSpecial(x, r, c); markSuggest(x, r, c, sug); }
     const kd = kdiff[`r${r+1}c${c+1}`];
@@ -2332,6 +2333,15 @@ function drawGrid(s) {
   else scanBox.append(cells(gridMode === 'over' ? 'over' : 'solo'));
   if (ansImg) edgeLabels(scanBox, ocr.answers.length, ocr.answers[0].length);
   edgeLabels(typedBox, ocr.answers.length, ocr.answers[0].length);
+  // the squares a reviewer changed, outlined in their colour; a button takes the outlines off (and back),
+  // for when the scan sits a little off our grid and the outlines cover its letters
+  const nf = s.querySelector('.typedgrid:not(.hit)').querySelectorAll('.fixed').length, fk = s.querySelector('#fixedkey');
+  if (fk) {
+    const on = document.body.classList.contains('show-fixed');
+    fk.innerHTML = !nf ? '' : (on ? `Outlined: ${nf === 1 ? 'a square' : nf + ' squares'} a reviewer changed. ` : `${nf === 1 ? 'A square' : nf + ' squares'} a reviewer changed: not outlined. `)
+      + `<button class="linkbtn">${on ? 'Hide the outlines' : 'Outline them'}</button>`;
+    fk.querySelector('button')?.addEventListener('click', () => { document.body.classList.toggle('show-fixed'); drawGrid(s); });
+  }
   const g = s.querySelector('#gnotes'), open = g.querySelector('.compose');
   const notes = [];
   for (const r of rounds) for (const c of r.comments)
@@ -2376,7 +2386,7 @@ function paintSpecial(x, r, c) {
   if (h.length > 1) {
     const last = h[h.length - 1];
     x.style.setProperty('--spc', last.color);
-    if (!x.style.boxShadow) x.style.boxShadow = `inset 0 0 0 2.5px ${last.color}`;
+    if (!x.style.boxShadow && !x.classList.contains('fixed')) x.style.boxShadow = `inset 0 0 0 2.5px ${last.color}`;
     x.title += '; ' + h.map(s => `${s.who} ${s.value ? SPECIAL[s.value] : 'not marked'}`).join(' → ');
   } else if (v) x.title += '; ' + SPECIAL[v];
 }
