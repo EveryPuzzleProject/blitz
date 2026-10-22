@@ -821,8 +821,8 @@ function render() {
     st.innerHTML = pp.map((q, j) => `<button class="pthumb" data-j="${j}" title="Open ${esc(q.label)}">`
       + `<img loading="lazy" alt="${esc(q.label)}" src="${esc(q.key ? q.src : dir + q.name)}"><span>${esc(q.label)}</span></button>`).join('');
     // the magazine itself, at the far left: the scan's source as the packet records it (a cover when the packet has one)
-    if (ocr.source) st.insertAdjacentHTML('afterbegin', `<a class="pcover" href="${esc(ocr.source)}" target="_blank" title="The whole magazine on the Internet Archive (slow to load)">`
-      + (ocr.cover ? `<img loading="lazy" alt="the magazine's cover" src="${esc(dir + ocr.cover)}">` : '') + `<span>archive.org ↗</span></a>`);
+    if (ocr.source) st.insertAdjacentHTML('afterbegin', `<a class="pcover" href="${esc(ocr.source)}" target="_blank" title="${esc(sourceTitle(ocr.source))}">`
+      + (ocr.cover ? `<img loading="lazy" alt="the magazine's cover" src="${esc(dir + ocr.cover)}">` : '') + `<span>${esc(sourceHost(ocr.source))} ↗</span></a>`);
     st.querySelectorAll('.pthumb').forEach(b => b.onclick = () => scanViewer(pp[+b.dataset.j].name));
     main.append(st);
   }
@@ -1274,6 +1274,14 @@ function edgeLabels(box, H, W) {
     `<div class="edge-r" style="grid-template-rows:repeat(${H},1fr)">${Array.from({length: H}, (_, i) => `<span>${i + 1}</span>`).join('')}</div>`);
 }
 // the number printed beside the clue, as the OCR read it
+// where the scan came from, by its link: archive.org (the whole magazine) or a clipping's page (Newspapers.com, ...)
+function sourceHost(url) {
+  try { return new URL(url).hostname.replace(/^www\./, ''); } catch (e) { return 'the scan'; }
+}
+function sourceTitle(url) {
+  return sourceHost(url) === 'archive.org' ? 'The whole magazine on the Internet Archive (slow to load)' : `The page at its source (${sourceHost(url)})`;
+}
+
 function printedNumber(k, flags) {
   const f = flags.find(f => f.startsWith('number-corrected:'));
   return f ? f.split(':')[1] : slotOf(k).slice(1);
@@ -1585,8 +1593,20 @@ function blankReasons() {
   if ((ocr.grid_asymmetric_squares || []).length) out.push(`The grid isn't symmetric (${ocr.grid_asymmetric_squares.join(', ')}): check it's printed that way.`);
   const fixes = rounds.flatMap(r => Object.keys(r.edits).filter(k => k.startsWith('grid:')).map(k => `${k.slice(5)} (${r.who})`));
   if (fixes.length) out.push(`A reviewer changed black squares: ${fixes.join(', ')}.`);
-  const N = numbering(), odd = Object.entries(ocr.clues).filter(([k, c]) => !setKeyOf(k) && (!N[k] || printedNumber(k, c.flags || []) !== k.slice(1))).map(([k]) => k);
-  if (odd.length) out.push(`Some printed clue numbers don't match our numbering (${odd.slice(0, 8).join(', ')}${odd.length > 8 ? '…' : ''}).`);
+  // judged by the crop each clue's text now comes from (sourceFor): a crop assembly put in the wrong slot, whose text the
+  // text step or a reviewer moved to its own clue, is a slip in what was linked, not a doubt about our numbering
+  const N = numbering(), odd = Object.keys(ocr.clues).flatMap(k => {
+    if (setKeyOf(k)) return [];
+    const fin = final('clue:' + k);
+    if (!fin || !fin.trim()) return [];  // nothing read for it: a missing clue, not a numbering question
+    if (!N[k]) return [k];  // text for a clue our grid has no square for
+    const s = sourceFor(k), fl = s.flags || [];
+    // a crop moved here whose number wasn't read ("12535.315 cubic feet"): its printed number is unknown, not different
+    if (s.label !== k && fl.includes('number-missing') && !fl.some(f => f.startsWith('number-corrected:'))) return [];
+    const n = printedNumber(s.label, fl);
+    return n !== k.slice(1) ? [`${k} (printed ${n})`] : [];
+  });
+  if (odd.length) out.push(`Some printed clue numbers don't match our numbering: ${odd.slice(0, 8).join(', ')}${odd.length > 8 ? '…' : ''}.`);
   return out;
 }
 let bMode = 'over';
