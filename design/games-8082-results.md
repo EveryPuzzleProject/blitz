@@ -30,7 +30,11 @@ registry. Branch `claude/games-8082-run` in xword-ocr, blitz and games.
 | remedy agent, 1980 (12 puzzles, Sonnet) | 21:10 | 6 min | 0 fixed, 1 waiting (a request for 1980-03 leaf 52), 11 for you; 3 looks (+1 viewed); 1 grow (1980-05 L046, still not ready) |
 | remedy agent, 1981 (21 puzzles, Sonnet) | 21:17 | 4 min | brief adds the cryptic-key kind from 1980. 0 fixed, 21 for you (each flagged; 10 cryptics also a key gap); 2 looks; 1 unneeded request (1981-01 L048, leaf 47 already harvested; noted on its flag) |
 | remedy agent, 1982 (35 puzzles, Sonnet) | 21:22 | 76 min | brief adds the kinds from 1980–81: cryptic headings, fold pages, not-a-crossword. 7 restarted from parts (lists inside the person's box but misread: the second Across column, the strip under the grid, a quiz taken instead) now wait for the text step; 28 for you; 5 looks. Slow: each restart re-assembles its issue |
-| request loop for the remedy's page request (1980-03 leaf 52) | 22:38 | | the only download of the run |
+| request loop for the remedy's page request (1980-03 leaf 52) | 22:37 | 13 min | **stalled**: "11 requests, 0 open", nothing fetched; the request isn't counted as open for this harvest, so 1980-03 L054 still waits. 13 minutes of re-assembly for nothing |
+| waiting for the go-ahead on the text step for 8 restarted puzzles | 22:51 | 3 min | **ask**: about 100k Fable tokens, about 1% of the weekly limit. Go-ahead (human touch 3) |
+| text step on the 8 restarted (Fable) | 22:55 | 3 min | 432 input, 67k cache writes, 751k cache reads, 14k output; $1.73 |
+| proof packets (8) and triage again | 22:58 | 1 min | **62 Needs work, 58 Ready for review, 5 not a crossword** |
+| the maintainer's pass on the batch page | 23:00 | | |
 
 ## Cost per puzzle, by role
 
@@ -53,6 +57,7 @@ Fable meter went 0% → 13%; the 5-hour limit (all models) reached 76%.
 | role | input | cache writes | cache reads | output | API $ | per puzzle |
 |---|---|---|---|---|---|---|
 | text step (Fable 5.1) | 8,366 | 1,184,513 | 16,883,841 | 323,235 | 35.27 | 0.28 |
+| text step again, 8 restarted (Fable 5.1) | 432 | 67,016 | 750,882 | 14,051 | 1.73 | 0.01 |
 | remedy agent (Sonnet 5.5, 3 passes, 68 puzzles), scan looks included | 158 | 1,060,464 | 7,203,227 | 2,586 | 4.12 | 0.03 |
 | orchestration (this session, Opus 5.5, to 22:37) | 306 | 535,321 | 26,797,891 | 63,220 | 9.30 | 0.07 |
 | **total so far** | | | | | **48.69** | **0.39** |
@@ -96,6 +101,11 @@ batch page's "For you": 61, counting one restarted puzzle with a separate key fl
 the remedy agent fixed 9 of 22; there most failures were parts the proof page could settle, here
 most are assembly's linking, which no remedy action reaches (see the v3 list).
 
+**After the restarted puzzles' text step** (8 puzzles, then proof packets and triage again):
+**62 Needs work, 58 Ready for review, 5 not a crossword.** The remedy's restarts brought 6
+puzzles to ready; 1982-03 L036 (key in the next issue) and 1982-09 L045 (an ad's Down list
+never read) still need work.
+
 gxd cross-check: 4,370 of 9,125 clue/answer pairs seen in gxd (48%); 16 key near misses, 25
 blank mismatches.
 
@@ -109,7 +119,8 @@ blank mismatches.
    no-code rule): the blue outlines around reviewer-changed key squares can be hidden, like
    the orange low-confidence ones, because they hide the scan when the grid sits a little off
    it. Done in its own session, blitz branch `claude/proof-corrected-toggle` (394c2a9), not
-   part of this run's code.
+   part of this run's code. PR EveryPuzzleProject/blitz#46.
+3. **Go-ahead for the text step on the 8 restarted puzzles** (planned stop for Fable).
 
 ## Orchestration decisions
 
@@ -167,6 +178,9 @@ From the text step's reports (125 puzzles). Each is a kind, with examples:
   wrong puzzle (the cryptic heading to the warm-up, a fold page's heading and Hard clues not
   joined to the 25x25, a neighbouring quiz as a clue list), so the agent can only flag them. A
   remedy needs a "relink this part to that puzzle" action, recorded as a decision assembly obeys.
+- **A remedy's page request isn't seen as open.** The remedy agent requested 1980-03 leaf 52
+  (`grow` refused it as unharvested), but `requests --run` counted 0 open and fetched nothing.
+  The request and the harvest disagree on whether the page is in the harvest.
 - **A key gap doesn't clear the text step's key request.** After `gap --part key` on a cryptic,
   triage still blocks on the text step's `request-page` for the Answer Drawer (1981: cleared on
   1 of 10).
