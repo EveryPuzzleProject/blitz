@@ -344,6 +344,14 @@ function asksHtml(p) {
 // left for a person by the remedy agent (it couldn't fix it by sending it back through the pipeline)
 // not open on the review site: it needs work, or it's set aside
 const closed = p => kindOf(p) === 'notready' || kindOf(p) === 'setaside';
+// digits in the answers (a rebus key, 8CROW): kept (digits-kept), on their way (key-digits: restart from key reading), or not
+// said; a person says so here (xword-ocr digits.py)
+const digitsBtn = p => {
+  const has = c => (p.reasons || []).find(r => r.code === c);
+  if (has('digits-kept')) return ` <button class="btn" data-undigits="${esc(p.pid)}" title="${esc(has('digits-kept').detail)}: take it back (the key's digits read as letters again on its next restart)">Not digits</button>`;
+  if (has('key-digits')) return ` <span class="meta" title="${esc(has('key-digits').detail)}">uses digits: restart from key reading</span>`;
+  return ` <button class="btn" data-digits="${esc(p.pid)}" title="its answers use digits (a rebus key: 8CROW for 'ate crow'): its key is read again with the digits kept">Uses digits…</button>`;
+};
 const forYou = p => kindOf(p) === 'notready' && (p.remedy || {}).answer === 'for-you';
 // a reviewer sent it back from the proof page (xword-ocr problems.py): what they said is wrong
 function sentBackHtml(p) {
@@ -535,6 +543,18 @@ function wireRestart() {
       try { await postJSON('/api/setaside', {pid, note: inp.value.trim(), by: 'person'}); await reload(); } catch (e) { fail(go, e); }
     };
   });
+  // a person: this puzzle's answers use digits (a rebus, 8CROW): digits:<pid>, and a restart from key reading
+  // reads its key again with the digits kept; "Not digits" takes it back (xword-ocr digits.py)
+  document.querySelectorAll('[data-digits]').forEach(b => b.onclick = async () => {
+    const note = prompt('Which answers show it? (e.g. "A1 8CROW, A16 GO2THE"; optional)');
+    if (note === null) return;
+    busy(b, 'recording it, sending it back to key reading…');
+    try { await postJSON('/api/digits', {pid: b.dataset.digits, run: D.run, note: note.trim(), by: 'person'}); await reload(); } catch (e) { fail(b, e); }
+  });
+  document.querySelectorAll('[data-undigits]').forEach(b => b.onclick = async () => {
+    busy(b, 'taking it back…');
+    try { await postJSON('/api/digits', {pid: b.dataset.undigits, restore: true, note: 'taken back on the batch page', by: 'person'}); await reload(); } catch (e) { fail(b, e); }
+  });
   document.querySelectorAll('[data-unaside]').forEach(b => b.onclick = async () => {
     busy(b, 'restoring…');
     try { await postJSON('/api/setaside', {pid: b.dataset.unaside, restore: true, note: 'restored on the batch page', by: 'person'}); await reload(); } catch (e) { fail(b, e); }
@@ -630,7 +650,8 @@ function draw() {
         ${DATA ? '' : kindOf(p) === 'drop' ? `<button class="btn" data-restore="${esc(p.pid)}" title="it's a crossword after all: back in the batch">Restore</button>`
           : `<button class="btn" data-drop="${esc(p.pid)}" title="this isn't a crossword: drop it from the batch (Restore undoes it)">Not a crossword</button>`
             + (kindOf(p) === 'setaside' ? ` <button class="btn" data-unaside="${esc(p.pid)}" title="back where it was: its disposition from what it was waiting on">Restore</button>`
-              : ` <button class="btn" data-aside="${esc(p.pid)}" title="in scope, but not a priority now: out of Needs work and Ready for review, and out of Next (Restore undoes it)">Set aside…</button>`)}</div></div>`;
+              : ` <button class="btn" data-aside="${esc(p.pid)}" title="in scope, but not a priority now: out of Needs work and Ready for review, and out of Next (Restore undoes it)">Set aside…</button>`)
+            + digitsBtn(p)}</div></div>`;
   }).join('') || '<p class="meta">None.</p>';
   rows.forEach(p => { const row = document.getElementById(p.pid); if (row && p.maps.length) drawOverlay(row.querySelector('.maps svg'), p.pid, 0, 2); });
   if (!DATA) wireRestart();
