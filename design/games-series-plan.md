@@ -265,7 +265,11 @@ the text step. It's built before the 1983–89 harvests, since that's where it e
    blitz and games PRs to open). Then: the AI proof review's 62 decisions (a valid record,
    however it was made) and the ship-check prototype as a triage disposition; make 1980–82
    current and published.
-2. The lineage record and the census view (amendment D), before any new harvest.
+2. ~~The lineage record and the census view~~ (amendment D): xword-ocr#50, `census.py` and
+   `docs/census.md`; built for 1977–79 (run15-restart: 76 puzzles of 166 grids, 11 keys with
+   no puzzle, 29 turned-down grids that have a key) and 1980–82 (run1-handsoff: 119 of 226,
+   23 keys with no puzzle). The maintainer's census review is the yellow and red cells on
+   `census/<run>/index.html`. Still to do: a link from the batch page.
 3. The ship gate and the text-first AI reviewer (section 1, amendment A); run them on 1977–79
    and 1980–82; the maintainer's "For you" pass; `import-batch` into games/xd.
 4. The export path (section 2), dry-run on 1977–82; nothing sent to gxd yet (amendment C).
