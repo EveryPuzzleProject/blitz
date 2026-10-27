@@ -522,12 +522,12 @@ function wireRestart() {
     no.onclick = () => draw();
     go.onclick = async () => {
       busy(go, 'dropping…');
-      try { await postJSON('/api/batch', {pid, choice: 'drop', note: inp.value.trim(), by: 'person', source: 'the batch page'}); await reload(); } catch (e) { fail(go, e); }
+      try { await postJSON('/api/batch', {pid, run: D.run, choice: 'drop', note: inp.value.trim(), by: 'person', source: 'the batch page'}); await reload(); } catch (e) { fail(go, e); }
     };
   });
   document.querySelectorAll('[data-restore]').forEach(b => b.onclick = async () => {
     busy(b, 'restoring…');
-    try { await postJSON('/api/batch', {pid: b.dataset.restore, choice: '', note: 'restored on the batch page', by: 'person'}); await reload(); } catch (e) { fail(b, e); }
+    try { await postJSON('/api/batch', {pid: b.dataset.restore, run: D.run, choice: '', note: 'restored on the batch page', by: 'person'}); await reload(); } catch (e) { fail(b, e); }
   });
   // a person's set-aside: in scope, not a priority now, with the reason (required: the card shows it); Restore undoes it
   document.querySelectorAll('[data-aside]').forEach(b => b.onclick = () => {
