@@ -186,6 +186,67 @@ A frontier model reading every page is about 61k tokens a puzzle (the 2026-10-15
 Today's pipeline is at about 12k for the text step plus review; with items 1–2 the clean
 half of a batch costs nothing and the rest a few thousand, which is the 10% target.
 
+## Amendments (the maintainer, 2026-10-27)
+
+The plan was approved with four changes.
+
+**A. The AI reviewer must not read pixels.** The 2026-10-21 AI proof review read the proof
+sheets as images from the browser, which undid the point of the text-first work and cost 0.9M
+tokens a puzzle. The proof page stays what it is: the human tool and the permanent record,
+which gxd's source archive and crossref link to. The AI review gets its own input and writes
+into the proof page's format:
+
+- **Input, built by code:** the puzzle as text (`puzzle.xd`), the text step's findings and
+  what it left unsure, triage's reason codes, the key's low-confidence squares, the gxd
+  cross-check (pairs seen, near misses), the numbering and crossing checks, and **crops only
+  for the items those checks flag**, chosen by code. Nothing the checks passed is shown.
+- **Output, in the record's format:** a `review.json`-shaped decision (edits keyed as the
+  proof page keys them: `clue:A12`, `ev:title`, `fitb:D3`, `sic`, `unsure`, comments) and a
+  `proof:<pid>` Ready / Not ready record naming the model, so the proof page renders the AI's
+  review exactly as it renders a person's, with its source.
+- **Budget:** under 30k tokens a puzzle on Opus or Sonnet, not Fable; a clean puzzle (nothing
+  flagged) never reaches the model at all (the ship gate).
+
+Built as `xword-ocr proof-review <run> --pids ...` (the brief, the per-puzzle input file,
+the agent, the import of its answers), replacing the scratchpad proof sheets.
+
+**B. The Fable budget is the constraint; the text step is load-bearing.** The maintainer
+doesn't want to give up the Fable text step, and this session itself runs on Fable. So:
+- **Orchestration moves off Fable** (Opus) from the next session; Fable is for the text step.
+- **The text step runs Opus for clean packets and Fable for flagged ones.** 1977–79's runs
+  8–14 already used Opus for 46 of the 75 answers without a noticed quality gap; the first
+  1983–89 batch runs the two side by side on the same packets and compares them on the
+  ship-gate pass rate and the proof review's findings, then the split is settled. A packet
+  is flagged when its reading has unsure lines, missing clues, a key with unread squares, or
+  a second clue set.
+- **One batch a week at most** on Fable; a batch's text step waits for the meter, never the
+  other way round. Each batch's cost is written to this document.
+
+**C. One gxd import for the whole series.** Nothing goes to gxd until 1977–89 is complete;
+`games/xd/` fills batch by batch, and the export (section 2) is built and dry-run early so
+the final MR is one command, with one source archive covering every page used.
+
+**D. Every puzzle tracked from harvest to export, and the maintainer in the loop on "do we
+have them all".** Today a grid found on a page can vanish between regions, parts, assembly
+and triage with nothing recording its fate, and a drop on the batch page doesn't say what it
+takes with it. The fix is a **lineage record per grid candidate**, kept by the registry that
+already mints puzzle ids at assembly:
+- every grid candidate on every harvested page gets an id when regions find it (the
+  registry's place: scan, leaf, size, n-th), and each stage after records its fate: became
+  puzzle P; a key matched to P; a part linked to P; dropped at stage S with reason R; set
+  aside; shipped; exported. Nothing is ever deleted, only given a fate.
+- a **census view per issue** on the watch page: the pages, every grid found, where each
+  went, and the counts beside the cross-checks we have (v1's count for the issue, the box
+  review's decisions, the Answer Drawer's grids). A gap (a key with no puzzle, a grid with
+  no fate, an Answer Drawer grid no puzzle claims) is a row the maintainer answers there.
+- every drop or set-aside card names **what it removes and what it borrows**: "this drop
+  removes grid X on leaf 46; its Across list came from leaf 44 and is also linked to puzzle
+  Y / is linked nowhere else". A part that belongs to a real crossword is never lost with a
+  dropped grid: the drop frees the part and the record says where it went.
+
+The census is the one review the maintainer does per batch, after the harvest and before
+the text step. It's built before the 1983–89 harvests, since that's where it earns its keep.
+
 ## Decisions for the maintainer
 
 1. **The ship rule for GAMES**: rule-shipped and AI-Ready puzzles ship; you see only Not ready,
@@ -199,13 +260,18 @@ half of a batch costs nothing and the rest a few thousand, which is the 10% targ
 
 ## Order of work
 
-1. Land what exists: the 1980–82 results doc and ledger records (PRs from the games-8082
-   worktrees), the AI proof review branches, the ship-check prototype as a triage
-   disposition. Make 1980–82 current and published.
-2. Build the ship gate and the AI reviewer command; run them on 1977–79 and 1980–82; the
-   maintainer's "For you" pass.
-3. Build the export path; export 1977–82; the first gxd MR with its source archive.
-4. 1983–84, then 1985–86, then 1987–89, each with its results section appended to this
-   document and its new failure kinds on the v3 list.
-5. After GAMES: the next publication should be a single-puzzle periodical, to measure the
+1. ~~Land what exists~~: the 1980–82 results doc, ledger records and run registries are on
+   branches `claude/games-8082-run` in blitz, games and xword-ocr (xword-ocr#49 open; the
+   blitz and games PRs to open). Then: the AI proof review's 62 decisions (a valid record,
+   however it was made) and the ship-check prototype as a triage disposition; make 1980–82
+   current and published.
+2. The lineage record and the census view (amendment D), before any new harvest.
+3. The ship gate and the text-first AI reviewer (section 1, amendment A); run them on 1977–79
+   and 1980–82; the maintainer's "For you" pass; `import-batch` into games/xd.
+4. The export path (section 2), dry-run on 1977–82; nothing sent to gxd yet (amendment C).
+5. 1983–84 (with the Opus/Fable text-step comparison, amendment B), then 1985–86, then
+   1987–89: harvest, census, text step, gate, review, import; each batch's results and new
+   failure kinds appended here.
+6. One gxd MR for 1977–89 with one source archive.
+7. After GAMES: the next publication should be a single-puzzle periodical, to measure the
    per-puzzle cost of the common case GAMES can't measure.
