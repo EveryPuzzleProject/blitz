@@ -270,8 +270,13 @@ the text step. It's built before the 1983–89 harvests, since that's where it e
    no puzzle, 29 turned-down grids that have a key) and 1980–82 (run1-handsoff: 119 of 226,
    23 keys with no puzzle). The maintainer's census review is the yellow and red cells on
    `census/<run>/index.html`. Still to do: a link from the batch page.
-3. The ship gate and the text-first AI reviewer (section 1, amendment A); run them on 1977–79
-   and 1980–82; the maintainer's "For you" pass; `import-batch` into games/xd.
+3. ~~The ship gate and the text-first AI reviewer~~ (section 1, amendment A): xword-ocr PR
+   `claude/ship-gate`, `docs/ship-gate.md`. The check passes 34 of 66 ready puzzles in 1977–79
+   and 39 of 58 in 1980–82; the reviewer's trial on Sonnet took 79k tokens for three puzzles
+   (26k each with the agent's fixed overhead; the pixel review was 0.9M). Still to do: run the
+   reviewer on every held puzzle (32 + 20), record the ship check's and the reviewer's Readys in
+   the ledger (`triage --record-ships`, `proof-review record`), the maintainer's "For you" pass,
+   `import-batch` into games/xd.
 4. The export path (section 2), dry-run on 1977–82; nothing sent to gxd yet (amendment C).
 5. 1983–84 (with the Opus/Fable text-step comparison, amendment B), then 1985–86, then
    1987–89: harvest, census, text step, gate, review, import; each batch's results and new
