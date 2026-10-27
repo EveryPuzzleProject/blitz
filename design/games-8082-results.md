@@ -34,7 +34,9 @@ registry. Branch `claude/games-8082-run` in xword-ocr, blitz and games.
 | waiting for the go-ahead on the text step for 8 restarted puzzles | 22:51 | 3 min | **ask**: about 100k Fable tokens, about 1% of the weekly limit. Go-ahead (human touch 3) |
 | text step on the 8 restarted (Fable) | 22:55 | 3 min | 432 input, 67k cache writes, 751k cache reads, 14k output; $1.73 |
 | proof packets (8) and triage again | 22:58 | 1 min | **62 Needs work, 58 Ready for review, 5 not a crossword** |
-| the maintainer's pass on the batch page | 23:00 | | |
+| the maintainer's pass on the batch page | 23:00 | | decided with the maintainer: no assembly review (the failures are kinds for v3); only kind decisions (Not a crossword) |
+| publish dry run: proofs (`site-publish --dry-run`, the 62 Needs work skipped) | next day | <1 min | would publish 63: 58 ready + 5 drops |
+| publish dry run: batch snapshot (`site-publish-batch --dry-run`) | next day | 38 min | 131 cards (125 + 1977–79's 6 drops), 1,031 files; slow: every thumbnail and page fetched through the live watch |
 
 ## Cost per puzzle, by role
 
@@ -184,6 +186,26 @@ From the text step's reports (125 puzzles). Each is a kind, with examples:
 - **A key gap doesn't clear the text step's key request.** After `gap --part key` on a cryptic,
   triage still blocks on the text step's `request-page` for the Answer Drawer (1981: cleared on
   1 of 10).
+- **The maintainer couldn't tell whether the Assembled tab is the run.** It assembles live
+  (hands off or with the boxes, by a link at the top), while the run's proof packets keep
+  assembly's record from when they were built. They agreed where checked (1980-01: the same 4
+  keys), but nothing on the page says so. v3: the view draws the run's assembly record, with
+  its fingerprint, and says when the live reading differs. Example: 1980-01 "Definitions?"
+  showed no title on the Assembled tab in its boxes mode (the 2026-10-15 box review's
+  boxes), while the run's hands-off assembly has the title, byline and the key from the other
+  uploader's scan (leaf 63). The two modes look alike and nothing says which one the run used.
+- **A key taken from the other scan shows twice wrong.** The puzzle's card doesn't draw the key's
+  page (it draws only the grid's scan), and the chosen scan's own partial reading of the same
+  key stays under "Keys with no puzzle" as pieces (1980-01 "Definitions?": its 21x21 key read on
+  games-15-1980-january leaf 63 as 14x21, 7x15 and 7x21 fragments, the 14x21 listed as a
+  key-like orphan). An orphan whose page gave another puzzle its key from the other scan should
+  say so and leave the orphan list.
+- **Not a crossword is per grid, but the card shows several leaves.** A card's id names one
+  grid, and the drop applies to it alone; the other leaves are pages it took parts from. The
+  maintainer couldn't tell from the card what a click would take out. The card should say
+  "this grid (leaf N)" on the button, and mark the borrowed pages as borrowed.
+- **The batch snapshot takes 38 minutes** (1,031 files fetched one by one from the live watch,
+  thumbnails rendered on demand), and it includes another batch's drops.
 - **Relative paths in milestone records.** triage.json names its text-step and proof folders
   relative to the checkout the command ran in, so a viewer started elsewhere (a worktree)
   fails with a TypeError instead of "not recorded".
