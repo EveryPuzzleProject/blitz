@@ -149,6 +149,11 @@ in seconds, run the site locally over a copy of real data:
 uv run python tools/review_dev.py --data <folder> [--port 8795]
 ```
 
+Each packet's `checks.json` (what the checks found: the ship check's findings, triage's doubts, the
+text step's notes, gxd's key near misses, keyed by the page's rows) is written by xword-ocr's
+`triage --proof`, or `proof-checks --out <harvest> --run <run> [--dest <copy>]` for packets copied
+here; the proof page opens with it, and `site-publish` uploads it with the packet.
+
 It serves the pages as the site does (the volunteer's view, no `site-build`), reloads the open tab
 whenever either file is saved, and stands in for Supabase: Ready, Not ready, edits and comments are
 kept in `<folder>/db/`, never on the real site. `<folder>` holds `packets/` (proof packets, copied

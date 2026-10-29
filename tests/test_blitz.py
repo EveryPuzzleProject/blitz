@@ -240,6 +240,23 @@ def test_proof_and_batch_pages_carry_the_feature():
     assert "p.feature" in (src / "batch.html").read_text(encoding="utf-8")
 
 
+def test_the_proof_page_opens_with_what_the_checks_found():
+    # the packet's checks.json (xword-ocr proofreview.checks_record), drawn as the first section: one line per
+    # finding with its source and links to its rows (clue:A12, line:B1, ev:title, grid, cell:r5c7); the ship check's
+    # incomplete findings say a Ready can't ship it; an empty record says so; the page computes no check of its own
+    from pathlib import Path
+
+    from blitz import site
+
+    assert "checks.json" in site.FILES
+    page = (Path(__file__).parents[1] / "src" / "blitz" / "proof.html").read_text(encoding="utf-8")
+    for needed in ("fetch(dir + 'checks.json')", "main.append(checksSection())", "What the checks found",
+                   "A Ready can't ship this until it is whole", "No findings recorded.", "checks?.ship?.incomplete",
+                   "/^cell:r(\\d+)c(\\d+)$/", "goTo(params.get('k'))", "flagged.has(key)", "no checks record in this packet"):
+        assert needed in page, needed
+    assert page.index("main.append(checksSection())") < page.index("main.append(pageSection())")
+
+
 def test_proof_page_switches_between_the_clue_sets():
     # Hard only / Easy only / Both, named from the sets' keys, remembered per viewer (localStorage in try/catch)
     from pathlib import Path
