@@ -336,6 +336,19 @@ body.show-fixed .typedgrid div.fixed { box-shadow: inset 0 0 0 2.5px var(--fixc)
 .typedgrid div.sug::after, .acells > span.sug::after { content: attr(data-sug); position: absolute; right: 1px; top: 0; font: 700 10px/1 var(--sans); color: #c46e00; }
 .findings { margin: 6px 0 0; padding-left: 18px; font-size: 13px; } .findings li { margin: 2px 0; }
 .findings .st { color: var(--muted); font-size: 12px; }
+/* what the checks found (the packet's checks.json): one line per finding, its source, links to its rows */
+.checks .body { padding: 10px 14px; font-size: 13px; }
+.checks ul { margin: 0; padding: 0; list-style: none; }
+.checks li { display: flex; gap: 8px; align-items: baseline; margin: 3px 0; }
+.checks .src { flex: none; min-width: 72px; text-align: center; white-space: nowrap; font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; }
+.checks li.inc .src { color: var(--bad); border-color: var(--bad); font-weight: 600; }
+.checks a { color: #1f5fbf; }
+.checks .whole { border: 2px solid var(--bad); background: var(--badbg); border-radius: 8px; padding: 8px 10px; margin: 0 0 10px; color: #6b1a14; }
+.checks .whole b { color: var(--bad); }
+.checks .more { color: var(--muted); font-size: 12px; margin: 6px 0 0; }
+.row.flash, .hdrs.flash { animation: flash 1.8s ease-out; }
+@keyframes ring { from { box-shadow: 0 0 0 4px #c77700; } to { box-shadow: 0 0 0 4px transparent; } }
+.typedgrid.flash, .typedgrid div.flash { animation: ring 1.8s ease-out; }
 .sugbtn { font: 600 12px var(--sans); border: 1px solid #c46e00; color: #c46e00; background: #fff; border-radius: 5px; padding: 1px 7px; cursor: pointer; margin-left: 4px; }
 /* on the scan, the selected square is ringed, never filled: the printed letter stays readable */
 .typedgrid.hit div.cur, .typedgrid.over div.cur { background: transparent !important; outline: 2.5px solid #1f5fbf; outline-offset: 1px; z-index: 1; }
@@ -615,13 +628,15 @@ async function start() {
   await loadProofs();
   await load();
 }
-let images = {}, ansImg = null, keyPage = null, gridImg = null, ocr, rev, page, rounds, cur, rows = [], focus = -1, NUM;
+let images = {}, ansImg = null, keyPage = null, gridImg = null, ocr, rev, checks = null, page, rounds, cur, rows = [], focus = -1, NUM;
 const undoStack = [], redoStack = [];
 const MAIN = () => ocr.clue_image || 'page.jpg';
 const scaleOf = im => 1 / (ocr.scales[im || MAIN()] || 1);
 
 async function load() {
-  [ocr, rev] = await Promise.all([dir + 'ocr.json', dir + 'review.json'].map(u => fetch(u).then(r => r.json())));
+  [ocr, rev, checks] = await Promise.all([...[dir + 'ocr.json', dir + 'review.json'].map(u => fetch(u).then(r => r.json())),
+    // what the checks found (checks.json): a packet made before the record existed has none
+    fetch(dir + 'checks.json').then(r => r.ok ? r.json() : null).catch(() => null)]);
   // A review kept in this browser from another version of the puzzle (its xd has changed since, or
   // it predates versions) is set aside, not laid over this one: its edits were to rows that may now
   // hold other lines. It stays in this browser under its version. A version that differs only in how we
@@ -678,7 +693,7 @@ async function load() {
   render();
   setTimeout(navRail, 900);
   // ?k=clue:A14 (any row's item) opens the page at that row, e.g. from a review card's link
-  if (params.get('k')) { setTimeout(() => jumpTo(params.get('k')), 0); setTimeout(() => jumpTo(params.get('k')), 900); }
+  if (params.get('k')) { setTimeout(() => goTo(params.get('k')), 0); setTimeout(() => goTo(params.get('k')), 900); }
 }
 
 // what a field held before any reviewer: the OCR's reading
@@ -814,6 +829,7 @@ function render() {
   NUM = numbering();
   document.body.style.setProperty('--aw', ocr.grid[0].length * 24 + 4 + 'px');
 
+  main.append(checksSection());  // first: what to look at on a long page, before the rows themselves
   const pp = scanPages();
   if (pp.length) {
     const st = document.createElement('section');
@@ -1379,6 +1395,74 @@ function findingsList() {
     return `<li>${anchor ? `<a href="#${esc(anchor)}">${esc(f.target)}</a>` : esc(f.target)} ${esc(KINDNAME[f.kind] || f.kind)}: “${esc(f.read)}” → “${esc(f.suggest)}” <span class="st">${esc(st)}</span></li>`;
   }).join('')}</ul>`;
 }
+
+// ---- what the checks found (the packet's checks.json: xword-ocr proofreview.checks_record) ----
+// One line per finding, from the records only: the ship check's findings (triage.json's ship record), triage's
+// doubts (its reasons), the text step's unsure items, findings, kept misprints and requests (review.json), gxd's
+// key near misses (gxdcheck.json), the key reading's low-confidence squares (ocr.json), and earlier reviewers'
+// comments (the site's proofs). Each names its rows (clue:A12, line:B1, ev:title, grid, with squares when the
+// record has them); a click goes there and lights the row. The page draws the record and checks nothing itself.
+let flagged = new Set();  // every row a finding names: shown under "Look here first"
+const SRC_TITLE = {'ship check': 'the ship check (xword-ocr shipcheck): can the puzzle ship with no one reading it? Its findings are in triage.json',
+  triage: "triage's doubts (triage.json reasons)", 'text step': "the text step's own notes (review.json: unsure, findings, sic, requests)",
+  gxd: 'the gxd cross-check (gxdcheck.json): a key near miss', 'key reading': "the answer key's reading (ocr.json answers_low_confidence)"};
+function keyName(k) {
+  if (k.startsWith('clue:')) return k.slice(5).replace('^', ' ^');
+  if (k.startsWith('line:')) return k.slice(5);
+  if (k.startsWith('cell:')) return k.slice(5).toUpperCase();
+  if (k === 'grid') return 'answer key';
+  const f = k.split(':')[1];
+  return {puzzle_number: 'number', note: 'notes'}[f] || f || k;
+}
+function checkItems() {
+  const out = (checks?.items || []).map(i => ({...i}));
+  for (const r of remote) for (const c of r.comments || []) if (c.key && c.text) out.push({key: c.key, what: c.text, from: r.who, reviewer: true});
+  // what no Ready makes whole first; otherwise the record's order (its sources in turn)
+  return out.map((i, n) => [i, n]).sort((a, b) => (b[0].incomplete ? 1 : 0) - (a[0].incomplete ? 1 : 0) || a[1] - b[1]).map(([i]) => i);
+}
+const goLink = k => `<a href="?p=${encodeURIComponent(ID)}&k=${encodeURIComponent(k)}" data-go="${esc(k)}" title="${esc(k)}">${esc(keyName(k))}</a>`;
+function checksSection() {
+  const items = checkItems();
+  flagged = new Set(items.flatMap(i => [i.key, ...(i.keys || []), ...(i.cells || []).map(c => 'cell:' + c)]));
+  const s = document.createElement('section');
+  s.id = 'checks'; s.className = 'checks';
+  const inc = (checks?.ship?.incomplete || []);
+  const stale = checks && checks.xd_fp && rev?.xd_fp && checks.xd_fp !== rev.xd_fp;
+  const line = i => `<li class="${i.incomplete ? 'inc' : ''}"><span class="src" title="${esc(SRC_TITLE[i.from] || (i.reviewer ? "an earlier reviewer's comment on this puzzle (the site's proofs)" : i.from))}">${esc(i.from)}</span>`
+    + `<span>${(i.keys || [i.key]).map(goLink).join(', ')}${i.cells?.length ? ` <span class="hint">squares</span> ${i.cells.map(c => goLink('cell:' + c)).join(' ')}` : ''}: ${esc(i.what)}</span></li>`;
+  const srcs = [...new Set(items.map(i => i.from))];
+  const hint = checks ? (srcs.length ? `from the records: ${srcs.join(', ')} · click a name to go to its row` : 'from the records')
+    : 'no checks record in this packet (xword-ocr proof-checks writes one)';
+  s.innerHTML = `<h2>What the checks found <span class="hint">${esc(hint)}</span><span class="chip">${items.length ? esc(plural(items.length, 'finding')) + (inc.length ? ' · not whole' : '') : ''}</span></h2>
+    <div class="body">${inc.length ? `<div class="whole"><b>Not whole:</b> ${inc.map(esc).join('; ')}. <b>A Ready can't ship this until it is whole</b> (the ship check holds it: a missing page or block goes back to the stage that lost it).</div>` : ''}
+    ${items.length ? `<ul>${items.map(line).join('')}</ul>` : '<p class="hint" style="margin:0">No findings recorded.</p>'}
+    ${stale ? `<p class="more">The record was made on an earlier version of this puzzle (${esc(checks.xd_fp)}; this is ${esc(rev.xd_fp)}): a finding may be settled since.</p>` : ''}
+    ${checks?.decision ? `<p class="more">Triage: ${esc(checks.decision)}${checks.ship ? checks.ship.ok ? ' · passed the ship check' : ' · held by the ship check' : ' · no ship check recorded'}.</p>` : ''}</div>`;
+  s.querySelectorAll('a[data-go]').forEach(a => a.onclick = e => { e.preventDefault(); goTo(a.dataset.go); });
+  return s;
+}
+// to a finding's row (any key the page knows, or cell:r5c7 on the answer key), lit for a moment
+function goTo(key) {
+  const all = document.querySelector('[data-show=all]');
+  if (all && !all.classList.contains('on')) all.click();  // a row hidden by "Look here first" shows
+  const cm = /^cell:r(\d+)c(\d+)$/.exec(key);
+  if (cm) {
+    (document.querySelector('section[data-sec=grid]') || document.getElementById('blankpanel'))?.scrollIntoView({block: 'center'});
+    flash(document.querySelectorAll(`.typedgrid div[data-rc="${+cm[1] - 1},${+cm[2] - 1}"]`));
+    return;
+  }
+  jumpTo(key);
+  const hk = /^(?:ev|meta):(\w+)$/.exec(key);
+  if (hk) {
+    const tr = document.getElementById('hdr-' + (hk[1] === 'puzzle_number' ? 'number' : hk[1]));
+    if (tr) return flash([tr]);
+    const ms = document.querySelector('section[data-sec=meta]');  // a header with no row of its own (the notes): its section
+    ms?.scrollIntoView({block: 'start'});
+    return flash([ms?.querySelector('.hdrs')]);
+  }
+  flash(key === 'grid' ? document.querySelectorAll('section[data-sec=grid] .typedgrid') : [rows.find(r => r.dataset.key === key)]);
+}
+function flash(els) { for (const el of els) if (el) { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); } }
 
 // ---- a pop-up over the page ----
 function lightbox() {
@@ -1989,7 +2073,7 @@ function addRow(s, key, label, box, flags = [], src = null) {
       markSuggest(x, r, c, sug);
     });
     const h = moved ? history(key, src.text) : history(key), fin = h[h.length - 1].value;
-    row.look = row.suspect || h.length > 1 || flags.length || odd || commentsFor(key).length;
+    row.look = row.suspect || h.length > 1 || flags.length || odd || commentsFor(key).length || flagged.has(key);
     let kind = '';
     const nearby = key.startsWith('other:'), out = nearby && fin === '';
     const text = [...h].reverse().find(v => v.value)?.value || '';   // the line itself, even when left out
