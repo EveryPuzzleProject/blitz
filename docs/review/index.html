@@ -234,6 +234,7 @@ h2 .quick { margin-left: 8px; font-size: 12px; padding: 2px 10px; }
 .typed { font: 17px/1.35 var(--serif); padding: 2px 4px 2px 0; margin-top: 2px; display: flex; }
 .typed .num { flex: none; width: 2.6em; text-align: right; padding-right: .45em; color: #555; user-select: none; }
 .typed .num.odd { color: var(--flag); }
+.typed .num.pair { width: 3.9em; }
 .typed .txt { flex: 1; outline: none; white-space: pre-wrap; border-radius: 3px; padding: 0 3px; min-height: 1.35em; }
 .typed .txt:hover { background: #f4efe6; cursor: text; }
 .typed .txt:focus { background: #fff; box-shadow: 0 0 0 2px #1f5fbf; }
@@ -868,7 +869,7 @@ function render() {
   }
   main.append(hs);
   const why = blankReasons();
-  main.append(blankSection(why, hasKey()));
+  main.append(blankSection(why, hasKey() && !linkedEnds()));  // with printed pairs the numbers are the clues' addresses: always shown
   if (hasKey()) main.append(gridSection());
   for (const [d, name] of [['A', 'Across'], ['D', 'Down']]) {
     const only = ocr.clue_sets && setView !== 'both' ? (setView === 'meta' ? ocr.clue_sets[1] : ocr.clue_sets[0])?.key : '';
@@ -1299,9 +1300,16 @@ function sourceTitle(url) {
 }
 
 function printedNumber(k, flags) {
+  if (pairOf(k)) return pairOf(k);  // the linked-ends style: the clue is printed with its word's two end numbers
   const f = flags.find(f => f.startsWith('number-corrected:'));
   return f ? f.split(':')[1] : slotOf(k).slice(1);
 }
+// The World's FUN (1913-14) named a word by the numbers printed in its two end squares ("1-2 An
+// insect"): the packet records that pair on the clue (ocr.clues[k].printed) and the squares' numbers
+// (ocr.square_numbers, "r2c6": "1"). The page then shows the pair as the clue's number and draws
+// those numbers on the grid, never the standard numbering.
+const pairOf = k => (ocr.clues[k] || {}).printed || '';
+const linkedEnds = () => !!ocr.square_numbers;
 
 // when a reviewer moved a clue's text to another entry, the printed line moves with it: find the
 // clue whose OCR reading the final text matches best (word overlap), if it isn't this clue's own
@@ -1687,6 +1695,7 @@ function blankReasons() {
     const s = sourceFor(k), fl = s.flags || [];
     // a crop moved here whose number wasn't read ("12535.315 cubic feet"): its printed number is unknown, not different
     if (s.label !== k && fl.includes('number-missing') && !fl.some(f => f.startsWith('number-corrected:'))) return [];
+    if (pairOf(s.label)) return [];  // a linked-ends pair names the word's end squares, not a number of ours
     const n = printedNumber(s.label, fl);
     return n !== k.slice(1) ? [`${k} (printed ${n})`] : [];
   });
@@ -1703,7 +1712,7 @@ function blankSection(why, optional) {
     s.innerHTML = `<h2 class="fold">Blank grid <span class="hint">optional: the answer key already shows the black squares</span><button class="t">Show</button></h2>`;
     s.classList.add('collapsed');
     s.querySelector('h2').onclick = () => { const c = s.classList.toggle('collapsed'); s.querySelector('h2 button').textContent = c ? 'Show' : 'Hide'; };
-  } else s = sec('blank', 'Blank grid', 'the blank grid', 'black squares and numbers');
+  } else s = sec('blank', 'Blank grid', 'the blank grid', linkedEnds() ? 'the shape, and the numbers printed in the squares: each clue names its word by its two end numbers' : 'black squares and numbers');
   s.id = 'blankpanel';
   if (optional && !why.length) why = ['Nothing flagged: the checks found the blank grid agrees with the answer key.'];
   s.insertAdjacentHTML('beforeend', `<p style="margin:10px 14px 0;font-size:13px"><b>${optional ? 'What the checks found:' : "Why you're seeing this:"}</b></p><ul class="reasons">${why.map(w => `<li>${esc(w)}</li>`).join('')}</ul>
@@ -1728,7 +1737,9 @@ function blankSection(why, optional) {
 }
 function blankCells(cls) {
   const g = G(), N = numbering(), H = g.length, W = g[0].length, nums = {};
-  for (const [k, [r, c]] of Object.entries(N)) nums[`${r},${c}`] = k.slice(1);
+  if (linkedEnds()) {  // the numbers printed in the squares, as the packet recorded them from the clue pairs
+    for (const [k, n] of Object.entries(ocr.square_numbers)) { const m = k.match(/^r(\d+)c(\d+)$/); if (m) nums[`${m[1] - 1},${m[2] - 1}`] = n; }
+  } else for (const [k, [r, c]] of Object.entries(N)) nums[`${r},${c}`] = k.slice(1);
   const d = document.createElement('div');
   d.className = 'typedgrid bk ' + cls;
   d.style.gridTemplate = `repeat(${H}, minmax(0, 1fr)) / repeat(${W}, minmax(0, 1fr))`;
@@ -1994,10 +2005,11 @@ function addRow(s, key, label, box, flags = [], src = null) {
   if (meta && !solo) row.classList.add('metarow');
   const moved = src && src.label !== label;
   const pn = isClue ? (src ? printedNumber(src.label, src.flags || []) : printedNumber(label, flags)) : '';
-  const odd = isClue && (pn !== slot.slice(1) || !NUM[slot]);
+  const pair = isClue && !!pairOf(src ? src.label : label);
+  const odd = isClue && !pair && (pn !== slot.slice(1) || !NUM[slot]);
   row.innerHTML = `<div class="lab"${meta ? ` title="${esc(slot)}'s clue in the ${esc(meta)} set (the other clue set printed for this grid): the xd's ${esc(slot)} ^${esc(meta)} line"` : ''}>${meta && !solo ? `${esc(slot)}<span class="metakey">^${esc(meta)}</span>` : esc(cl)}</div>
     <div class="body"><div class="scan"></div><div>
-      <div class="typed">${isClue ? `<span class="num${odd ? ' odd' : ''}" title="the number printed beside this clue">${esc(pn)}.</span>` : ''}<span class="txt" spellcheck="false"></span></div>
+      <div class="typed">${isClue ? `<span class="num${odd ? ' odd' : ''}${pair ? ' pair' : ''}" title="${pair ? `the numbers printed in this word's two end squares (${esc(slot)} in our grid; the blank grid shows the numbers)` : 'the number printed beside this clue'}">${esc(pn)}.</span>` : ''}<span class="txt" spellcheck="false"></span></div>
       ${key.startsWith('other:') ? `<div class="keep">
         <button class="k1" title="Keep this line with the puzzle: it goes in the xd's Notes">Keep</button>
         <button class="k0" title="Discard it: a banner, notice or ad, not part of the puzzle">Discard</button></div>` : ''}
@@ -2100,7 +2112,7 @@ function addRow(s, key, label, box, flags = [], src = null) {
     const looked = rounds.filter(r => (r.looked || []).includes(key)).map(r => r.who);
     row.querySelector('.marks').innerHTML =
       (isClue && !NUM[slot] ? `<b class="m-flag">no ${esc(slot)} in our grid</b>` : '') +
-      (isClue && NUM[slot] && pn !== slot.slice(1) ? `<b class="m-flag">printed as ${esc(pn)}, sits at ${esc(slot)} in our grid</b>` : '') +
+      (isClue && NUM[slot] && pn !== slot.slice(1) && !pairOf(label) ? `<b class="m-flag">printed as ${esc(pn)}, sits at ${esc(slot)} in our grid</b>` : '') +
       (moved ? `<b class="m-flag" title="the reviewer moved this text from where the OCR put it; the scan line came with it">printed line found in ${esc(src.label)}'s crop</b>` : '') +
       flags.filter(f => !f.startsWith('number-corrected') && !f.startsWith('fill-in blank')).map(f => `<b class="m-flag" title="${esc(f)}">${esc(f.split(':')[0])}</b>`).join('') +
       flags.filter(f => f.startsWith('fill-in blank')).map(f => {
