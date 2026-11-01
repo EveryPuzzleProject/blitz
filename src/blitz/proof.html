@@ -614,7 +614,7 @@ async function start() {
   await loadProofs();
   await load();
 }
-let images = {}, ansImg = null, keyPage = null, gridImg = null, ocr, rev, checks = null, page, rounds, cur, rows = [], focus = -1, NUM;
+let images = {}, ansImg = null, keyPage = null, gridImg = null, ocr, rev, checks = null, aiRounds = [], page, rounds, cur, rows = [], focus = -1, NUM;
 const undoStack = [], redoStack = [];
 const MAIN = () => ocr.clue_image || 'page.jpg';
 const scaleOf = im => 1 / (ocr.scales[im || MAIN()] || 1);
@@ -665,12 +665,13 @@ async function load() {
   }
   for (const [k, v] of Object.entries(rev.sic || {})) agent.comments.push({key: k, text: 'Printed this way, kept as printed: ' + v});
   agent.looked = rev.confirm || [];
+  aiRounds = await aiRound(fp);
   // the name you last typed, in this browser: typed once, kept for every puzzle after
   let known = '';
   try { known = localStorage.getItem('proof-who') || ''; } catch (e) {}
   if (!store.cur) store.cur = {who: SITE ? known : 'Reviewer ' + (store.past.length + 2), edits: {}, comments: [], status: {}};
   if (SITE && store.cur.who === 'You' && known && !store.cur.submitted) store.cur.who = known;
-  rounds = [agent, ...remote, ...store.past, store.cur];
+  rounds = [agent, ...aiRounds, ...remote, ...store.past, store.cur];
   cur = store.cur;
   cur.status = cur.status || {};
   rounds.forEach((r, i) => r.color = i === rounds.length - 1 ? COLORS[4] : COLORS[i % 4]);
@@ -680,6 +681,28 @@ async function load() {
   setTimeout(navRail, 900);
   // ?k=clue:A14 (any row's item) opens the page at that row, e.g. from a review card's link
   if (params.get('k')) { setTimeout(() => goTo(params.get('k')), 0); setTimeout(() => goTo(params.get('k')), 900); }
+}
+
+// The AI proof reviewer's round: the ledger's proof:<pid> record (xword-ocr proofreview.record: edits keyed
+// like the page's items, comments on them, flags as "Flag for the maintainer" comments, Ready / Not ready),
+// from the packet's copy of it, ai_review.json. It stands after the text step's round and before the site's
+// helpers', drawn exactly as a helper's; the summary names the record it came from. Made on another version
+// of the puzzle (its xd_fp is not this packet's, nor one the packet says is the same puzzle): its edits and
+// comments are not laid over rows that may hold other lines; the summary says so and lists the edits.
+async function aiRound(fp) {
+  let ai = null;
+  try { const r = await fetch(dir + 'ai_review.json'); if (r.ok) ai = await r.json(); } catch (e) {}
+  if (!ai || !ai.review) return [];
+  const r = ai.review, edits = r.edits || {}, comments = r.comments || [];
+  const who = `AI proof reviewer (${ai.model_id || 'model not recorded'})`;
+  const same = !ai.xd_fp || !fp || ai.xd_fp === fp || (rev.xd_fp_same || []).includes(ai.xd_fp);
+  const bad = Object.entries(r.status || {}).filter(([, x]) => x.v === 'bad').map(([id, x]) => `Problem in the ${PART[id]?.name || id}: ${x.note || ''}`);
+  const stale = same ? '' : `Made on another version of the puzzle (xd ${ai.xd_fp}; this page shows ${fp}), so its changes are not laid over this one`
+    + (Object.keys(edits).length ? `: it changed ${Object.entries(edits).map(([k, v]) => `${k} to “${v}”`).join(', ')}` : '')
+    + (comments.length ? ` and left ${comments.length} comment(s)` : '') + '.';
+  const from = ai.record ? ` (the ledger's ${ai.record} record${ai.at ? ', ' + when(ai.at) : ''})` : '';
+  return [{who, ai: true, stale: !same, edits: same ? {...edits} : {}, comments: same ? [...comments] : [],
+    summary: [stale, ai.answer === 'ready' ? 'Said ready.' : ai.answer === 'notready' ? 'Said not ready.' : '', ...bad, r.note].filter(Boolean).join(' ') + from}];
 }
 
 // what a field held before any reviewer: the OCR's reading
@@ -1409,7 +1432,8 @@ function keyName(k) {
 }
 function checkItems() {
   const out = (checks?.items || []).map(i => ({...i}));
-  for (const r of remote) for (const c of r.comments || []) if (c.key && c.text) out.push({key: c.key, what: c.text, from: r.who, reviewer: true});
+  // earlier reviewers' comments: the AI proof reviewer's (its flags among them), then the site's helpers'
+  for (const r of [...aiRounds, ...remote]) for (const c of r.comments || []) if (c.key && c.text) out.push({key: c.key, what: c.text, from: r.who, reviewer: true});
   // what no Ready makes whole first; otherwise the record's order (its sources in turn)
   return out.map((i, n) => [i, n]).sort((a, b) => (b[0].incomplete ? 1 : 0) - (a[0].incomplete ? 1 : 0) || a[1] - b[1]).map(([i]) => i);
 }
