@@ -264,3 +264,18 @@ def test_proof_page_switches_between_the_clue_sets():
     for needed in ("const showClue = k =>", "keys.filter(showClue)", "localStorage.setItem('proof-clueset'", "`${b.key} only`",
                    "--setbg"):
         assert needed in page, needed
+
+
+def test_the_proof_page_draws_the_ai_proof_reviewers_record_as_its_own_round():
+    # the ledger's proof:<pid> record by the AI reviewer, copied into the packet as ai_review.json (xword-ocr
+    # proofreview.attach) and published with it: a round after the text step's and before the site's helpers',
+    # named for the model, with its edits, comments and flags; made on another version of the puzzle, it says so
+    from pathlib import Path
+    src = Path(__file__).parents[1] / "src" / "blitz"
+    page = (src / "proof.html").read_text(encoding="utf-8")
+    for needed in ("async function aiRound(fp)", "fetch(dir + 'ai_review.json')", "`AI proof reviewer (${ai.model_id || 'model not recorded'})`",
+                   "rounds = [agent, ...aiRounds, ...remote, ...store.past, store.cur]", "for (const r of [...aiRounds, ...remote])", "Made on another version of the puzzle",
+                   "(rev.xd_fp_same || []).includes(ai.xd_fp)", "the ledger's ${ai.record} record"):
+        assert needed in page, needed
+    from blitz.site import FILES
+    assert "ai_review.json" in FILES
