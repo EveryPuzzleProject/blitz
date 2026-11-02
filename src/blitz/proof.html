@@ -312,6 +312,7 @@ body.side .typed { margin-top: 0; }
 .typedgrid.solo div { border: .5px solid #bbb; }
 .typedgrid.solo div.blk { background: #222; }
 .typedgrid div.gap { background: transparent !important; border-color: transparent !important; box-shadow: none !important; }
+.typedgrid div.gap.cur { outline: 2.5px solid #1f5fbf; outline-offset: -2px; }
 .typedgrid.over div { color: rgba(220, 20, 60, .85); }
 .typedgrid.over div.blk { background: transparent; }
 body.show-unsure .typedgrid div.unsure { box-shadow: inset 0 0 0 2px var(--flag); }
@@ -413,7 +414,7 @@ section.collapsed > :not(h2) { display: none !important; } h2.fold { cursor: poi
 </header>
 <main id="main"></main>
 <footer>
-  <span id="help"><kbd>J</kbd>/<kbd>K</kbd> next/previous line · <kbd>E</kbd> edit · <kbd>Enter</kbd>/<kbd>Esc</kbd> stop editing (<kbd>Shift+Enter</kbd> for a line break in a header) · <kbd>Z</kbd> or click the scan: more of the page · <kbd>M</kbd> comment · arrows move on the answer key · <kbd>Enter</kbd> on a square: several letters (a rebus) · <kbd>Ctrl+Z</kbd>/<kbd>Ctrl+Y</kbd> undo/redo · <kbd>C</kbd> show or hide this line's changes · <kbd>N</kbd> comments · hold <kbd>Space</kbd> on the answer key to put our letters on the scan</span>
+  <span id="help"><kbd>J</kbd>/<kbd>K</kbd> next/previous line · <kbd>E</kbd> edit · <kbd>Enter</kbd>/<kbd>Esc</kbd> stop editing (<kbd>Shift+Enter</kbd> for a line break in a header) · <kbd>Z</kbd> or click the scan: more of the page · <kbd>M</kbd> comment · arrows move on the answer key · <kbd>Enter</kbd> on a square: several letters (a rebus) · <kbd>.</kbd>/<kbd>#</kbd>/<kbd>_</kbd> on a square: white, black, outside the puzzle · <kbd>Ctrl+Z</kbd>/<kbd>Ctrl+Y</kbd> undo/redo · <kbd>C</kbd> show or hide this line's changes · <kbd>N</kbd> comments · hold <kbd>Space</kbd> on the answer key to put our letters on the scan</span>
 </footer>
 
 <script>
@@ -2375,6 +2376,15 @@ function setSquare(x, s) {
   x.append(b);
 }
 // a reviewer's fix to a square: one letter, or several for a rebus square; then a note on why
+// the square's kind, typed on the answer key: '.' a white square (its letter still to read), '#' black,
+// '_' outside the puzzle. Both the blank grid's square and the key's change, as one edit each.
+function setKind(r, c, v) {
+  const gk = `grid:r${r+1}c${c+1}`, ck = `cell:r${r+1}c${c+1}`;
+  if (final(gk) === v && (v !== '.' ? final(ck) === v : !NS(final(ck)))) return;
+  setEdit(gk, v, true);
+  if (v !== '.' || NS(final(ck))) setEdit(ck, v, true);
+  compose(document.querySelector('#gnotes'), gk, true);
+}
 function fixSquare(r, c, v) {
   const key = `cell:r${r+1}c${c+1}`;
   v = v.replace(/[^a-z]/gi, '').toUpperCase();
@@ -2433,9 +2443,14 @@ function cells(cls) {
   d.style.gridTemplate = `repeat(${H}, minmax(0, 1fr)) / repeat(${W}, minmax(0, 1fr))`;
   for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) {
     const k = `cell:r${r+1}c${c+1}`, ch = final(k), h = history(k), x = document.createElement('div');
-    if (ch === '_' || G()[r][c] === '_') { x.className = 'gap'; x.title = 'not part of the puzzle (outside its shape)'; d.append(x); continue; }
-    if (ch === '#') x.className = 'blk'; else setSquare(x, ch);
     x.dataset.rc = `${r},${c}`;
+    if (ch === '_' || G()[r][c] === '_') {  // a gap can be selected, to make it a square again
+      x.className = 'gap'; x.title = `${cellRef(r, c)}: not part of the puzzle (outside its shape); click it and type . or # to make it a square`;
+      if (selCell && selCell[0] === r && selCell[1] === c) x.classList.add('cur');
+      x.onclick = e => pickSquare(r, c, e);
+      d.append(x); continue;
+    }
+    if (ch === '#') x.className = 'blk'; else setSquare(x, ch);
     x.title = cellRef(r, c);
     if (h.length > 1) { x.classList.add('fixed'); x.style.setProperty('--fixc', h[h.length-1].color); x.title += ': ' + h.map(v => `${v.who} ${v.value}`).join(' → '); }
     else if (low.has(`r${r+1}c${c+1}`)) { x.classList.add('unsure'); x.title += ': the OCR was unsure of this letter'; }
@@ -2610,6 +2625,7 @@ addEventListener('keydown', e => {
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   if (Date.now() - typedAt < 1500 && (k.length === 1 || k === 'escape')) { typedAt = Date.now(); return; }
   if (selCell && /^[a-z]$/.test(k)) { fixSquare(...selCell, k); return; }
+  if (selCell && /^[.#_]$/.test(e.key)) { e.preventDefault(); setKind(...selCell, e.key); return; }
   if (selCell && k === 'enter') { e.preventDefault(); rebusBox(...selCell); return; }
   if (selCell && k.startsWith('arrow')) { e.preventDefault(); moveSel(k); return; }
   if (k === 'j') setFocus(focus + 1);
