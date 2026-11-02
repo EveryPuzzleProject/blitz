@@ -186,7 +186,7 @@ h2 .quick { margin-left: 8px; font-size: 12px; padding: 2px 10px; }
 .hdrs th { text-align: left; color: var(--muted); font-weight: 600; width: 80px; padding: 5px 8px 5px 0; vertical-align: top; }
 .hdrs td { padding: 5px 8px 5px 0; border-top: 1px solid var(--line); vertical-align: top; } .hdrs tr:first-child td { border-top: 0; }
 .hdrs td.hv { width: 45%; } .hdrs td.hs { color: var(--ink); }
-.hdrs .v { font-family: var(--serif); font-size: 15px; font-weight: 600; outline: none; border-bottom: 1px dashed var(--line); min-width: 4em; display: inline-block; }
+.hdrs .v { font-family: var(--serif); font-size: 15px; font-weight: 600; outline: none; border-bottom: 1px dashed var(--line); min-width: 4em; display: inline-block; white-space: pre-wrap; }
 .hdrs .v[data-empty]:not(:focus)::before { content: '(none)'; color: var(--muted); font-weight: 400; font-style: italic; }
 .hdrs .ovr { font-size: 12px; } .hdrs .askline { font-size: 12px; color: #6b3d00; background: #fff6e8; border-left: 3px solid #c46e00; padding: 3px 6px; margin-top: 3px; }
 .hdrs .evch { display: inline-block; margin-left: 6px; font-size: 12px; } .hdrs .evch summary { cursor: pointer; color: var(--muted); }
@@ -426,7 +426,7 @@ section.collapsed > :not(h2) { display: none !important; } h2.fold { cursor: poi
 </header>
 <main id="main"></main>
 <footer>
-  <span id="help"><kbd>J</kbd>/<kbd>K</kbd> next/previous line · <kbd>E</kbd> edit · <kbd>Enter</kbd>/<kbd>Esc</kbd> stop editing · <kbd>Z</kbd> or click the scan: more of the page · <kbd>M</kbd> comment · arrows move on the answer key · <kbd>Enter</kbd> on a square: several letters (a rebus) · <kbd>Ctrl+Z</kbd>/<kbd>Ctrl+Y</kbd> undo/redo · <kbd>C</kbd> show or hide this line's changes · <kbd>N</kbd> comments · hold <kbd>Space</kbd> on the answer key to put our letters on the scan</span>
+  <span id="help"><kbd>J</kbd>/<kbd>K</kbd> next/previous line · <kbd>E</kbd> edit · <kbd>Enter</kbd>/<kbd>Esc</kbd> stop editing (<kbd>Shift+Enter</kbd> for a line break in a header) · <kbd>Z</kbd> or click the scan: more of the page · <kbd>M</kbd> comment · arrows move on the answer key · <kbd>Enter</kbd> on a square: several letters (a rebus) · <kbd>Ctrl+Z</kbd>/<kbd>Ctrl+Y</kbd> undo/redo · <kbd>C</kbd> show or hide this line's changes · <kbd>N</kbd> comments · hold <kbd>Space</kbd> on the answer key to put our letters on the scan</span>
 </footer>
 
 <script src="config.js"></script>
@@ -1966,10 +1966,11 @@ function headerSection(hs) {
     sp.textContent = own ? last.value : derived;
     if (own) sp.style.color = last.color;
     if (!sp.textContent) sp.dataset.empty = '1';
-    sp.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); sp.blur(); } };
+    // Enter finishes; Shift+Enter is a line break in the value (the browser puts a <br>, read back as a newline)
+    sp.onkeydown = e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sp.blur(); } };
     // your value: saved as your edit; the rule's value again: your edit dropped (or saved, over an earlier round's)
     const set = v => hedit(k, v === derived && !rounds.slice(0, -1).some(r => k in r.edits) ? undefined : v);
-    sp.onblur = () => { const v = sp.textContent.trim(); if (v !== (own ? last.value : derived)) set(v); };
+    sp.onblur = () => { const v = sp.innerText.replace(/\r/g, '').trim(); if (v !== (own ? last.value : derived)) set(v); };
     tr.querySelector('.undo')?.addEventListener('click', () => set(derived));
     tr.querySelector('.askline')?.addEventListener('click', () => sp.focus());
     const sel = tr.querySelector('.evch select');
