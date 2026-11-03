@@ -13,3 +13,4 @@ __pycache__/
 # Blog illustrations (Judge scans pre-1931 only; other images credited in the post)
 !docs/blog/img/*.jpg
 !docs/blog/img/*.png
+!docs/lost/shots/*.png
