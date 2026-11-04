@@ -253,6 +253,7 @@ body:not(.show-marks) .marks { display: none; }
 body:not(.show-notes) .margin .note { display: none; }
 .addc { border: 0; background: none; color: var(--muted); cursor: pointer; font: inherit; font-size: 12px; padding: 0; visibility: hidden; }
 .row:hover .addc, .row.focus .addc { visibility: visible; }
+.mv .addc { margin-left: 8px; } .mvbox { display: inline-flex; gap: 4px; align-items: center; margin-left: 8px; } .mvbox input { font: inherit; font-size: 12px; width: 5em; }
 .compose { background: #fff; border: 1px solid #1f5fbf; border-radius: 5px; padding: 6px; margin-bottom: 4px; }
 .compose .q { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
 .compose textarea { width: 100%; font: inherit; font-size: 12px; border: 1px solid var(--line); border-radius: 3px; resize: vertical; min-height: 64px; field-sizing: content; max-height: 240px; }
@@ -712,6 +713,7 @@ function base(key) {
   if (gm) return ocr.grid[gm[1] - 1][gm[2] - 1];
   const m = /^cell:r(\d+)c(\d+)$/.exec(key);
   if (m) return ocr.answers ? ocr.answers[m[1] - 1][m[2] - 1] : '';
+  if (key.startsWith('num:')) return (ocr.square_numbers || {})[key.slice(4)] || '';  // the number printed in a square (linked ends)
   if (key.startsWith('meta:')) return ocr[key.slice(5)] || '';
   if (key.startsWith('other:')) return (ocr.captions || {})[key.slice(6)] || '';
   if (key.startsWith('line:B')) return lineN(+key.slice(6))?.text || '';
@@ -1314,11 +1316,23 @@ function printedNumber(k, flags) {
   return f ? f.split(':')[1] : slotOf(k).slice(1);
 }
 // The World's FUN (1913-14) named a word by the numbers printed in its two end squares ("1-2 An
-// insect"): the packet records that pair on the clue (ocr.clues[k].printed) and the squares' numbers
-// (ocr.square_numbers, "r2c6": "1"). The page then shows the pair as the clue's number and draws
-// those numbers on the grid, never the standard numbering.
-const pairOf = k => (ocr.clues[k] || {}).printed || '';
+// insect"): the packet records the squares' numbers (ocr.square_numbers, "r2c6": "1", decided as
+// ocr.numbering says) and each clue's pair under them (ocr.clues[k].printed). The page draws the
+// numbers on the grid, never the standard numbering, and a reviewer can correct a square's number
+// (num:r2c6); a word's pair is then the numbers its two end squares have now.
 const linkedEnds = () => !!ocr.square_numbers;
+const numAt = (r, c) => final(`num:r${r+1}c${c+1}`);
+function pairOf(k) {
+  if (!linkedEnds()) return '';
+  const cs = entryCells(slotOf(k));
+  if (cs.length) {
+    const a = numAt(...cs[0]), b = numAt(...cs[cs.length - 1]);
+    if (a && b) return `${a}-${b}`;
+  }
+  return (ocr.clues[k] || {}).printed || '';
+}
+// the word (its row's label) a pair names now, if one does
+const wordByPair = p => Object.keys(ocr.clues).find(k => !setKeyOf(k) && pairOf(k) === p);
 
 // when a reviewer moved a clue's text to another entry, the printed line moves with it: find the
 // clue whose OCR reading the final text matches best (word overlap), if it isn't this clue's own
@@ -1695,6 +1709,8 @@ function blankReasons() {
   if ((ocr.grid_asymmetric_squares || []).length) out.push(`The grid isn't symmetric (${ocr.grid_asymmetric_squares.join(', ')}): check it's printed that way.`);
   const fixes = rounds.flatMap(r => Object.keys(r.edits).filter(k => k.startsWith('grid:')).map(k => `${k.slice(5)} (${r.who})`));
   if (fixes.length) out.push(`A reviewer changed black squares: ${fixes.join(', ')}.`);
+  const nums = rounds.flatMap(r => Object.keys(r.edits).filter(k => k.startsWith('num:')).map(k => `${k.slice(4)} → ${r.edits[k] || 'none'} (${r.who})`));
+  if (nums.length) out.push(`A reviewer corrected printed numbers: ${nums.join(', ')}.`);
   // judged by the crop each clue's text now comes from (sourceFor): a crop assembly put in the wrong slot, whose text the
   // text step or a reviewer moved to its own clue, is a slip in what was linked, not a doubt about our numbering
   const N = numbering(), odd = Object.keys(ocr.clues).flatMap(k => {
@@ -1733,7 +1749,9 @@ function blankSection(why, optional) {
     <div class="gridside">
       <p><b>Spot the difference.</b> Our black squares (red) and our numbers (small red) on the printed grid:</p>
       ${gridImg ? `<p><button class="t" data-b="side">Side by side</button> <button class="t" data-b="over">On the scan</button> <button class="t" data-b="blink">Blink</button></p>
-      <p>Every printed black square should be red, and every small red number should sit on the printed one. Click a square to make it black or white.</p>`
+      ${linkedEnds() ? `<p>Every small red number should sit on the printed one: each clue names its word by the numbers in its two end squares, so a wrong number puts the clue on the wrong word. <b>Click a square and type its printed number</b> (Backspace clears it; <kbd>.</kbd> <kbd>#</kbd> <kbd>_</kbd> make it white, black or outside the puzzle; arrows move).</p>
+      <p class="hint">${esc(ocr.numbering ? 'How the numbers were decided: ' + ocr.numbering + '.' : 'The numbers were read from the clue pairs.')}</p>`
+      : `<p>Every printed black square should be red, and every small red number should sit on the printed one. Click a square to make it black or white.</p>`}`
       : `<p><b>This grid was typed by hand</b> (its shape is too irregular for the reader to straighten), so the scan is the puzzle's whole page. Compare our black squares and numbers with it by eye. Click a square to make it black or white.</p>`}
       ${markTool('make it black or white')}
       <div class="splist" id="bspecial"></div>
@@ -1747,8 +1765,8 @@ function blankSection(why, optional) {
 }
 function blankCells(cls) {
   const g = G(), N = numbering(), H = g.length, W = g[0].length, nums = {};
-  if (linkedEnds()) {  // the numbers printed in the squares, as the packet recorded them from the clue pairs
-    for (const [k, n] of Object.entries(ocr.square_numbers)) { const m = k.match(/^r(\d+)c(\d+)$/); if (m) nums[`${m[1] - 1},${m[2] - 1}`] = n; }
+  if (linkedEnds()) {  // the numbers printed in the squares: the packet's, or as a reviewer corrected them
+    for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) { const n = numAt(r, c); if (n) nums[`${r},${c}`] = n; }
   } else for (const [k, [r, c]] of Object.entries(N)) nums[`${r},${c}`] = k.slice(1);
   const d = document.createElement('div');
   d.className = 'typedgrid bk ' + cls;
@@ -1761,10 +1779,17 @@ function blankCells(cls) {
     x.dataset.rc = `${r},${c}`;
     x.title = cellRef(r, c);
     if (h.length > 1) { x.style.boxShadow = `inset 0 0 0 2.5px ${h[h.length-1].color}`; x.title += ': ' + h.map(v => `${v.who} ${v.value === '#' ? 'black' : 'white'}`).join(' → '); }
+    if (linkedEnds()) {  // a corrected number: coloured by who gave it
+      const hn = history(`num:r${r+1}c${c+1}`);
+      if (hn.length > 1) { const sp = x.querySelector('.n'); if (sp) sp.style.color = hn[hn.length-1].color; x.title += ': number ' + hn.map(v => `${v.who} ${v.value || '(none)'}`).join(' → '); }
+      if (bSel && bSel[0] === r && bSel[1] === c) x.classList.add('cur');
+    }
     if (g[r][c] !== '#') paintSpecial(x, r, c);
     x.onclick = () => {
       if (justReferenced() || cls === 'hit') return;
       if (markMode) return markSquare(r, c, document.querySelector('#bnotes'));
+      // with printed numbers, a click selects the square to type its number (. # _ set its kind); otherwise it toggles black/white
+      if (linkedEnds()) { bSel = [r, c]; selCell = null; numBuf = ''; regrid(); const b = document.getElementById('blankpanel'); if (b) drawBlank(b); return; }
       setEdit(k, g[r][c] === '#' ? '.' : '#', true); compose(document.querySelector('#bnotes'), k, true);
     };
     d.append(x);
@@ -2140,10 +2165,26 @@ function addRow(s, key, label, box, flags = [], src = null) {
     const m = row.querySelector('.margin'), open = m.querySelector('.compose');
     const cellNotes = isClue && (!meta || solo) ? entryCells(cl).flatMap(([r, c]) => [`cell:r${r+1}c${c+1}`, spKey(r, c)].flatMap(k => commentsFor(k).map(x => [...x, `r${r+1}c${c+1}`]))) : [];
     m.innerHTML = commentsFor(key).map(([r, c]) => noteHtml(r, c.text, c.why, c)).join('') +
-      cellNotes.map(([r, c, at]) => noteHtml(r, `(square ${at}) ${c.text}`, c.why, c)).join('') + '<button class="addc">💬 Comment</button> <button class="addc flagc" title="You can’t settle this one from the scan: the next reviewer takes a second look. The rest of the part can still look good.">⚑ Not sure</button>';
+      cellNotes.map(([r, c, at]) => noteHtml(r, `(square ${at}) ${c.text}`, c.why, c)).join('') + '<button class="addc">💬 Comment</button> <button class="addc flagc" title="You can’t settle this one from the scan: the next reviewer takes a second look. The rest of the part can still look good.">⚑ Not sure</button>'
+      // with printed pairs, a text on the wrong word is moved by its pair, or every text from here on shifts a word
+      + (isClue && linkedEnds() && !meta ? ` <span class="mv"><button class="addc mvb" title="This text belongs to another word: give that word's printed pair (the two numbers in its end squares). The texts swap.">⇄ Move text to…</button><button class="addc shb" data-d="1" title="The texts from this word to the end of the list each belong one word later (a clue was lost before this one): this word's clue becomes missing.">⇣ Shift texts later</button><button class="addc shb" data-d="-1" title="The texts from this word on each belong one word earlier (a line that isn't a clue was counted as one).">⇡ Shift texts earlier</button></span>` : '');
     if (open) m.prepend(open);
     m.querySelector('.addc').onclick = () => compose(m, key, false);
     m.querySelector('.flagc').onclick = () => compose(m, key, false, true);
+    const mv = m.querySelector('.mvb');
+    if (mv) mv.onclick = () => {
+      const box = document.createElement('span');
+      box.className = 'compose mvbox';
+      box.innerHTML = `<input size="7" placeholder="pair, e.g. ${esc(pairOf(label) || '1-2')}"> <button class="save">Move</button> <button class="skip">Cancel</button>`;
+      mv.replaceWith(box);
+      const inp = box.querySelector('input');
+      const go = () => { const to = wordByPair(inp.value.trim().replace(/\s+/g, '')); if (!to) { inp.setCustomValidity('no word has that pair'); inp.reportValidity(); return; } moveText(label, to); };
+      box.querySelector('.save').onclick = go;
+      box.querySelector('.skip').onclick = () => row.paint();
+      inp.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); go(); } if (e.key === 'Escape') { e.preventDefault(); row.paint(); } };
+      inp.focus();
+    };
+    m.querySelectorAll('.shb').forEach(b => b.onclick = () => shiftTexts(label, +b.dataset.d));
   };
   txt.contentEditable = 'true';
   if (key.startsWith('other:')) {
@@ -2305,7 +2346,7 @@ function historyButtons() {
   document.getElementById('redo').disabled = !redoStack.length;
 }
 function refresh(key) {
-  if (key.startsWith('grid:')) { const y = scrollY; render(); scrollTo(0, y); return; }
+  if (key.startsWith('grid:') || key.startsWith('num:')) { const y = scrollY; render(); scrollTo(0, y); progress(); historyButtons(); return; }
   // the title section's choices (where a header comes from, keep or discard, a line's label, a header's value): it's redrawn
   if (/^(ev|keep|label|meta):/.test(key)) { const y = scrollY; render(); scrollTo(0, y); progress(); historyButtons(); return; }
   if (key.startsWith('cell:') || key.startsWith('special:')) {
@@ -2376,6 +2417,65 @@ function setSquare(x, s) {
   x.append(b);
 }
 // a reviewer's fix to a square: one letter, or several for a rebus square; then a note on why
+// ---- linked ends: a clue's text moved to the word its pair names, or every text from a word on shifted ----
+// Each is the reviewer's edit on the rows it touches (clue:A4 = the text now there), with a comment on
+// the row it started from saying what was done; the xd's lines follow (import applies clue edits).
+function moveText(from, to) {
+  if (from === to) return;
+  const a = final('clue:' + from), b = final('clue:' + to);
+  setEdit('clue:' + to, a, true);
+  setEdit('clue:' + from, b, true);
+  const at = new Date().toISOString();
+  cur.comments.push({key: 'clue:' + to, text: `Moved here from ${pairOf(from)} (${from}) by the reviewer: the sheet prints this clue as ${pairOf(to)}.`, why: true, at});
+  if (b) cur.comments.push({key: 'clue:' + from, text: `Moved here from ${pairOf(to)} (${to}) by the reviewer, in exchange.`, why: true, at});
+  save(); rows.forEach(r => r.paint());
+  rows.find(r => r.dataset.key === 'clue:' + to)?.scrollIntoView({block: 'center'});
+}
+function shiftTexts(from, dir) {
+  const keys = Object.keys(ocr.clues).filter(k => k[0] === from[0] && !setKeyOf(k)).sort(clueOrder);
+  const i = keys.indexOf(from);
+  if (i < 0) return;
+  const texts = keys.map(k => final('clue:' + k));
+  const at = new Date().toISOString(), dropped = [];
+  if (dir > 0) {  // later: the last word's text, if any, has nowhere to go
+    if (texts[keys.length - 1]) dropped.push(texts[keys.length - 1]);
+    for (let j = keys.length - 1; j > i; j--) setEdit('clue:' + keys[j], texts[j - 1], true);
+    setEdit('clue:' + keys[i], '', true);
+  } else {  // earlier: this word's text goes to the one before; the last word's clue becomes missing
+    if (i === 0) return;
+    if (texts[i - 1]) dropped.push(texts[i - 1]);
+    for (let j = i - 1; j < keys.length - 1; j++) setEdit('clue:' + keys[j], texts[j + 1], true);
+    setEdit('clue:' + keys[keys.length - 1], '', true);
+  }
+  cur.comments.push({key: 'clue:' + from, why: true, at,
+    text: `The texts from ${pairOf(from)} (${from}) to the end of the ${from[0] === 'A' ? 'across' : 'down'} list were each shifted one word ${dir > 0 ? 'later' : 'earlier'} by the reviewer.`
+      + (dropped.length ? ` Left over, no word for it: “${dropped.join('”, “')}”.` : '')});
+  save(); rows.forEach(r => r.paint());
+  compose(rows.find(r => r.dataset.key === 'clue:' + from)?.querySelector('.margin') || document.querySelector('#gnotes'), 'clue:' + from, false);
+}
+
+// ---- the blank grid's printed numbers (linked ends): a square selected there takes typed digits ----
+let bSel = null, numBuf = '', numAt_ = 0;
+function setNum(r, c, v) {
+  const key = `num:r${r+1}c${c+1}`;
+  if (v === final(key)) return;
+  setEdit(key, v, true);
+  compose(document.querySelector('#bnotes'), key, true);
+}
+// digits typed within a moment make one number ("3", then "3" again: 33)
+function typeNum(r, c, d) {
+  const now = Date.now();
+  numBuf = now - numAt_ < 1500 ? numBuf + d : d;
+  numAt_ = now;
+  setNum(r, c, numBuf);
+}
+function moveBSel(k) {
+  const [dr, dc] = {arrowup: [-1, 0], arrowdown: [1, 0], arrowleft: [0, -1], arrowright: [0, 1]}[k] || [0, 0];
+  const g = G();
+  let [r, c] = bSel;
+  for (r += dr, c += dc; r >= 0 && c >= 0 && r < g.length && c < g[0].length; r += dr, c += dc)
+    if (g[r][c] !== '_') { bSel = [r, c]; numBuf = ''; const b = document.getElementById('blankpanel'); if (b) drawBlank(b); return; }
+}
 // the square's kind, typed on the answer key: '.' a white square (its letter still to read), '#' black,
 // '_' outside the puzzle. Both the blank grid's square and the key's change, as one edit each.
 function setKind(r, c, v) {
@@ -2424,6 +2524,7 @@ function pickSquare(r, c, e) {
   const now = Date.now(), again = lastPick && lastPick.r === r && lastPick.c === c && now - lastPick.t < 450;
   lastPick = again ? null : {r, c, t: now};
   selCell = [r, c]; regrid();
+  if (bSel) { bSel = null; numBuf = ''; const b = document.getElementById('blankpanel'); if (b) drawBlank(b); }
   if (again) rebusBox(r, c, document.elementFromPoint(e.clientX, e.clientY)?.closest('[data-rc]'));
 }
 // the arrow keys move the selected square, over black squares and gaps to the next one that takes a letter
@@ -2624,6 +2725,11 @@ addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && k === 'y') { e.preventDefault(); redo(); return; }
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   if (Date.now() - typedAt < 1500 && (k.length === 1 || k === 'escape')) { typedAt = Date.now(); return; }
+  if (bSel && /^[0-9]$/.test(k)) { e.preventDefault(); typeNum(...bSel, k); return; }
+  if (bSel && (k === 'backspace' || k === 'delete')) { e.preventDefault(); setNum(...bSel, ''); return; }
+  if (bSel && /^[.#_]$/.test(e.key)) { e.preventDefault(); setKind(...bSel, e.key); return; }
+  if (bSel && k.startsWith('arrow')) { e.preventDefault(); moveBSel(k); return; }
+  if (bSel && k === 'escape') { bSel = null; numBuf = ''; const b = document.getElementById('blankpanel'); if (b) drawBlank(b); return; }
   if (selCell && /^[a-z]$/.test(k)) { fixSquare(...selCell, k); return; }
   if (selCell && /^[.#_]$/.test(e.key)) { e.preventDefault(); setKind(...selCell, e.key); return; }
   if (selCell && k === 'enter') { e.preventDefault(); rebusBox(...selCell); return; }
@@ -2645,8 +2751,11 @@ addEventListener('keyup', e => {
   const sb = document.querySelector('#gscan');
   if (e.key === ' ' && sb?.dataset.back) { gridMode = sb.dataset.back; delete sb.dataset.back; regrid(); }
 });
-// clicking outside the answer key stops typing into it
-addEventListener('mousedown', e => { if (selCell && !e.target.closest('.typedgrid, .acells, .compose')) { selCell = null; regrid(); } });
+// clicking outside the answer key stops typing into it (and outside the blank grid, typing numbers)
+addEventListener('mousedown', e => {
+  if (selCell && !e.target.closest('.typedgrid, .acells, .compose')) { selCell = null; regrid(); }
+  if (bSel && !e.target.closest('.typedgrid, .compose')) { bSel = null; numBuf = ''; const b = document.getElementById('blankpanel'); if (b) drawBlank(b); }
+});
 
 start().catch(e => document.getElementById('main').textContent = 'Could not load ' + dir + ': ' + e);
 // the batch page's walk through one group of puzzles: which group, where in it, this puzzle's decision
