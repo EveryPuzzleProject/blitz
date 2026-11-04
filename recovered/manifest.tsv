@@ -1,0 +1,30 @@
+id	set	timestamp	title	author	date	status
+ebirnholz_201227	wapo-eb	20221129034928				no-rawc
+ebirnholz_220522	wapo-eb	20220522070043				decode-failed: ValueError: adapter could not unscramble rawc
+ebirnholz_220529	wapo-eb	20220529070109				decode-failed: ValueError: adapter could not unscramble rawc
+ebirnholz_220605	wapo-eb	20220605070029				decode-failed: ValueError: adapter could not unscramble rawc
+ebirnholz_220612	wapo-eb	20220612070032				decode-failed: ValueError: adapter could not unscramble rawc
+ebirnholz_220102	wapo-eb	20220102080204	Letters of Introduction	Evan Birnholz	2022-01-02	ok
+ebirnholz_220109	wapo-eb	20220109080637	In Character	Evan Birnholz	2022-01-09	ok
+ebirnholz_220116	wapo-eb	20220116080613	Captain Obvious, Attorney at Law	Evan Birnholz	2022-01-16	ok
+ebirnholz_220123	wapo-eb	20220123080630	Dropping the Ball	Evan Birnholz	2022-01-23	ok
+ebirnholz_220130	wapo-eb	20220130080652	Word for Word	Evan Birnholz	2022-01-30	ok
+ebirnholz_220206	wapo-eb	20220206091216	Play Groups	Evan Birnholz	2022-02-06	ok
+ebirnholz_220213	wapo-eb	20220213080654	Code Words	Evan Birnholz	2022-02-13	ok
+ebirnholz_220220	wapo-eb	20220220093630	Celebrity Dish	Evan Birnholz	2022-02-20	ok
+ebirnholz_220227	wapo-eb	20220227080101	Travel Books	Evan Birnholz	2022-02-27	ok
+ebirnholz_220306	wapo-eb	20220306080052	Rerouted Flights	Evan Birnholz	2022-03-06	ok
+ebirnholz_220313	wapo-eb	20220313080047	Clockwork	Sally Hoelscher and Mary Lou Guizzo	2022-03-13	ok
+ebirnholz_220320	wapo-eb	20220327000011	Rock Bottom	Evan Birnholz	2022-03-20	ok
+ebirnholz_220403	wapo-eb	20220403070100	Cutting Costs	Evan Birnholz	2022-04-03	ok
+ebirnholz_220410	wapo-eb	20220410070117	It's the Only Way	Evan Birnholz	2022-04-10	ok
+ebirnholz_220417	wapo-eb	20220417070059	Parting Words	Evan Birnholz	2022-04-17	ok
+ebirnholz_220424	wapo-eb	20220424070106	Time Trial	Evan Birnholz	2022-04-24	ok
+ebirnholz_220501	wapo-eb	20220501070124	Two-Timing	Evan Birnholz	2022-05-01	ok
+ebirnholz_220508	wapo-eb	20220508070049	Themeless No. 19	Evan Birnholz	2022-05-08	ok
+ebirnholz_220515	wapo-eb	20220515092702	Jumping to Conclusions	Evan Birnholz	2022-05-15	ok
+ebirnholz_220619	wapo-eb	20220712232537	Puzzlin' People	Evan Birnholz	2022-06-19	ok
+ebirnholz_220626	wapo-eb	20220719172858	Homeward Bound	Evan Birnholz	2022-06-26	ok
+6f50a0b5	wapo-whm	20220319215736	Golden Girls		2022-03-01	not-captured (listed in picker only)
+8fc402eb	wapo-whm	20220319215736	Mom Genes		2022-03-09	not-captured (listed in picker only)
+b86ade92	wapo-whm	20220319215736	Credit Report		2022-03-16	not-captured (listed in picker only)
