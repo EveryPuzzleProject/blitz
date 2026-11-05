@@ -44,12 +44,13 @@ def issues():
             state = "found" if p["verdict"] == "found" else p["verdict"]
             seq = p.get("seq") or ""
             by = "person"
+            kind = p.get("kind", "regular")
         else:
-            state, seq, by = r["verdict"], r.get("seq", ""), "scan"
+            state, seq, by, kind = r["verdict"], r.get("seq", ""), "scan", ""
         g = (r.get("guess") or "").split("|")
         cand, why = (r.get("seq", ""), "the scan saw part of a crossword here") if r.get("seq") else \
                     ((g[0], f"era guess: {g[1]} nearby puzzles were on this page") if g[0] else ("", ""))
-        out.append(dict(date=date, pages=int(r["pages"] or 0), state=state, seq=seq, by=by,
+        out.append(dict(date=date, pages=int(r["pages"] or 0), state=state, seq=seq, by=by, kind=kind,
                         scan_verdict=r["verdict"], scan_seq=r.get("seq", ""), evidence=r.get("evidence", ""),
                         cand=cand, why=why))
     return out
@@ -86,22 +87,24 @@ small{color:#555}
 <header>
  <select id=filter>
   <option value=todo>Needs a look</option><option value=check>Scan unsure</option><option value=nohit>Scan found nothing</option>
-  <option value=found>Found (spot check)</option><option value=absent>You said no crossword</option><option value=all>All</option>
+  <option value=found>Found (spot check)</option><option value=dless>Diagramless</option><option value=absent>You said no crossword</option><option value=all>All</option>
  </select>
  <button id=prev>&larr; prev</button><b id=title></b><button id=next>next &rarr;</button>
  <button id=absent class=primary>No crossword this day (n)</button>
  <button id=unsure>Can't tell (u)</button>
+ <button id=dl title="tags the next page you pick as a diagramless">Diagramless (d): off</button>
  <small id=count></small>
 </header>
 <div id=cand style="padding:12px 12px 0"></div>
 <div id=sheet class=sheet></div>
 <script>
-let list=[],i=0;
+let list=[],i=0,dl=false;
+function setDl(v){dl=v;const b=document.getElementById('dl');b.textContent='Diagramless (d): '+(dl?'ON':'off');b.style.background=dl?'#ffe066':'';}
 const $=id=>document.getElementById(id);
 async function load(keep){
   const all=await (await fetch('/api/issues')).json();
   const f=$('filter').value;
-  list=all.filter(r=>f=='all'||(f=='todo'&&['check','no-hit','pending','unsure'].includes(r.state))||(f=='check'&&r.state=='check')||(f=='nohit'&&r.state=='no-hit')||(f=='found'&&r.state=='found')||(f=='absent'&&r.state=='absent'));
+  list=all.filter(r=>f=='all'||(f=='todo'&&['check','no-hit','pending','unsure'].includes(r.state))||(f=='check'&&r.state=='check')||(f=='nohit'&&r.state=='no-hit')||(f=='found'&&r.state=='found')||(f=='dless'&&r.kind=='diagramless')||(f=='absent'&&r.state=='absent'));
   const cnt={};all.forEach(r=>cnt[r.state]=(cnt[r.state]||0)+1);
   $('count').textContent=list.length+' in view · '+Object.entries(cnt).map(([k,v])=>k+' '+v).join(' · ');
   if(!keep)i=0; if(i>=list.length)i=Math.max(0,list.length-1);
@@ -111,11 +114,14 @@ function show(){
   const r=list[i]; const s=$('sheet'); s.innerHTML='';
   if(!r){$('title').textContent='nothing here';return}
   const dow=new Date(r.date+'T12:00:00').toLocaleDateString('en-US',{weekday:'short'});
-  $('title').textContent=r.date+' '+dow+' · '+r.pages+' pages · '+r.state+(r.by=='person'?' (you)':' (scan'+(r.scan_seq?', p'+r.scan_seq:'')+')');
-  for(let k=1;k<=3;k++){const q=list[i+k];if(q)for(let n=1;n<=q.pages;n++)new Image().src='/thumb/'+q.date+'/'+n+'.jpg?w=480';}
+  $('title').textContent=r.date+' '+dow+' · '+r.pages+' pages · '+r.state+(r.kind=='diagramless'?' · DIAGRAMLESS':'')+(r.by=='person'?' (you)':' (scan'+(r.scan_seq?', p'+r.scan_seq:'')+')');
+  // prefetch the next issues: every suspect page first, then the rest
+  const nx=[1,2,3].map(k=>list[i+k]).filter(Boolean), pf=(q,n)=>{new Image().src='/thumb/'+q.date+'/'+n+'.jpg?w=480'};
+  nx.forEach(q=>{if(q.cand&&q.by=='scan')pf(q,+q.cand)});
+  nx.forEach(q=>{for(let n=1;n<=q.pages;n++)if(!(q.by=='scan'&&String(q.cand)==n))pf(q,n)});
   for(let n=1;n<=r.pages;n++){
     const d=document.createElement('div'); d.className='pg'+(String(r.cand)==n&&r.by=='scan'?' cand':'')+(String(r.seq)==n&&r.by=='person'&&r.state=='found'?' chosen':'');
-    d.innerHTML='<img src="/thumb/'+r.date+'/'+n+'.jpg?w=480"><span class=n>'+n+'</span>'+
+    d.innerHTML='<img '+(d.className.includes('cand')?'fetchpriority=high ':'')+'src="/thumb/'+r.date+'/'+n+'.jpg?w=480"><span class=n>'+n+'</span>'+
       (d.className.includes('cand')?'<span class=tag>guess</span>':'')+(d.className.includes('chosen')?'<span class=tag>your pick</span>':'')+
       '<a target=_blank href="/thumb/'+r.date+'/'+n+'.jpg?w=2400">big</a>';
     d.onclick=e=>{if(e.target.tagName!='A')decide('found',n)};
@@ -125,14 +131,15 @@ function show(){
 }
 async function decide(verdict,seq){
   const r=list[i];
-  await fetch('/api/decide',{method:'POST',body:JSON.stringify({date:r.date,verdict,seq})});
+  await fetch('/api/decide',{method:'POST',body:JSON.stringify({date:r.date,verdict,seq,kind:(dl&&verdict=='found')?'diagramless':'regular'})});
+  setDl(false);
   const f=$('filter').value; await load(true);
   if(f!='todo'&&f!='check'&&f!='nohit'){i=Math.min(i+1,list.length-1);show()}
 }
 $('filter').onchange=()=>load(false);
 $('prev').onclick=()=>{i=Math.max(0,i-1);show()};$('next').onclick=()=>{i=Math.min(list.length-1,i+1);show()};
-$('absent').onclick=()=>decide('absent');$('unsure').onclick=()=>decide('unsure');
-document.onkeydown=e=>{if(e.target.tagName=='SELECT')return;if(e.key=='n')decide('absent');if(e.key=='u')decide('unsure');if(e.key=='y'&&list[i]&&list[i].cand)decide('found',+list[i].cand);
+$('dl').onclick=()=>setDl(!dl);$('absent').onclick=()=>decide('absent');$('unsure').onclick=()=>decide('unsure');
+document.onkeydown=e=>{if(e.target.tagName=='SELECT')return;if(e.key=='n')decide('absent');if(e.key=='d')setDl(!dl);if(e.key=='u')decide('unsure');if(e.key=='y'&&list[i]&&list[i].cand)decide('found',+list[i].cand);
  if(e.key=='ArrowRight')$('next').click();if(e.key=='ArrowLeft')$('prev').click();
  if(/^[1-9]$/.test(e.key)&&list[i]&&+e.key<=list[i].pages)decide('found',+e.key)};
 load();
@@ -172,7 +179,7 @@ class H(BaseHTTPRequestHandler):
             return self.send("not found", "text/plain", 404)
         r = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
         assert r["verdict"] in ("found", "absent", "unsure")
-        rec = dict(date=r["date"], verdict=r["verdict"], seq=r.get("seq"), by="person", at=time.strftime("%Y-%m-%dT%H:%M:%S"))
+        rec = dict(date=r["date"], verdict=r["verdict"], seq=r.get("seq"), kind=r.get("kind", "regular"), by="person", at=time.strftime("%Y-%m-%dT%H:%M:%S"))
         with open(DECISIONS, "a", encoding="utf8") as f:
             f.write(json.dumps(rec) + "\n")
         self.send(json.dumps(rec))
