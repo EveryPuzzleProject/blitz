@@ -46,7 +46,7 @@ def exceptions():
 
 
 def issues():
-    rows, dec, exc = scan.read_rows(), decisions(), exceptions()
+    rows, dec, exc, boxes = scan.read_rows(), decisions(), exceptions(), crop_boxes()
     out = []
     for date, r in sorted(rows.items()):
         p = dec.get(date)
@@ -60,9 +60,22 @@ def issues():
         g = (r.get("guess") or "").split("|")
         cand, why = (r.get("seq", ""), "the scan saw part of a crossword here") if r.get("seq") else \
                     ((g[0], f"era guess: {g[1]} nearby puzzles were on this page") if g[0] else ("", ""))
+        # a day a person called absent that deserves a second look: in term time (summer issues often had no puzzle,
+        # and the June 1981 ad days are known), or the OCR saw part of a crossword there
+        why2 = []
+        if state == "absent":
+            if date[5:7] not in ("06", "07", "08") and date < "1981-06-10":
+                why2.append("an absent day in term time")
+            if r["verdict"] == "check" and r.get("seq"):
+                ev = json.loads(r.get("evidence") or "{}")
+                why2.append(f"the OCR saw part of a crossword on page {r['seq']} "
+                            f"({ev.get('nums', 0)} numbered lines, Across/Down heads {ev.get('across', 0)}/{ev.get('down', 0)}"
+                            f"{', an answers line' if ev.get('answers_line') else ''})")
         out.append(dict(date=date, pages=int(r["pages"] or 0), state=state, seq=seq, by=by, kind=kind,
+                        second_look=bool(why2), why2="; ".join(why2),
                         scan_verdict=r["verdict"], scan_seq=r.get("seq", ""), evidence=r.get("evidence", ""),
-                        cand=cand, why=why, extras=exc.get(date, [])))
+                        cand=cand, why=why, extras=exc.get(date, []),
+                        hasbox=bool(seq) and (date, int(seq)) in boxes))
     return out
 
 
@@ -97,17 +110,19 @@ small{color:#555}
 <header>
  <select id=filter>
   <option value=todo>Needs a look</option><option value=check>Scan unsure</option><option value=nohit>Scan found nothing</option>
-  <option value=found>Found (spot check)</option><option value=dless>Diagramless</option><option value=absent>You said no crossword</option><option value=all>All</option>
+  <option value=second>Second look (absent days)</option><option value=nogrid>Puzzle page with no grid found</option><option value=found>Found (spot check)</option><option value=dless>Diagramless</option><option value=absent>You said no crossword</option><option value=all>All</option>
  </select>
  <button id=prev>&larr; prev</button><b id=title></b><button id=next>next &rarr;</button>
  <button id=absent class=primary>No crossword this day (n)</button>
  <button id=unsure>Can't tell (u)</button>
  <button id=dl title="tags the next page you pick as a diagramless">Diagramless (d): off</button>
- <small id=count></small>
+ <small id=count></small> <a href="/confirm">confirm sheet</a>
 </header>
+<div id=flash style="display:none;position:fixed;right:14px;bottom:14px;background:#1d5c3a;color:#fff;padding:10px 16px;border-radius:6px;z-index:5;max-width:420px"></div>
 <div id=cand style="padding:0 12px"></div>
 <div id=sheet class=sheet></div>
 <script>
+const flash=m=>{const f=document.getElementById('flash');f.textContent=m;f.style.display='block';clearTimeout(flash.t);flash.t=setTimeout(()=>f.style.display='none',6000)};
 // The address is the issue (#1978-01-20), and every move is a history entry, so the mouse's back and
 // forward buttons are prev and next. history.state keeps the trail across a reload.
 let list=[],dl=false,ALL=[],curDate=null,stack=[],idx=0;
@@ -117,6 +132,14 @@ const nextAfter=d=>list.find(r=>r.date>d);
 const prevBefore=d=>{let p=null;for(const r of list){if(r.date<d)p=r;else break}return p};
 function nav(date){stack=stack.slice(0,idx+1);stack.push(date);idx=stack.length-1;history.pushState({stack,idx},'','#'+date);curDate=date;show();}
 window.onpopstate=e=>{if(e.state){stack=e.state.stack;idx=e.state.idx}curDate=location.hash.slice(1)||curDate;show();};
+// the last issue in this view was just saved: say so on the page, don't leave the same sheet on screen
+function allDone(saved){
+  $('title').textContent='nothing more here'; $('cand').innerHTML='';
+  $('sheet').innerHTML='<div style="grid-column:1/-1;background:#fff;border:2px solid #1d5c3a;padding:28px;text-align:center;max-width:640px;margin:30px auto">'+
+    '<h2 style="margin:0 0 8px">Nothing more to see here</h2><p>'+saved+' That was the last issue in this view.</p>'+
+    '<p><button onclick="history.back()">&larr; back to the last one</button> &nbsp; <button onclick="document.getElementById(\'filter\').value=\'all\';refilter()">see all issues</button></p></div>';
+  window.scrollTo(0,0);
+}
 function goPrev(){if(idx>0)history.back();else{const p=prevBefore(curDate);if(p)nav(p.date)}}
 function goNext(){if(idx<stack.length-1)history.forward();else{const n=nextAfter(curDate);if(n)nav(n.date)}}
 function setDl(v){dl=v;const b=document.getElementById('dl');b.textContent='Diagramless (d): '+(dl?'ON':'off');b.style.background=dl?'#ffe066':'';}
@@ -124,7 +147,8 @@ const $=id=>document.getElementById(id);
 async function load(){
   const all=await (await fetch('/api/issues')).json();
   const f=$('filter').value; ALL=all;
-  list=all.filter(r=>f=='all'||(f=='todo'&&['check','no-hit','pending','unsure'].includes(r.state))||(f=='check'&&r.state=='check')||(f=='nohit'&&r.state=='no-hit')||(f=='found'&&r.state=='found')||(f=='dless'&&r.kind=='diagramless')||(f=='absent'&&r.state=='absent'));
+  list=all.filter(r=>f=='all'||(f=='todo'&&['check','no-hit','pending','unsure'].includes(r.state))||(f=='check'&&r.state=='check')||(f=='nohit'&&r.state=='no-hit')||(f=='found'&&r.state=='found')||(f=='second'&&r.second_look)||(f=='nogrid'&&r.state=='found'&&!r.hasbox)||(f=='dless'&&r.kind=='diagramless')||(f=='absent'&&r.state=='absent'));
+  if(!list.length&&!curDate&&f=='todo'){$('filter').value='second';list=all.filter(r=>r.second_look)}   // nothing left to settle: open on the second look
   const cnt={};all.forEach(r=>cnt[r.state]=(cnt[r.state]||0)+1);
   $('count').textContent=list.length+' in view · '+Object.entries(cnt).map(([k,v])=>k+' '+v).join(' · ');
   if(!curDate){   // first load: the address says where we were, else the first issue in view
@@ -144,10 +168,11 @@ function show(){
   const nx=list.filter(q=>q.date>r.date).slice(0,3), pf=(q,n)=>{new Image().src='/thumb/'+q.date+'/'+n+'.jpg?w=480'};
   nx.forEach(q=>{if(q.cand&&q.by=='scan')pf(q,+q.cand)});
   nx.forEach(q=>{for(let n=1;n<=q.pages;n++)if(!(q.by=='scan'&&String(q.cand)==n))pf(q,n)});
-  $('cand').innerHTML=(r.extras||[]).map(x=>'<div style="background:#fff3bf;border:2px solid #e8590c;padding:6px 10px;margin-top:10px"><b>Known exception ('+x.kind+(x.seq&&x.seq!='-'?', page '+x.seq:'')+'):</b> '+x.note.replace(/</g,'&lt;')+'</div>').join('');
+  const second=r.second_look?'<div style="background:#d0ebff;border:2px solid #1c7ed6;padding:6px 10px;margin-top:10px"><b>Second look:</b> '+r.why2.replace(/</g,'&lt;')+'. Click the page if there is a crossword; press n to confirm no crossword.</div>':'';
+  $('cand').innerHTML=second+(r.extras||[]).map(x=>'<div style="background:#fff3bf;border:2px solid #e8590c;padding:6px 10px;margin-top:10px"><b>Known exception ('+x.kind+(x.seq&&x.seq!='-'?', page '+x.seq:'')+'):</b> '+x.note.replace(/</g,'&lt;')+'</div>').join('');
   const exSeq=new Set((r.extras||[]).map(x=>x.seq));
   for(let n=1;n<=r.pages;n++){
-    const d=document.createElement('div'); d.className='pg'+(String(r.cand)==n&&r.by=='scan'?' cand':'')+(String(r.seq)==n&&r.by=='person'&&r.state=='found'?' chosen':'');
+    const d=document.createElement('div'); d.className='pg'+((String(r.cand)==n&&r.by=='scan')||(r.second_look&&String(r.scan_seq)==n)?' cand':'')+(String(r.seq)==n&&r.by=='person'&&r.state=='found'?' chosen':'');
     d.innerHTML='<img '+(d.className.includes('cand')?'fetchpriority=high ':'')+'src="/thumb/'+r.date+'/'+n+'.jpg?w=480"><span class=n>'+n+'</span>'+
       (d.className.includes('cand')?'<span class=tag>guess</span>':'')+(exSeq.has(String(n))?'<span class=tag style="top:26px;background:#7048e8">exception</span>':'')+(d.className.includes('chosen')?'<span class=tag>your pick</span>':'')+
       '<a target=_blank href="/thumb/'+r.date+'/'+n+'.jpg?w=2400">big</a>';
@@ -161,7 +186,11 @@ async function decide(verdict,seq){
   await fetch('/api/decide',{method:'POST',body:JSON.stringify({date:r.date,verdict,seq,kind:(dl&&verdict=='found')?'diagramless':'regular'})});
   setDl(false); await load();
   // went back to redo one? step forward through the ones you passed; otherwise on to the next issue in view
-  if(idx<stack.length-1)history.forward();else{const n=nextAfter(r.date);if(n)nav(n.date);else show();}
+  const what=verdict=='found'?'page '+seq+' is the crossword':verdict=='absent'?'no crossword':'unsure';
+  if(idx<stack.length-1){flash('Saved '+r.date+': '+what);history.forward();}
+  else{const n=nextAfter(r.date);
+    if(n){flash('Saved '+r.date+': '+what);nav(n.date)}
+    else{allDone('Saved '+r.date+': '+what+'.')}}
 }
 $('filter').onchange=refilter;
 $('prev').onclick=goPrev;$('next').onclick=goNext;
@@ -169,6 +198,274 @@ $('dl').onclick=()=>setDl(!dl);$('absent').onclick=()=>decide('absent');$('unsur
 document.onkeydown=e=>{if(e.target.tagName=='SELECT')return;if(e.key=='n')decide('absent');if(e.key=='d')setDl(!dl);if(e.key=='u')decide('unsure');if(e.key=='y'&&cur()&&cur().cand)decide('found',+cur().cand);
  if(e.key=='ArrowRight')$('next').click();if(e.key=='ArrowLeft')$('prev').click();
  if(/^[1-9]$/.test(e.key)&&cur()&&+e.key<=cur().pages)decide('found',+e.key)};
+load();
+</script>"""
+
+
+BOX_FIXES = DATA / "box_fixes.jsonl"
+CROP_FLAGS = DATA / "crop_flags.jsonl"
+
+
+def machine_boxes():
+    """crops.tsv (scan.py boxes): the box the tools drew around each puzzle, in image pixels."""
+    p, out = DATA / "crops.tsv", {}
+    if p.exists():
+        for line in p.read_text("utf8").splitlines()[1:]:
+            f = line.split("\t")
+            if len(f) >= 7 and f[2]:
+                out[(f[0], int(f[1]))] = [int(v) for v in f[2:6]]
+    return out
+
+
+def box_fixes():
+    """boxes a person drew by hand (the last one per page wins); a null box is a cleared one."""
+    out = {}
+    if BOX_FIXES.exists():
+        for line in BOX_FIXES.read_text("utf8").splitlines():
+            if line.strip():
+                r = json.loads(line)
+                out[(r["date"], int(r["seq"]))] = r["box"]
+    return {k: v for k, v in out.items() if v}
+
+
+def crop_labels():
+    """the last crop label a person gave each page: bad-crop / crop-ok"""
+    out = {}
+    if CROP_FLAGS.exists():
+        for line in CROP_FLAGS.read_text("utf8").splitlines():
+            if line.strip():
+                r = json.loads(line)
+                out[r["date"]] = r["label"]
+    return out
+
+
+def crop_boxes():
+    """the box in force for each page: a hand-drawn one over the machine's"""
+    out = machine_boxes()
+    out.update(box_fixes())
+    return out
+
+
+def crop(date, seq, width):
+    box = crop_boxes().get((date, seq))
+    if not box:
+        return thumb(date, seq, width)          # no box recorded: the whole page
+    p = DATA / "cache" / "crop" / date / f"seq-{seq}-{width}-{box[0]}_{box[1]}_{box[2]}_{box[3]}.jpg"
+    if not p.exists():
+        m = scan.manifest(date)
+        iid = m["sequences"][0]["canvases"][seq - 1]["images"][0]["resource"]["@id"]
+        x, y, w, h = box
+        b = scan.get(f"{scan.BASE}{iid}/{x},{y},{w},{h}/{width},/0/default.jpg")
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(b)
+    return p.read_bytes()
+
+
+CONFIRM = r"""<!doctype html><meta charset=utf-8><title>Confirm the OCR's finds</title>
+<style>
+body{font:15px system-ui;margin:0;background:#f4f1ea;color:#222}
+header{position:sticky;top:0;background:#fff;border-bottom:1px solid #ccc;padding:8px 14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;z-index:2}
+button{font:inherit;padding:6px 14px;border:1px solid #888;border-radius:5px;background:#fff;cursor:pointer}
+button.primary{background:#1d5c3a;color:#fff;border-color:#1d5c3a}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:10px;padding:12px}
+.t{background:#fff;border:4px solid #fff;cursor:pointer;position:relative}
+.t img{width:100%;display:block;aspect-ratio:1.3/1;object-fit:contain;background:#ddd}
+.t .l{position:absolute;left:0;top:0;background:#000b;color:#fff;padding:2px 8px;font-size:13px}
+.t.bad{border-color:#d9480f;background:#ffe3d0}.t.bad .l{background:#d9480f}
+.t.crop{border-color:#f08c00;background:#fff3bf}.t.crop .l{background:#f08c00}
+.t .m{position:absolute;right:0;top:0;color:#fff;padding:2px 8px;font-size:13px;display:none}
+.t.bad .m{display:block;background:#d9480f}.t.crop .m{display:block;background:#f08c00}
+.t a{position:absolute;right:4px;bottom:4px;background:#fffd;padding:1px 6px;font-size:12px}
+small{color:#555}
+</style>
+<header><b>The OCR's finds: click a tile once if the CROP is bad (orange), twice if it is NOT a crossword (red)</b>
+ <button id=go class=primary>Confirm the rest &rarr; (Enter)</button><button id=prev>&larr; prev batch</button><button id=next>next &rarr;</button><small id=count></small>
+ <a href="/">full review page</a> <a href="/boxes">place boxes by hand</a></header>
+<div id=grid class=grid></div>
+<script>
+// Every batch of 20 is a history entry (#b0, #b1, ...), so the mouse's back/forward buttons walk the batches,
+// including ones already confirmed, which can be re-marked and confirmed again. history.state holds the trail.
+const N=20,$=id=>document.getElementById(id),CROPS=location.search.includes('crops=1');   // crops=1: label crops on every found page, decisions untouched
+let trail=[],idx=0,mark=new Map();   // trail[i] = {batch:[rows], done, marks:[[date,'crop'|'no']]}
+const src=r=>'/crop/'+r.date+'/'+r.seq+'.jpg?w=720';
+const save=()=>history.replaceState({trail,idx},'','#b'+idx);
+async function pending(){
+  const all=await (await fetch('/api/issues')).json();
+  const seen=new Set(trail.flatMap(t=>t.batch.map(r=>r.date)));
+  return all.filter(r=>(CROPS?(r.state=='found'&&r.hasbox):(r.by=='scan'&&r.state=='found'))&&r.seq&&!seen.has(r.date));
+}
+function render(){
+  const t=trail[idx]; mark=new Map(t.marks||[]); $('grid').innerHTML='';
+  $('count').textContent='batch '+(idx+1)+(t.done?' · already confirmed: re-mark and Enter to redo':'');
+  t.batch.forEach(r=>{
+    const d=document.createElement('div'); d.className='t';
+    const wd=new Date(r.date+'T12:00:00').toLocaleDateString('en-US',{weekday:'short'});
+    d.innerHTML='<img src="'+src(r)+'"><span class=l>'+r.date+' '+wd+' · p'+r.seq+'/'+r.pages+'</span><span class=m></span><a target=_blank href="/thumb/'+r.date+'/'+r.seq+'.jpg?w=2400">page</a>';
+    const paint=()=>{const v=mark.get(r.date);d.classList.remove('crop','bad');if(v){d.classList.add(v=='crop'?'crop':'bad');d.querySelector('.m').textContent=v=='crop'?'bad crop':'NOT a crossword'}
+      const no=[...mark.values()].filter(x=>x=='no').length;$('go').textContent='Confirm the '+(t.batch.length-no)+' puzzles → (Enter)'};
+    d.onclick=e=>{if(e.target.tagName=='A')return;const c=mark.get(r.date),n=!c?'crop':c=='crop'?'no':null;if(n)mark.set(r.date,n);else mark.delete(r.date);paint()};
+    paint(); $('grid').appendChild(d);
+  });
+  window.scrollTo(0,0);
+  pending().then(p=>p.slice(idx==trail.length-1?N:0,(idx==trail.length-1?N:0)+N).forEach(r=>{new Image().src=src(r)}));   // warm the next batch
+}
+async function go(){
+  const t=trail[idx]; if(!t||!t.batch.length)return;
+  const redo=!!t.done, ms=[...mark];
+  await fetch('/api/bulk',{method:'POST',body:JSON.stringify({redo,cropsonly:CROPS,
+    confirm:t.batch.filter(r=>mark.get(r.date)!='no').map(r=>({date:r.date,seq:+r.seq})),
+    flag:t.batch.filter(r=>mark.get(r.date)=='no').map(r=>r.date),
+    badcrop:t.batch.filter(r=>mark.get(r.date)=='crop').map(r=>({date:r.date,seq:+r.seq})),
+    okcrop:t.batch.filter(r=>mark.get(r.date)!='crop'&&mark.get(r.date)!='no').map(r=>({date:r.date,seq:+r.seq}))})});
+  t.done=true; t.marks=ms; save();
+  if(idx<trail.length-1){history.forward();return}           // redoing: on to the next batch you passed
+  const p=await pending();
+  if(!p.length){$('grid').innerHTML='<p style="padding:20px">All confirmed. Anything you marked red is under "Needs a look" on the full review page.</p>';$('count').textContent='done';return}
+  trail=trail.slice(0,idx+1).concat([{batch:p.slice(0,N)}]); idx=trail.length-1;
+  history.pushState({trail,idx},'','#b'+idx); render();
+}
+window.onpopstate=e=>{if(e.state){if(e.state.trail.length>=trail.length)trail=e.state.trail;idx=e.state.idx}render()};   // the longest trail wins: an older entry's copy is shorter
+$('go').onclick=go; $('prev').onclick=()=>history.back(); $('next').onclick=()=>history.forward();
+document.onkeydown=e=>{if(e.key=='Enter')go();if(e.key=='ArrowLeft')history.back();if(e.key=='ArrowRight')history.forward()};
+(async()=>{
+  if(history.state&&history.state.trail){trail=history.state.trail;idx=history.state.idx;render();return}
+  const p=await pending();
+  if(!p.length){$('count').textContent='nothing left to confirm';return}
+  trail=[{batch:p.slice(0,N)}];idx=0;save();render();
+})();
+</script>"""
+
+
+_SIZES = {}
+
+
+def page_size(date, seq):
+    k = (date, seq)
+    if k not in _SIZES:
+        cv = scan.manifest(date)["sequences"][0]["canvases"][seq - 1]
+        _SIZES[k] = (cv["width"], cv["height"])
+    return _SIZES[k]
+
+
+def box_queue():
+    """every puzzle page with the machine's box, a hand-drawn box if any, and the crop label a person gave it"""
+    machine, hand, labels = machine_boxes(), box_fixes(), crop_labels()
+    out = []
+    for date, r in sorted(decisions().items()):
+        if r["verdict"] != "found" or not r.get("seq"):
+            continue
+        seq = int(r["seq"])
+        W, H = page_size(date, seq)
+        out.append(dict(date=date, seq=seq, W=W, H=H, machine=machine.get((date, seq)), hand=hand.get((date, seq)),
+                        label=labels.get(date, "")))
+    return out
+
+
+BOXES = r"""<!doctype html><meta charset=utf-8><title>Place boxes</title>
+<style>
+body{font:15px system-ui;margin:0;background:#f4f1ea;color:#222}
+html,body{overscroll-behavior-x:none}
+header{position:sticky;top:0;background:#fff;border-bottom:1px solid #ccc;padding:8px 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;z-index:3}
+button,select{font:inherit;padding:5px 10px;border:1px solid #888;border-radius:5px;background:#fff;cursor:pointer}
+button.primary{background:#1d5c3a;color:#fff;border-color:#1d5c3a}
+#wrap{position:relative;display:block;margin:10px auto;max-width:2000px;cursor:crosshair;user-select:none}
+#pg{width:100%;display:block;background:#ddd;transition:opacity .15s}
+#wrap.loading #pg{opacity:.25}
+#loadmsg{position:absolute;left:0;right:0;top:140px;text-align:center;font-size:22px;font-weight:600;color:#1d5c3a;pointer-events:none}
+.bx{position:absolute;pointer-events:none;box-sizing:border-box}
+#mbox{border:3px dashed #f08c00}#hbox{border:3px solid #1d5c3a;background:#1d5c3a22}#dbox{border:3px solid #1c7ed6;background:#1c7ed622}
+small{color:#555}#key{padding:4px 14px;color:#555}
+</style>
+<header>
+ <select id=filter><option value=need>Needs a box (marked bad, or none found)</option><option value=hand>Hand-placed</option><option value=all>All puzzle pages</option></select>
+ <button id=prev>&larr; prev</button><b id=title></b><button id=next>next &rarr;</button>
+ <button id=save class=primary>Save my box (Enter)</button><button id=keep>The machine's box is fine (k)</button><button id=clear>Clear my box (c)</button>
+ <small id=count></small> <a href="/">full review page</a>
+</header>
+<div id=key>Drag a rectangle round the whole puzzle: title, grid, clue lists and credit line. <span style="color:#f08c00">Orange dashed</span> = the machine's box,
+ <span style="color:#1c7ed6">blue</span> = the one you are drawing, <span style="color:#1d5c3a">green</span> = your saved box.</div>
+<div id=wrap><img id=pg><div id=loadmsg></div><div id=mbox class=bx></div><div id=hbox class=bx></div><div id=dbox class=bx></div></div>
+<div id=flash style="display:none;position:fixed;right:14px;bottom:14px;background:#1d5c3a;color:#fff;padding:10px 16px;border-radius:6px;z-index:5"></div>
+<script>
+const $=id=>document.getElementById(id);
+let all=[],list=[],cur=null,draft=null,drag=null;
+const flash=m=>{const f=$('flash');f.textContent=m;f.style.display='block';clearTimeout(flash.t);flash.t=setTimeout(()=>f.style.display='none',4000)};
+async function load(){
+  all=await (await fetch('/api/boxqueue')).json();
+  const f=$('filter').value;
+  list=all.filter(r=>f=='all'||(f=='hand'&&r.hand)||(f=='need'&&!r.hand&&(r.label=='bad-crop'||!r.machine)));
+  $('count').textContent=list.length+' in view · '+all.filter(r=>r.hand).length+' hand-placed';
+  const h=location.hash.slice(1); cur=all.find(r=>r.date==h)||list[0]||null; show();
+}
+const place=(el,b)=>{const im=$('pg');if(!b||!im.clientWidth){el.style.display='none';return}const k=im.clientWidth/cur.W;
+  el.style.display='block';el.style.left=b[0]*k+'px';el.style.top=b[1]*k+'px';el.style.width=b[2]*k+'px';el.style.height=b[3]*k+'px'};
+function draw(){ if(!cur)return; place($('mbox'),cur.machine); place($('hbox'),cur.hand); place($('dbox'),draft); }
+function show(){
+  draft=null;
+  if(!cur){$('title').textContent='nothing here';$('pg').removeAttribute('src');draw();return}
+  $('title').textContent=cur.date+' · page '+cur.seq+(cur.hand?' · hand-placed':cur.machine?'':' · no machine box')+(cur.label=='bad-crop'?' · you marked the crop bad':'');
+  // the new page's image takes a moment: dim the old one, hide every box and say so until it has really loaded
+  const want=cur.date, im=$('pg'); loading(true);
+  im.onload=()=>{ if(!cur||cur.date!=want)return; loading(false); draw(); scrollToPuzzle() };
+  im.onerror=()=>{ loading(false); flash('The page image did not load: '+want) };
+  im.src=thumbUrl(cur);
+  list.filter(r=>r.date>cur.date).slice(0,3).forEach(r=>{new Image().src=thumbUrl(r)});    // warm the next pages
+}
+const thumbUrl=r=>'/thumb/'+r.date+'/'+r.seq+'.jpg?w='+(r.W>9000?2800:1800);
+function loading(on){
+  $('wrap').classList.toggle('loading',on);
+  $('loadmsg').textContent=on&&cur?'Loading '+cur.date+' page '+cur.seq+'…':'';
+  if(on)['mbox','hbox','dbox'].forEach(id=>$(id).style.display='none');
+}
+function scrollToPuzzle(){      // land on the puzzle, not the top of a tall page
+  const b=cur&&(cur.hand||cur.machine), im=$('pg');
+  window.scrollTo(0,b?Math.max(0,(b[1]/cur.H)*im.clientHeight-130):0);
+}
+function nav(date){location.hash=date}   // every move is a history entry: the mouse's back and forward buttons work
+window.onhashchange=()=>{const r=all.find(x=>x.date==location.hash.slice(1));if(r){cur=r;show()}};
+const pt=e=>{const r=$('pg').getBoundingClientRect();return [Math.max(0,Math.min(e.clientX-r.left,r.width)),Math.max(0,Math.min(e.clientY-r.top,r.height))]};
+$('wrap').onmousedown=e=>{if(!cur||e.button!==0)return;e.preventDefault();drag=pt(e)};   // the left button only
+window.onmousemove=e=>{if(!drag)return;const p=pt(e),k=cur.W/$('pg').clientWidth;
+  const x0=Math.min(drag[0],p[0]),y0=Math.min(drag[1],p[1]);draft=[Math.round(x0*k),Math.round(y0*k),Math.round(Math.abs(p[0]-drag[0])*k),Math.round(Math.abs(p[1]-drag[1])*k)];draw()};
+window.onmouseup=e=>{if(e.button!==0)return;if(drag&&draft&&(draft[2]<60||draft[3]<60))draft=null;drag=null;draw()};
+function nextDate(){const i=list.findIndex(r=>r.date==cur.date);const n=list.slice(i+1).find(r=>r.date!=cur.date);return n?n.date:null}
+async function save(){
+  if(!cur||!draft){flash('Draw a box first');return}
+  const d=cur.date, nd=nextDate();
+  await fetch('/api/box',{method:'POST',body:JSON.stringify({date:d,seq:cur.seq,box:draft})});
+  flash('Saved a box for '+d); await load2(nd);
+}
+async function keep(){
+  if(!cur)return; const d=cur.date, nd=nextDate();
+  await fetch('/api/cropok',{method:'POST',body:JSON.stringify({date:d,seq:cur.seq})});
+  flash('Machine box kept for '+d); await load2(nd);
+}
+async function clearBox(){
+  if(!cur||!cur.hand)return; const d=cur.date;
+  await fetch('/api/box',{method:'POST',body:JSON.stringify({date:d,seq:cur.seq,box:null})}); flash('Cleared '+d); await load2(d);
+}
+async function load2(go){   // reload the queue, then move on (or stay) without losing the place
+  const f=$('filter').value;
+  all=await (await fetch('/api/boxqueue')).json();
+  list=all.filter(r=>f=='all'||(f=='hand'&&r.hand)||(f=='need'&&!r.hand&&(r.label=='bad-crop'||!r.machine)));
+  $('count').textContent=list.length+' in view · '+all.filter(r=>r.hand).length+' hand-placed';
+  if(go&&go!=cur.date){nav(go)} else if(!go){cur=null;$('title').textContent='nothing more here';$('pg').removeAttribute('src');draft=null;draw();
+    $('key').innerHTML='<b>Nothing more to see here.</b> That was the last page in this view.'} else {cur=all.find(r=>r.date==go);show()}
+}
+$('filter').onchange=()=>{location.hash='';load()};
+$('prev').onclick=()=>history.back();$('next').onclick=()=>history.forward();
+$('save').onclick=save;$('keep').onclick=keep;$('clear').onclick=clearBox;
+document.onkeydown=e=>{if(e.target.tagName=='SELECT')return;if(e.key=='Enter')save();if(e.key=='k')keep();if(e.key=='c')clearBox();
+  if(e.key=='ArrowLeft')history.back();if(e.key=='ArrowRight')history.forward()};
+window.onresize=draw;
+// While a box is being drawn nothing may move the page. Mouse thumb buttons (back/forward) are swallowed mid-drag,
+// and every key, thumb button and address change is written to ui_trace.log so a surprise can be traced.
+const trace=(t)=>{try{navigator.sendBeacon('/api/trace',JSON.stringify({t,page:cur&&cur.date,drag:!!drag,draft:!!draft}))}catch(e){}};
+['mousedown','mouseup','auxclick'].forEach(ev=>window.addEventListener(ev,e=>{
+  if(e.button===3||e.button===4){ if(drag){e.preventDefault();e.stopPropagation();trace('swallowed '+ev+' button '+e.button+' during a drag')} else trace(ev+' button '+e.button) }},true));
+window.addEventListener('hashchange',()=>trace('hashchange '+location.hash));
+window.addEventListener('popstate',()=>trace('popstate'));
+window.addEventListener('keydown',e=>trace('key '+e.key),true);
 load();
 </script>"""
 
@@ -190,6 +487,19 @@ class H(BaseHTTPRequestHandler):
         u = urllib.parse.urlparse(self.path)
         if u.path == "/":
             return self.send(PAGE, "text/html; charset=utf-8")
+        if u.path == "/confirm":
+            return self.send(CONFIRM, "text/html; charset=utf-8")
+        if u.path == "/boxes":
+            return self.send(BOXES, "text/html; charset=utf-8")
+        if u.path == "/api/boxqueue":
+            return self.send(json.dumps(box_queue()))
+        if u.path.startswith("/crop/"):
+            date, seqf = u.path[6:].split("/")
+            w = int(urllib.parse.parse_qs(u.query).get("w", ["720"])[0])
+            try:
+                return self.send(crop(date, int(seqf.split(".")[0]), w), "image/jpeg")
+            except Exception as e:
+                return self.send(str(e), "text/plain", 502)
         if u.path == "/api/recent":   # dates of the last decisions, oldest first, so prev can redo them after a reload
             seen = []
             if DECISIONS.exists():
@@ -212,6 +522,56 @@ class H(BaseHTTPRequestHandler):
         self.send("not found", "text/plain", 404)
 
     def do_POST(self):
+        if self.path == "/api/trace":         # what the page saw: a key, a thumb button, an address change (for tracing surprises)
+            n = int(self.headers.get("Content-Length") or 0)
+            try:
+                r = json.loads(self.rfile.read(n) or b"{}")
+                with open(DATA / "ui_trace.log", "a", encoding="utf8") as f:
+                    f.write(time.strftime("%H:%M:%S ") + json.dumps(r) + "\n")
+            except Exception:
+                pass
+            return self.send("{}")
+        if self.path in ("/api/box", "/api/cropok"):
+            r = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            at = time.strftime("%Y-%m-%dT%H:%M:%S")
+            if self.path == "/api/box":      # a box drawn by hand (box null = cleared); it overrides the machine's everywhere
+                box = r.get("box")
+                if box:
+                    W, H = page_size(r["date"], int(r["seq"]))
+                    x, y, w, h = (int(v) for v in box)
+                    x, y = max(0, x), max(0, y)
+                    box = [x, y, min(w, W - x), min(h, H - y)]
+                rec = dict(date=r["date"], seq=int(r["seq"]), box=box, by="person", how="drawn on /boxes", at=at)
+                with open(BOX_FIXES, "a", encoding="utf8") as f:
+                    f.write(json.dumps(rec) + "\n")
+            else:                            # "the machine's box is fine": a label, with the box it was about
+                rec = dict(date=r["date"], seq=int(r["seq"]), box=machine_boxes().get((r["date"], int(r["seq"]))),
+                           label="crop-ok", by="person", at=at)
+                with open(CROP_FLAGS, "a", encoding="utf8") as f:
+                    f.write(json.dumps(rec) + "\n")
+            return self.send(json.dumps(rec))
+        if self.path == "/api/bulk":
+            # the confirm sheet: tiles a person left alone are confirmed; tiles they clicked go back to "needs a look"
+            r = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            at = time.strftime("%Y-%m-%dT%H:%M:%S")
+            with open(DECISIONS, "a", encoding="utf8") as f:
+                for c in ([] if r.get("cropsonly") else r.get("confirm", [])):
+                    f.write(json.dumps(dict(date=c["date"], verdict="found", seq=c["seq"], kind="regular",
+                                            by="person", via="confirm-sheet", at=at)) + "\n")
+                for d in r.get("flag", []):
+                    f.write(json.dumps(dict(date=d, verdict="unsure", seq=None, kind="regular",
+                                            by="person", via="confirm-sheet: not a crossword", at=at)) + "\n")
+            boxes = crop_boxes()      # the box we drew, kept with the label: a test set for the box finder
+            with open(DATA / "crop_flags.jsonl", "a", encoding="utf8") as f:
+                for c in r.get("badcrop", []):
+                    f.write(json.dumps(dict(date=c["date"], seq=c["seq"], box=boxes.get((c["date"], c["seq"])),
+                                            label="bad-crop", by="person", at=at)) + "\n")
+                if r.get("redo") or r.get("cropsonly"):             # a batch gone over again: crops now left unmarked are fine (last label per date wins)
+                    for c in r.get("okcrop", []):
+                        f.write(json.dumps(dict(date=c["date"], seq=c["seq"], box=boxes.get((c["date"], c["seq"])),
+                                                label="crop-ok", by="person", at=at)) + "\n")
+            return self.send(json.dumps(dict(confirmed=len(r.get("confirm", [])), flagged=len(r.get("flag", [])),
+                                             badcrop=len(r.get("badcrop", [])))))
         if self.path != "/api/decide":
             return self.send("not found", "text/plain", 404)
         r = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
