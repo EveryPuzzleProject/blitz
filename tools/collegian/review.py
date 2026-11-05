@@ -108,27 +108,40 @@ small{color:#555}
 <div id=cand style="padding:0 12px"></div>
 <div id=sheet class=sheet></div>
 <script>
-let list=[],i=0,dl=false,ALL=[],ov=null,hist=[],hp=0;   // hist: issues decided this session, so prev can redo them
-const cur=()=>ov||list[i];
+// The address is the issue (#1978-01-20), and every move is a history entry, so the mouse's back and
+// forward buttons are prev and next. history.state keeps the trail across a reload.
+let list=[],dl=false,ALL=[],curDate=null,stack=[],idx=0;
 const byDate=d=>ALL.find(r=>r.date==d);
+const cur=()=>byDate(curDate);
+const nextAfter=d=>list.find(r=>r.date>d);
+const prevBefore=d=>{let p=null;for(const r of list){if(r.date<d)p=r;else break}return p};
+function nav(date){stack=stack.slice(0,idx+1);stack.push(date);idx=stack.length-1;history.pushState({stack,idx},'','#'+date);curDate=date;show();}
+window.onpopstate=e=>{if(e.state){stack=e.state.stack;idx=e.state.idx}curDate=location.hash.slice(1)||curDate;show();};
+function goPrev(){if(idx>0)history.back();else{const p=prevBefore(curDate);if(p)nav(p.date)}}
+function goNext(){if(idx<stack.length-1)history.forward();else{const n=nextAfter(curDate);if(n)nav(n.date)}}
 function setDl(v){dl=v;const b=document.getElementById('dl');b.textContent='Diagramless (d): '+(dl?'ON':'off');b.style.background=dl?'#ffe066':'';}
 const $=id=>document.getElementById(id);
-async function load(keep){
+async function load(){
   const all=await (await fetch('/api/issues')).json();
-  const f=$('filter').value; ALL=all; if(ov)ov=byDate(ov.date);
+  const f=$('filter').value; ALL=all;
   list=all.filter(r=>f=='all'||(f=='todo'&&['check','no-hit','pending','unsure'].includes(r.state))||(f=='check'&&r.state=='check')||(f=='nohit'&&r.state=='no-hit')||(f=='found'&&r.state=='found')||(f=='dless'&&r.kind=='diagramless')||(f=='absent'&&r.state=='absent'));
   const cnt={};all.forEach(r=>cnt[r.state]=(cnt[r.state]||0)+1);
   $('count').textContent=list.length+' in view · '+Object.entries(cnt).map(([k,v])=>k+' '+v).join(' · ');
-  if(!keep)i=0; if(i>=list.length)i=Math.max(0,list.length-1);
+  if(!curDate){   // first load: the address says where we were, else the first issue in view
+    curDate=location.hash.slice(1)||(list[0]&&list[0].date)||null;
+    const s=history.state; stack=(s&&s.stack)||[curDate]; idx=(s&&s.idx)||0;
+    history.replaceState({stack,idx},'','#'+curDate);
+  }
   show();
 }
+async function refilter(){await load();if(list[0])nav(list[0].date);}
 function show(){
   const r=cur(); const s=$('sheet'); s.innerHTML='';
   if(!r){$('title').textContent='nothing here';return}
   const dow=new Date(r.date+'T12:00:00').toLocaleDateString('en-US',{weekday:'short'});
   $('title').textContent=r.date+' '+dow+' · '+r.pages+' pages · '+r.state+(r.kind=='diagramless'?' · DIAGRAMLESS':'')+(r.by=='person'?' (you)':' (scan'+(r.scan_seq?', p'+r.scan_seq:'')+')');
   // prefetch the next issues: every suspect page first, then the rest
-  const nx=[1,2,3].map(k=>list[i+k]).filter(Boolean), pf=(q,n)=>{new Image().src='/thumb/'+q.date+'/'+n+'.jpg?w=480'};
+  const nx=list.filter(q=>q.date>r.date).slice(0,3), pf=(q,n)=>{new Image().src='/thumb/'+q.date+'/'+n+'.jpg?w=480'};
   nx.forEach(q=>{if(q.cand&&q.by=='scan')pf(q,+q.cand)});
   nx.forEach(q=>{for(let n=1;n<=q.pages;n++)if(!(q.by=='scan'&&String(q.cand)==n))pf(q,n)});
   $('cand').innerHTML=(r.extras||[]).map(x=>'<div style="background:#fff3bf;border:2px solid #e8590c;padding:6px 10px;margin-top:10px"><b>Known exception ('+x.kind+(x.seq&&x.seq!='-'?', page '+x.seq:'')+'):</b> '+x.note.replace(/</g,'&lt;')+'</div>').join('');
@@ -144,23 +157,19 @@ function show(){
   window.scrollTo(0,0);
 }
 async function decide(verdict,seq){
-  const r=cur(); if(!r)return; const redo=!!ov;
+  const r=cur(); if(!r)return;
   await fetch('/api/decide',{method:'POST',body:JSON.stringify({date:r.date,verdict,seq,kind:(dl&&verdict=='found')?'diagramless':'regular'})});
-  setDl(false);
-  if(redo){hp++; ov=hp<hist.length?byDate(hist[hp]):null; if(!ov)hp=hist.length;}   // redoing: step forward through the ones you went back over
-  else{hist.push(r.date); hp=hist.length;}
-  const f=$('filter').value; await load(true);
-  if(!redo&&f!='todo'&&f!='check'&&f!='nohit'){i=Math.min(i+1,list.length-1);show()}
+  setDl(false); await load();
+  // went back to redo one? step forward through the ones you passed; otherwise on to the next issue in view
+  if(idx<stack.length-1)history.forward();else{const n=nextAfter(r.date);if(n)nav(n.date);else show();}
 }
-function goPrev(){if(hp>0){hp--;ov=byDate(hist[hp]);show()}else{i=Math.max(0,i-1);show()}}
-function goNext(){if(hp<hist.length-1){hp++;ov=byDate(hist[hp])}else if(ov){hp=hist.length;ov=null}else{i=Math.min(list.length-1,i+1)}show()}
-$('filter').onchange=()=>load(false);
+$('filter').onchange=refilter;
 $('prev').onclick=goPrev;$('next').onclick=goNext;
 $('dl').onclick=()=>setDl(!dl);$('absent').onclick=()=>decide('absent');$('unsure').onclick=()=>decide('unsure');
 document.onkeydown=e=>{if(e.target.tagName=='SELECT')return;if(e.key=='n')decide('absent');if(e.key=='d')setDl(!dl);if(e.key=='u')decide('unsure');if(e.key=='y'&&cur()&&cur().cand)decide('found',+cur().cand);
  if(e.key=='ArrowRight')$('next').click();if(e.key=='ArrowLeft')$('prev').click();
  if(/^[1-9]$/.test(e.key)&&cur()&&+e.key<=cur().pages)decide('found',+e.key)};
-(async()=>{hist=await (await fetch('/api/recent')).json();hp=hist.length;load();})();
+load();
 </script>"""
 
 
