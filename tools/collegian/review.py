@@ -118,9 +118,11 @@ small{color:#555}
  <button id=dl title="tags the next page you pick as a diagramless">Diagramless (d): off</button>
  <small id=count></small> <a href="/confirm">confirm sheet</a>
 </header>
+<div id=flash style="display:none;position:fixed;right:14px;bottom:14px;background:#1d5c3a;color:#fff;padding:10px 16px;border-radius:6px;z-index:5;max-width:420px"></div>
 <div id=cand style="padding:0 12px"></div>
 <div id=sheet class=sheet></div>
 <script>
+const flash=m=>{const f=document.getElementById('flash');f.textContent=m;f.style.display='block';clearTimeout(flash.t);flash.t=setTimeout(()=>f.style.display='none',6000)};
 // The address is the issue (#1978-01-20), and every move is a history entry, so the mouse's back and
 // forward buttons are prev and next. history.state keeps the trail across a reload.
 let list=[],dl=false,ALL=[],curDate=null,stack=[],idx=0;
@@ -175,7 +177,11 @@ async function decide(verdict,seq){
   await fetch('/api/decide',{method:'POST',body:JSON.stringify({date:r.date,verdict,seq,kind:(dl&&verdict=='found')?'diagramless':'regular'})});
   setDl(false); await load();
   // went back to redo one? step forward through the ones you passed; otherwise on to the next issue in view
-  if(idx<stack.length-1)history.forward();else{const n=nextAfter(r.date);if(n)nav(n.date);else show();}
+  const what=verdict=='found'?'page '+seq+' is the crossword':verdict=='absent'?'no crossword':'unsure';
+  if(idx<stack.length-1){flash('Saved '+r.date+': '+what);history.forward();}
+  else{const n=nextAfter(r.date);
+    if(n){flash('Saved '+r.date+': '+what);nav(n.date)}
+    else{show();flash('Saved '+r.date+': '+what+'. That was the last issue in this view, so there is nothing to move on to.')}}
 }
 $('filter').onchange=refilter;
 $('prev').onclick=goPrev;$('next').onclick=goNext;
