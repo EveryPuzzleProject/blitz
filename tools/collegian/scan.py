@@ -325,6 +325,8 @@ def clue_box(xml, img_w, img_h):
         right = [e[2] for e in edges if e[0] > x0 and y0 - 0.6 * bh < e[1] < y1]   # incl. the running header above it
         if right:
             x1 = max(x1, max(right))
+    if img_w > 9000 and x1 - x0 > 0.34 * pw:          # a two-page spread (1979-81): the puzzle is about 27% of its width,
+        x0 = x1 - 0.32 * pw                            # so a wider box is loose on the left (comics); keep the right edge
     mx, my = 0.03 * pw, 0.02 * ph                      # a margin, and room for the title line above
     x0, x1 = max(0, x0 - mx), min(pw, x1 + mx)
     y0, y1 = max(0, y0 - 2 * my), min(ph, y1 + my)
