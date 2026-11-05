@@ -98,12 +98,14 @@ small{color:#555}
 <div id=cand style="padding:12px 12px 0"></div>
 <div id=sheet class=sheet></div>
 <script>
-let list=[],i=0,dl=false;
+let list=[],i=0,dl=false,ALL=[],ov=null,hist=[],hp=0;   // hist: issues decided this session, so prev can redo them
+const cur=()=>ov||list[i];
+const byDate=d=>ALL.find(r=>r.date==d);
 function setDl(v){dl=v;const b=document.getElementById('dl');b.textContent='Diagramless (d): '+(dl?'ON':'off');b.style.background=dl?'#ffe066':'';}
 const $=id=>document.getElementById(id);
 async function load(keep){
   const all=await (await fetch('/api/issues')).json();
-  const f=$('filter').value;
+  const f=$('filter').value; ALL=all; if(ov)ov=byDate(ov.date);
   list=all.filter(r=>f=='all'||(f=='todo'&&['check','no-hit','pending','unsure'].includes(r.state))||(f=='check'&&r.state=='check')||(f=='nohit'&&r.state=='no-hit')||(f=='found'&&r.state=='found')||(f=='dless'&&r.kind=='diagramless')||(f=='absent'&&r.state=='absent'));
   const cnt={};all.forEach(r=>cnt[r.state]=(cnt[r.state]||0)+1);
   $('count').textContent=list.length+' in view · '+Object.entries(cnt).map(([k,v])=>k+' '+v).join(' · ');
@@ -111,7 +113,7 @@ async function load(keep){
   show();
 }
 function show(){
-  const r=list[i]; const s=$('sheet'); s.innerHTML='';
+  const r=cur(); const s=$('sheet'); s.innerHTML='';
   if(!r){$('title').textContent='nothing here';return}
   const dow=new Date(r.date+'T12:00:00').toLocaleDateString('en-US',{weekday:'short'});
   $('title').textContent=r.date+' '+dow+' · '+r.pages+' pages · '+r.state+(r.kind=='diagramless'?' · DIAGRAMLESS':'')+(r.by=='person'?' (you)':' (scan'+(r.scan_seq?', p'+r.scan_seq:'')+')');
@@ -130,19 +132,23 @@ function show(){
   window.scrollTo(0,0);
 }
 async function decide(verdict,seq){
-  const r=list[i];
+  const r=cur(); if(!r)return; const redo=!!ov;
   await fetch('/api/decide',{method:'POST',body:JSON.stringify({date:r.date,verdict,seq,kind:(dl&&verdict=='found')?'diagramless':'regular'})});
   setDl(false);
+  if(redo){hp++; ov=hp<hist.length?byDate(hist[hp]):null; if(!ov)hp=hist.length;}   // redoing: step forward through the ones you went back over
+  else{hist.push(r.date); hp=hist.length;}
   const f=$('filter').value; await load(true);
-  if(f!='todo'&&f!='check'&&f!='nohit'){i=Math.min(i+1,list.length-1);show()}
+  if(!redo&&f!='todo'&&f!='check'&&f!='nohit'){i=Math.min(i+1,list.length-1);show()}
 }
+function goPrev(){if(hp>0){hp--;ov=byDate(hist[hp]);show()}else{i=Math.max(0,i-1);show()}}
+function goNext(){if(hp<hist.length-1){hp++;ov=byDate(hist[hp])}else if(ov){hp=hist.length;ov=null}else{i=Math.min(list.length-1,i+1)}show()}
 $('filter').onchange=()=>load(false);
-$('prev').onclick=()=>{i=Math.max(0,i-1);show()};$('next').onclick=()=>{i=Math.min(list.length-1,i+1);show()};
+$('prev').onclick=goPrev;$('next').onclick=goNext;
 $('dl').onclick=()=>setDl(!dl);$('absent').onclick=()=>decide('absent');$('unsure').onclick=()=>decide('unsure');
-document.onkeydown=e=>{if(e.target.tagName=='SELECT')return;if(e.key=='n')decide('absent');if(e.key=='d')setDl(!dl);if(e.key=='u')decide('unsure');if(e.key=='y'&&list[i]&&list[i].cand)decide('found',+list[i].cand);
+document.onkeydown=e=>{if(e.target.tagName=='SELECT')return;if(e.key=='n')decide('absent');if(e.key=='d')setDl(!dl);if(e.key=='u')decide('unsure');if(e.key=='y'&&cur()&&cur().cand)decide('found',+cur().cand);
  if(e.key=='ArrowRight')$('next').click();if(e.key=='ArrowLeft')$('prev').click();
- if(/^[1-9]$/.test(e.key)&&list[i]&&+e.key<=list[i].pages)decide('found',+e.key)};
-load();
+ if(/^[1-9]$/.test(e.key)&&cur()&&+e.key<=cur().pages)decide('found',+e.key)};
+(async()=>{hist=await (await fetch('/api/recent')).json();hp=hist.length;load();})();
 </script>"""
 
 
@@ -163,6 +169,16 @@ class H(BaseHTTPRequestHandler):
         u = urllib.parse.urlparse(self.path)
         if u.path == "/":
             return self.send(PAGE, "text/html; charset=utf-8")
+        if u.path == "/api/recent":   # dates of the last decisions, oldest first, so prev can redo them after a reload
+            seen = []
+            if DECISIONS.exists():
+                for line in DECISIONS.read_text("utf8").splitlines():
+                    if line.strip():
+                        d = json.loads(line)["date"]
+                        if d in seen:
+                            seen.remove(d)
+                        seen.append(d)
+            return self.send(json.dumps(seen[-30:]))
         if u.path == "/api/issues":
             return self.send(json.dumps(issues()))
         if u.path.startswith("/thumb/"):
