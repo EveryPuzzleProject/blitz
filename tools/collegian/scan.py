@@ -451,6 +451,20 @@ def cmd_boxes(a):
         x0, y0, x1, y1 = max(0, x0 - mx), max(0, y0 - my), min(W, x1 + mx), min(H, y1 + my)
         out.append("\t".join([date, str(seq), str(round(x0)), str(round(y0)), str(round(x1 - x0)), str(round(y1 - y0)), "", how]))
         counts[how] = counts.get(how, 0) + 1
+    # boxes a person drew by hand (review.py /boxes) win over everything above
+    fixes = {}
+    fp = DATA / "box_fixes.jsonl"
+    if fp.exists():
+        for line in fp.read_text("utf8").splitlines():
+            if line.strip():
+                r = json.loads(line)
+                fixes[r["date"]] = r
+    index = {l.split("\t")[0]: i for i, l in enumerate(out) if i > 0}
+    for d, r in fixes.items():
+        if r.get("box") and d in index:
+            x, y, w, h = r["box"]
+            out[index[d]] = "\t".join([d, str(r["seq"]), str(x), str(y), str(w), str(h), "", "hand-placed by a person"])
+            counts["hand-placed by a person"] = counts.get("hand-placed by a person", 0) + 1
     (DATA / "crops.tsv").write_text("\n".join(out) + "\n", "utf8")
     print(counts, "->", DATA / "crops.tsv")
 

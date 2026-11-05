@@ -202,8 +202,12 @@ load();
 </script>"""
 
 
-def crop_boxes():
-    """crops.tsv (scan.py crops): the box around each puzzle, in image pixels."""
+BOX_FIXES = DATA / "box_fixes.jsonl"
+CROP_FLAGS = DATA / "crop_flags.jsonl"
+
+
+def machine_boxes():
+    """crops.tsv (scan.py boxes): the box the tools drew around each puzzle, in image pixels."""
     p, out = DATA / "crops.tsv", {}
     if p.exists():
         for line in p.read_text("utf8").splitlines()[1:]:
@@ -213,11 +217,40 @@ def crop_boxes():
     return out
 
 
+def box_fixes():
+    """boxes a person drew by hand (the last one per page wins); a null box is a cleared one."""
+    out = {}
+    if BOX_FIXES.exists():
+        for line in BOX_FIXES.read_text("utf8").splitlines():
+            if line.strip():
+                r = json.loads(line)
+                out[(r["date"], int(r["seq"]))] = r["box"]
+    return {k: v for k, v in out.items() if v}
+
+
+def crop_labels():
+    """the last crop label a person gave each page: bad-crop / crop-ok"""
+    out = {}
+    if CROP_FLAGS.exists():
+        for line in CROP_FLAGS.read_text("utf8").splitlines():
+            if line.strip():
+                r = json.loads(line)
+                out[r["date"]] = r["label"]
+    return out
+
+
+def crop_boxes():
+    """the box in force for each page: a hand-drawn one over the machine's"""
+    out = machine_boxes()
+    out.update(box_fixes())
+    return out
+
+
 def crop(date, seq, width):
     box = crop_boxes().get((date, seq))
     if not box:
         return thumb(date, seq, width)          # no box recorded: the whole page
-    p = DATA / "cache" / "crop" / date / f"seq-{seq}-{width}.jpg"
+    p = DATA / "cache" / "crop" / date / f"seq-{seq}-{width}-{box[0]}_{box[1]}_{box[2]}_{box[3]}.jpg"
     if not p.exists():
         m = scan.manifest(date)
         iid = m["sequences"][0]["canvases"][seq - 1]["images"][0]["resource"]["@id"]
@@ -247,7 +280,7 @@ small{color:#555}
 </style>
 <header><b>The OCR's finds: click a tile once if the CROP is bad (orange), twice if it is NOT a crossword (red)</b>
  <button id=go class=primary>Confirm the rest &rarr; (Enter)</button><button id=prev>&larr; prev batch</button><button id=next>next &rarr;</button><small id=count></small>
- <a href="/">full review page</a></header>
+ <a href="/">full review page</a> <a href="/boxes">place boxes by hand</a></header>
 <div id=grid class=grid></div>
 <script>
 // Every batch of 20 is a history entry (#b0, #b1, ...), so the mouse's back/forward buttons walk the batches,
@@ -303,6 +336,113 @@ document.onkeydown=e=>{if(e.key=='Enter')go();if(e.key=='ArrowLeft')history.back
 </script>"""
 
 
+_SIZES = {}
+
+
+def page_size(date, seq):
+    k = (date, seq)
+    if k not in _SIZES:
+        cv = scan.manifest(date)["sequences"][0]["canvases"][seq - 1]
+        _SIZES[k] = (cv["width"], cv["height"])
+    return _SIZES[k]
+
+
+def box_queue():
+    """every puzzle page with the machine's box, a hand-drawn box if any, and the crop label a person gave it"""
+    machine, hand, labels = machine_boxes(), box_fixes(), crop_labels()
+    out = []
+    for date, r in sorted(decisions().items()):
+        if r["verdict"] != "found" or not r.get("seq"):
+            continue
+        seq = int(r["seq"])
+        W, H = page_size(date, seq)
+        out.append(dict(date=date, seq=seq, W=W, H=H, machine=machine.get((date, seq)), hand=hand.get((date, seq)),
+                        label=labels.get(date, "")))
+    return out
+
+
+BOXES = r"""<!doctype html><meta charset=utf-8><title>Place boxes</title>
+<style>
+body{font:15px system-ui;margin:0;background:#f4f1ea;color:#222}
+header{position:sticky;top:0;background:#fff;border-bottom:1px solid #ccc;padding:8px 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;z-index:3}
+button,select{font:inherit;padding:5px 10px;border:1px solid #888;border-radius:5px;background:#fff;cursor:pointer}
+button.primary{background:#1d5c3a;color:#fff;border-color:#1d5c3a}
+#wrap{position:relative;display:block;margin:10px auto;max-width:2000px;cursor:crosshair;user-select:none}
+#pg{width:100%;display:block;background:#ddd}
+.bx{position:absolute;pointer-events:none;box-sizing:border-box}
+#mbox{border:3px dashed #f08c00}#hbox{border:3px solid #1d5c3a;background:#1d5c3a22}#dbox{border:3px solid #1c7ed6;background:#1c7ed622}
+small{color:#555}#key{padding:4px 14px;color:#555}
+</style>
+<header>
+ <select id=filter><option value=need>Needs a box (marked bad, or none found)</option><option value=hand>Hand-placed</option><option value=all>All puzzle pages</option></select>
+ <button id=prev>&larr; prev</button><b id=title></b><button id=next>next &rarr;</button>
+ <button id=save class=primary>Save my box (Enter)</button><button id=keep>The machine's box is fine (k)</button><button id=clear>Clear my box (c)</button>
+ <small id=count></small> <a href="/">full review page</a>
+</header>
+<div id=key>Drag a rectangle round the whole puzzle: title, grid, clue lists and credit line. <span style="color:#f08c00">Orange dashed</span> = the machine's box,
+ <span style="color:#1c7ed6">blue</span> = the one you are drawing, <span style="color:#1d5c3a">green</span> = your saved box.</div>
+<div id=wrap><img id=pg><div id=mbox class=bx></div><div id=hbox class=bx></div><div id=dbox class=bx></div></div>
+<div id=flash style="display:none;position:fixed;right:14px;bottom:14px;background:#1d5c3a;color:#fff;padding:10px 16px;border-radius:6px;z-index:5"></div>
+<script>
+const $=id=>document.getElementById(id);
+let all=[],list=[],cur=null,draft=null,drag=null;
+const flash=m=>{const f=$('flash');f.textContent=m;f.style.display='block';clearTimeout(flash.t);flash.t=setTimeout(()=>f.style.display='none',4000)};
+async function load(){
+  all=await (await fetch('/api/boxqueue')).json();
+  const f=$('filter').value;
+  list=all.filter(r=>f=='all'||(f=='hand'&&r.hand)||(f=='need'&&!r.hand&&(r.label=='bad-crop'||!r.machine)));
+  $('count').textContent=list.length+' in view · '+all.filter(r=>r.hand).length+' hand-placed';
+  const h=location.hash.slice(1); cur=all.find(r=>r.date==h)||list[0]||null; show();
+}
+const place=(el,b)=>{const im=$('pg');if(!b||!im.clientWidth){el.style.display='none';return}const k=im.clientWidth/cur.W;
+  el.style.display='block';el.style.left=b[0]*k+'px';el.style.top=b[1]*k+'px';el.style.width=b[2]*k+'px';el.style.height=b[3]*k+'px'};
+function draw(){ if(!cur)return; place($('mbox'),cur.machine); place($('hbox'),cur.hand); place($('dbox'),draft); }
+function show(){
+  draft=null;
+  if(!cur){$('title').textContent='nothing here';$('pg').removeAttribute('src');draw();return}
+  $('title').textContent=cur.date+' · page '+cur.seq+(cur.hand?' · hand-placed':cur.machine?'':' · no machine box')+(cur.label=='bad-crop'?' · you marked the crop bad':'');
+  const w=cur.W>9000?2800:1800; $('pg').onload=draw; $('pg').src='/thumb/'+cur.date+'/'+cur.seq+'.jpg?w='+w; draw(); window.scrollTo(0,0);
+}
+function nav(date){location.hash=date}   // every move is a history entry: the mouse's back and forward buttons work
+window.onhashchange=()=>{const r=all.find(x=>x.date==location.hash.slice(1));if(r){cur=r;show()}};
+const pt=e=>{const r=$('pg').getBoundingClientRect();return [Math.max(0,Math.min(e.clientX-r.left,r.width)),Math.max(0,Math.min(e.clientY-r.top,r.height))]};
+$('wrap').onmousedown=e=>{if(!cur)return;e.preventDefault();drag=pt(e)};
+window.onmousemove=e=>{if(!drag)return;const p=pt(e),k=cur.W/$('pg').clientWidth;
+  const x0=Math.min(drag[0],p[0]),y0=Math.min(drag[1],p[1]);draft=[Math.round(x0*k),Math.round(y0*k),Math.round(Math.abs(p[0]-drag[0])*k),Math.round(Math.abs(p[1]-drag[1])*k)];draw()};
+window.onmouseup=()=>{if(drag&&draft&&(draft[2]<60||draft[3]<60))draft=null;drag=null;draw()};
+function nextDate(){const i=list.findIndex(r=>r.date==cur.date);const n=list.slice(i+1).find(r=>r.date!=cur.date);return n?n.date:null}
+async function save(){
+  if(!cur||!draft){flash('Draw a box first');return}
+  const d=cur.date, nd=nextDate();
+  await fetch('/api/box',{method:'POST',body:JSON.stringify({date:d,seq:cur.seq,box:draft})});
+  flash('Saved a box for '+d); await load2(nd);
+}
+async function keep(){
+  if(!cur)return; const d=cur.date, nd=nextDate();
+  await fetch('/api/cropok',{method:'POST',body:JSON.stringify({date:d,seq:cur.seq})});
+  flash('Machine box kept for '+d); await load2(nd);
+}
+async function clearBox(){
+  if(!cur||!cur.hand)return; const d=cur.date;
+  await fetch('/api/box',{method:'POST',body:JSON.stringify({date:d,seq:cur.seq,box:null})}); flash('Cleared '+d); await load2(d);
+}
+async function load2(go){   // reload the queue, then move on (or stay) without losing the place
+  const f=$('filter').value;
+  all=await (await fetch('/api/boxqueue')).json();
+  list=all.filter(r=>f=='all'||(f=='hand'&&r.hand)||(f=='need'&&!r.hand&&(r.label=='bad-crop'||!r.machine)));
+  $('count').textContent=list.length+' in view · '+all.filter(r=>r.hand).length+' hand-placed';
+  if(go&&go!=cur.date){nav(go)} else if(!go){cur=null;$('title').textContent='nothing more here';$('pg').removeAttribute('src');draft=null;draw();
+    $('key').innerHTML='<b>Nothing more to see here.</b> That was the last page in this view.'} else {cur=all.find(r=>r.date==go);show()}
+}
+$('filter').onchange=()=>{location.hash='';load()};
+$('prev').onclick=()=>history.back();$('next').onclick=()=>history.forward();
+$('save').onclick=save;$('keep').onclick=keep;$('clear').onclick=clearBox;
+document.onkeydown=e=>{if(e.target.tagName=='SELECT')return;if(e.key=='Enter')save();if(e.key=='k')keep();if(e.key=='c')clearBox();
+  if(e.key=='ArrowLeft')history.back();if(e.key=='ArrowRight')history.forward()};
+window.onresize=draw; load();
+</script>"""
+
+
 class H(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
@@ -322,6 +462,10 @@ class H(BaseHTTPRequestHandler):
             return self.send(PAGE, "text/html; charset=utf-8")
         if u.path == "/confirm":
             return self.send(CONFIRM, "text/html; charset=utf-8")
+        if u.path == "/boxes":
+            return self.send(BOXES, "text/html; charset=utf-8")
+        if u.path == "/api/boxqueue":
+            return self.send(json.dumps(box_queue()))
         if u.path.startswith("/crop/"):
             date, seqf = u.path[6:].split("/")
             w = int(urllib.parse.parse_qs(u.query).get("w", ["720"])[0])
@@ -351,6 +495,25 @@ class H(BaseHTTPRequestHandler):
         self.send("not found", "text/plain", 404)
 
     def do_POST(self):
+        if self.path in ("/api/box", "/api/cropok"):
+            r = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            at = time.strftime("%Y-%m-%dT%H:%M:%S")
+            if self.path == "/api/box":      # a box drawn by hand (box null = cleared); it overrides the machine's everywhere
+                box = r.get("box")
+                if box:
+                    W, H = page_size(r["date"], int(r["seq"]))
+                    x, y, w, h = (int(v) for v in box)
+                    x, y = max(0, x), max(0, y)
+                    box = [x, y, min(w, W - x), min(h, H - y)]
+                rec = dict(date=r["date"], seq=int(r["seq"]), box=box, by="person", how="drawn on /boxes", at=at)
+                with open(BOX_FIXES, "a", encoding="utf8") as f:
+                    f.write(json.dumps(rec) + "\n")
+            else:                            # "the machine's box is fine": a label, with the box it was about
+                rec = dict(date=r["date"], seq=int(r["seq"]), box=machine_boxes().get((r["date"], int(r["seq"]))),
+                           label="crop-ok", by="person", at=at)
+                with open(CROP_FLAGS, "a", encoding="utf8") as f:
+                    f.write(json.dumps(rec) + "\n")
+            return self.send(json.dumps(rec))
         if self.path == "/api/bulk":
             # the confirm sheet: tiles a person left alone are confirmed; tiles they clicked go back to "needs a look"
             r = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
