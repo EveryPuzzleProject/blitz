@@ -1337,6 +1337,8 @@ function printedNumber(k, flags) {
 // (num:r2c6); a word's pair is then the numbers its two end squares have now.
 const linkedEnds = () => !!ocr.square_numbers;
 const numAt = (r, c) => final(`num:r${r+1}c${c+1}`);
+// a word printed in the grid as a start (every square given its letter): it has no clue, and the xd lists none
+const givenWord = k => { const cs = entryCells(slotOf(k)); return cs.length > 0 && cs.every(([r, c]) => /^[A-Z]$/.test(numAt(r, c))); };
 function pairOf(k) {
   if (!linkedEnds()) return '';
   const cs = entryCells(slotOf(k));
@@ -1764,7 +1766,7 @@ function blankSection(why, optional) {
     <div class="gridside">
       <p><b>Spot the difference.</b> Our black squares (red) and our numbers (small red) on the printed grid:</p>
       ${gridImg ? `<p><button class="t" data-b="side">Side by side</button> <button class="t" data-b="over">On the scan</button> <button class="t" data-b="blink">Blink</button></p>
-      ${linkedEnds() ? `<p>Every small red number should sit on the printed one: each clue names its word by the numbers in its two end squares, so a wrong number puts the clue on the wrong word. <b>Click a square and type its printed number</b> (Backspace clears it; <kbd>.</kbd> <kbd>#</kbd> <kbd>_</kbd> make it white, black or outside the puzzle; arrows move).</p>
+      ${linkedEnds() ? `<p>Every small red number should sit on the printed one: each clue names its word by the numbers in its two end squares, so a wrong number puts the clue on the wrong word. <b>Click a square and type its printed number</b> (Backspace clears it; <kbd>.</kbd> <kbd>#</kbd> <kbd>_</kbd> make it white, black or outside the puzzle; arrows move). A square printed with a letter (a word given as a start, like FUN) has no number: <b>type the letter</b>, for each of its squares; a word through it is then named by the letter ("N-6"), and a word printed whole has no clue.</p>
       <p class="hint">${esc(ocr.numbering ? 'How the numbers were decided: ' + ocr.numbering + '.' : 'The numbers were read from the clue pairs.')}</p>`
       : `<p>Every printed black square should be red, and every small red number should sit on the printed one. Click a square to make it black or white.</p>`}`
       : `<p><b>This grid was typed by hand</b> (its shape is too irregular for the reader to straighten), so the scan is the puzzle's whole page. Compare our black squares and numbers with it by eye. Click a square to make it black or white.</p>`}
@@ -2163,6 +2165,7 @@ function addRow(s, key, label, box, flags = [], src = null) {
     const looked = rounds.filter(r => (r.looked || []).includes(key)).map(r => r.who);
     row.querySelector('.marks').innerHTML =
       (isClue && !NUM[slot] ? `<b class="m-flag">no ${esc(slot)} in our grid</b>` : '') +
+      (isClue && linkedEnds() && givenWord(label) ? `<b class="m-ok" title="Every square of this word has its letter printed in the grid, so the puzzle gives it as a start and prints no clue for it; the xd lists none.">printed in the grid, not clued</b>` : '') +
       (isClue && NUM[slot] && pn !== slot.slice(1) && !pairOf(label) ? `<b class="m-flag">printed as ${esc(pn)}, sits at ${esc(slot)} in our grid</b>` : '') +
       (moved ? `<b class="m-flag" title="the reviewer moved this text from where the OCR put it; the scan line came with it">printed line found in ${esc(src.label)}'s crop</b>` : '') +
       flags.filter(f => !f.startsWith('number-corrected') && !f.startsWith('fill-in blank')).map(f => `<b class="m-flag" title="${esc(f)}">${esc(f.split(':')[0])}</b>`).join('') +
@@ -2741,6 +2744,7 @@ addEventListener('keydown', e => {
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   if (Date.now() - typedAt < 1500 && (k.length === 1 || k === 'escape')) { typedAt = Date.now(); return; }
   if (bSel && /^[0-9]$/.test(k)) { e.preventDefault(); typeNum(...bSel, k); return; }
+  if (bSel && /^[a-z]$/.test(k)) { e.preventDefault(); setNum(...bSel, k.toUpperCase()); return; }  // a letter printed in the square: no number
   if (bSel && (k === 'backspace' || k === 'delete')) { e.preventDefault(); setNum(...bSel, ''); return; }
   if (bSel && /^[.#_]$/.test(e.key)) { e.preventDefault(); setKind(...bSel, e.key); return; }
   if (bSel && k.startsWith('arrow')) { e.preventDefault(); moveBSel(k); return; }
