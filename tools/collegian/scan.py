@@ -221,10 +221,13 @@ def clue_box(xml, img_w, img_h):
     root = ET.fromstring(xml)
     pg = root.find(f".//{ns}Page")
     pw, ph = float(pg.get("WIDTH")), float(pg.get("HEIGHT"))
-    pts, nums = [], []          # clue lines; and the small numbers printed inside the grid's cells
+    pts, nums, credits = [], [], []   # clue lines; the small numbers in the grid's cells; the sponsor's credit line
     for tl in root.iter(f"{ns}TextLine"):
         strs = list(tl.iter(f"{ns}String"))
         text = " ".join(s.get("CONTENT", "") for s in strs)
+        if re.search(r"compliments\s+of|mcallister\s+building", text, re.I):
+            x, y, w, h = (float(tl.get(k)) for k in ("HPOS", "VPOS", "WIDTH", "HEIGHT"))
+            credits.append((x, y, x + w, y + h))
         if re.match(r"^\W*(\d{1,2}\s+[A-Z][a-z]|Across\b|Down\b)", text):
             x, y, w, h = (float(tl.get(k)) for k in ("HPOS", "VPOS", "WIDTH", "HEIGHT"))
             pts.append((x, y, x + w, y + h))
@@ -260,9 +263,17 @@ def clue_box(xml, img_w, img_h):
     if len(grid) >= 15:
         gx0, gy0, gx1, gy1 = bbox(grid)
         x0, y0, x1, y1 = min(x0, gx0), min(y0, gy0), max(x1, gx1), max(y1, gy1)
+    # 1976-78: the Bookstore's credit line ("Compliments of the Penn State Bookstore...") sits under the puzzle
+    under = [c for c in credits if x0 - 0.5 * bw < (c[0] + c[2]) / 2 < x1 + 0.5 * bw and y0 < c[1] < y1 + 1.5 * bh]
+    if len(grid) >= 15:
+        pass
+    elif under:                                        # the clues span the puzzle's width; the credit line is its floor
+        y1 = max(c[3] for c in under)
     else:                                              # the OCR didn't read the cell numbers: the grid sits beside the clues
         x0, x1 = x0 - 1.5 * bw, x1 + 1.5 * bw
         y0, y1 = y0 - 0.3 * bh, y1 + 0.1 * bh
+    if under:
+        y1 = max(y1, max(c[3] for c in under))
     mx, my = 0.03 * pw, 0.02 * ph                      # a margin, and room for the title line above
     x0, x1 = max(0, x0 - mx), min(pw, x1 + mx)
     y0, y1 = max(0, y0 - 2 * my), min(ph, y1 + my)

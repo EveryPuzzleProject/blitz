@@ -210,16 +210,19 @@ button.primary{background:#1d5c3a;color:#fff;border-color:#1d5c3a}
 .t img{width:100%;display:block;aspect-ratio:1.3/1;object-fit:contain;background:#ddd}
 .t .l{position:absolute;left:0;top:0;background:#000b;color:#fff;padding:2px 8px;font-size:13px}
 .t.bad{border-color:#d9480f;background:#ffe3d0}.t.bad .l{background:#d9480f}
+.t.crop{border-color:#f08c00;background:#fff3bf}.t.crop .l{background:#f08c00}
+.t .m{position:absolute;right:0;top:0;color:#fff;padding:2px 8px;font-size:13px;display:none}
+.t.bad .m{display:block;background:#d9480f}.t.crop .m{display:block;background:#f08c00}
 .t a{position:absolute;right:4px;bottom:4px;background:#fffd;padding:1px 6px;font-size:12px}
 small{color:#555}
 </style>
-<header><b>The OCR's finds: click any tile that is NOT a crossword</b>
+<header><b>The OCR's finds: click a tile once if the CROP is bad (orange), twice if it is NOT a crossword (red)</b>
  <button id=go class=primary>Confirm the rest &rarr; (Enter)</button><small id=count></small>
  <a href="/">full review page</a></header>
 <div id=grid class=grid></div>
 <script>
 const N=20,$=id=>document.getElementById(id);
-let todo=[],batch=[],bad=new Set();
+let todo=[],batch=[],mark=new Map();   // date -> 'crop' (a puzzle, bad crop) | 'no' (not a crossword)
 const src=r=>'/crop/'+r.date+'/'+r.seq+'.jpg?w=720';
 async function load(){
   const all=await (await fetch('/api/issues')).json();
@@ -227,13 +230,17 @@ async function load(){
   next();
 }
 function next(){
-  batch=todo.slice(0,N); bad=new Set(); $('grid').innerHTML='';
+  batch=todo.slice(0,N); mark=new Map(); $('grid').innerHTML='';
   $('count').textContent=todo.length+' still to confirm';
   batch.forEach(r=>{
     const d=document.createElement('div'); d.className='t';
     const wd=new Date(r.date+'T12:00:00').toLocaleDateString('en-US',{weekday:'short'});
-    d.innerHTML='<img src="'+src(r)+'"><span class=l>'+r.date+' '+wd+' · p'+r.seq+'/'+r.pages+'</span><a target=_blank href="/thumb/'+r.date+'/'+r.seq+'.jpg?w=2400">page</a>';
-    d.onclick=e=>{if(e.target.tagName=='A')return;if(bad.has(r.date)){bad.delete(r.date);d.classList.remove('bad')}else{bad.add(r.date);d.classList.add('bad')}$('go').textContent='Confirm the '+(batch.length-bad.size)+' others → (Enter)'};
+    d.innerHTML='<img src="'+src(r)+'"><span class=l>'+r.date+' '+wd+' · p'+r.seq+'/'+r.pages+'</span><span class=m></span><a target=_blank href="/thumb/'+r.date+'/'+r.seq+'.jpg?w=2400">page</a>';
+    d.onclick=e=>{if(e.target.tagName=='A')return;
+      const cur=mark.get(r.date), nx=!cur?'crop':cur=='crop'?'no':null;
+      d.classList.remove('crop','bad'); if(nx){mark.set(r.date,nx);d.classList.add(nx=='crop'?'crop':'bad');d.querySelector('.m').textContent=nx=='crop'?'bad crop':'NOT a crossword'}else mark.delete(r.date);
+      const no=[...mark.values()].filter(v=>v=='no').length;
+      $('go').textContent='Confirm the '+(batch.length-no)+' puzzles → (Enter)'};
     $('grid').appendChild(d);
   });
   todo.slice(N,2*N).forEach(r=>{new Image().src=src(r)});
@@ -242,7 +249,9 @@ function next(){
 }
 async function go(){
   if(!batch.length)return;
-  await fetch('/api/bulk',{method:'POST',body:JSON.stringify({confirm:batch.filter(r=>!bad.has(r.date)).map(r=>({date:r.date,seq:+r.seq})),flag:[...bad]})});
+  await fetch('/api/bulk',{method:'POST',body:JSON.stringify({confirm:batch.filter(r=>mark.get(r.date)!='no').map(r=>({date:r.date,seq:+r.seq})),
+    flag:batch.filter(r=>mark.get(r.date)=='no').map(r=>r.date),
+    badcrop:batch.filter(r=>mark.get(r.date)=='crop').map(r=>({date:r.date,seq:+r.seq}))})});
   todo=todo.slice(batch.length); next();
 }
 $('go').onclick=go; document.onkeydown=e=>{if(e.key=='Enter')go()};
@@ -309,7 +318,13 @@ class H(BaseHTTPRequestHandler):
                 for d in r.get("flag", []):
                     f.write(json.dumps(dict(date=d, verdict="unsure", seq=None, kind="regular",
                                             by="person", via="confirm-sheet: not a crossword", at=at)) + "\n")
-            return self.send(json.dumps(dict(confirmed=len(r.get("confirm", [])), flagged=len(r.get("flag", [])))))
+            boxes = crop_boxes()      # the box we drew, kept with the label: a test set for the box finder
+            with open(DATA / "crop_flags.jsonl", "a", encoding="utf8") as f:
+                for c in r.get("badcrop", []):
+                    f.write(json.dumps(dict(date=c["date"], seq=c["seq"], box=boxes.get((c["date"], c["seq"])),
+                                            label="bad-crop", by="person", at=at)) + "\n")
+            return self.send(json.dumps(dict(confirmed=len(r.get("confirm", [])), flagged=len(r.get("flag", [])),
+                                             badcrop=len(r.get("badcrop", [])))))
         if self.path != "/api/decide":
             return self.send("not found", "text/plain", 404)
         r = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
