@@ -211,7 +211,7 @@ def alto(date, seq):
     return gzip.decompress(p.read_bytes())
 
 
-def clue_box(xml, img_w, img_h):
+def clue_box(xml, img_w, img_h, core_only=False):
     """Where the puzzle is on a page, from its OCR lines: the dense cluster of clue lines
     ("12 Stool", "Across", "Down"), widened to take in the grid beside it. Image pixels.
     This is a locator for a person to confirm by eye, not a reading of the puzzle."""
@@ -299,6 +299,8 @@ def clue_box(xml, img_w, img_h):
     if len(core) < 12:
         core = pts
     x0, y0, x1, y1 = bbox(core)
+    if core_only:      # just where the clue lines are, in image pixels: the caller brings the grid
+        return [round(x0 * img_w / pw), round(y0 * img_h / ph), round(x1 * img_w / pw), round(y1 * img_h / ph), len(pts)]
     # the grid: cell numbers in a window around the clues (it can be left, right, above or below them)
     bw, bh = x1 - x0, y1 - y0
     win = [n for n in nums if x0 - 2.5 * bw < n[0] < x1 + 1.5 * bw and y0 - 0.3 * bh < n[1] < y1 + 0.05 * bh
@@ -372,6 +374,87 @@ def cmd_crops(a):
     print(f"{n}/{len(todo)} pages got a box -> {DATA/'crops.tsv'}")
 
 
+def cmd_boxes(a):
+    """crops.tsv from the grids (grids.py) and the OCR's clue lines.
+
+    A puzzle's box is its grid plus its clue lists and title. Where the OCR read the clue lines near the grid,
+    the box is the union of the two. Where it didn't (most of 1976-78), the box is the grid widened by the
+    typical grid-to-clues margins of the pages where both were found, per layout (single page / spread)."""
+    import statistics
+    recs = {}
+    for line in (DATA / "grids.jsonl").read_text("utf8").splitlines():
+        if line.strip():
+            r = json.loads(line)
+            recs[r["date"]] = r
+    rows = []
+    for date, r in sorted(recs.items()):
+        gs = [g for g in r["grids"] if g["rows"] >= 11 and g["cols"] >= 9 and not g["has_letters"]]
+        if not gs:
+            rows.append((date, r["seq"], None, None, "no-grid"))
+            continue
+        q = gs[0]["quad"]
+        gb = [min(p[0] for p in q), min(p[1] for p in q), max(p[0] for p in q), max(p[1] for p in q)]
+        W, H = r["page"]
+        core = None
+        try:
+            c = clue_box(alto(date, r["seq"]), W, H, core_only=True)
+        except Exception:
+            c = None
+        gw, gh = gb[2] - gb[0], gb[3] - gb[1]
+        if c:
+            ccx, ccy = (c[0] + c[2]) / 2, (c[1] + c[3]) / 2
+            near = abs(ccx - (gb[0] + gb[2]) / 2) < 3 * gw and abs(ccy - (gb[1] + gb[3]) / 2) < 2.2 * gh
+            small = (c[2] - c[0]) < 3.2 * gw and (c[3] - c[1]) < 2.2 * gh
+            core = c[:4] if near and small else None
+        kind = ("spread" if W > 9000 else "single") + ("-big-grid" if gs[0]["rows"] >= 17 else "")   # 1976-77 framed layout
+        rows.append((date, r["seq"], gb, core, kind, W, H, gs[0]["pitch"]))
+    # margins (in grid widths/heights) of the union over the grid, from pages where the clue lines were found
+    fam = {}
+    for kind in sorted({x[4] for x in rows if len(x) > 5}):
+        offs = []
+        for d, seq, gb, core, k, *rest in [x for x in rows if len(x) > 5]:
+            if k == kind and core:
+                gw, gh = gb[2] - gb[0], gb[3] - gb[1]
+                offs.append(((gb[0] - min(gb[0], core[0])) / gw, (gb[1] - min(gb[1], core[1])) / gh,
+                             (max(gb[2], core[2]) - gb[2]) / gw, (max(gb[3], core[3]) - gb[3]) / gh))
+        fam[kind] = [statistics.median(o[i] for o in offs) for i in range(4)] if offs else [0.05, 0.1, 0.05, 0.1]
+        print(f"{kind}: {len(offs)} pages with clue lines near the grid; typical margins (grid widths/heights) "
+              f"left {fam[kind][0]:.2f} top {fam[kind][1]:.2f} right {fam[kind][2]:.2f} bottom {fam[kind][3]:.2f}")
+    out = ["date\tseq\tx\ty\tw\th\tclue_lines\tmethod"]
+    counts = {}
+    for row in rows:
+        if len(row) == 5:                      # no grid found: fall back to the box around the OCR's clue lines, if any
+            W, H = recs[row[0]]["page"]
+            try:
+                b = clue_box(alto(row[0], row[1]), W, H)
+            except Exception:
+                b = None
+            how = "clue-lines-only (no grid found)" if b else "no-grid"
+            out.append("\t".join([row[0], str(row[1])] + ([str(v) for v in b[:4]] + [str(b[4])] if b else ["", "", "", "", ""]) + [how]))
+            counts[how] = counts.get(how, 0) + 1
+            continue
+        date, seq, gb, core, kind, W, H, pitch = row
+        gw, gh = gb[2] - gb[0], gb[3] - gb[1]
+        if core:
+            x0, y0, x1, y1 = min(gb[0], core[0]), min(gb[1], core[1]), max(gb[2], core[2]), max(gb[3], core[3])
+            how = "grid+clue-lines"
+        else:
+            m = fam[kind]
+            x0, y0, x1, y1 = gb[0] - m[0] * gw, gb[1] - m[1] * gh, gb[2] + m[2] * gw, gb[3] + m[3] * gh
+            how = "grid+typical-margins"
+        # the title and byline sit above the grid (a line in 1976-77; the big "Crossword by Mike Shenk" header in 1978-81)
+        if "big-grid" in kind and "spread" not in kind:   # 1976-77: a title/byline line above, the sponsor's credit line below
+            y0, y1 = y0 - 2.5 * pitch, y1 + 3 * pitch
+        else:
+            y0 = min(y0, gb[1] - 0.45 * gh)
+        mx, my = 0.03 * (x1 - x0), 0.03 * (y1 - y0)
+        x0, y0, x1, y1 = max(0, x0 - mx), max(0, y0 - my), min(W, x1 + mx), min(H, y1 + my)
+        out.append("\t".join([date, str(seq), str(round(x0)), str(round(y0)), str(round(x1 - x0)), str(round(y1 - y0)), "", how]))
+        counts[how] = counts.get(how, 0) + 1
+    (DATA / "crops.tsv").write_text("\n".join(out) + "\n", "utf8")
+    print(counts, "->", DATA / "crops.tsv")
+
+
 def cmd_publish(a):
     """Write the public index (no images) for the `collegian` repo from the scans data.
 
@@ -438,6 +521,7 @@ def main():
     q = sub.add_parser("crops", help="find a box around each puzzle from the OCR's line positions -> crops.tsv")
     q.add_argument("--workers", type=int, default=4)
     q.set_defaults(fn=cmd_crops)
+    sub.add_parser("boxes", help="crops.tsv from the grids (grids.py) plus the OCR's clue lines").set_defaults(fn=cmd_boxes)
     q = sub.add_parser("publish", help="write the public index (puzzles.tsv, exceptions.tsv) for the collegian repo")
     q.add_argument("--to", default=str(Path.home() / "Projects" / "collegian"))
     q.set_defaults(fn=cmd_publish)

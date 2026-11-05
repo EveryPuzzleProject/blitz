@@ -57,30 +57,72 @@ def settled_pages():
     return sorted((d, int(r["seq"])) for d, r in dec.items() if r["verdict"] == "found" and r.get("seq"))
 
 
-def work(item, rev):
+def symmetric(cells):
+    R, C = len(cells), len(cells[0])
+    return all(cells[r][c] == cells[R - 1 - r][C - 1 - c] for r in range(R) for c in range(C))
+
+
+def plausible(grids):
+    """the main grid is a crossword-shaped lattice: roughly square and 180-degree symmetric"""
+    if not grids:
+        return False
+    g = grids[0]
+    return symmetric(g["cells"]) and abs(g["rows"] - g["cols"]) <= 1 and g["rows"] >= 11
+
+
+def work(item, rev, retry=False):
     date, seq = item
     cv = scan.manifest(date)["sequences"][0]["canvases"][seq - 1]
     iid = cv["images"][0]["resource"]["@id"]
     W, H = cv["width"], cv["height"]
-    width = 3600 if W > 9000 else 2400                       # a two-page spread needs more pixels for the same cell size
-    b = scan.get(f"{scan.BASE}{iid}/full/{width},/0/default.jpg")
-    gray = np.asarray(Image.open(io.BytesIO(b)).convert("L"))
-    k = W / gray.shape[1]
-    t = time.time()
-    found = []
-    for g in detect_grids(gray):
-        found.append(dict(rows=int(g.rows), cols=int(g.cols), pitch=round(float(g.pitch) * k, 1),
-                          quad=[[round(float(x) * k), round(float(y) * k)] for x, y in g.quad],
-                          cells=["".join(r) for r in g.cells], has_letters=bool(g.has_letters)))
-    return dict(date=date, seq=seq, page=[W, H], scale=round(k, 3), detect_s=round(time.time() - t, 2), xword_ocr=rev, grids=found)
+    spread = W > 9000
+    # a two-page spread needs more pixels for the same cell size; a retry goes bigger
+    widths = [4800, 6400] if retry and spread else [3600] if spread else [3600, 4800] if retry else [2400]
+    best = None
+    for width in widths:
+        b = scan.get(f"{scan.BASE}{iid}/full/{width},/0/default.jpg")
+        gray = np.asarray(Image.open(io.BytesIO(b)).convert("L"))
+        k = W / gray.shape[1]
+        t = time.time()
+        found = []
+        for g in detect_grids(gray, max_dim=max(gray.shape)):
+            found.append(dict(rows=int(g.rows), cols=int(g.cols), pitch=round(float(g.pitch) * k, 1),
+                              quad=[[round(float(x) * k), round(float(y) * k)] for x, y in g.quad],
+                              cells=["".join(r) for r in g.cells], has_letters=bool(g.has_letters)))
+        rec = dict(date=date, seq=seq, page=[W, H], scale=round(k, 3), width_used=width, detect_s=round(time.time() - t, 2),
+                   xword_ocr=rev, grids=found)
+        if best is None or (plausible(found) and not plausible(best["grids"])) or (not best["grids"] and found):
+            best = rec
+        if plausible(found):
+            break
+    return best
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--limit", type=int)
     ap.add_argument("--workers", type=int, default=4)
+    ap.add_argument("--retry-bad", action="store_true",
+                    help="redo the pages whose recorded grid is missing or not a plausible crossword, at higher resolution")
     a = ap.parse_args()
     rev = xo_rev()
+    if a.retry_bad:
+        recs = {}
+        for line in OUT.read_text("utf8").splitlines():
+            if line.strip():
+                r = json.loads(line)
+                recs[(r["date"], r["seq"])] = r
+        bad = [k for k, r in recs.items() if not plausible(r["grids"])]
+        print(f"retrying {len(bad)} of {len(recs)} pages at higher resolution", flush=True)
+        fixed = 0
+        with cf.ThreadPoolExecutor(a.workers) as ex:
+            for k, r in zip(bad, ex.map(lambda t: work(t, rev, retry=True), bad)):
+                if plausible(r["grids"]):
+                    fixed += 1
+                recs[k] = r
+        OUT.write_text("\n".join(json.dumps(recs[k]) for k in sorted(recs)) + "\n", "utf8")
+        print(f"now plausible: {fixed} of {len(bad)} retried")
+        return
     done = set()
     if OUT.exists():
         for line in OUT.read_text("utf8").splitlines():
