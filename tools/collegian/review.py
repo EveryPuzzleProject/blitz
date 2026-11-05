@@ -140,6 +140,7 @@ async function load(){
   const all=await (await fetch('/api/issues')).json();
   const f=$('filter').value; ALL=all;
   list=all.filter(r=>f=='all'||(f=='todo'&&['check','no-hit','pending','unsure'].includes(r.state))||(f=='check'&&r.state=='check')||(f=='nohit'&&r.state=='no-hit')||(f=='found'&&r.state=='found')||(f=='second'&&r.second_look)||(f=='dless'&&r.kind=='diagramless')||(f=='absent'&&r.state=='absent'));
+  if(!list.length&&!curDate&&f=='todo'){$('filter').value='second';list=all.filter(r=>r.second_look)}   // nothing left to settle: open on the second look
   const cnt={};all.forEach(r=>cnt[r.state]=(cnt[r.state]||0)+1);
   $('count').textContent=list.length+' in view · '+Object.entries(cnt).map(([k,v])=>k+' '+v).join(' · ');
   if(!curDate){   // first load: the address says where we were, else the first issue in view
