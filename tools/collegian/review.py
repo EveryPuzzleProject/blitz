@@ -35,8 +35,18 @@ def decisions():
     return d
 
 
+def exceptions():
+    """exceptions.tsv: oddities a person has told us about (an extra reprint, a stub, a missed day)."""
+    p, out = DATA / "exceptions.tsv", {}
+    if p.exists():
+        for line in p.read_text("utf8").splitlines()[1:]:
+            f = (line.split("\t") + ["", "", "", ""])[:4]
+            out.setdefault(f[0], []).append(dict(seq=f[1], kind=f[2], note=f[3]))
+    return out
+
+
 def issues():
-    rows, dec = scan.read_rows(), decisions()
+    rows, dec, exc = scan.read_rows(), decisions(), exceptions()
     out = []
     for date, r in sorted(rows.items()):
         p = dec.get(date)
@@ -52,7 +62,7 @@ def issues():
                     ((g[0], f"era guess: {g[1]} nearby puzzles were on this page") if g[0] else ("", ""))
         out.append(dict(date=date, pages=int(r["pages"] or 0), state=state, seq=seq, by=by, kind=kind,
                         scan_verdict=r["verdict"], scan_seq=r.get("seq", ""), evidence=r.get("evidence", ""),
-                        cand=cand, why=why))
+                        cand=cand, why=why, extras=exc.get(date, [])))
     return out
 
 
@@ -95,7 +105,7 @@ small{color:#555}
  <button id=dl title="tags the next page you pick as a diagramless">Diagramless (d): off</button>
  <small id=count></small>
 </header>
-<div id=cand style="padding:12px 12px 0"></div>
+<div id=cand style="padding:0 12px"></div>
 <div id=sheet class=sheet></div>
 <script>
 let list=[],i=0,dl=false,ALL=[],ov=null,hist=[],hp=0;   // hist: issues decided this session, so prev can redo them
@@ -121,10 +131,12 @@ function show(){
   const nx=[1,2,3].map(k=>list[i+k]).filter(Boolean), pf=(q,n)=>{new Image().src='/thumb/'+q.date+'/'+n+'.jpg?w=480'};
   nx.forEach(q=>{if(q.cand&&q.by=='scan')pf(q,+q.cand)});
   nx.forEach(q=>{for(let n=1;n<=q.pages;n++)if(!(q.by=='scan'&&String(q.cand)==n))pf(q,n)});
+  $('cand').innerHTML=(r.extras||[]).map(x=>'<div style="background:#fff3bf;border:2px solid #e8590c;padding:6px 10px;margin-top:10px"><b>Known exception ('+x.kind+(x.seq&&x.seq!='-'?', page '+x.seq:'')+'):</b> '+x.note.replace(/</g,'&lt;')+'</div>').join('');
+  const exSeq=new Set((r.extras||[]).map(x=>x.seq));
   for(let n=1;n<=r.pages;n++){
     const d=document.createElement('div'); d.className='pg'+(String(r.cand)==n&&r.by=='scan'?' cand':'')+(String(r.seq)==n&&r.by=='person'&&r.state=='found'?' chosen':'');
     d.innerHTML='<img '+(d.className.includes('cand')?'fetchpriority=high ':'')+'src="/thumb/'+r.date+'/'+n+'.jpg?w=480"><span class=n>'+n+'</span>'+
-      (d.className.includes('cand')?'<span class=tag>guess</span>':'')+(d.className.includes('chosen')?'<span class=tag>your pick</span>':'')+
+      (d.className.includes('cand')?'<span class=tag>guess</span>':'')+(exSeq.has(String(n))?'<span class=tag style="top:26px;background:#7048e8">exception</span>':'')+(d.className.includes('chosen')?'<span class=tag>your pick</span>':'')+
       '<a target=_blank href="/thumb/'+r.date+'/'+n+'.jpg?w=2400">big</a>';
     d.onclick=e=>{if(e.target.tagName!='A')decide('found',n)};
     s.appendChild(d);
