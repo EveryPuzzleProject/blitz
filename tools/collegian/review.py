@@ -132,6 +132,14 @@ const nextAfter=d=>list.find(r=>r.date>d);
 const prevBefore=d=>{let p=null;for(const r of list){if(r.date<d)p=r;else break}return p};
 function nav(date){stack=stack.slice(0,idx+1);stack.push(date);idx=stack.length-1;history.pushState({stack,idx},'','#'+date);curDate=date;show();}
 window.onpopstate=e=>{if(e.state){stack=e.state.stack;idx=e.state.idx}curDate=location.hash.slice(1)||curDate;show();};
+// the last issue in this view was just saved: say so on the page, don't leave the same sheet on screen
+function allDone(saved){
+  $('title').textContent='nothing more here'; $('cand').innerHTML='';
+  $('sheet').innerHTML='<div style="grid-column:1/-1;background:#fff;border:2px solid #1d5c3a;padding:28px;text-align:center;max-width:640px;margin:30px auto">'+
+    '<h2 style="margin:0 0 8px">Nothing more to see here</h2><p>'+saved+' That was the last issue in this view.</p>'+
+    '<p><button onclick="history.back()">&larr; back to the last one</button> &nbsp; <button onclick="document.getElementById(\'filter\').value=\'all\';refilter()">see all issues</button></p></div>';
+  window.scrollTo(0,0);
+}
 function goPrev(){if(idx>0)history.back();else{const p=prevBefore(curDate);if(p)nav(p.date)}}
 function goNext(){if(idx<stack.length-1)history.forward();else{const n=nextAfter(curDate);if(n)nav(n.date)}}
 function setDl(v){dl=v;const b=document.getElementById('dl');b.textContent='Diagramless (d): '+(dl?'ON':'off');b.style.background=dl?'#ffe066':'';}
@@ -182,7 +190,7 @@ async function decide(verdict,seq){
   if(idx<stack.length-1){flash('Saved '+r.date+': '+what);history.forward();}
   else{const n=nextAfter(r.date);
     if(n){flash('Saved '+r.date+': '+what);nav(n.date)}
-    else{show();flash('Saved '+r.date+': '+what+'. That was the last issue in this view, so there is nothing to move on to.')}}
+    else{allDone('Saved '+r.date+': '+what+'.')}}
 }
 $('filter').onchange=refilter;
 $('prev').onclick=goPrev;$('next').onclick=goNext;
