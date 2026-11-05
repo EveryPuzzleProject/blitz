@@ -46,7 +46,7 @@ def exceptions():
 
 
 def issues():
-    rows, dec, exc = scan.read_rows(), decisions(), exceptions()
+    rows, dec, exc, boxes = scan.read_rows(), decisions(), exceptions(), crop_boxes()
     out = []
     for date, r in sorted(rows.items()):
         p = dec.get(date)
@@ -62,7 +62,8 @@ def issues():
                     ((g[0], f"era guess: {g[1]} nearby puzzles were on this page") if g[0] else ("", ""))
         out.append(dict(date=date, pages=int(r["pages"] or 0), state=state, seq=seq, by=by, kind=kind,
                         scan_verdict=r["verdict"], scan_seq=r.get("seq", ""), evidence=r.get("evidence", ""),
-                        cand=cand, why=why, extras=exc.get(date, [])))
+                        cand=cand, why=why, extras=exc.get(date, []),
+                        hasbox=bool(seq) and (date, int(seq)) in boxes))
     return out
 
 
@@ -223,14 +224,14 @@ small{color:#555}
 <script>
 // Every batch of 20 is a history entry (#b0, #b1, ...), so the mouse's back/forward buttons walk the batches,
 // including ones already confirmed, which can be re-marked and confirmed again. history.state holds the trail.
-const N=20,$=id=>document.getElementById(id);
+const N=20,$=id=>document.getElementById(id),CROPS=location.search.includes('crops=1');   // crops=1: label crops on every found page, decisions untouched
 let trail=[],idx=0,mark=new Map();   // trail[i] = {batch:[rows], done, marks:[[date,'crop'|'no']]}
 const src=r=>'/crop/'+r.date+'/'+r.seq+'.jpg?w=720';
 const save=()=>history.replaceState({trail,idx},'','#b'+idx);
 async function pending(){
   const all=await (await fetch('/api/issues')).json();
   const seen=new Set(trail.flatMap(t=>t.batch.map(r=>r.date)));
-  return all.filter(r=>r.by=='scan'&&r.state=='found'&&r.seq&&!seen.has(r.date));
+  return all.filter(r=>(CROPS?(r.state=='found'&&r.hasbox):(r.by=='scan'&&r.state=='found'))&&r.seq&&!seen.has(r.date));
 }
 function render(){
   const t=trail[idx]; mark=new Map(t.marks||[]); $('grid').innerHTML='';
@@ -250,7 +251,7 @@ function render(){
 async function go(){
   const t=trail[idx]; if(!t||!t.batch.length)return;
   const redo=!!t.done, ms=[...mark];
-  await fetch('/api/bulk',{method:'POST',body:JSON.stringify({redo,
+  await fetch('/api/bulk',{method:'POST',body:JSON.stringify({redo,cropsonly:CROPS,
     confirm:t.batch.filter(r=>mark.get(r.date)!='no').map(r=>({date:r.date,seq:+r.seq})),
     flag:t.batch.filter(r=>mark.get(r.date)=='no').map(r=>r.date),
     badcrop:t.batch.filter(r=>mark.get(r.date)=='crop').map(r=>({date:r.date,seq:+r.seq})),
@@ -327,7 +328,7 @@ class H(BaseHTTPRequestHandler):
             r = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
             at = time.strftime("%Y-%m-%dT%H:%M:%S")
             with open(DECISIONS, "a", encoding="utf8") as f:
-                for c in r.get("confirm", []):
+                for c in ([] if r.get("cropsonly") else r.get("confirm", [])):
                     f.write(json.dumps(dict(date=c["date"], verdict="found", seq=c["seq"], kind="regular",
                                             by="person", via="confirm-sheet", at=at)) + "\n")
                 for d in r.get("flag", []):
@@ -338,7 +339,7 @@ class H(BaseHTTPRequestHandler):
                 for c in r.get("badcrop", []):
                     f.write(json.dumps(dict(date=c["date"], seq=c["seq"], box=boxes.get((c["date"], c["seq"])),
                                             label="bad-crop", by="person", at=at)) + "\n")
-                if r.get("redo"):             # a batch gone over again: crops now left unmarked are fine (last label per date wins)
+                if r.get("redo") or r.get("cropsonly"):             # a batch gone over again: crops now left unmarked are fine (last label per date wins)
                     for c in r.get("okcrop", []):
                         f.write(json.dumps(dict(date=c["date"], seq=c["seq"], box=boxes.get((c["date"], c["seq"])),
                                                 label="crop-ok", by="person", at=at)) + "\n")
