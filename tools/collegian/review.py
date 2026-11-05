@@ -364,6 +364,7 @@ def box_queue():
 BOXES = r"""<!doctype html><meta charset=utf-8><title>Place boxes</title>
 <style>
 body{font:15px system-ui;margin:0;background:#f4f1ea;color:#222}
+html,body{overscroll-behavior-x:none}
 header{position:sticky;top:0;background:#fff;border-bottom:1px solid #ccc;padding:8px 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;z-index:3}
 button,select{font:inherit;padding:5px 10px;border:1px solid #888;border-radius:5px;background:#fff;cursor:pointer}
 button.primary{background:#1d5c3a;color:#fff;border-color:#1d5c3a}
@@ -406,10 +407,10 @@ function show(){
 function nav(date){location.hash=date}   // every move is a history entry: the mouse's back and forward buttons work
 window.onhashchange=()=>{const r=all.find(x=>x.date==location.hash.slice(1));if(r){cur=r;show()}};
 const pt=e=>{const r=$('pg').getBoundingClientRect();return [Math.max(0,Math.min(e.clientX-r.left,r.width)),Math.max(0,Math.min(e.clientY-r.top,r.height))]};
-$('wrap').onmousedown=e=>{if(!cur)return;e.preventDefault();drag=pt(e)};
+$('wrap').onmousedown=e=>{if(!cur||e.button!==0)return;e.preventDefault();drag=pt(e)};   // the left button only
 window.onmousemove=e=>{if(!drag)return;const p=pt(e),k=cur.W/$('pg').clientWidth;
   const x0=Math.min(drag[0],p[0]),y0=Math.min(drag[1],p[1]);draft=[Math.round(x0*k),Math.round(y0*k),Math.round(Math.abs(p[0]-drag[0])*k),Math.round(Math.abs(p[1]-drag[1])*k)];draw()};
-window.onmouseup=()=>{if(drag&&draft&&(draft[2]<60||draft[3]<60))draft=null;drag=null;draw()};
+window.onmouseup=e=>{if(e.button!==0)return;if(drag&&draft&&(draft[2]<60||draft[3]<60))draft=null;drag=null;draw()};
 function nextDate(){const i=list.findIndex(r=>r.date==cur.date);const n=list.slice(i+1).find(r=>r.date!=cur.date);return n?n.date:null}
 async function save(){
   if(!cur||!draft){flash('Draw a box first');return}
@@ -439,7 +440,16 @@ $('prev').onclick=()=>history.back();$('next').onclick=()=>history.forward();
 $('save').onclick=save;$('keep').onclick=keep;$('clear').onclick=clearBox;
 document.onkeydown=e=>{if(e.target.tagName=='SELECT')return;if(e.key=='Enter')save();if(e.key=='k')keep();if(e.key=='c')clearBox();
   if(e.key=='ArrowLeft')history.back();if(e.key=='ArrowRight')history.forward()};
-window.onresize=draw; load();
+window.onresize=draw;
+// While a box is being drawn nothing may move the page. Mouse thumb buttons (back/forward) are swallowed mid-drag,
+// and every key, thumb button and address change is written to ui_trace.log so a surprise can be traced.
+const trace=(t)=>{try{navigator.sendBeacon('/api/trace',JSON.stringify({t,page:cur&&cur.date,drag:!!drag,draft:!!draft}))}catch(e){}};
+['mousedown','mouseup','auxclick'].forEach(ev=>window.addEventListener(ev,e=>{
+  if(e.button===3||e.button===4){ if(drag){e.preventDefault();e.stopPropagation();trace('swallowed '+ev+' button '+e.button+' during a drag')} else trace(ev+' button '+e.button) }},true));
+window.addEventListener('hashchange',()=>trace('hashchange '+location.hash));
+window.addEventListener('popstate',()=>trace('popstate'));
+window.addEventListener('keydown',e=>trace('key '+e.key),true);
+load();
 </script>"""
 
 
@@ -495,6 +505,15 @@ class H(BaseHTTPRequestHandler):
         self.send("not found", "text/plain", 404)
 
     def do_POST(self):
+        if self.path == "/api/trace":         # what the page saw: a key, a thumb button, an address change (for tracing surprises)
+            n = int(self.headers.get("Content-Length") or 0)
+            try:
+                r = json.loads(self.rfile.read(n) or b"{}")
+                with open(DATA / "ui_trace.log", "a", encoding="utf8") as f:
+                    f.write(time.strftime("%H:%M:%S ") + json.dumps(r) + "\n")
+            except Exception:
+                pass
+            return self.send("{}")
         if self.path in ("/api/box", "/api/cropok"):
             r = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
             at = time.strftime("%Y-%m-%dT%H:%M:%S")
