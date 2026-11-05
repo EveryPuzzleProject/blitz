@@ -1,0 +1,209 @@
+"""Find Mike Shenk's crossword in the Daily Collegian (Penn State), issue by issue.
+
+Harvest stage only: locate the puzzle's page in each issue and keep what was downloaded.
+Nothing here reads a puzzle; it scores each page's OCR text for the look of a crossword
+(Across/Down heads, a run of numbered clues, "Answers in tomorrow's Collegian classifieds").
+
+    python tools/collegian/scan.py issues          # the issue list for the run -> issues.tsv
+    python tools/collegian/scan.py scan [--limit N] [--from DATE --to DATE]
+    python tools/collegian/scan.py report
+
+Data lives outside the repo (COLLEGIAN_DIR, default ~/Projects/collegian-scans):
+    cache/manifest/<date>.json     the issue's IIIF manifest (page list, image ids)
+    cache/ocr/<date>/seq-<n>.txt   every page's OCR text we fetched (never discarded)
+    issues.tsv                     one row per issue: verdict, page, score, evidence
+    scan_log.jsonl                 what each page scored (so a verdict can be traced)
+
+Archive: https://panewsarchive.psu.edu/lccn/sn85054904/ (open, IIIF, per-page OCR).
+Pages are scanned from the LAST page backwards, because the puzzle is usually near the
+end of an issue; the scan stops at the first strong hit. Pages with only part of the
+signal are kept as "weak" and sent to a person (see review.py).
+"""
+import argparse
+import concurrent.futures as cf
+import json
+import os
+import re
+import sys
+import threading
+import time
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+BASE = "https://pana.ulprod.k8s.libraries.psu.edu"
+LCCN = "sn85054904"
+FIRST, LAST = "1976-03-01", "1981-06-30"   # catalog: first 1976-03-11/12, last found 1981-05-15
+HEAD = {"User-Agent": "EPP-blitz collegian harvest (research; contact via github.com/EveryPuzzleProject)"}
+DATA = Path(os.environ.get("COLLEGIAN_DIR", Path.home() / "Projects" / "collegian-scans"))
+COLS = ["date", "pages", "verdict", "seq", "score", "evidence", "scanned", "decided_by"]
+
+_lock = threading.Lock()
+
+
+def get(url, tries=4):
+    for i in range(tries):
+        try:
+            req = urllib.request.Request(url, headers=HEAD)
+            return urllib.request.urlopen(req, timeout=90).read()
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                return None
+            err = e
+        except Exception as e:  # network blips: back off and retry
+            err = e
+        time.sleep(2 * (i + 1))
+    raise RuntimeError(f"{url}: {err}")
+
+
+def score(text):
+    """What a crossword page looks like in OCR text. Returns (level, evidence dict)."""
+    across = len(re.findall(r"^\W*Across\b", text, re.M | re.I))
+    down = len(re.findall(r"^\W*Down\b", text, re.M | re.I))
+    nums = len(re.findall(r"^\W*\d{1,2}\s+[A-Z][a-z]", text, re.M))
+    ans = bool(re.search(r"answers?\s+(in|to)\s+tomorrow|tomorrow.s\s+(collegian|paper)", text, re.I))
+    shenk = bool(re.search(r"sh[ea]nk", text, re.I))
+    ev = dict(across=across, down=down, nums=nums, answers_line=ans, shenk=shenk)
+    if (ans and nums >= 20) or (across and down and nums >= 20):
+        return "strong", ev
+    if ans or (across and down) or nums >= 25:
+        return "weak", ev
+    return "none", ev
+
+
+def issue_list():
+    p = DATA / "cache" / "collection.json"
+    if not p.exists():
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(get(f"{BASE}/lccn/{LCCN}.json"))
+    labels = [m["label"] for m in json.loads(p.read_text("utf8"))["manifests"]]
+    return sorted(d for d in labels if FIRST <= d <= LAST)
+
+
+def manifest(date):
+    p = DATA / "cache" / "manifest" / f"{date}.json"
+    if not p.exists():
+        p.parent.mkdir(parents=True, exist_ok=True)
+        b = get(f"{BASE}/lccn/{LCCN}/{date}/ed-1.json")
+        if b is None:
+            return None
+        p.write_bytes(b)
+    return json.loads(p.read_text("utf8"))
+
+
+def ocr(date, seq):
+    p = DATA / "cache" / "ocr" / date / f"seq-{seq}.txt"
+    if not p.exists():
+        b = get(f"{BASE}/lccn/{LCCN}/{date}/ed-1/seq-{seq}/ocr.txt")
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(b if b is not None else b"")
+    return p.read_text("utf8", "replace")
+
+
+def read_rows():
+    p = DATA / "issues.tsv"
+    rows = {}
+    if p.exists():
+        for line in p.read_text("utf8").splitlines()[1:]:
+            f = line.split("\t")
+            r = dict(zip(COLS, f + [""] * (len(COLS) - len(f))))
+            rows[r["date"]] = r
+    return rows
+
+
+def write_rows(rows):
+    DATA.mkdir(parents=True, exist_ok=True)
+    out = ["\t".join(COLS)] + ["\t".join(str(r.get(c, "")) for c in COLS) for _, r in sorted(rows.items())]
+    tmp = DATA / "issues.tsv.tmp"
+    tmp.write_text("\n".join(out) + "\n", "utf8")
+    tmp.replace(DATA / "issues.tsv")
+
+
+def scan_issue(date):
+    m = manifest(date)
+    if m is None:
+        return dict(date=date, verdict="not-in-archive")
+    n = len(m["sequences"][0]["canvases"])
+    weak, log = [], []
+    for seq in range(n, 0, -1):          # last page first
+        level, ev = score(ocr(date, seq))
+        log.append(dict(date=date, seq=seq, level=level, **ev))
+        if level == "strong":
+            verdict, hit = "found", (seq, ev)
+            break
+        if level == "weak":
+            weak.append((seq, ev))
+    else:
+        hit = None
+        verdict = "check" if weak else "no-hit"
+    if hit is None and weak:
+        hit = weak[0]
+    row = dict(date=date, pages=n, verdict=verdict, scanned=time.strftime("%Y-%m-%d"))
+    if hit:
+        row.update(seq=hit[0], score=("strong" if verdict == "found" else "weak"), evidence=json.dumps(hit[1]))
+    with _lock, open(DATA / "scan_log.jsonl", "a", encoding="utf8") as f:
+        for r in log:
+            f.write(json.dumps(r) + "\n")
+    return row
+
+
+def cmd_issues(a):
+    ds = issue_list()
+    rows = read_rows()
+    for d in ds:
+        rows.setdefault(d, dict(date=d, verdict="pending"))
+    write_rows(rows)
+    print(f"{len(ds)} issues {ds[0]}..{ds[-1]} -> {DATA/'issues.tsv'}")
+
+
+def cmd_scan(a):
+    cmd_issues(a)
+    rows = read_rows()
+    todo = [d for d, r in rows.items() if r["verdict"] == "pending" and (not a.start or d >= a.start) and (not a.end or d <= a.end)]
+    if a.limit:
+        todo = todo[: a.limit]
+    print(f"scanning {len(todo)} issues with {a.workers} workers", flush=True)
+    done = 0
+    with cf.ThreadPoolExecutor(a.workers) as ex:
+        for row in ex.map(scan_issue, todo):
+            rows[row["date"]].update(row)
+            done += 1
+            if done % 25 == 0:
+                write_rows(rows)
+                print(f"  {done}/{len(todo)} ({row['date']})", flush=True)
+    write_rows(rows)
+    cmd_report(a)
+
+
+def cmd_report(a):
+    rows = read_rows()
+    from collections import Counter
+    c = Counter(r["verdict"] for r in rows.values())
+    print("verdicts:", dict(c))
+    seqfrom = Counter()
+    for r in rows.values():
+        if r["verdict"] == "found" and r["seq"] and r["pages"]:
+            seqfrom[int(r["pages"]) - int(r["seq"])] += 1
+    print("found: pages from the end (0 = last page):", sorted(seqfrom.items()))
+    yr = Counter((r["date"][:4], r["verdict"]) for r in rows.values())
+    for y in sorted({k[0] for k in yr}):
+        print(y, {v: n for (yy, v), n in yr.items() if yy == y})
+
+
+def main():
+    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = p.add_subparsers(dest="cmd", required=True)
+    sub.add_parser("issues").set_defaults(fn=cmd_issues)
+    q = sub.add_parser("scan")
+    q.add_argument("--limit", type=int)
+    q.add_argument("--from", dest="start")
+    q.add_argument("--to", dest="end")
+    q.add_argument("--workers", type=int, default=4)
+    q.set_defaults(fn=cmd_scan)
+    sub.add_parser("report").set_defaults(fn=cmd_report)
+    a = p.parse_args()
+    a.fn(a)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
