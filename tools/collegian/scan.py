@@ -221,10 +221,14 @@ def clue_box(xml, img_w, img_h):
     root = ET.fromstring(xml)
     pg = root.find(f".//{ns}Page")
     pw, ph = float(pg.get("WIDTH")), float(pg.get("HEIGHT"))
-    pts, nums, credits = [], [], []   # clue lines; the small numbers in the grid's cells; the sponsor's credit line
+    pts, nums, credits, heads, edges = [], [], [], [], []   # clue lines; cell numbers; the sponsor's credit line; Across headings; every line's box
     for tl in root.iter(f"{ns}TextLine"):
         strs = list(tl.iter(f"{ns}String"))
         text = " ".join(s.get("CONTENT", "") for s in strs)
+        hx, hy, hw, hh = (float(tl.get(k)) for k in ("HPOS", "VPOS", "WIDTH", "HEIGHT"))
+        edges.append((hx, hy, hx + hw, hy + hh))
+        if re.match(r"^\W*Across\b", text) and len(text) < 14:
+            heads.append((hx, hy, hx + hw, hy + hh))
         if re.search(r"compliments\s+of|mcallister\s+building", text, re.I):
             x, y, w, h = (float(tl.get(k)) for k in ("HPOS", "VPOS", "WIDTH", "HEIGHT"))
             credits.append((x, y, x + w, y + h))
@@ -238,6 +242,46 @@ def clue_box(xml, img_w, img_h):
                     nums.append((x, y, x + w, y + h))
     if len(pts) < 12:
         return None
+    if credits:
+        pass                    # 1976-78 layout (sponsor's credit line): the clue lines are used as they are
+    elif heads:
+        def near(h):
+            return [q for q in pts if h[0] - 0.03 * pw < q[0] < h[0] + 0.28 * pw and h[1] - 0.03 * ph < q[1] < h[1] + 0.40 * ph]
+        best = max((near(h) for h in heads), key=len)
+        if len(best) >= 12:
+            pts = best
+    else:
+        # no heading read: clue columns are long tidy stacks of lines (same left edge, even spacing);
+        # take the longest stack and the stacks beside it, leaving out scores, ads and other numbered lists
+        hs = statistics.median(p[3] - p[1] for p in pts)
+        cols = []
+        for p in sorted(pts, key=lambda p: p[0]):
+            for c in cols:
+                if abs(c[0][0] - p[0]) < 0.012 * pw:
+                    c.append(p)
+                    break
+            else:
+                cols.append([p])
+        stacks = []
+        for c in cols:
+            c.sort(key=lambda p: p[1])
+            cur = [c[0]]
+            for p in c[1:]:
+                if p[1] - cur[-1][3] < 2.5 * hs:
+                    cur.append(p)
+                else:
+                    stacks.append(cur)
+                    cur = [p]
+            stacks.append(cur)
+        stacks = [s for s in stacks if len(s) >= 6]
+        if stacks:
+            main = max(stacks, key=len)
+            mx0, mx1 = min(p[0] for p in main), max(p[2] for p in main)
+            my0, my1 = min(p[1] for p in main), max(p[3] for p in main)
+            near = [p for s in stacks for p in s
+                    if mx0 - 0.25 * pw < p[0] < mx1 + 0.25 * pw and my0 - (my1 - my0) < p[1] < my1 + (my1 - my0)]
+            if len(near) >= 12:
+                pts = near
 
     def dense(boxes, radius, need):
         """boxes that have at least `need` others within `radius` (drops stray lines and page numbers)."""
@@ -269,11 +313,18 @@ def clue_box(xml, img_w, img_h):
         pass
     elif under:                                        # the clues span the puzzle's width; the credit line is its floor
         y1 = max(c[3] for c in under)
+    elif (x0 + x1) / 2 > 0.55 * pw:                   # clues left, grid running to the page's right edge
+        x1 = x1 + 1.2 * bw
+        y1 = y1 + 0.1 * bh
     else:                                              # the OCR didn't read the cell numbers: the grid sits beside the clues
         x0, x1 = x0 - 1.5 * bw, x1 + 1.5 * bw
         y0, y1 = y0 - 0.3 * bh, y1 + 0.1 * bh
     if under:
         y1 = max(y1, max(c[3] for c in under))
+    elif (x0 + x1) / 2 > 0.55 * pw:                   # a puzzle on the right half: its grid runs to the text's right edge
+        right = [e[2] for e in edges if e[0] > x0 and y0 - 0.6 * bh < e[1] < y1]   # incl. the running header above it
+        if right:
+            x1 = max(x1, max(right))
     mx, my = 0.03 * pw, 0.02 * ph                      # a margin, and room for the title line above
     x0, x1 = max(0, x0 - mx), min(pw, x1 + mx)
     y0, y1 = max(0, y0 - 2 * my), min(ph, y1 + my)
