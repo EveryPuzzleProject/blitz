@@ -221,25 +221,51 @@ def clue_box(xml, img_w, img_h):
     root = ET.fromstring(xml)
     pg = root.find(f".//{ns}Page")
     pw, ph = float(pg.get("WIDTH")), float(pg.get("HEIGHT"))
-    pts = []
+    pts, nums = [], []          # clue lines; and the small numbers printed inside the grid's cells
     for tl in root.iter(f"{ns}TextLine"):
-        text = " ".join(s.get("CONTENT", "") for s in tl.iter(f"{ns}String"))
+        strs = list(tl.iter(f"{ns}String"))
+        text = " ".join(s.get("CONTENT", "") for s in strs)
         if re.match(r"^\W*(\d{1,2}\s+[A-Z][a-z]|Across\b|Down\b)", text):
             x, y, w, h = (float(tl.get(k)) for k in ("HPOS", "VPOS", "WIDTH", "HEIGHT"))
             pts.append((x, y, x + w, y + h))
+        else:
+            for s in strs:
+                if re.fullmatch(r"\d{1,2}", s.get("CONTENT", "")):
+                    x, y, w, h = (float(s.get(k)) for k in ("HPOS", "VPOS", "WIDTH", "HEIGHT"))
+                    nums.append((x, y, x + w, y + h))
     if len(pts) < 12:
         return None
-    # the densest cluster: drop lines far from the median centre until most remain
-    cx = [(p[0] + p[2]) / 2 for p in pts]
-    cy = [(p[1] + p[3]) / 2 for p in pts]
-    mx, my = statistics.median(cx), statistics.median(cy)
-    dist = sorted(range(len(pts)), key=lambda i: abs(cx[i] - mx) / pw + abs(cy[i] - my) / ph)
-    keep = [pts[i] for i in dist[: max(12, int(len(pts) * 0.85))]]
-    x0, y0 = min(p[0] for p in keep), min(p[1] for p in keep)
-    x1, y1 = max(p[2] for p in keep), max(p[3] for p in keep)
+
+    def dense(boxes, radius, need):
+        """boxes that have at least `need` others within `radius` (drops stray lines and page numbers)."""
+        out = []
+        for b in boxes:
+            near = sum(1 for o in boxes if o is not b and abs(o[0] - b[0]) < radius and abs(o[1] - b[1]) < radius)
+            if near >= need:
+                out.append(b)
+        return out
+
+    def bbox(boxes):
+        return [min(b[0] for b in boxes), min(b[1] for b in boxes), max(b[2] for b in boxes), max(b[3] for b in boxes)]
+
+    core = dense(pts, 0.14 * pw, 3)
+    if len(core) < 12:
+        core = pts
+    x0, y0, x1, y1 = bbox(core)
+    # the grid: cell numbers in a window around the clues (it can be left, right, above or below them)
     bw, bh = x1 - x0, y1 - y0
-    x0, x1 = max(0, x0 - bw), min(pw, x1 + bw)           # the grid sits beside the clues
-    y0, y1 = max(0, y0 - 0.5 * bh), min(ph, y1 + 0.5 * bh)
+    win = [n for n in nums if x0 - 2.5 * bw < n[0] < x1 + 1.5 * bw and y0 - 0.3 * bh < n[1] < y1 + 0.05 * bh
+           and not (x0 <= n[0] and n[2] <= x1 and y0 <= n[1] and n[3] <= y1)]
+    grid = dense(win, 0.05 * pw, 3)
+    if len(grid) >= 15:
+        gx0, gy0, gx1, gy1 = bbox(grid)
+        x0, y0, x1, y1 = min(x0, gx0), min(y0, gy0), max(x1, gx1), max(y1, gy1)
+    else:                                              # the OCR didn't read the cell numbers: the grid sits beside the clues
+        x0, x1 = x0 - 1.5 * bw, x1 + 1.5 * bw
+        y0, y1 = y0 - 0.3 * bh, y1 + 0.1 * bh
+    mx, my = 0.03 * pw, 0.02 * ph                      # a margin, and room for the title line above
+    x0, x1 = max(0, x0 - mx), min(pw, x1 + mx)
+    y0, y1 = max(0, y0 - 2 * my), min(ph, y1 + my)
     sx, sy = img_w / pw, img_h / ph
     return [round(x0 * sx), round(y0 * sy), round((x1 - x0) * sx), round((y1 - y0) * sy), len(pts)]
 
