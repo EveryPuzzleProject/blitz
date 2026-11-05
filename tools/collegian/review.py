@@ -60,7 +60,19 @@ def issues():
         g = (r.get("guess") or "").split("|")
         cand, why = (r.get("seq", ""), "the scan saw part of a crossword here") if r.get("seq") else \
                     ((g[0], f"era guess: {g[1]} nearby puzzles were on this page") if g[0] else ("", ""))
+        # a day a person called absent that deserves a second look: in term time (summer issues often had no puzzle,
+        # and the June 1981 ad days are known), or the OCR saw part of a crossword there
+        why2 = []
+        if state == "absent":
+            if date[5:7] not in ("06", "07", "08") and date < "1981-06-10":
+                why2.append("an absent day in term time")
+            if r["verdict"] == "check" and r.get("seq"):
+                ev = json.loads(r.get("evidence") or "{}")
+                why2.append(f"the OCR saw part of a crossword on page {r['seq']} "
+                            f"({ev.get('nums', 0)} numbered lines, Across/Down heads {ev.get('across', 0)}/{ev.get('down', 0)}"
+                            f"{', an answers line' if ev.get('answers_line') else ''})")
         out.append(dict(date=date, pages=int(r["pages"] or 0), state=state, seq=seq, by=by, kind=kind,
+                        second_look=bool(why2), why2="; ".join(why2),
                         scan_verdict=r["verdict"], scan_seq=r.get("seq", ""), evidence=r.get("evidence", ""),
                         cand=cand, why=why, extras=exc.get(date, []),
                         hasbox=bool(seq) and (date, int(seq)) in boxes))
@@ -98,7 +110,7 @@ small{color:#555}
 <header>
  <select id=filter>
   <option value=todo>Needs a look</option><option value=check>Scan unsure</option><option value=nohit>Scan found nothing</option>
-  <option value=found>Found (spot check)</option><option value=dless>Diagramless</option><option value=absent>You said no crossword</option><option value=all>All</option>
+  <option value=second>Second look (absent days)</option><option value=found>Found (spot check)</option><option value=dless>Diagramless</option><option value=absent>You said no crossword</option><option value=all>All</option>
  </select>
  <button id=prev>&larr; prev</button><b id=title></b><button id=next>next &rarr;</button>
  <button id=absent class=primary>No crossword this day (n)</button>
@@ -125,7 +137,7 @@ const $=id=>document.getElementById(id);
 async function load(){
   const all=await (await fetch('/api/issues')).json();
   const f=$('filter').value; ALL=all;
-  list=all.filter(r=>f=='all'||(f=='todo'&&['check','no-hit','pending','unsure'].includes(r.state))||(f=='check'&&r.state=='check')||(f=='nohit'&&r.state=='no-hit')||(f=='found'&&r.state=='found')||(f=='dless'&&r.kind=='diagramless')||(f=='absent'&&r.state=='absent'));
+  list=all.filter(r=>f=='all'||(f=='todo'&&['check','no-hit','pending','unsure'].includes(r.state))||(f=='check'&&r.state=='check')||(f=='nohit'&&r.state=='no-hit')||(f=='found'&&r.state=='found')||(f=='second'&&r.second_look)||(f=='dless'&&r.kind=='diagramless')||(f=='absent'&&r.state=='absent'));
   const cnt={};all.forEach(r=>cnt[r.state]=(cnt[r.state]||0)+1);
   $('count').textContent=list.length+' in view · '+Object.entries(cnt).map(([k,v])=>k+' '+v).join(' · ');
   if(!curDate){   // first load: the address says where we were, else the first issue in view
@@ -145,10 +157,11 @@ function show(){
   const nx=list.filter(q=>q.date>r.date).slice(0,3), pf=(q,n)=>{new Image().src='/thumb/'+q.date+'/'+n+'.jpg?w=480'};
   nx.forEach(q=>{if(q.cand&&q.by=='scan')pf(q,+q.cand)});
   nx.forEach(q=>{for(let n=1;n<=q.pages;n++)if(!(q.by=='scan'&&String(q.cand)==n))pf(q,n)});
-  $('cand').innerHTML=(r.extras||[]).map(x=>'<div style="background:#fff3bf;border:2px solid #e8590c;padding:6px 10px;margin-top:10px"><b>Known exception ('+x.kind+(x.seq&&x.seq!='-'?', page '+x.seq:'')+'):</b> '+x.note.replace(/</g,'&lt;')+'</div>').join('');
+  const second=r.second_look?'<div style="background:#d0ebff;border:2px solid #1c7ed6;padding:6px 10px;margin-top:10px"><b>Second look:</b> '+r.why2.replace(/</g,'&lt;')+'. Click the page if there is a crossword; press n to confirm no crossword.</div>':'';
+  $('cand').innerHTML=second+(r.extras||[]).map(x=>'<div style="background:#fff3bf;border:2px solid #e8590c;padding:6px 10px;margin-top:10px"><b>Known exception ('+x.kind+(x.seq&&x.seq!='-'?', page '+x.seq:'')+'):</b> '+x.note.replace(/</g,'&lt;')+'</div>').join('');
   const exSeq=new Set((r.extras||[]).map(x=>x.seq));
   for(let n=1;n<=r.pages;n++){
-    const d=document.createElement('div'); d.className='pg'+(String(r.cand)==n&&r.by=='scan'?' cand':'')+(String(r.seq)==n&&r.by=='person'&&r.state=='found'?' chosen':'');
+    const d=document.createElement('div'); d.className='pg'+((String(r.cand)==n&&r.by=='scan')||(r.second_look&&String(r.scan_seq)==n)?' cand':'')+(String(r.seq)==n&&r.by=='person'&&r.state=='found'?' chosen':'');
     d.innerHTML='<img '+(d.className.includes('cand')?'fetchpriority=high ':'')+'src="/thumb/'+r.date+'/'+n+'.jpg?w=480"><span class=n>'+n+'</span>'+
       (d.className.includes('cand')?'<span class=tag>guess</span>':'')+(exSeq.has(String(n))?'<span class=tag style="top:26px;background:#7048e8">exception</span>':'')+(d.className.includes('chosen')?'<span class=tag>your pick</span>':'')+
       '<a target=_blank href="/thumb/'+r.date+'/'+n+'.jpg?w=2400">big</a>';
