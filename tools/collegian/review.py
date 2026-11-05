@@ -46,8 +46,12 @@ def issues():
             by = "person"
         else:
             state, seq, by = r["verdict"], r.get("seq", ""), "scan"
+        g = (r.get("guess") or "").split("|")
+        cand, why = (r.get("seq", ""), "the scan saw part of a crossword here") if r.get("seq") else \
+                    ((g[0], f"era guess: {g[1]} nearby puzzles were on this page") if g[0] else ("", ""))
         out.append(dict(date=date, pages=int(r["pages"] or 0), state=state, seq=seq, by=by,
-                        scan_verdict=r["verdict"], scan_seq=r.get("seq", ""), evidence=r.get("evidence", "")))
+                        scan_verdict=r["verdict"], scan_seq=r.get("seq", ""), evidence=r.get("evidence", ""),
+                        cand=cand, why=why))
     return out
 
 
@@ -89,6 +93,7 @@ small{color:#555}
  <button id=unsure>Can't tell (u)</button>
  <small id=count></small>
 </header>
+<div id=cand style="padding:12px 12px 0"></div>
 <div id=sheet class=sheet></div>
 <script>
 let list=[],i=0;
@@ -107,10 +112,16 @@ function show(){
   if(!r){$('title').textContent='nothing here';return}
   const dow=new Date(r.date+'T12:00:00').toLocaleDateString('en-US',{weekday:'short'});
   $('title').textContent=r.date+' '+dow+' · '+r.pages+' pages · '+r.state+(r.by=='person'?' (you)':' (scan'+(r.scan_seq?', p'+r.scan_seq:'')+')');
+  const c=$('cand'); c.innerHTML='';
+  if(r.cand&&r.by=='scan'){
+    c.innerHTML='<div style="background:#fff;padding:8px;border:3px solid #d58a00"><b>Page '+r.cand+'</b> <small>('+r.why+')</small> '+
+      '<button class=primary onclick="decide(\'found\','+r.cand+')">Yes, the crossword is on page '+r.cand+' (y)</button>'+
+      '<br><img style="max-width:100%;margin-top:6px" src="/thumb/'+r.date+'/'+r.cand+'.jpg?w=1500"></div>';
+  }
   for(let n=1;n<=r.pages;n++){
-    const d=document.createElement('div'); d.className='pg'+(String(r.scan_seq)==n&&r.by=='scan'?' cand':'')+(String(r.seq)==n&&r.by=='person'&&r.state=='found'?' chosen':'');
+    const d=document.createElement('div'); d.className='pg'+(String(r.cand)==n&&r.by=='scan'?' cand':'')+(String(r.seq)==n&&r.by=='person'&&r.state=='found'?' chosen':'');
     d.innerHTML='<img loading=lazy src="/thumb/'+r.date+'/'+n+'.jpg?w=560"><span class=n>'+n+'</span>'+
-      (d.className.includes('cand')?'<span class=tag>scan\'s guess</span>':'')+(d.className.includes('chosen')?'<span class=tag>your pick</span>':'')+
+      (d.className.includes('cand')?'<span class=tag>guess</span>':'')+(d.className.includes('chosen')?'<span class=tag>your pick</span>':'')+
       '<a target=_blank href="/thumb/'+r.date+'/'+n+'.jpg?w=2400">big</a>';
     d.onclick=e=>{if(e.target.tagName!='A')decide('found',n)};
     s.appendChild(d);
@@ -126,7 +137,7 @@ async function decide(verdict,seq){
 $('filter').onchange=()=>load(false);
 $('prev').onclick=()=>{i=Math.max(0,i-1);show()};$('next').onclick=()=>{i=Math.min(list.length-1,i+1);show()};
 $('absent').onclick=()=>decide('absent');$('unsure').onclick=()=>decide('unsure');
-document.onkeydown=e=>{if(e.target.tagName=='SELECT')return;if(e.key=='n')decide('absent');if(e.key=='u')decide('unsure');
+document.onkeydown=e=>{if(e.target.tagName=='SELECT')return;if(e.key=='n')decide('absent');if(e.key=='u')decide('unsure');if(e.key=='y'&&list[i]&&list[i].cand)decide('found',+list[i].cand);
  if(e.key=='ArrowRight')$('next').click();if(e.key=='ArrowLeft')$('prev').click();
  if(/^[1-9]$/.test(e.key)&&list[i]&&+e.key<=list[i].pages)decide('found',+e.key)};
 load();

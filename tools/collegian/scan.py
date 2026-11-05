@@ -36,7 +36,7 @@ LCCN = "sn85054904"
 FIRST, LAST = "1976-03-01", "1981-06-30"   # catalog: first 1976-03-11/12, last found 1981-05-15
 HEAD = {"User-Agent": "EPP-blitz collegian harvest (research; contact via github.com/EveryPuzzleProject)"}
 DATA = Path(os.environ.get("COLLEGIAN_DIR", Path.home() / "Projects" / "collegian-scans"))
-COLS = ["date", "pages", "verdict", "seq", "score", "evidence", "scanned", "decided_by"]
+COLS = ["date", "pages", "verdict", "seq", "score", "evidence", "scanned", "decided_by", "guess"]
 
 _lock = threading.Lock()
 
@@ -175,6 +175,31 @@ def cmd_scan(a):
     cmd_report(a)
 
 
+def cmd_prior(a):
+    """For issues without a strong hit, guess the page from found issues nearby in time.
+
+    The puzzle's page is regular within an era (page 4 through 1976-77, for example) but
+    the OCR often misses the puzzle itself. The guess is only a place for a person to look
+    first; it is recorded as 'seq|nearby-agreeing/nearby-found' so the view can say why.
+    """
+    from collections import Counter
+    from datetime import date as D
+    rows = read_rows()
+    found = [(D.fromisoformat(d), int(r["seq"])) for d, r in rows.items() if r["verdict"] == "found" and r["seq"]]
+    n = 0
+    for d, r in rows.items():
+        if r["verdict"] == "found" or not r["pages"]:
+            continue
+        day = D.fromisoformat(d)
+        near = [s for dd, s in found if abs((dd - day).days) <= 45 and s <= int(r["pages"])]
+        if near:
+            seq, k = Counter(near).most_common(1)[0]
+            r["guess"] = f"{seq}|{k}/{len(near)}"
+            n += 1
+    write_rows(rows)
+    print(f"{n} issues got an era guess")
+
+
 def cmd_report(a):
     rows = read_rows()
     from collections import Counter
@@ -201,6 +226,7 @@ def main():
     q.add_argument("--workers", type=int, default=4)
     q.set_defaults(fn=cmd_scan)
     sub.add_parser("report").set_defaults(fn=cmd_report)
+    sub.add_parser("prior", help="guess the page of issues without a hit from found issues nearby").set_defaults(fn=cmd_prior)
     a = p.parse_args()
     a.fn(a)
 
