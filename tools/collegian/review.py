@@ -217,45 +217,60 @@ button.primary{background:#1d5c3a;color:#fff;border-color:#1d5c3a}
 small{color:#555}
 </style>
 <header><b>The OCR's finds: click a tile once if the CROP is bad (orange), twice if it is NOT a crossword (red)</b>
- <button id=go class=primary>Confirm the rest &rarr; (Enter)</button><small id=count></small>
+ <button id=go class=primary>Confirm the rest &rarr; (Enter)</button><button id=prev>&larr; prev batch</button><button id=next>next &rarr;</button><small id=count></small>
  <a href="/">full review page</a></header>
 <div id=grid class=grid></div>
 <script>
+// Every batch of 20 is a history entry (#b0, #b1, ...), so the mouse's back/forward buttons walk the batches,
+// including ones already confirmed, which can be re-marked and confirmed again. history.state holds the trail.
 const N=20,$=id=>document.getElementById(id);
-let todo=[],batch=[],mark=new Map();   // date -> 'crop' (a puzzle, bad crop) | 'no' (not a crossword)
+let trail=[],idx=0,mark=new Map();   // trail[i] = {batch:[rows], done, marks:[[date,'crop'|'no']]}
 const src=r=>'/crop/'+r.date+'/'+r.seq+'.jpg?w=720';
-async function load(){
+const save=()=>history.replaceState({trail,idx},'','#b'+idx);
+async function pending(){
   const all=await (await fetch('/api/issues')).json();
-  todo=all.filter(r=>r.by=='scan'&&r.state=='found'&&r.seq);
-  next();
+  const seen=new Set(trail.flatMap(t=>t.batch.map(r=>r.date)));
+  return all.filter(r=>r.by=='scan'&&r.state=='found'&&r.seq&&!seen.has(r.date));
 }
-function next(){
-  batch=todo.slice(0,N); mark=new Map(); $('grid').innerHTML='';
-  $('count').textContent=todo.length+' still to confirm';
-  batch.forEach(r=>{
+function render(){
+  const t=trail[idx]; mark=new Map(t.marks||[]); $('grid').innerHTML='';
+  $('count').textContent='batch '+(idx+1)+(t.done?' · already confirmed: re-mark and Enter to redo':'');
+  t.batch.forEach(r=>{
     const d=document.createElement('div'); d.className='t';
     const wd=new Date(r.date+'T12:00:00').toLocaleDateString('en-US',{weekday:'short'});
     d.innerHTML='<img src="'+src(r)+'"><span class=l>'+r.date+' '+wd+' · p'+r.seq+'/'+r.pages+'</span><span class=m></span><a target=_blank href="/thumb/'+r.date+'/'+r.seq+'.jpg?w=2400">page</a>';
-    d.onclick=e=>{if(e.target.tagName=='A')return;
-      const cur=mark.get(r.date), nx=!cur?'crop':cur=='crop'?'no':null;
-      d.classList.remove('crop','bad'); if(nx){mark.set(r.date,nx);d.classList.add(nx=='crop'?'crop':'bad');d.querySelector('.m').textContent=nx=='crop'?'bad crop':'NOT a crossword'}else mark.delete(r.date);
-      const no=[...mark.values()].filter(v=>v=='no').length;
-      $('go').textContent='Confirm the '+(batch.length-no)+' puzzles → (Enter)'};
-    $('grid').appendChild(d);
+    const paint=()=>{const v=mark.get(r.date);d.classList.remove('crop','bad');if(v){d.classList.add(v=='crop'?'crop':'bad');d.querySelector('.m').textContent=v=='crop'?'bad crop':'NOT a crossword'}
+      const no=[...mark.values()].filter(x=>x=='no').length;$('go').textContent='Confirm the '+(t.batch.length-no)+' puzzles → (Enter)'};
+    d.onclick=e=>{if(e.target.tagName=='A')return;const c=mark.get(r.date),n=!c?'crop':c=='crop'?'no':null;if(n)mark.set(r.date,n);else mark.delete(r.date);paint()};
+    paint(); $('grid').appendChild(d);
   });
-  todo.slice(N,2*N).forEach(r=>{new Image().src=src(r)});
-  $('go').textContent='Confirm the rest → (Enter)'; window.scrollTo(0,0);
-  if(!batch.length)$('grid').innerHTML='<p style="padding:20px">All confirmed. Anything you flagged is under "Needs a look" on the full review page.</p>';
+  window.scrollTo(0,0);
+  pending().then(p=>p.slice(idx==trail.length-1?N:0,(idx==trail.length-1?N:0)+N).forEach(r=>{new Image().src=src(r)}));   // warm the next batch
 }
 async function go(){
-  if(!batch.length)return;
-  await fetch('/api/bulk',{method:'POST',body:JSON.stringify({confirm:batch.filter(r=>mark.get(r.date)!='no').map(r=>({date:r.date,seq:+r.seq})),
-    flag:batch.filter(r=>mark.get(r.date)=='no').map(r=>r.date),
-    badcrop:batch.filter(r=>mark.get(r.date)=='crop').map(r=>({date:r.date,seq:+r.seq}))})});
-  todo=todo.slice(batch.length); next();
+  const t=trail[idx]; if(!t||!t.batch.length)return;
+  const redo=!!t.done, ms=[...mark];
+  await fetch('/api/bulk',{method:'POST',body:JSON.stringify({redo,
+    confirm:t.batch.filter(r=>mark.get(r.date)!='no').map(r=>({date:r.date,seq:+r.seq})),
+    flag:t.batch.filter(r=>mark.get(r.date)=='no').map(r=>r.date),
+    badcrop:t.batch.filter(r=>mark.get(r.date)=='crop').map(r=>({date:r.date,seq:+r.seq})),
+    okcrop:t.batch.filter(r=>mark.get(r.date)!='crop'&&mark.get(r.date)!='no').map(r=>({date:r.date,seq:+r.seq}))})});
+  t.done=true; t.marks=ms; save();
+  if(idx<trail.length-1){history.forward();return}           // redoing: on to the next batch you passed
+  const p=await pending();
+  if(!p.length){$('grid').innerHTML='<p style="padding:20px">All confirmed. Anything you marked red is under "Needs a look" on the full review page.</p>';$('count').textContent='done';return}
+  trail=trail.slice(0,idx+1).concat([{batch:p.slice(0,N)}]); idx=trail.length-1;
+  history.pushState({trail,idx},'','#b'+idx); render();
 }
-$('go').onclick=go; document.onkeydown=e=>{if(e.key=='Enter')go()};
-load();
+window.onpopstate=e=>{if(e.state){if(e.state.trail.length>=trail.length)trail=e.state.trail;idx=e.state.idx}render()};   // the longest trail wins: an older entry's copy is shorter
+$('go').onclick=go; $('prev').onclick=()=>history.back(); $('next').onclick=()=>history.forward();
+document.onkeydown=e=>{if(e.key=='Enter')go();if(e.key=='ArrowLeft')history.back();if(e.key=='ArrowRight')history.forward()};
+(async()=>{
+  if(history.state&&history.state.trail){trail=history.state.trail;idx=history.state.idx;render();return}
+  const p=await pending();
+  if(!p.length){$('count').textContent='nothing left to confirm';return}
+  trail=[{batch:p.slice(0,N)}];idx=0;save();render();
+})();
 </script>"""
 
 
@@ -323,6 +338,10 @@ class H(BaseHTTPRequestHandler):
                 for c in r.get("badcrop", []):
                     f.write(json.dumps(dict(date=c["date"], seq=c["seq"], box=boxes.get((c["date"], c["seq"])),
                                             label="bad-crop", by="person", at=at)) + "\n")
+                if r.get("redo"):             # a batch gone over again: crops now left unmarked are fine (last label per date wins)
+                    for c in r.get("okcrop", []):
+                        f.write(json.dumps(dict(date=c["date"], seq=c["seq"], box=boxes.get((c["date"], c["seq"])),
+                                                label="crop-ok", by="person", at=at)) + "\n")
             return self.send(json.dumps(dict(confirmed=len(r.get("confirm", [])), flagged=len(r.get("flag", [])),
                                              badcrop=len(r.get("badcrop", [])))))
         if self.path != "/api/decide":
