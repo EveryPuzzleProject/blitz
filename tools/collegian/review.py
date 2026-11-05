@@ -369,7 +369,9 @@ header{position:sticky;top:0;background:#fff;border-bottom:1px solid #ccc;paddin
 button,select{font:inherit;padding:5px 10px;border:1px solid #888;border-radius:5px;background:#fff;cursor:pointer}
 button.primary{background:#1d5c3a;color:#fff;border-color:#1d5c3a}
 #wrap{position:relative;display:block;margin:10px auto;max-width:2000px;cursor:crosshair;user-select:none}
-#pg{width:100%;display:block;background:#ddd}
+#pg{width:100%;display:block;background:#ddd;transition:opacity .15s}
+#wrap.loading #pg{opacity:.25}
+#loadmsg{position:absolute;left:0;right:0;top:140px;text-align:center;font-size:22px;font-weight:600;color:#1d5c3a;pointer-events:none}
 .bx{position:absolute;pointer-events:none;box-sizing:border-box}
 #mbox{border:3px dashed #f08c00}#hbox{border:3px solid #1d5c3a;background:#1d5c3a22}#dbox{border:3px solid #1c7ed6;background:#1c7ed622}
 small{color:#555}#key{padding:4px 14px;color:#555}
@@ -382,7 +384,7 @@ small{color:#555}#key{padding:4px 14px;color:#555}
 </header>
 <div id=key>Drag a rectangle round the whole puzzle: title, grid, clue lists and credit line. <span style="color:#f08c00">Orange dashed</span> = the machine's box,
  <span style="color:#1c7ed6">blue</span> = the one you are drawing, <span style="color:#1d5c3a">green</span> = your saved box.</div>
-<div id=wrap><img id=pg><div id=mbox class=bx></div><div id=hbox class=bx></div><div id=dbox class=bx></div></div>
+<div id=wrap><img id=pg><div id=loadmsg></div><div id=mbox class=bx></div><div id=hbox class=bx></div><div id=dbox class=bx></div></div>
 <div id=flash style="display:none;position:fixed;right:14px;bottom:14px;background:#1d5c3a;color:#fff;padding:10px 16px;border-radius:6px;z-index:5"></div>
 <script>
 const $=id=>document.getElementById(id);
@@ -402,7 +404,22 @@ function show(){
   draft=null;
   if(!cur){$('title').textContent='nothing here';$('pg').removeAttribute('src');draw();return}
   $('title').textContent=cur.date+' · page '+cur.seq+(cur.hand?' · hand-placed':cur.machine?'':' · no machine box')+(cur.label=='bad-crop'?' · you marked the crop bad':'');
-  const w=cur.W>9000?2800:1800; $('pg').onload=draw; $('pg').src='/thumb/'+cur.date+'/'+cur.seq+'.jpg?w='+w; draw(); window.scrollTo(0,0);
+  // the new page's image takes a moment: dim the old one, hide every box and say so until it has really loaded
+  const want=cur.date, im=$('pg'); loading(true);
+  im.onload=()=>{ if(!cur||cur.date!=want)return; loading(false); draw(); scrollToPuzzle() };
+  im.onerror=()=>{ loading(false); flash('The page image did not load: '+want) };
+  im.src=thumbUrl(cur);
+  list.filter(r=>r.date>cur.date).slice(0,3).forEach(r=>{new Image().src=thumbUrl(r)});    // warm the next pages
+}
+const thumbUrl=r=>'/thumb/'+r.date+'/'+r.seq+'.jpg?w='+(r.W>9000?2800:1800);
+function loading(on){
+  $('wrap').classList.toggle('loading',on);
+  $('loadmsg').textContent=on&&cur?'Loading '+cur.date+' page '+cur.seq+'…':'';
+  if(on)['mbox','hbox','dbox'].forEach(id=>$(id).style.display='none');
+}
+function scrollToPuzzle(){      // land on the puzzle, not the top of a tall page
+  const b=cur&&(cur.hand||cur.machine), im=$('pg');
+  window.scrollTo(0,b?Math.max(0,(b[1]/cur.H)*im.clientHeight-130):0);
 }
 function nav(date){location.hash=date}   // every move is a history entry: the mouse's back and forward buttons work
 window.onhashchange=()=>{const r=all.find(x=>x.date==location.hash.slice(1));if(r){cur=r;show()}};
