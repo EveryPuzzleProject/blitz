@@ -200,6 +200,43 @@ def cmd_prior(a):
     print(f"{n} issues got an era guess")
 
 
+def cmd_publish(a):
+    """Write the public index (no images) for the `collegian` repo from the scans data.
+
+    puzzles.tsv: one row per issue: the page a person (or the OCR) settled on, with a link
+    into Penn State's archive. exceptions.tsv is copied. Derived output: edit the sources.
+    """
+    import datetime
+    dec = {}
+    p = DATA / "decisions.jsonl"
+    if p.exists():
+        for line in p.read_text("utf8").splitlines():
+            if line.strip():
+                r = json.loads(line)
+                dec[r["date"]] = r
+    out = Path(a.to)
+    out.mkdir(parents=True, exist_ok=True)
+    lines = ["date\tweekday\tstatus\tpage\tkind\tdecided_by\tarchive_url"]
+    n = {}
+    for date, r in sorted(read_rows().items()):
+        d = dec.get(date)
+        if d:
+            status, seq, kind, by = d["verdict"], d.get("seq") or "", d.get("kind", "regular"), "person"
+        else:
+            status, seq, kind, by = r["verdict"], r.get("seq", ""), "", "ocr"
+        if status != "found":
+            seq = kind = ""
+        url = f"https://panewsarchive.psu.edu/lccn/{LCCN}/{date}/ed-1/seq-{seq}/" if seq else ""
+        wd = datetime.date.fromisoformat(date).strftime("%a")
+        lines.append("\t".join([date, wd, status, str(seq), kind, by, url]))
+        n[status] = n.get(status, 0) + 1
+    (out / "puzzles.tsv").write_text("\n".join(lines) + "\n", "utf8")
+    ex = DATA / "exceptions.tsv"
+    if ex.exists():
+        (out / "exceptions.tsv").write_text(ex.read_text("utf8"), "utf8")
+    print(f"{len(lines) - 1} issues -> {out/'puzzles.tsv'}  {n}")
+
+
 def cmd_report(a):
     rows = read_rows()
     from collections import Counter
@@ -226,6 +263,9 @@ def main():
     q.add_argument("--workers", type=int, default=4)
     q.set_defaults(fn=cmd_scan)
     sub.add_parser("report").set_defaults(fn=cmd_report)
+    q = sub.add_parser("publish", help="write the public index (puzzles.tsv, exceptions.tsv) for the collegian repo")
+    q.add_argument("--to", default=str(Path.home() / "Projects" / "collegian"))
+    q.set_defaults(fn=cmd_publish)
     sub.add_parser("prior", help="guess the page of issues without a hit from found issues nearby").set_defaults(fn=cmd_prior)
     a = p.parse_args()
     a.fn(a)
