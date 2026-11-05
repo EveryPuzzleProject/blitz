@@ -2077,7 +2077,8 @@ function addRow(s, key, label, box, flags = [], src = null) {
     show(!!why);
     if (why) row.suspect = true;
     const nm = row.querySelector('.num');
-    if (nm && why.includes('may not show it')) { nm.textContent = '?.'; nm.classList.add('odd'); nm.title = "this crop isn't this text's, so we don't know the printed number"; }
+    // with printed pairs the label comes from the word's end squares, not from the crop, so it stands
+    if (nm && why.includes('may not show it') && !linkedEnds()) { nm.textContent = '?.'; nm.classList.add('odd'); nm.title = "this crop isn't this text's, so we don't know the printed number"; }
   } else {
     btn.textContent = 'look for it on the whole page';
     btn.onclick = e => { e.stopPropagation(); showPage(); };
