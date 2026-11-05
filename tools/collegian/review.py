@@ -72,11 +72,11 @@ body{font:15px system-ui;margin:0;background:#f4f1ea;color:#222}
 header{position:sticky;top:0;background:#fff;border-bottom:1px solid #ccc;padding:8px 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;z-index:2}
 button,select{font:inherit;padding:5px 10px;border:1px solid #888;border-radius:5px;background:#fff;cursor:pointer}
 button.primary{background:#1d5c3a;color:#fff;border-color:#1d5c3a}
-.sheet{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:10px;padding:12px}
+.sheet{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px;padding:12px}
 .pg{background:#fff;border:3px solid transparent;position:relative;cursor:pointer}
-.pg img{width:100%;display:block;background:#222}
+.pg img{width:100%;display:block;background:#ddd;aspect-ratio:1.28/1;object-fit:contain}
 .pg:hover{border-color:#1d5c3a}
-.pg.cand{border-color:#d58a00}.pg.chosen{border-color:#1d5c3a}
+.pg.cand{border:6px solid #e8590c;box-shadow:0 0 0 4px #ffd8a8}.pg.chosen{border-color:#1d5c3a}
 .pg .n{position:absolute;left:0;top:0;background:#000b;color:#fff;padding:2px 8px;font-weight:700}
 .pg .tag{position:absolute;right:0;top:0;background:#d58a00;color:#fff;padding:2px 8px}
 .pg.chosen .tag{background:#1d5c3a}
@@ -112,15 +112,10 @@ function show(){
   if(!r){$('title').textContent='nothing here';return}
   const dow=new Date(r.date+'T12:00:00').toLocaleDateString('en-US',{weekday:'short'});
   $('title').textContent=r.date+' '+dow+' · '+r.pages+' pages · '+r.state+(r.by=='person'?' (you)':' (scan'+(r.scan_seq?', p'+r.scan_seq:'')+')');
-  const c=$('cand'); c.innerHTML='';
-  if(r.cand&&r.by=='scan'){
-    c.innerHTML='<div style="background:#fff;padding:8px;border:3px solid #d58a00"><b>Page '+r.cand+'</b> <small>('+r.why+')</small> '+
-      '<button class=primary onclick="decide(\'found\','+r.cand+')">Yes, the crossword is on page '+r.cand+' (y)</button>'+
-      '<br><img style="max-width:100%;margin-top:6px" src="/thumb/'+r.date+'/'+r.cand+'.jpg?w=1500"></div>';
-  }
+  for(let k=1;k<=3;k++){const q=list[i+k];if(q)for(let n=1;n<=q.pages;n++)new Image().src='/thumb/'+q.date+'/'+n+'.jpg?w=480';}
   for(let n=1;n<=r.pages;n++){
     const d=document.createElement('div'); d.className='pg'+(String(r.cand)==n&&r.by=='scan'?' cand':'')+(String(r.seq)==n&&r.by=='person'&&r.state=='found'?' chosen':'');
-    d.innerHTML='<img loading=lazy src="/thumb/'+r.date+'/'+n+'.jpg?w=560"><span class=n>'+n+'</span>'+
+    d.innerHTML='<img src="/thumb/'+r.date+'/'+n+'.jpg?w=480"><span class=n>'+n+'</span>'+
       (d.className.includes('cand')?'<span class=tag>guess</span>':'')+(d.className.includes('chosen')?'<span class=tag>your pick</span>':'')+
       '<a target=_blank href="/thumb/'+r.date+'/'+n+'.jpg?w=2400">big</a>';
     d.onclick=e=>{if(e.target.tagName!='A')decide('found',n)};
