@@ -103,7 +103,7 @@ small{color:#555}
  <button id=absent class=primary>No crossword this day (n)</button>
  <button id=unsure>Can't tell (u)</button>
  <button id=dl title="tags the next page you pick as a diagramless">Diagramless (d): off</button>
- <small id=count></small>
+ <small id=count></small> <a href="/confirm">confirm sheet</a>
 </header>
 <div id=cand style="padding:0 12px"></div>
 <div id=sheet class=sheet></div>
@@ -173,6 +173,83 @@ load();
 </script>"""
 
 
+def crop_boxes():
+    """crops.tsv (scan.py crops): the box around each puzzle, in image pixels."""
+    p, out = DATA / "crops.tsv", {}
+    if p.exists():
+        for line in p.read_text("utf8").splitlines()[1:]:
+            f = line.split("\t")
+            if len(f) >= 7 and f[2]:
+                out[(f[0], int(f[1]))] = [int(v) for v in f[2:6]]
+    return out
+
+
+def crop(date, seq, width):
+    box = crop_boxes().get((date, seq))
+    if not box:
+        return thumb(date, seq, width)          # no box recorded: the whole page
+    p = DATA / "cache" / "crop" / date / f"seq-{seq}-{width}.jpg"
+    if not p.exists():
+        m = scan.manifest(date)
+        iid = m["sequences"][0]["canvases"][seq - 1]["images"][0]["resource"]["@id"]
+        x, y, w, h = box
+        b = scan.get(f"{scan.BASE}{iid}/{x},{y},{w},{h}/{width},/0/default.jpg")
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(b)
+    return p.read_bytes()
+
+
+CONFIRM = r"""<!doctype html><meta charset=utf-8><title>Confirm the OCR's finds</title>
+<style>
+body{font:15px system-ui;margin:0;background:#f4f1ea;color:#222}
+header{position:sticky;top:0;background:#fff;border-bottom:1px solid #ccc;padding:8px 14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;z-index:2}
+button{font:inherit;padding:6px 14px;border:1px solid #888;border-radius:5px;background:#fff;cursor:pointer}
+button.primary{background:#1d5c3a;color:#fff;border-color:#1d5c3a}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:10px;padding:12px}
+.t{background:#fff;border:4px solid #fff;cursor:pointer;position:relative}
+.t img{width:100%;display:block;aspect-ratio:1.3/1;object-fit:contain;background:#ddd}
+.t .l{position:absolute;left:0;top:0;background:#000b;color:#fff;padding:2px 8px;font-size:13px}
+.t.bad{border-color:#d9480f;background:#ffe3d0}.t.bad .l{background:#d9480f}
+.t a{position:absolute;right:4px;bottom:4px;background:#fffd;padding:1px 6px;font-size:12px}
+small{color:#555}
+</style>
+<header><b>The OCR's finds: click any tile that is NOT a crossword</b>
+ <button id=go class=primary>Confirm the rest &rarr; (Enter)</button><small id=count></small>
+ <a href="/">full review page</a></header>
+<div id=grid class=grid></div>
+<script>
+const N=20,$=id=>document.getElementById(id);
+let todo=[],batch=[],bad=new Set();
+const src=r=>'/crop/'+r.date+'/'+r.seq+'.jpg?w=720';
+async function load(){
+  const all=await (await fetch('/api/issues')).json();
+  todo=all.filter(r=>r.by=='scan'&&r.state=='found'&&r.seq);
+  next();
+}
+function next(){
+  batch=todo.slice(0,N); bad=new Set(); $('grid').innerHTML='';
+  $('count').textContent=todo.length+' still to confirm';
+  batch.forEach(r=>{
+    const d=document.createElement('div'); d.className='t';
+    const wd=new Date(r.date+'T12:00:00').toLocaleDateString('en-US',{weekday:'short'});
+    d.innerHTML='<img src="'+src(r)+'"><span class=l>'+r.date+' '+wd+' · p'+r.seq+'/'+r.pages+'</span><a target=_blank href="/thumb/'+r.date+'/'+r.seq+'.jpg?w=2400">page</a>';
+    d.onclick=e=>{if(e.target.tagName=='A')return;if(bad.has(r.date)){bad.delete(r.date);d.classList.remove('bad')}else{bad.add(r.date);d.classList.add('bad')}$('go').textContent='Confirm the '+(batch.length-bad.size)+' others → (Enter)'};
+    $('grid').appendChild(d);
+  });
+  todo.slice(N,2*N).forEach(r=>{new Image().src=src(r)});
+  $('go').textContent='Confirm the rest → (Enter)'; window.scrollTo(0,0);
+  if(!batch.length)$('grid').innerHTML='<p style="padding:20px">All confirmed. Anything you flagged is under "Needs a look" on the full review page.</p>';
+}
+async function go(){
+  if(!batch.length)return;
+  await fetch('/api/bulk',{method:'POST',body:JSON.stringify({confirm:batch.filter(r=>!bad.has(r.date)).map(r=>({date:r.date,seq:+r.seq})),flag:[...bad]})});
+  todo=todo.slice(batch.length); next();
+}
+$('go').onclick=go; document.onkeydown=e=>{if(e.key=='Enter')go()};
+load();
+</script>"""
+
+
 class H(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
@@ -190,6 +267,15 @@ class H(BaseHTTPRequestHandler):
         u = urllib.parse.urlparse(self.path)
         if u.path == "/":
             return self.send(PAGE, "text/html; charset=utf-8")
+        if u.path == "/confirm":
+            return self.send(CONFIRM, "text/html; charset=utf-8")
+        if u.path.startswith("/crop/"):
+            date, seqf = u.path[6:].split("/")
+            w = int(urllib.parse.parse_qs(u.query).get("w", ["720"])[0])
+            try:
+                return self.send(crop(date, int(seqf.split(".")[0]), w), "image/jpeg")
+            except Exception as e:
+                return self.send(str(e), "text/plain", 502)
         if u.path == "/api/recent":   # dates of the last decisions, oldest first, so prev can redo them after a reload
             seen = []
             if DECISIONS.exists():
@@ -212,6 +298,18 @@ class H(BaseHTTPRequestHandler):
         self.send("not found", "text/plain", 404)
 
     def do_POST(self):
+        if self.path == "/api/bulk":
+            # the confirm sheet: tiles a person left alone are confirmed; tiles they clicked go back to "needs a look"
+            r = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            at = time.strftime("%Y-%m-%dT%H:%M:%S")
+            with open(DECISIONS, "a", encoding="utf8") as f:
+                for c in r.get("confirm", []):
+                    f.write(json.dumps(dict(date=c["date"], verdict="found", seq=c["seq"], kind="regular",
+                                            by="person", via="confirm-sheet", at=at)) + "\n")
+                for d in r.get("flag", []):
+                    f.write(json.dumps(dict(date=d, verdict="unsure", seq=None, kind="regular",
+                                            by="person", via="confirm-sheet: not a crossword", at=at)) + "\n")
+            return self.send(json.dumps(dict(confirmed=len(r.get("confirm", [])), flagged=len(r.get("flag", [])))))
         if self.path != "/api/decide":
             return self.send("not found", "text/plain", 404)
         r = json.loads(self.rfile.read(int(self.headers["Content-Length"])))

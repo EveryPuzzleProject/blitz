@@ -200,6 +200,88 @@ def cmd_prior(a):
     print(f"{n} issues got an era guess")
 
 
+def alto(date, seq):
+    """The page's ALTO OCR (word positions), kept gzipped under cache/alto/."""
+    import gzip
+    p = DATA / "cache" / "alto" / date / f"seq-{seq}.xml.gz"
+    if not p.exists():
+        b = get(f"{BASE}/lccn/{LCCN}/{date}/ed-1/seq-{seq}/ocr.xml") or b""
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(gzip.compress(b))
+    return gzip.decompress(p.read_bytes())
+
+
+def clue_box(xml, img_w, img_h):
+    """Where the puzzle is on a page, from its OCR lines: the dense cluster of clue lines
+    ("12 Stool", "Across", "Down"), widened to take in the grid beside it. Image pixels.
+    This is a locator for a person to confirm by eye, not a reading of the puzzle."""
+    import statistics
+    import xml.etree.ElementTree as ET
+    ns = "{http://www.loc.gov/standards/alto/ns-v2#}"
+    root = ET.fromstring(xml)
+    pg = root.find(f".//{ns}Page")
+    pw, ph = float(pg.get("WIDTH")), float(pg.get("HEIGHT"))
+    pts = []
+    for tl in root.iter(f"{ns}TextLine"):
+        text = " ".join(s.get("CONTENT", "") for s in tl.iter(f"{ns}String"))
+        if re.match(r"^\W*(\d{1,2}\s+[A-Z][a-z]|Across\b|Down\b)", text):
+            x, y, w, h = (float(tl.get(k)) for k in ("HPOS", "VPOS", "WIDTH", "HEIGHT"))
+            pts.append((x, y, x + w, y + h))
+    if len(pts) < 12:
+        return None
+    # the densest cluster: drop lines far from the median centre until most remain
+    cx = [(p[0] + p[2]) / 2 for p in pts]
+    cy = [(p[1] + p[3]) / 2 for p in pts]
+    mx, my = statistics.median(cx), statistics.median(cy)
+    dist = sorted(range(len(pts)), key=lambda i: abs(cx[i] - mx) / pw + abs(cy[i] - my) / ph)
+    keep = [pts[i] for i in dist[: max(12, int(len(pts) * 0.85))]]
+    x0, y0 = min(p[0] for p in keep), min(p[1] for p in keep)
+    x1, y1 = max(p[2] for p in keep), max(p[3] for p in keep)
+    bw, bh = x1 - x0, y1 - y0
+    x0, x1 = max(0, x0 - bw), min(pw, x1 + bw)           # the grid sits beside the clues
+    y0, y1 = max(0, y0 - 0.5 * bh), min(ph, y1 + 0.5 * bh)
+    sx, sy = img_w / pw, img_h / ph
+    return [round(x0 * sx), round(y0 * sy), round((x1 - x0) * sx), round((y1 - y0) * sy), len(pts)]
+
+
+def cmd_crops(a):
+    """crops.tsv: for each issue's puzzle page, a box around the puzzle (from the OCR's line positions)."""
+    dec = {}
+    p = DATA / "decisions.jsonl"
+    if p.exists():
+        for line in p.read_text("utf8").splitlines():
+            if line.strip():
+                r = json.loads(line)
+                dec[r["date"]] = r
+    todo = []
+    for date, r in sorted(read_rows().items()):
+        d = dec.get(date)
+        seq = (d.get("seq") if d and d["verdict"] == "found" else (r["seq"] if not d and r["verdict"] == "found" else None))
+        if seq:
+            todo.append((date, int(seq)))
+
+    def one(t):
+        date, seq = t
+        m = manifest(date)
+        cv = m["sequences"][0]["canvases"][seq - 1]
+        try:
+            box = clue_box(alto(date, seq), cv["width"], cv["height"])
+        except Exception as e:
+            return date, seq, None, f"error {e}"
+        return date, seq, box, "ocr-clue-lines" if box else "no-clue-lines"
+
+    out = ["date\tseq\tx\ty\tw\th\tclue_lines\tmethod"]
+    n = 0
+    with cf.ThreadPoolExecutor(a.workers) as ex:
+        for date, seq, box, how in ex.map(one, todo):
+            out.append("\t".join([date, str(seq)] + ([str(v) for v in box] if box else ["", "", "", "", ""]) + [how]))
+            n += bool(box)
+            if len(out) % 100 == 0:
+                print(f"  {len(out)-1}/{len(todo)}", flush=True)
+    (DATA / "crops.tsv").write_text("\n".join(out) + "\n", "utf8")
+    print(f"{n}/{len(todo)} pages got a box -> {DATA/'crops.tsv'}")
+
+
 def cmd_publish(a):
     """Write the public index (no images) for the `collegian` repo from the scans data.
 
@@ -263,6 +345,9 @@ def main():
     q.add_argument("--workers", type=int, default=4)
     q.set_defaults(fn=cmd_scan)
     sub.add_parser("report").set_defaults(fn=cmd_report)
+    q = sub.add_parser("crops", help="find a box around each puzzle from the OCR's line positions -> crops.tsv")
+    q.add_argument("--workers", type=int, default=4)
+    q.set_defaults(fn=cmd_crops)
     q = sub.add_parser("publish", help="write the public index (puzzles.tsv, exceptions.tsv) for the collegian repo")
     q.add_argument("--to", default=str(Path.home() / "Projects" / "collegian"))
     q.set_defaults(fn=cmd_publish)
