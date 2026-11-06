@@ -3,20 +3,22 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Every Puzzle Project</title>
-<meta name="description" content="A research archive of early crosswords, transcribed from scans of the pages they were printed on. Volunteers help by directing their Claude to check each transcription against the scan.">
+<title>Blitz: Every Puzzle Project</title>
+<meta name="description" content="Blitz is the Every Puzzle Project's transcription and review tool. OCR built for the project drafts each old crossword from its scan; people and their Claude check every square and clue against the page before the puzzle joins the xd Crossword Corpus.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Every Puzzle Project">
-<meta property="og:title" content="Every Puzzle Project: Blitz">
-<meta property="og:description" content="A research archive of early crosswords, transcribed from scans of the pages they were printed on. Volunteers help by directing their Claude to check each transcription against the scan.">
+<meta property="og:title" content="Blitz: check old crosswords against their scans">
+<meta property="og:description" content="Blitz is the Every Puzzle Project's transcription and review tool. OCR built for the project drafts each old crossword from its scan; people and their Claude check every square and clue against the page before the puzzle joins the xd Crossword Corpus.">
 <meta property="og:url" content="https://blitz.xwordapp.com/">
 <meta property="og:image" content="https://blitz.xwordapp.com/img/social-card.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="Judge magazine's November 15, 1924 cover, a full-page crossword, beside the words: Bringing old crosswords back">
+<meta property="og:image:alt" content="Judge magazine's November 15, 1924 cover, a full-page crossword, beside the words: Check old crosswords against their scans">
 <meta name="twitter:card" content="summary_large_image">
+<link rel="canonical" href="https://blitz.xwordapp.com/">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 3 3%27%3E%3Crect width=%273%27 height=%273%27 fill=%27%23fff%27/%3E%3Crect width=%271%27 height=%271%27 fill=%27%231d1b17%27/%3E%3Crect x=%272%27 y=%272%27 width=%271%27 height=%271%27 fill=%27%231d1b17%27/%3E%3C/svg%3E">
-<link rel="stylesheet" href="style.css?v=202610021023">
+<link rel="stylesheet" href="https://everypuzzleproject.org/site.css">
+<link rel="stylesheet" href="style.css?v=202611061">
 <style>
   :root { --st-restored: var(--good); --st-person: #d9822b; --st-review: var(--accent); --st-open: color-mix(in srgb, var(--accent) 22%, var(--surface));
     --st-later: var(--line); }
@@ -66,36 +68,41 @@
   .people { display: flex; flex-wrap: wrap; gap: 10px; }
   .people a { display: flex; align-items: center; gap: 6px; text-decoration: none; font-size: 14px; color: var(--ink); }
   .people img { width: 28px; height: 28px; border-radius: 50%; }
-  .top a.nav { margin-left: auto; font: 500 15px var(--sans); color: var(--accent); }
-  .blog { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin: 28px 0 8px; }
-  .blog a { display: block; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px;
+  .ways { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; margin: 18px 0 8px; }
+  .ways a { display: block; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px;
     text-decoration: none; color: var(--ink); }
-  .blog a:hover { border-color: var(--accent); }
-  .blog small { display: block; font: 600 12px var(--sans); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
-  .blog b { display: block; font: 600 18px/1.3 var(--serif); margin-top: 4px; }
+  .ways a:hover { border-color: var(--accent); }
+  .ways b { display: block; font: 600 18px/1.3 var(--serif); }
+  .ways p { margin: 6px 0 0; font-size: 14.5px; color: var(--muted); }
+  .ways .go { display: block; margin-top: 8px; font-size: 14px; color: var(--accent); }
+  .open-now { font-size: 15px; margin: 14px 0 0; }
   @media (max-width: 560px) { .years { grid-template-columns: 1fr; } .pct { text-align: left; } .big { font-size: 46px; } }
 </style>
 </head>
 <body>
-<header class="top"><div class="wrap"><a href="./">Every Puzzle Project</a><span class="muted">Blitz</span><a class="nav" href="blog/">Blog</a></div></header>
+<header class="epp-header"><div class="wrap">
+  <a href="https://everypuzzleproject.org/">Every Puzzle Project</a><span class="epp-page">Blitz</span>
+  <nav><a href="review/">Review site</a><a href="https://github.com/EveryPuzzleProject/blitz#how-to-help">How to help</a><a href="https://everypuzzleproject.org/blog/">Blog</a></nav>
+</div></header>
 <main class="wrap">
   <div class="hero"><div>
-  <h1>Bringing old crosswords back</h1>
-  <p class="lede">Most old crosswords survive only on paper, or as page scans in digital library archives: you can look at
-    them, but not search or study them. We're turning them into <a href="https://github.com/century-arcade/xdformat">xd</a> files, an open text format, so they can
-    join a research archive of crosswords and be discoverable again.</p>
-  <p class="ask">Have a Claude account? Ever have usage left over at the end of the week?</p>
-  <p class="lede muted" style="font-size:16px">OCR built for this project has made a first draft of every puzzle. Volunteers contribute to the project by directing their Claude
-    to check each draft against the scan, square by square and clue by clue.
-    It takes around 80k tokens to review a single puzzle. How much you contribute is up to you.</p>
-  <a class="cta" href="https://github.com/EveryPuzzleProject/blitz#how-to-help">Get involved</a>
+  <h1>Blitz: check old crosswords against their scans</h1>
+  <p class="lede">Blitz is the <a href="https://everypuzzleproject.org/">Every Puzzle Project</a>'s transcription and
+    review tool. OCR built for the project drafts each puzzle from its scan as an
+    <a href="https://github.com/century-arcade/xdformat">xd</a> file; people and their Claude check every square and
+    clue against the page, so the puzzle is archived as it was printed. Checked puzzles join the xd Crossword Corpus.</p>
+  <div class="ways">
+    <a href="review/"><b>Check puzzles in your browser</b>
+      <p>The review site shows each puzzle beside its scan, clue by clue. Confirm what's right, flag what isn't.
+        No account needed.</p><span class="go">Open the review site →</span></a>
+    <a href="https://github.com/EveryPuzzleProject/blitz#how-to-help"><b>Direct your Claude</b>
+      <p>Have a Claude account with usage to spare? Paste one prompt and your Claude checks a puzzle square by square
+        and sends its corrections as a pull request in your name. About 80k tokens a puzzle.</p><span class="go">How to help →</span></a>
+  </div>
+  <p class="open-now" id="open-now"><span class="muted">Loading what's open for review…</span></p>
   </div>
   <figure><img src="img/judge1924-11-15-cover-crossword.jpg" alt="Judge's cover for November 15, 1924: a full-page crossword printed over an illustration">
     <figcaption>November 15, 1924: at the height of the <a href="https://crosswordcraze.today">1924 crossword craze</a>, the whole cover was a crossword.</figcaption></figure>
-  </div>
-  <div class="blog">
-    <a href="blog/pelham.html"><small>From the blog</small><b>The Harvard student behind two of <i>Judge</i>'s most creative crosswords</b></a>
-    <a href="blog/judge.html"><small>From the blog</small><b><i>Judge</i>, 1924–1939: our first full series</b></a>
   </div>
   <div id="pubs"><p class="muted">Loading progress…</p></div>
   <h2>Contributors</h2>
@@ -103,8 +110,10 @@
 </main>
 <script src="puzzle.js?v=202610111500"></script>
 <script>
-const PUBS = [{id: 'judge', name: 'Judge', years: '1924–1939 (scans so far)'},
-              {id: 'games', name: 'GAMES', years: '1977–1999 (scans so far)'}];
+// The publications: everypuzzleproject.org's registry, kept to the ones whose repo has a
+// blitz puzzles.tsv (an xdid and a state a row). A publication the blitz tools don't sync
+// yet has no board here; the registry's own card is on the home page.
+const REGISTRY = 'https://everypuzzleproject.org/publications.json';
 const MILESTONES = [50, 100, 150, 200, 250, 300, 350, 400, 450, 500, 600, 700, 800, 900, 1000];
 // Display order, label, and swatch for each state. A puzzle counts toward 100% once restored.
 const STATES = [
@@ -120,6 +129,13 @@ const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&
 const label = r => `${r.number ? `No. ${r.number} · ` : ''}${puzzleDate(r.date)}`;
 
 (async () => {
+  const from = new URLSearchParams(location.search).get('from');
+  const reg = await fetch(REGISTRY, {cache: 'no-cache'}).then(r => r.json());
+  const PUBS = (await Promise.all(reg.publications.map(async pub => {
+    const rows = await loadStates(pub.id, from).catch(() => []);
+    return rows.length && rows[0].xdid && rows[0].state ? {...pub, rows} : null;
+  }))).filter(Boolean);
+  if (!PUBS.length) throw new Error('no publication has a puzzles.tsv');
   // Each publication's repo: reviews merged (reviews/<puzzle>/review.json), claims (open pull
   // requests), and volunteers who asked to be listed (contributors/<login>).
   const repos = await Promise.all(PUBS.map(pub => Promise.all([
@@ -132,7 +148,7 @@ const label = r => `${r.number ? `No. ${r.number} · ` : ''}${puzzleDate(r.date)
 
   let html = '';
   for (const pub of PUBS) {
-    const rows = await loadStates(pub.id, new URLSearchParams(location.search).get('from'));
+    const rows = pub.rows;
     // Live states: a claimed puzzle, or a volunteer review merged but not yet imported, is in review.
     for (const r of rows) if (r.state === 'open' && (claimed.has(r.xdid) || reviewed.has(r.xdid))) r.state = 'review';
     const n = Object.fromEntries(STATES.map(([s]) => [s, 0]));
@@ -183,13 +199,22 @@ const label = r => `${r.number ? `No. ${r.number} · ` : ''}${puzzleDate(r.date)
     </section>`;
   }
   document.getElementById('pubs').innerHTML = `<h2>Progress</h2>${html}`;
+  // What a volunteer can pick up right now, one line.
+  const open = PUBS.map(pub => {
+    const n = pub.rows.filter(r => r.state === 'open').length, p = pub.rows.filter(r => r.state === 'needs-person').length;
+    return n || p ? `<i>${esc(pub.name)}</i>: ${[n ? `<b>${n}</b> open for review` : '', p ? `<b>${p}</b> need a person` : ''].filter(Boolean).join(', ')}` : '';
+  }).filter(Boolean);
+  document.getElementById('open-now').innerHTML = open.length
+    ? `<b>Open now</b> · ${open.join(' · ')} · <a href="review/">go to the review site</a>`
+    : 'Nothing is open for review right now; the next batch is on its way.';
 
   // Only volunteers who asked to be listed: an empty file contributors/<login> on main.
   const people = [...new Set(paths.map(p => p.match(/^contributors\/([A-Za-z0-9-]+)$/)?.[1]).filter(Boolean))];
   document.getElementById('people').innerHTML = people.length ? people.map(u =>
     `<a href="https://github.com/${esc(u)}"><img src="https://github.com/${esc(u)}.png?size=56" alt="">${esc(u)}</a>`).join('')
     : '<span class="muted">You could be first.</span>';
-})().catch(e => document.getElementById('pubs').innerHTML = `<p class="muted">Couldn't load progress (${esc(e.message)}).</p>`);
+})().catch(e => { document.getElementById('pubs').innerHTML = `<p class="muted">Couldn't load progress (${esc(e.message)}).</p>`;
+  document.getElementById('open-now').innerHTML = `See what's open on the <a href="review/">review site</a>.`; });
 </script>
 </body>
 </html>
