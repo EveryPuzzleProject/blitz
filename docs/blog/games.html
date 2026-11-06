@@ -62,26 +62,24 @@
 <ul>
   <li><b>Several puzzles to a page,</b> beside word games, quizzes and logic puzzles. A crossword's clue list may
     sit nearer to a neighbouring quiz than to its own grid.</li>
-  <li><b>The answers are at the back,</b> in the "Answer Drawer", pages away from the puzzle, in whatever order
-    the editors chose.</li>
+  <li><b>The answers are at the back,</b> in the "Answer Drawer", pages away from the puzzle.</li>
   <li><b>Two clue sets.</b> Each issue's 25x25 giant, such as "The World's Most Ornery Crossword", prints two
     full sets of clues, Hard and Easier, often folded across pages.</li>
   <li><b>Cryptics beside crosswords.</b> A cryptic page carries a 5x5 or 7x7 warm-up next to the 15x15, with one
-    heading between them, and its answers are printed as prose explanations with no grid at all.</li>
+    heading between them, and its answers are printed as prose, with no grid at all.</li>
 </ul>
 
 <p>The pipeline that finished <i>Judge</i> assumed one puzzle, one key, one clue list. For <i>GAMES</i> we
   rebuilt it as named stages, each writing its own record: harvest, the regions on each page, the parts read in
   each region, an assembly that links parts into puzzles, a "text step" in which Claude reads the printed lines
-  near a puzzle and says which is the title and which the byline, then proof packets and triage. We call this
-  v2.</p>
+  near a puzzle and says which is the title and which the byline, then proof packets and triage. This is v2.</p>
 
 <h2>1977–79: steering by hand</h2>
 
 <p>archive.org has 34 issues of <i>GAMES</i> for 1977–82. The first three years became 81 puzzles on v2: 75
   from a box review in which a person outlined every puzzle on every page, plus six the pipeline found on its
-  own. Getting them to a reviewable state took fifteen runs. Each run was a person diagnosing a kind of failure,
-  a fix to a stage, and the batch re-run. On the last of them, 10 of 76 puzzles still needed work.</p>
+  own. Getting them to a reviewable state took fifteen runs, each a person diagnosing a kind of failure, a fix to
+  a stage, and the batch re-run. On the last of them, 10 of 76 puzzles still needed work.</p>
 
 <p>The text step was cheap: about 7,800 tokens a puzzle, 6% of a week's Claude Fable allowance for all 81.
   On 21 October 2026 the batch went up on the <a href="https://blitz.xwordapp.com/review/">review site</a>:
@@ -90,7 +88,7 @@
 <h2>1980–82: hands off, and measured</h2>
 
 <p>Fifteen runs is not a process. So the next three years were run differently: one orchestrating session, no
-  code changes, no person steering, every cost and failure written down as it happened. The question was what
+  code changes, no person steering, every cost and failure written down as it happened. The questions were what
   v2 could do on pages it had never been tuned on, and what a puzzle costs.</p>
 
 <div class="stats">
@@ -117,17 +115,15 @@
 <p>The first triage put 68 of the 125 in Needs work, 52 in Ready for review, and dropped 5 as not crosswords.
   A remedy agent then went over the 68, restarting a stage for one puzzle at a time. It fixed none outright.
   Seven it restarted from the parts stage, and six of those came through ready; the rest it could only diagnose
-  and flag. The run ended at 62 Needs work, 58 Ready for review, 5 not crosswords. 1977–79 reached 10 Needs work
-  only after fifteen runs.</p>
+  and flag. The run ended at 62 Needs work, 58 Ready for review, 5 not crosswords.</p>
 
 <h3>Where it failed</h3>
 
 <p>Triage records a reason for every held puzzle, so the failures come as counts. Of the 68, 42 had a title or
   byline the text step had typed that no stage had read; 26 had a part the model's verdict called missing; 25
   waited for a page never fetched, mostly cryptic keys in the Answer Drawer; 19 had clues unread; 17 had no key;
-  17 had a clue list that belonged to another puzzle.</p>
-
-<p>Behind the counts are a few kinds of failure, nearly all of them <i>GAMES</i>-shaped:</p>
+  17 had a clue list that belonged to another puzzle. Behind the counts are a few kinds of failure, nearly all
+  of them <i>GAMES</i>-shaped:</p>
 
 <ul>
   <li><b>Assembly takes a neighbour as a clue list.</b> A quiz beside the grid becomes its Across or Down list,
@@ -149,7 +145,7 @@
   point of recording where each value came from. But it fixed the rule for good: <b>no agent ever types puzzle
   content from a scan.</b> It looks at a crop to diagnose which stage went wrong; it never produces a clue, an
   answer or a header the toolchain didn't deliver. A value typed by hand shows as typed by hand, and counts
-  against the puzzle in triage.</p>
+  against the puzzle.</p>
 
 <h2>The gate nobody staffed</h2>
 
@@ -160,7 +156,7 @@
 
 <p>Two experiments on the 62 ready puzzles pointed at the answer. An AI proof review, Claude reading the proof
   sheets as images, passed 42 and held 20 with yes/no questions, at about 900,000 input tokens a puzzle. A check
-  with no model at all, which asks only whether the puzzle is complete and whether any stage recorded a doubt,
+  with no model at all, asking only whether the puzzle is complete and whether any stage recorded a doubt,
   passed 29 of the 62, and caught 17 of the 20 the AI had held.</p>
 
 <p>So the human gate became a <b>ship gate</b> with three paths. A puzzle that passes every check ships with no
@@ -168,9 +164,9 @@
   set present when the page promises one, no recorded doubt, nothing in a clue that a clean transcription never
   has. A puzzle the check holds goes to an <b>AI proof reviewer</b> that reads the puzzle as text, with crops
   only of the flagged items, chosen by code, never the proof sheets as pixels. It answers Ready or Not ready with
-  one yes/no question per flag, recorded in exactly the form a person's review takes, with the model's name on
-  it. What the reviewer holds, or triage could not finish, goes to a person with a diagnosis and a link to the
-  right row of the proof page. An incomplete puzzle never ships, whoever said Ready.</p>
+  one yes/no question per flag, recorded in the form a person's review takes, with the model's name on it. What
+  it holds, or triage could not finish, goes to a person with a diagnosis and a link to the right row of the
+  proof page. An incomplete puzzle never ships, whoever said Ready.</p>
 
 <p>On 27 October 2026 the check passed 34 of 66 ready puzzles in 1977–79 and 39 of 58 in 1980–82; the reviewer,
   on Claude Opus at about 20,000 tokens a puzzle, passed a few more. Under the new rule, 1977–79 ships 40 of its
@@ -204,7 +200,7 @@
   <i>GAMES</i>-shaped, and tuning assembly to every one of its layouts would be over-fitting to a magazine no
   newspaper resembles. So the fixes allowed between batches are generic: a heading links to the largest grid
   beneath it; a block whose numbering doesn't fit the grid isn't its clue list; a puzzle's kind is classified at
-  triage, with a policy for each kind. The fold pages, two-player lists and digit keys wait.</p>
+  triage, with a policy per kind. The fold pages, two-player lists and digit keys wait.</p>
 
 <h2>Where <i>GAMES</i> stands</h2>
 
@@ -225,8 +221,7 @@
 <p class="note">This is a research archive: a record of puzzles as they were printed, each linked to its source
   scan, for a corpus where they can be searched, counted and compared. <i>GAMES</i> is in copyright, so this post
   shows no pages, crops, clues or grids, only what the process recorded. The numbers come from the project's
-  design notes of 17–27 October 2026, in the <a href="https://github.com/EveryPuzzleProject/blitz">blitz</a>
-  repo.</p>
+  design notes of 17–27 October 2026, in the <a href="https://github.com/EveryPuzzleProject/blitz">blitz</a> repo.</p>
 
 </main>
 </body>
