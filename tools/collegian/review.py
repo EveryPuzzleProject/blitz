@@ -93,6 +93,20 @@ def thumb(date, seq, width):
     return p.read_bytes()
 
 
+def page_image(date, seq, w):
+    """The page at w px or more: the smallest copy on disk (answers.py's detection images in cache/answers, the
+    thumbnails in cache/thumb), else fetched from the archive at w and cached like a thumbnail."""
+    import re
+    have = []
+    for d, pat in ((DATA / "cache" / "answers" / date, rf"seq-{seq}-w(\d+)\.jpg"), (DATA / "cache" / "thumb" / date, rf"seq-{seq}-(\d+)\.jpg")):
+        for f in (d.glob(f"seq-{seq}-*.jpg") if d.exists() else []):
+            m = re.fullmatch(pat, f.name)
+            if m:
+                have.append((int(m.group(1)), f))
+    ok = sorted((n, f) for n, f in have if n >= w)
+    return ok[0][1].read_bytes() if ok else thumb(date, seq, w)
+
+
 PAGE = r"""<!doctype html><meta charset=utf-8><title>Collegian crosswords</title>
 <style>
 body{font:15px system-ui;margin:0;background:#f4f1ea;color:#222}
@@ -535,6 +549,13 @@ class H(BaseHTTPRequestHandler):
             return self.send(json.dumps(seen[-30:]))
         if u.path == "/api/issues":
             return self.send(json.dumps(issues()))
+        if u.path.startswith("/pageimg/"):   # a page at >= w px: the smallest copy already on disk, else fetched once
+            date, seqf = u.path[9:].split("/")
+            w = int(urllib.parse.parse_qs(u.query).get("w", ["1200"])[0])
+            try:
+                return self.send(page_image(date, int(seqf.split(".")[0]), w), "image/jpeg")
+            except Exception as e:
+                return self.send(str(e), "text/plain", 502)
         if u.path.startswith("/thumb/"):
             date, seqf = u.path[7:].split("/")
             w = int(urllib.parse.parse_qs(u.query).get("w", ["700"])[0])
