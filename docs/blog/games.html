@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GAMES magazine: the hard case</title>
+<meta name="description" content="After Judge, the Every Puzzle Project took on GAMES magazine, 1977 onward: crowded pages, an Answer Drawer at the back, giants with two clue sets, cryptics beside crosswords. What the first 206 puzzles taught us about OCR, and about process.">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Every Puzzle Project">
+<meta property="og:title" content="GAMES magazine: the hard case">
+<meta property="og:description" content="What a crowded puzzle page teaches an OCR pipeline: GAMES 1977–82, a hands-off run measured to the cent, an empty review queue, and the gate we built instead.">
+<meta property="og:url" content="https://blitz.xwordapp.com/blog/games.html">
+<meta property="og:image" content="https://blitz.xwordapp.com/img/social-card.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 3 3%27%3E%3Crect width=%273%27 height=%273%27 fill=%27%23fff%27/%3E%3Crect width=%271%27 height=%271%27 fill=%27%231d1b17%27/%3E%3Crect x=%272%27 y=%272%27 width=%271%27 height=%271%27 fill=%27%231d1b17%27/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../style.css?v=202610021023">
+<style>
+  .post { max-width: 700px; }
+  .post p, .post li { font: 18px/1.6 var(--serif); }
+  .post li { margin: 4px 0; }
+  .post h1 { font-size: 34px; margin-top: 12px; }
+  .post h2 { font-size: 24px; margin-top: 40px; }
+  .post h3 { font: 600 19px var(--serif); margin: 28px 0 6px; }
+  .dek { font: 20px/1.5 var(--serif); color: var(--muted); margin: 6px 0 0; }
+  .byline { font-size: 14px; color: var(--muted); margin: 10px 0 24px; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 10px; margin: 24px 0; }
+  .stat { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .stat b { display: block; font: 700 30px/1.1 var(--serif); }
+  .stat span { font-size: 14px; color: var(--muted); }
+  .costs-wrap { overflow-x: auto; }
+  .costs { width: 100%; border-collapse: collapse; margin: 20px 0 6px; font: 15px/1.4 var(--sans); }
+  .costs th, .costs td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .costs th { font-weight: 600; color: var(--muted); font-size: 13px; }
+  .costs td small { display: block; color: var(--muted); font-size: 13px; }
+  .costs td.n, .costs th.n { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .post p.costs-note { font: 14px/1.45 var(--sans); color: var(--muted); margin: 4px 0 20px; }
+  .note { border-left: 3px solid var(--line); padding: 2px 0 2px 14px; color: var(--muted); }
+  @media (max-width: 520px) { .post p, .post li { font-size: 17px; } .post h1 { font-size: 28px; } }
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap"><a href="../">Every Puzzle Project</a><a class="muted" href="./" style="font: inherit; color: var(--muted)">Blog</a></div></header>
+<main class="wrap post">
+
+<h1><i>GAMES</i> magazine: the hard case</h1>
+<p class="dek">After <i>Judge</i>, we chose the hardest pages we could find. <i>GAMES</i>, 1977 to 1982, taught us less about
+  reading crosswords than about running a pipeline: what to record, what never to recompute, and who should be
+  waiting at the end of it.</p>
+<p class="byline">Every Puzzle Project · 6 November 2026</p>
+
+<p><a href="judge.html"><i>Judge</i></a> was a kind publication. One crossword to a page, an answer key a week later,
+  clean type, and all of it in the public domain. When its 531 puzzles were in
+  <a href="https://github.com/century-arcade/xdformat">xd</a>, the next publication was chosen for the opposite
+  reasons. <i>GAMES</i> is an American puzzle magazine, first published in September 1977; from 1979 its puzzle
+  pages, "Pencilwise", were edited by Will Shortz, and its constructors include William Lutwiniak, Merl Reagle,
+  Mike Shenk, Henry Hook and Stanley Newman. If the tools could read <i>GAMES</i>, they could read almost
+  anything. They mostly can. But the lessons were not the ones we expected.</p>
+
+<h2>Why <i>GAMES</i> is hard</h2>
+
+<p>It is a magazine about puzzles, laid out to delight a reader rather than a scanner.</p>
+
+<ul>
+  <li><b>Several puzzles to a page,</b> beside word games, quizzes and logic puzzles. A crossword's clue list may
+    sit nearer to a neighbouring quiz than to its own grid.</li>
+  <li><b>The answers are at the back,</b> in the "Answer Drawer", pages away from the puzzle.</li>
+  <li><b>Two clue sets.</b> Each issue's 25x25 giant, such as "The World's Most Ornery Crossword", prints two
+    full sets of clues, Hard and Easier, often folded across pages.</li>
+  <li><b>Cryptics beside crosswords.</b> A cryptic page carries a 5x5 or 7x7 warm-up next to the 15x15, with one
+    heading between them, and its answers are printed as prose, with no grid at all.</li>
+</ul>
+
+<p>The pipeline that finished <i>Judge</i> assumed one puzzle, one key, one clue list. For <i>GAMES</i> we
+  rebuilt it as named stages, each writing its own record: harvest, the regions on each page, the parts read in
+  each region, an assembly that links parts into puzzles, a "text step" in which Claude reads the printed lines
+  near a puzzle and says which is the title and which the byline, then proof packets and triage. This is v2.</p>
+
+<h2>1977–79: steering by hand</h2>
+
+<p>archive.org has 34 issues of <i>GAMES</i> for 1977–82. The first three years became 81 puzzles on v2: 75
+  from a box review in which a person outlined every puzzle on every page, plus six the pipeline found on its
+  own. Getting them to a reviewable state took fifteen runs, each a person diagnosing a kind of failure, a fix to
+  a stage, and the batch re-run. On the last of them, 10 of 76 puzzles still needed work.</p>
+
+<p>The text step was cheap: about 7,800 tokens a puzzle, 6% of a week's Claude Fable allowance for all 81.
+  On 21 October 2026 the batch went up on the <a href="https://blitz.xwordapp.com/review/">review site</a>:
+  62 puzzles ready for review, 7 needing work, 3 set aside, 6 dropped as not crosswords.</p>
+
+<h2>1980–82: hands off, and measured</h2>
+
+<p>Fifteen runs is not a process. So the next three years were run differently: one orchestrating session, no
+  code changes, no person steering, every cost and failure written down as it happened. The questions were what
+  v2 could do on pages it had never been tuned on, and what a puzzle costs.</p>
+
+<div class="stats">
+  <div class="stat"><b>125</b><span>puzzles assembled from the stored OCR, in 13 batches of 10</span></div>
+  <div class="stat"><b>11 min</b><span>for the text step on all 125, twelve agents at once</span></div>
+  <div class="stat"><b>$0.39</b><span>a puzzle at API prices, all roles, before any review</span></div>
+  <div class="stat"><b>13%</b><span>of a week's Fable allowance for the text step</span></div>
+</div>
+
+<div class="costs-wrap"><table class="costs">
+  <thead><tr><th>Role</th><th class="n">API cost, 125 puzzles</th><th class="n">A puzzle</th></tr></thead>
+  <tbody>
+    <tr><td>Text step: reads the printed lines, names the headers, labels the rest<small>Fable 5.1</small></td><td class="n">$35.27</td><td class="n">$0.28</td></tr>
+    <tr><td>Text step again, for 8 restarted puzzles<small>Fable 5.1</small></td><td class="n">$1.73</td><td class="n">$0.01</td></tr>
+    <tr><td>Remedy agent: three passes over the 68 puzzles that needed work<small>Sonnet 5.5</small></td><td class="n">$4.12</td><td class="n">$0.03</td></tr>
+    <tr><td>Orchestration<small>Opus 5.5</small></td><td class="n">$9.30</td><td class="n">$0.07</td></tr>
+    <tr><td><b>Total</b></td><td class="n"><b>$48.69</b></td><td class="n"><b>$0.39</b></td></tr>
+  </tbody>
+</table></div>
+<p class="costs-note">The run of 21 October 2026, at first-party API list prices. We ran it on a subscription's
+  allowance, not the API; the dollars are the comparable figure. The text step's 12,100 billable tokens a
+  puzzle count input, cache writes and output; it also read about 135,000 cached tokens a puzzle.</p>
+
+<p>The first triage put 68 of the 125 in Needs work, 52 in Ready for review, and dropped 5 as not crosswords.
+  A remedy agent then went over the 68, restarting a stage for one puzzle at a time. It fixed none outright.
+  Seven it restarted from the parts stage, and six of those came through ready; the rest it could only diagnose
+  and flag. The run ended at 62 Needs work, 58 Ready for review, 5 not crosswords.</p>
+
+<h3>Where it failed</h3>
+
+<p>Triage records a reason for every held puzzle, so the failures come as counts. Of the 68, 42 had a title or
+  byline the text step had typed that no stage had read; 26 had a part the model's verdict called missing; 25
+  waited for a page never fetched, mostly cryptic keys in the Answer Drawer; 19 had clues unread; 17 had no key;
+  17 had a clue list that belonged to another puzzle. Behind the counts are a few kinds of failure, nearly all
+  of them <i>GAMES</i>-shaped:</p>
+
+<ul>
+  <li><b>Assembly takes a neighbour as a clue list.</b> A quiz beside the grid becomes its Across or Down list,
+    often in 1982's denser layouts.</li>
+  <li><b>The cryptic's heading goes to the warm-up.</b> On every page with a small warm-up beside the 15x15, the
+    "Cryptic Crossword / by …" lines link to the small grid, and the big one has no title.</li>
+  <li><b>Cryptic keys are never asked for.</b> Assembly expects a grid for a key, and a cryptic's answers are
+    prose, so no request for the Answer Drawer page was raised. The request loop ran 13 minutes and fetched
+    nothing. When those explanation blocks are found, they look like "another list that fits the grid".</li>
+  <li><b>Keys taken by the wrong grid.</b> A contest's example grid was linked as another puzzle's key; a giant's
+    21x21 key, read on a second uploader's scan, was left as three fragments under "keys with no puzzle".</li>
+  <li><b>What the reader has no symbol for:</b> digit-theme keys, rebus squares, a two-player puzzle with an
+    "A" and a "B" clue list for one grid.</li>
+</ul>
+
+<p>One finding mattered more than the rest. The text step, asked to label lines, sometimes wrote values no stage
+  had read: titles and bylines for about 20 puzzles, flagged unsure, and for five unkeyed cryptic warm-ups,
+  solved answers. That is transcription, or solving, by another name. Triage caught every one, which is the
+  point of recording where each value came from. But it fixed the rule for good: <b>no agent ever types puzzle
+  content from a scan.</b> It looks at a crop to diagnose which stage went wrong; it never produces a clue, an
+  answer or a header the toolchain didn't deliver. A value typed by hand shows as typed by hand, and counts
+  against the puzzle.</p>
+
+<h2>The gate nobody staffed</h2>
+
+<p>The 1977–79 batch had been on the review site for six days when we counted: eight decisions, all "needs work",
+  from one helper. The ledger held four Ready, none from the maintainer. Our ship rule, one Ready and no Not
+  ready, meant nothing could reach the corpus until someone read every puzzle against its scan, and nobody was
+  going to read 700 of them. The pipeline had been tuned, run after run, to feed a gate that stood empty.</p>
+
+<p>Two experiments on the 62 ready puzzles pointed at the answer. An AI proof review, Claude reading the proof
+  sheets as images, passed 42 and held 20 with yes/no questions, at about 900,000 input tokens a puzzle. A check
+  with no model at all, asking only whether the puzzle is complete and whether any stage recorded a doubt,
+  passed 29 of the 62, and caught 17 of the 20 the AI had held.</p>
+
+<p>So the human gate became a <b>ship gate</b> with three paths. A puzzle that passes every check ships with no
+  model: every slot clued, the grid solved or its key confirmed not printed, numbering consistent, a second clue
+  set present when the page promises one, no recorded doubt, nothing in a clue that a clean transcription never
+  has. A puzzle the check holds goes to an <b>AI proof reviewer</b> that reads the puzzle as text, with crops
+  only of the flagged items, chosen by code, never the proof sheets as pixels. It answers Ready or Not ready with
+  one yes/no question per flag, recorded in the form a person's review takes, with the model's name on it. What
+  it holds, or triage could not finish, goes to a person with a diagnosis and a link to the right row of the
+  proof page. An incomplete puzzle never ships, whoever said Ready.</p>
+
+<p>On 27 October 2026 the check passed 34 of 66 ready puzzles in 1977–79 and 39 of 58 in 1980–82; the reviewer,
+  on Claude Opus at about 20,000 tokens a puzzle, passed a few more. Under the new rule, 1977–79 ships 40 of its
+  66 ready puzzles (31 by the check, 5 by the AI reviewer, 4 by a person), with 25 held for the maintainer;
+  1980–82 ships 42 of 58, with 13 held and 3 too crowded for any model to judge.</p>
+
+<h2>What is changing</h2>
+
+<p>The <i>Judge</i> post ended with four changes for the next publication. <i>GAMES</i> added these, which
+  are the design of v3.</p>
+
+<ol>
+  <li><b>Milestones with durable outputs.</b> Each stage writes a record in a documented format: what it made,
+    and what it was made from. Agents read the record. Nobody recomputes a stage to inspect it.</li>
+  <li><b>Views never compute.</b> A page draws only what a milestone recorded, and names the milestone. In
+    October a viewer with its own key-finder, stricter than assembly's, showed a puzzle with no key while the
+    pipeline had one, and nothing on the page could say why.</li>
+  <li><b>Run once; re-run only from the invalidated stage.</b> In the hands-off run, assembly ran three times over
+    the same inputs, and a batch snapshot took 38 minutes fetching 1,031 files one by one. Earlier, every packet
+    build re-assembled all 81 puzzles when only assembly's code had changed. Each is a bug, not a cost to live
+    with.</li>
+  <li><b>Diagnose a kind of failure, never fix a puzzle.</b> The model is one 1979 puzzle traced back through the
+    stages to its cause, a fix in the tool, and the batch re-run with no model at all; no agent read the other
+    80. A person's input is which stage went wrong, which restarts the pipeline from there.</li>
+  <li><b>Every grid has a fate.</b> A census lists every grid found on every page and what became of it: 226
+    grids in 1980–82, 119 of them puzzles, 23 keys with no puzzle. "Do we have them all" becomes a question the
+    maintainer answers in one view.</li>
+</ol>
+
+<p>A worry, stated plainly in the plan: <i>GAMES</i> may be the wrong test case. Most of what it broke is
+  <i>GAMES</i>-shaped, and tuning assembly to every one of its layouts would be over-fitting to a magazine no
+  newspaper resembles. So the fixes allowed between batches are generic: a heading links to the largest grid
+  beneath it; a block whose numbering doesn't fit the grid isn't its clue list; a puzzle's kind is classified at
+  triage, with a policy per kind. The fold pages, two-player lists and digit keys wait.</p>
+
+<h2>Where <i>GAMES</i> stands</h2>
+
+<p>As of early November 2026, 1977–79 is open on the <a href="https://blitz.xwordapp.com/review/">review
+  site</a>, and 1980–82 has been through the run and the gate but is not yet published. Nothing from
+  <i>GAMES</i> has reached the xd corpus: the export path was built for the first pipeline and is being joined
+  to v2. The plan is one import for the whole series, with one archive of every page it was read from.</p>
+
+<p>The series is roughly 700 puzzles through 1989, about 480 of them not yet on v2, in 68 more issues on
+  archive.org. They go in three hands-off batches, 1983–84, 1985–86 and 1987–89, each measured the way 1980–82
+  was, with the census review between harvest and text step and the ship gate at the end. After <i>GAMES</i>,
+  the next publication should have one puzzle to a page, to measure the common case this magazine cannot.</p>
+
+<p>Follow the series on its <a href="https://everypuzzleproject.org/games/">status page</a>, or in the
+  <a href="https://github.com/EveryPuzzleProject/games">GAMES repo</a>, which lists every puzzle the tools know
+  of and its state.</p>
+
+<p class="note">This is a research archive: a record of puzzles as they were printed, each linked to its source
+  scan, for a corpus where they can be searched, counted and compared. <i>GAMES</i> is in copyright, so this post
+  shows no pages, crops, clues or grids, only what the process recorded. The numbers come from the project's
+  design notes of 17–27 October 2026, in the <a href="https://github.com/EveryPuzzleProject/blitz">blitz</a> repo.</p>
+
+</main>
+</body>
+</html>
