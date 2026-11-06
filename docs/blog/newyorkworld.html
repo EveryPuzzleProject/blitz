@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The first crossword series, rebuilt from the papers that copied it</title>
+<meta name="description" content="The New York World printed a crossword every Sunday from December 1913, and its own pages survive badly. The papers that reprinted its FUN section kept a second copy of each puzzle. How we are putting the series back together from them, and what is still missing.">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Every Puzzle Project">
+<meta property="og:title" content="The first crossword series, rebuilt from the papers that copied it">
+<meta property="og:description" content="The New York World's FUN crosswords, 1913–1917: the World's pages survive badly, but the papers that reprinted them kept a second copy of each puzzle. As of November 2026, 155 of the first 211 have one.">
+<meta property="og:url" content="https://blitz.xwordapp.com/blog/newyorkworld.html">
+<meta property="og:image" content="https://blitz.xwordapp.com/img/social-card.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 3 3%27%3E%3Crect width=%273%27 height=%273%27 fill=%27%23fff%27/%3E%3Crect width=%271%27 height=%271%27 fill=%27%231d1b17%27/%3E%3Crect x=%272%27 y=%272%27 width=%271%27 height=%271%27 fill=%27%231d1b17%27/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../style.css?v=202610021023">
+<style>
+  .post { max-width: 700px; }
+  .post p, .post li { font: 18px/1.6 var(--serif); }
+  .post li { margin: 6px 0; }
+  .post h1 { font-size: 34px; margin-top: 12px; }
+  .post h2 { font-size: 24px; margin-top: 40px; }
+  .dek { font: 20px/1.5 var(--serif); color: var(--muted); margin: 6px 0 0; }
+  .byline { font-size: 14px; color: var(--muted); margin: 10px 0 24px; }
+  blockquote { margin: 18px 0; padding: 2px 0 2px 16px; border-left: 3px solid var(--line); }
+  blockquote p { font-style: italic; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 10px; margin: 24px 0; }
+  .stat { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .stat b { display: block; font: 700 30px/1.1 var(--serif); }
+  .stat span { font-size: 14px; color: var(--muted); }
+  .papers { width: 100%; border-collapse: collapse; margin: 20px 0 6px; font: 15px/1.4 var(--sans); }
+  .papers th, .papers td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .papers th { font-weight: 600; color: var(--muted); font-size: 13px; }
+  .papers td.n, .papers th.n { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .post p.tnote { font: 14px/1.45 var(--sans); color: var(--muted); margin: 4px 0 20px; }
+  .note { border-left: 3px solid var(--line); padding: 2px 0 2px 14px; color: var(--muted); }
+  .post .sources li { font: 15px/1.45 var(--sans); }
+  @media (max-width: 520px) { .post p, .post li { font-size: 17px; } .post h1 { font-size: 28px; } }
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap"><a href="../">Every Puzzle Project</a><a class="muted" href="./" style="font: inherit; color: var(--muted)">Blog</a></div></header>
+<main class="wrap post">
+
+<h1>The first crossword series, rebuilt from the papers that copied it</h1>
+<p class="dek">The <i>New York World</i> printed a crossword every Sunday from December 1913, and its own pages survive
+  badly. The papers that reprinted its FUN section kept a second copy of each puzzle. Here is how we are putting the
+  series back together from them, and what is still missing.</p>
+<p class="byline">Every Puzzle Project · 6 November 2026</p>
+
+<p>The first crossword, Arthur Wynne's "Word-Cross Puzzle", ran in the <i>New York World</i>'s Sunday supplement,
+  FUN, on 21 December 1913. The puzzles that came after it, a new one every Sunday, are another matter. We know
+  of no scans of the FUN section online; the few early pages researchers have reproduced come from sources they
+  rarely name, most likely private collections and library microfilm. For most Sundays of the crossword's first four
+  years, nobody today can say what puzzle the <i>World</i> printed.</p>
+
+<p>But the <i>World</i> did not keep its puzzle to itself. Almost from the start, other papers carried the FUN section,
+  crossword and all. The <i>Minneapolis Journal</i> printed the <i>World</i>'s puzzle on 1 February 1914, six weeks
+  after the first one. The <i>Pittsburgh Press</i> followed in June 1916 and the <i>Tacoma Daily Ledger</i> that August;
+  by 1917 the <i>Los Angeles Sunday Tribune</i>, the <i>Shreveport Times</i>, the <i>Fort Wayne Journal-Gazette</i>, the
+  <i>New Orleans States</i>, the <i>Salt Lake Telegram</i> and the <i>Boston Globe</i> were running it too. Each of those
+  pages is a second copy of a <i>World</i> puzzle, and most of them are on Newspapers.com.</p>
+
+<p>So we are rebuilding the series from its reprints. The record is the
+  <a href="https://github.com/EveryPuzzleProject/newyorkworld">newyorkworld</a> repository: one row per <i>World</i>
+  Sunday, No. 1 to No. 211 (21 December 1913 to 30 December 1917), with every copy of each puzzle found in a partner
+  paper, and a <a href="https://everypuzzleproject.org/newyorkworld/">status page</a> built from it.</p>
+
+<h2>The number in the grid</h2>
+
+<p>The <i>World</i> printed its series number inside the puzzle, in the shaded cross at the centre of its diamond grid.
+  The <i>Journal</i>'s first copy says No. 7; the next Sunday's says No. 8. One puzzle a week from No. 1 on
+  21 December 1913 fits exactly, which gives the record its one dating rule:</p>
+
+<blockquote><p>World No. <i>n</i> is expected on 21 December 1913 plus <i>n</i>−1 weeks.</p></blockquote>
+
+<p>Every <i>World</i> date in the record is an inference from that count, and the status page marks each one as such.
+  What a page actually shows is recorded separately: the number printed in the grid, if any, and the paper's own
+  date, which is a printing date, days to weeks after the <i>World</i>'s. The <i>Journal</i> itself got the count
+  wrong at first: its heading on 1 February 1914 said "No. 5" while the grid said No. 7, and the next week the
+  heading was gone. The grid number is the one that counts.</p>
+
+<p>The <i>Journal</i> ran each puzzle on the <i>World</i>'s own date through No. 21 on 10 May 1914. Then it fell behind,
+  missing Sundays and running two to three weeks late, and skipped a number altogether: No. 33 on 23 August, No. 35
+  on 30 August, and No. 34 never. The last number printed anywhere is No. 54, in the <i>Journal</i> of 17 January 1915.
+  After that no copy in any paper carries one, so from 1915 the count is all there is.</p>
+
+<p>And the count may be wrong. The <i>Journal</i>'s Thanksgiving puzzle is No. 46, printed on 22 November 1914; the
+  count puts No. 46 on 1 November. Its Christmas puzzle, No. 50, falls on 29 November by the count. A paper would not
+  run a Christmas puzzle a month early, so either the <i>Journal</i> was weeks behind by then, or the <i>World</i>
+  itself skipped some Sundays in 1914 and the count runs early from there on. One dated <i>World</i> page from the
+  second half of 1914 would settle it. Until then the printed numbers stay beside the inferred dates.</p>
+
+<h2>Printings are not puzzles</h2>
+
+<p>The tables keep the two apart. A <i>Boston Globe</i> Sunday in 1917 is a printing of a <i>World</i> puzzle, not a
+  <i>Globe</i> puzzle. A printing with a number in the grid is tied to that <i>World</i> number. A printing without one
+  is tied to another copy by its first clue and the shape of its grid, and the record says which copy and how. From
+  the two dates, the paper's and the inferred <i>World</i> date, each printing's lag is computed, so the page shows
+  how far behind each paper ran: the <i>Globe</i> on the <i>World</i>'s own date in 1917, Pittsburgh one or two weeks
+  later, Tacoma two, Los Angeles anywhere from three to eight.</p>
+
+<p>Indexing a page means reading only what identifies it: the heading, the number, the credit line, the first clue,
+  and which solution the page carries. Nobody types clues or answers into the tables. The puzzle text comes later,
+  from OCR, into an <a href="https://github.com/century-arcade/xdformat">xd</a> file with its proof beside it.</p>
+
+<h2>Chains: the order, proved page by page</h2>
+
+<p>Each Sunday's page also prints the solution to the previous week's puzzle. That is the second kind of evidence, and
+  it does not depend on the count. A link says that the solution on page B answers the puzzle on page A: the same
+  grid shape, and answers that fit A's numbering, checked by eye on the scans. The two pages need not be in the same
+  paper. Tacoma's solution of 28 January 1917 proves the puzzle Los Angeles printed six weeks later.</p>
+
+<p>A chain is a run of puzzles in which every adjacent pair is linked. The order of the puzzles in a chain rests on
+  what was printed; only its place on the calendar rests on the count. Two chains are held in place by the
+  printed grid numbers: Nos. 7 to 33, and Nos. 35 to 52. The long one is 107 puzzles from 21 November
+  1915 to 30 December 1917, 106 verified links, and it is dated by a solutions box the <i>World Magazine</i> printed
+  with the <i>World</i>'s own dates on it, which Tacoma reprinted on 22 July 1917. The <i>Journal</i>'s pages from
+  January to July 1915 form shorter chains with no number on any of them, so their order is proved but their
+  <i>World</i> dates are not.</p>
+
+<p>A break in a chain is a puzzle that no held page answers. Some breaks are the <i>World</i>'s own missing weeks: the
+  <i>Journal</i> never ran No. 34, and No. 53 is in no paper either. Some are a partner's: a page that is not on
+  Newspapers.com is recorded as missing from the scans, never as a skip by the <i>World</i>. And some close with one
+  page: the last break before the solutions box, in February 1917, closed when a clipping of the <i>Pittsburgh
+  Press</i> of 4 March 1917 turned out to carry the same puzzle as Shreveport's that day, and 107 puzzles became one
+  dated run.</p>
+
+<p>The chains have already corrected the count: the <i>Journal</i> printed one puzzle twice in the autumn of 1916, ran a
+  week late for a month, then dropped a puzzle to catch up, and nine <i>World</i> dates moved. They also show where
+  the method stops. From 1918 the <i>Globe</i>'s solutions go on week after week, but its order is no longer the
+  <i>World</i>'s: a puzzle another researcher dates to October 1919 ran in the <i>Globe</i> in May 1920. So after 1917
+  the <i>Globe</i>'s pages are good copies with no <i>World</i> date.</p>
+
+<h2>The Boston Globe's first crossword</h2>
+
+<p>The <i>Globe</i> printed its first crossword on 25 February 1917, on page 4, with no credit. The <i>Tacoma Daily
+  Ledger</i> printed the same puzzle on 11 March 1917 as "Fun's Cross-Word Puzzle": the same grid, the same
+  hand-lettered numbers 1 to 122, the same clues. So the <i>Globe</i>'s first crossword was the <i>World</i>'s, No. 167
+  by the count, and the <i>Globe</i> was one more FUN partner, running on the <i>World</i>'s own date through 1917.
+  The two copies differ only in typesetting: "clews" and "Mahometan" in Boston, "clues" and "Mohammedan" in Tacoma.
+  The grid seems to have gone out as a ready-made plate or mat, and the clues as text that each paper set itself.
+  For fourteen of the <i>World</i>'s 1917 puzzles the <i>Globe</i> is the only copy found so far.</p>
+
+<h2>The record as of November 2026</h2>
+
+<div class="stats">
+  <div class="stat"><b>211</b><span>World Sundays, No. 1 to No. 211, Dec 1913 to Dec 1917</span></div>
+  <div class="stat"><b>155</b><span>have at least one copy</span></div>
+  <div class="stat"><b>328</b><span>copies, in 11 papers</span></div>
+  <div class="stat"><b>64</b><span>puzzles with copies in two or more papers</span></div>
+  <div class="stat"><b>325</b><span>paper-Sundays searched through 1917</span></div>
+</div>
+
+<table class="papers">
+  <tr><th>Paper</th><th>Copies from</th><th class="n">Puzzles</th></tr>
+  <tr><td>The Minneapolis Journal</td><td>1 February 1914</td><td class="n">103</td></tr>
+  <tr><td>The Pittsburgh Press</td><td>11 June 1916</td><td class="n">47</td></tr>
+  <tr><td>The Tacoma Daily Ledger</td><td>27 August 1916</td><td class="n">45</td></tr>
+  <tr><td>The Boston Globe</td><td>25 February 1917</td><td class="n">41</td></tr>
+  <tr><td>Los Angeles Sunday Tribune</td><td>1916</td><td class="n">32</td></tr>
+  <tr><td>The Shreveport Times</td><td>1916</td><td class="n">30</td></tr>
+  <tr><td>New Orleans States</td><td>1917</td><td class="n">21</td></tr>
+  <tr><td>Fort Wayne Journal-Gazette</td><td>1916</td><td class="n">4</td></tr>
+  <tr><td>Salt Lake Telegram</td><td>1917</td><td class="n">2</td></tr>
+  <tr><td>Seattle Post-Intelligencer</td><td>1916</td><td class="n">1</td></tr>
+  <tr><td>The New York World itself</td><td>No. 4, from a reproduction</td><td class="n">1</td></tr>
+</table>
+<p class="tnote">Puzzles among Nos. 1–211 with a copy in each paper, counted from the repository's status table on
+  6 November 2026. A puzzle found in three papers counts once for each.</p>
+
+<p>Of the 325 Sundays looked for in a given paper through 1917, 184 turned up a page, 105 found nothing, 34 fell on a
+  Sunday the paper carried no FUN puzzle, and 2 are missing from the scans. "Nothing found" is not proof of absence:
+  a text search misses pages whose type the OCR could not read, and not every such Sunday has been browsed issue by
+  issue.</p>
+
+<p>The 56 <i>World</i> Sundays with no copy fall into a few groups:</p>
+
+<ul>
+  <li><b>Nos. 2, 3, 5 and 6</b>, 28 December 1913 to 25 January 1914, before the <i>Journal</i> started carrying FUN.
+    No. 1 has a copy because the <i>Pittsburgh Press</i> reprinted it in December 1918, almost five years later, and Nos. 2 and 4
+    are known from reproductions of the <i>World</i>'s own pages in other researchers' work. Nos. 3, 5 and 6 are not
+    in any partner paper on Newspapers.com; January 1914 has been searched thoroughly.</li>
+  <li><b>Nos. 34 and 53</b>, 9 August and 20 December 1914, which the <i>Journal</i> skipped.</li>
+  <li><b>Nos. 55 to 100</b>, 3 January to 14 November 1915: the <i>Journal</i>'s pages from late January to July exist,
+    about twenty puzzles in order, but with no number on them they cannot yet be tied to a <i>World</i> Sunday, and
+    from August to mid-November the <i>Journal</i> ran a puzzle corner of its own instead. No other partner is known
+    for 1915.</li>
+  <li><b>Nos. 146, 148, 179 and 184</b>, four Sundays in 1916 and 1917 that are in no paper. One of them is settled:
+    the <i>World Magazine</i> box goes straight from 17 June to 1 July 1917, so the <i>World</i> ran no puzzle on
+    24 June. The others are held open by the links on either side of them.</li>
+</ul>
+
+<h2>What would help most</h2>
+
+<p>The <i>World</i>'s own FUN section for December 1913 and January 1914, Nos. 1 to 6. Four pages would close the gap
+  at the start of the series, and they are most likely in a private collection, on the New York Public Library's
+  microfilm of the <i>World</i>, or in another researcher's files. After that: a dated <i>World</i> page from the
+  second half of 1914, to settle whether the count runs true; any paper that carried FUN between August and November
+  1915, to date the <i>Journal</i>'s floating chains; and a copy of any Sunday still open on the status page, which
+  closes it in every paper at once.</p>
+
+<p>If you have access to one of these, please <a href="https://github.com/EveryPuzzleProject/newyorkworld/issues/new">open
+  an issue</a> with the date and where you found it, with a clipping link if there is one. Please don't upload page
+  images: issues are public, and the pages come from Newspapers.com. The
+  <a href="https://everypuzzleproject.org/newyorkworld/">status page</a> shows every Sunday, what is held for it and
+  from where, the chains, and the next batch to look for.</p>
+
+<h2>Sources</h2>
+
+<ul class="sources">
+  <li><a href="https://github.com/EveryPuzzleProject/newyorkworld">EveryPuzzleProject/newyorkworld</a>: the tables
+    (<code>status.tsv</code>, <code>printings.tsv</code>, <code>searches.tsv</code>, <code>chains.tsv</code>), the dating
+    rule in its README, and <code>docs/CHAINS.md</code> on the chain method. Counts above are from the tables as of
+    6 November 2026.</li>
+  <li>The <a href="https://everypuzzleproject.org/newyorkworld/">status page</a> built from them.</li>
+  <li>The catalog's <a href="https://github.com/EveryPuzzleProject/catalog/blob/main/first-runs.md">first runs, 1913–1924</a>
+    and its entries for the <a href="https://github.com/EveryPuzzleProject/catalog/blob/main/publications/new-york-world.md">New York World</a>,
+    the <a href="https://github.com/EveryPuzzleProject/catalog/blob/main/publications/minneapolis-journal.md">Minneapolis Journal</a>,
+    the <a href="https://github.com/EveryPuzzleProject/catalog/blob/main/publications/tacoma-daily-ledger.md">Tacoma Daily Ledger</a>
+    and the <a href="https://github.com/EveryPuzzleProject/catalog/blob/main/publications/boston-globe.md">Boston Globe</a>.</li>
+  <li><a href="https://github.com/EveryPuzzleProject/bostonglobe">EveryPuzzleProject/bostonglobe</a>, the Globe's own
+    index and status page.</li>
+  <li>T Campbell's "Year in Crosswords" series on Substack
+    (<a href="https://tcampbell.substack.com/p/1914-the-year-in-crosswords">1914</a>,
+    <a href="https://tcampbell.substack.com/p/1917-the-year-in-crosswords">1917</a>), which first named most of the
+    partner papers and reproduces Nos. 1, 2 and 4.</li>
+</ul>
+
+<p class="note">The partner papers' pages were read on Newspapers.com and are not reproduced here. The pages
+  themselves are from 1914 to 1918 and in the public domain.</p>
+
+</main>
+</body>
+</html>
