@@ -57,7 +57,8 @@ and so on (`run` does the loop). A person settles what is left on review.py's /a
    size each side, so the heading shows) as pages/<issue the key was printed in>/seq-<n>-key-<puzzle date>.jpg,
    the whole page 1000 px tall if that page is not in the folder yet, and rows in pages.tsv under the issue the
    key was printed in (xword-ocr docs/sources.md: "save the answers too, under the issue they were printed in"),
-   with `note` naming the puzzle it answers and where its box came from.
+   with `note` naming the puzzle it answers and where its box came from, and `answers` naming that puzzle's crop
+   row (the pairing recorded here, which xword-ocr's harvest uses as given instead of re-matching).
 """
 import argparse
 import concurrent.futures as cf

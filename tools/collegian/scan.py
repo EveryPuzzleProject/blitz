@@ -642,7 +642,9 @@ def write_pages_tsv():
     """pages.tsv (xword-ocr's folder source): per issue, in seq order, the page's own row, then its crops: the
     puzzle's (cmd_pages) and any answer key printed on it (answers.py save, answer_keys.jsonl). Leaves count in
     this order, which is the archive's scan order (seq), not the printed page number (the archive gives none).
-    A key goes under the issue it was printed in (docs/sources.md), with its note naming the puzzle it answers."""
+    A key goes under the issue it was printed in (docs/sources.md), with its note naming the puzzle it answers and
+    its `answers` column the file of that puzzle's crop row: the pairing as answer_keys.jsonl records it (the
+    region-hash match or the person's pick on /answers), never re-matched here; the harvest uses it as given."""
     import datetime
     pages = {}          # (date, seq) -> [page row, crop rows...]
     missing = 0
@@ -660,10 +662,11 @@ def write_pages_tsv():
         pnote = "; ".join([f"whole page at {PAGE_H} px tall (archive image {cv['width']}x{cv['height']})"] + notes)
         cnote = "; ".join([f"archive pixels {','.join(map(str, region))} at native resolution: the box from {how}, "
                            f"padded {round(PAD * 100)}% each side" if box else "no box recorded: the whole page"] + notes)
-        pages[(date, seq)] = [[page_f, f"collegian-{date}", date, str(seq), url, cap(crop_f), pnote, ""],
-                              [crop_f, f"collegian-{date}", date, str(seq), url, cap(crop_f), cnote, page_f]]
+        pages[(date, seq)] = [[page_f, f"collegian-{date}", date, str(seq), url, cap(crop_f), pnote, "", ""],
+                              [crop_f, f"collegian-{date}", date, str(seq), url, cap(crop_f), cnote, page_f, ""]]
     keys = DATA / "answer_keys.jsonl"
     nkeys = 0
+    keyrows = []        # (key file, the puzzle crop it answers)
     for line in (keys.read_text("utf8").splitlines() if keys.exists() else []):
         if not line.strip():
             continue
@@ -676,12 +679,20 @@ def write_pages_tsv():
         W, H = k["page_size"]
         if (date, seq) not in pages:
             pages[(date, seq)] = [[k["page_file"], f"collegian-{date}", date, str(seq), url, cap(k["page_file"]),
-                                   f"whole page at {PAGE_H} px tall (archive image {W}x{H}); carries an answer key", ""]]
+                                   f"whole page at {PAGE_H} px tall (archive image {W}x{H}); carries an answer key", "", ""]]
         knote = (f"answer key to the puzzle of {k['date']} (page {k['puzzle_seq']} of that issue), printed in this issue; "
                  f"archive pixels {','.join(map(str, k['region']))} at native resolution: {k['how']}; padded each side")
-        pages[(date, seq)].append([k["file"], f"collegian-{date}", date, str(seq), url, cap(k["file"]), knote, k["page_file"]])
+        # the puzzle it answers, by its crop row (k["date"], not k["id"]: the 1978-01-20 p1 stub's id is "...-seq1")
+        answers = page_files(k["date"], k["puzzle_seq"])[1]
+        keyrows.append((k["file"], answers))
+        pages[(date, seq)].append([k["file"], f"collegian-{date}", date, str(seq), url, cap(k["file"]), knote,
+                                   k["page_file"], answers])
         nkeys += 1
-    rows = ["\t".join(["file", "issue", "date", "page", "url", "captured", "note", "crop_of"])]
+    files = {r[0] for rs in pages.values() for r in rs}
+    orphans = [f"{kf} -> {pf}" for kf, pf in keyrows if pf not in files]
+    if orphans:
+        raise SystemExit(f"{len(orphans)} answer keys name a puzzle crop that is not a row of pages.tsv: " + "; ".join(orphans[:5]))
+    rows = ["\t".join(["file", "issue", "date", "page", "url", "captured", "note", "crop_of", "answers"])]
     for _, rs in sorted(pages.items()):
         rows += ["\t".join(r) for r in rs]
     (DATA / "pages.tsv").write_text("\n".join(rows) + "\n", "utf8")
