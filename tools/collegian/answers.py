@@ -85,6 +85,7 @@ CACHE = DATA / "cache" / "answers"
 K = 5                  # window size for the region hashes
 TILE, TILE_STEP = 1600, 1000   # detect on overlapping tiles of the half-width page too (px of the fetched image)
 METHOD = "page+tiles-1600/1000"
+SHORTLIST = 4          # candidate evidence score that puts a page on /answers' short list (and in detect --shortlist)
 KEY_PAD = 0.25         # each side of a key's crop, as a share of the grid's size
 _lock = threading.Lock()
 
@@ -389,14 +390,16 @@ def _xo_rev():
         return "unknown"
 
 
-def detect(rank, workers, pause, limit=None):
-    """Look at candidate pages of rank <= `rank` for every puzzle that has no settled key yet."""
+def detect(rank, workers, pause, limit=None, shortlist=False):
+    """Look at candidate pages of rank <= `rank` for every puzzle that has no settled key yet; with
+    `shortlist`, at every candidate page with real evidence (score >= SHORTLIST), the pages /answers lists first,
+    so that every grid on them is recorded and the sheet can show the keys themselves."""
     rev = _xo_rev()
     cands = jl(CANDS)
     done = {(r["issue"], r["seq"]) for r in jl(GRIDS) if r.get("method") == METHOD or r["image"] is None}
     rec = recorded_puzzle_grids()
     settled = {r["id"] for r in jl(PUZZLES) if r["status"] == "matched"} | set(person_decisions())
-    todo, puzzle_pages_extra = [], []
+    todo, puzzle_pages_extra, seen = [], [], set()
     # extra puzzle pages (the 1978-01-20 stub) are not in grids.jsonl: detect their grid as a puzzle pattern
     for d, s, kind in puzzles():
         if (d, s) not in rec and (d, s) not in done:
@@ -404,9 +407,11 @@ def detect(rank, workers, pause, limit=None):
     for r in cands:
         if r["id"] in settled:
             continue
-        for c in r["candidates"][:rank]:
-            k = (c["issue"], c["seq"])
-            if k not in done and k not in todo:
+        pages = [(c["issue"], c["seq"]) for c in (
+            [c for c in r["candidates"] if c["score"] >= SHORTLIST] if shortlist else r["candidates"][:rank])]
+        for k in pages:
+            if k not in done and k not in seen:
+                seen.add(k)
                 todo.append(k)
     todo = puzzle_pages_extra + todo
     if limit:
@@ -808,10 +813,11 @@ def main():
     sub.add_parser("candidates").set_defaults(fn=cmd_candidates)
     q = sub.add_parser("detect")
     q.add_argument("--rank", type=int, default=1)
+    q.add_argument("--shortlist", action="store_true", help="every candidate page with real evidence (the pages /answers lists first)")
     q.add_argument("--limit", type=int)
     q.add_argument("--workers", type=int, default=3)
     q.add_argument("--pause", type=float, default=0.5)
-    q.set_defaults(fn=lambda a: detect(a.rank, a.workers, a.pause, a.limit))
+    q.set_defaults(fn=lambda a: detect(a.rank, a.workers, a.pause, a.limit, a.shortlist))
     sub.add_parser("match").set_defaults(fn=cmd_match)
     q = sub.add_parser("run", help="detect rank 1..N, matching after each round")
     q.add_argument("--max-rank", type=int, default=3)

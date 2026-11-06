@@ -21,7 +21,7 @@ issue and page, the grid clicked or the box drawn, by, at, source); the last lin
 import json
 import time
 
-from answers import CANDS, DECISIONS, GRIDS, MATCHES, PUZZLES, jl, key_region, n_pages
+from answers import CANDS, DECISIONS, GRIDS, MATCHES, PUZZLES, SHORTLIST, jl, key_region, n_pages
 
 ORDER = {"odd-distance": 0, "unclear": 1, "no-key-found": 2, "no-pattern": 3, "matched": 4}
 
@@ -60,6 +60,7 @@ def queue(page_size):
                     m = match.get((issue, q, gi))
                     b = m.get("best") if m else None
                     gs.append(dict(gi=gi, quad=x["quad"], rows=x["rows"], cols=x["cols"], has_letters=x["has_letters"],
+                                   region=key_region(dict(quad=x["quad"]), W, H),
                                    own=x.get("own_puzzle", False), verdict=m["verdict"] if m else "not scored",
                                    best=(f"{b['date']} p{b['seq']}: {b['distance']} cells differ"
                                          + ("" if b["same_size"] and b["offset"] == [0, 0] else
@@ -70,7 +71,7 @@ def queue(page_size):
                 score = e["score"] if e else 0
                 pages.append(dict(issue=issue, seq=q, W=W, H=H, score=score, why=e["why"] if e else [],
                                   looked=g is not None, grids=gs,
-                                  first=score >= 4 or any(not x["own"] and x["rows"] >= 5 for x in gs)))
+                                  first=score >= SHORTLIST or any(not x["own"] and x["rows"] >= 5 for x in gs)))
         item = dict(id=p["id"], date=p["date"], seq=p["seq"], kind=p["kind"], status=p["status"],
                     why=p.get("why", ""), odd=p.get("odd", ""), decision=dec.get(p["id"]),
                     puzzle_img=f"pages/{p['date']}/seq-{p['seq']}-puzzle.jpg", pages=pages,
@@ -116,6 +117,9 @@ button.primary{background:#1d5c3a;color:#fff;border-color:#1d5c3a}
 #pair .acts{margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .note{font-size:13px;color:#555;margin-top:4px}
 h3{margin:16px 14px 6px;font-size:16px}
+.keys{display:grid;grid-template-columns:repeat(auto-fill,minmax(440px,1fr));gap:12px;padding:0 14px}
+.kc{background:#fff;padding:6px;border:3px solid transparent;cursor:pointer}.kc:hover{border-color:#1d5c3a}.kc.mine{border-color:#1c7ed6}
+.kc img{width:100%;display:block;background:#ddd}.kc .cap{font-size:13px;margin-top:4px}.kc .zoom{float:right}
 .sheet{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:10px;padding:0 14px}
 details{margin:10px 14px}summary{cursor:pointer;color:#1d5c3a;font-weight:600;margin-bottom:8px}
 .pg{background:#fff;padding:4px;position:relative;border:3px solid transparent;cursor:pointer}.pg:hover{border-color:#1d5c3a}
@@ -206,7 +210,7 @@ function show(){
   const pr=cur.proposed, ask=pr&&!cur.decision;
   $('info').innerHTML='<b>'+esc(statusText(cur))+'.</b> '+(cur.odd?esc(cur.odd)+'. ':'')+
     (ask?'Read a few answers against the clues: <b>y</b> if this is its key, <b>x</b> if it is a different puzzle with the same grid (Shenk reused grids).':
-         'Find its key on the pages below: click a page to zoom it, then click the key or drag a box round it.');
+         'Find its key below: click the grid that is its key (click ‘full size’ to read it), or open a page and drag a box.');
   $('puzhd').textContent='The puzzle: '+cur.date+' page '+cur.seq; $('puzimg').src='/file/'+cur.puzzle_img;
   $('puzimg').onclick=()=>lightbox('/file/'+cur.puzzle_img);
   const kf=$('keyfig');
@@ -217,13 +221,28 @@ function show(){
       (pr.shared.length?'<br>The same grid (within 2 cells) as '+pr.shared.map(esc).join(', '):'')+(pr.tie?'<br>'+esc(pr.tie):'');
     kf.querySelector('.acts').style.display=ask?'':'none';
   } else kf.style.display='none';
-  // the issue's pages: where a grid was detected or the text points first, the rest folded
+  // every grid found on the short-list pages, as a readable crop: click the one that is its key
   const b=$('browse');b.innerHTML='';
+  const ks=[];cur.pages.filter(p=>p.first).forEach(p=>p.grids.forEach(g=>{if(!g.own&&g.rows>=5&&g.cols>=5)ks.push([p,g])}));
+  ks.sort((a,c)=>(c[1].mine-a[1].mine));
+  if(ks.length){
+    b.insertAdjacentHTML('beforeend','<h3>Grids found near it ('+ks.length+'): click its key</h3>');
+    const kd=document.createElement('div');kd.className='keys';
+    ks.forEach(([p,g])=>{const c=document.createElement('div');c.className='kc'+(g.mine?' mine':'');
+      const pr={issue:p.issue,seq:p.seq,region:g.region};
+      c.innerHTML='<img loading=lazy src="'+regionUrl(pr,700)+'"><div class=cap><a class=zoom href="#">full size</a><b>'+(p.issue==cur.date?'same issue':p.issue)+', page '+p.seq+'</b> · '+g.rows+'x'+g.cols+
+        (g.has_letters?' with letters':'')+(g.best?' · nearest puzzle: '+esc(g.best):'')+(g.mine?' · <b style="color:#1c7ed6">nearest this puzzle</b>':'')+'</div>';
+      c.onclick=e=>{if(e.target.classList.contains('zoom')){e.preventDefault();e.stopPropagation();lightbox(regionUrl(pr,Math.min(2400,g.region[2])));return}
+        decide({verdict:'key',issue:p.issue,key_seq:p.seq,grid:g.gi,quad:g.quad},'the '+g.rows+'x'+g.cols+' grid on '+p.issue+' page '+p.seq)};
+      kd.appendChild(c)});
+    b.appendChild(kd);
+  }
+  // the issue's pages: where a grid was detected or the text points first, the rest folded
   if(!cur.pages.length){b.innerHTML='<h3>No issue recorded to browse for this puzzle.</h3>';}
   else{
     const why=Object.entries(cur.browse_why||{}).map(([i,w])=>i+' ('+esc(w)+')').join(' and ');
     const first=cur.pages.filter(p=>p.first), rest=cur.pages.filter(p=>!p.first);
-    b.insertAdjacentHTML('beforeend','<h3>Where else its key may be: '+why+'</h3>');
+    b.insertAdjacentHTML('beforeend','<h3>'+(ks.length?'None of these? ':'')+'The pages its key may be on: '+why+'. Click a page to zoom it and drag a box round the key.</h3>');
     const s1=document.createElement('div');s1.className='sheet';first.forEach(p=>s1.appendChild(pageTile(p)));b.appendChild(s1);
     if(!first.length)s1.innerHTML='<i style="padding:0 14px">No page with a detected grid or a pointer in the text.</i>';
     if(rest.length){const d=document.createElement('details');d.innerHTML='<summary>The rest of the issue ('+rest.length+' pages: nothing detected, no pointer)</summary>';
