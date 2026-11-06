@@ -57,7 +57,8 @@ and so on (`run` does the loop). A person settles what is left on review.py's /a
    size each side, so the heading shows) as pages/<issue the key was printed in>/seq-<n>-key-<puzzle date>.jpg,
    the whole page 1000 px tall if that page is not in the folder yet, and rows in pages.tsv under the issue the
    key was printed in (xword-ocr docs/sources.md: "save the answers too, under the issue they were printed in"),
-   with `note` naming the puzzle it answers and where its box came from.
+   with `note` naming the puzzle it answers and where its box came from, and `answers` naming that puzzle's crop
+   row (the pairing recorded here, which xword-ocr's harvest uses as given instead of re-matching).
 """
 import argparse
 import concurrent.futures as cf
@@ -85,6 +86,7 @@ CACHE = DATA / "cache" / "answers"
 K = 5                  # window size for the region hashes
 TILE, TILE_STEP = 1600, 1000   # detect on overlapping tiles of the half-width page too (px of the fetched image)
 METHOD = "page+tiles-1600/1000"
+SHORTLIST = 4          # candidate evidence score that puts a page on /answers' short list (and in detect --shortlist)
 KEY_PAD = 0.25         # each side of a key's crop, as a share of the grid's size
 _lock = threading.Lock()
 
@@ -283,7 +285,10 @@ def cmd_candidates(a):
         ranked = sorted(c.items(), key=lambda kv: (-kv[1][0], kv[0]))
         # the issues a person browses on /answers: the next one, and the puzzle's own when the evidence points there
         browse = ([d] if any(k[0] == d and v[0] >= 4 for k, v in ranked) else []) + ([nxt] if nxt else [])
+        own_best = next((v[1][0] for k, v in ranked if k[0] == d), "")
+        browse_why = {d: f"the puzzle's own issue: {own_best}", **({nxt: "the next issue"} if nxt else {})}
         out.append(dict(id=pid(d, s, extras), date=d, seq=s, kind=kind, next_issue=nxt, pointer=ptr, browse=browse,
+                        browse_why={k: v for k, v in browse_why.items() if k in browse},
                         candidates=[dict(issue=k[0], seq=k[1], score=v[0], why=v[1]) for k, v in ranked]))
     write_jl(CANDS, out)
     top = Counter((r["candidates"][0]["why"][0].split(":")[0][:40] if r["candidates"] else "none") for r in out)
@@ -386,14 +391,16 @@ def _xo_rev():
         return "unknown"
 
 
-def detect(rank, workers, pause, limit=None):
-    """Look at candidate pages of rank <= `rank` for every puzzle that has no settled key yet."""
+def detect(rank, workers, pause, limit=None, shortlist=False):
+    """Look at candidate pages of rank <= `rank` for every puzzle that has no settled key yet; with
+    `shortlist`, at every candidate page with real evidence (score >= SHORTLIST), the pages /answers lists first,
+    so that every grid on them is recorded and the sheet can show the keys themselves."""
     rev = _xo_rev()
     cands = jl(CANDS)
     done = {(r["issue"], r["seq"]) for r in jl(GRIDS) if r.get("method") == METHOD or r["image"] is None}
     rec = recorded_puzzle_grids()
     settled = {r["id"] for r in jl(PUZZLES) if r["status"] == "matched"} | set(person_decisions())
-    todo, puzzle_pages_extra = [], []
+    todo, puzzle_pages_extra, seen = [], [], set()
     # extra puzzle pages (the 1978-01-20 stub) are not in grids.jsonl: detect their grid as a puzzle pattern
     for d, s, kind in puzzles():
         if (d, s) not in rec and (d, s) not in done:
@@ -401,9 +408,11 @@ def detect(rank, workers, pause, limit=None):
     for r in cands:
         if r["id"] in settled:
             continue
-        for c in r["candidates"][:rank]:
-            k = (c["issue"], c["seq"])
-            if k not in done and k not in todo:
+        pages = [(c["issue"], c["seq"]) for c in (
+            [c for c in r["candidates"] if c["score"] >= SHORTLIST] if shortlist else r["candidates"][:rank])]
+        for k in pages:
+            if k not in done and k not in seen:
+                seen.add(k)
                 todo.append(k)
     todo = puzzle_pages_extra + todo
     if limit:
@@ -589,9 +598,51 @@ def cmd_match(a):
         for gi, g in enumerate(r["grids"]):
             if g.get("own_puzzle") or min(g["rows"], g["cols"]) < K:
                 continue
-            m = score_grid(index, g["cells"], issue, after, prior=lambda p, k=(issue, seq): prior.get(k, {}).get(p, 0))
+            pr = (lambda p, k=(issue, seq): prior.get(k, {}).get(p, 0))
+            m = score_grid(index, g["cells"], issue, after, prior=pr)
+            # a key printed upside down (Oct 1976) has the same black squares as its puzzle only if the grid is
+            # symmetric: score it turned round too, and keep the better reading
+            turned = ["".join(reversed(row)) for row in reversed(g["cells"])]
+            if turned != g["cells"]:
+                m2 = score_grid(index, turned, issue, after, prior=pr)
+                rank = {"matched": 0, "unclear": 1, "partial": 2, "no-match": 3, "no-vote": 4}
+                k1 = (rank[m["verdict"]], (m.get("best") or {}).get("distance", 999))
+                k2 = (rank[m2["verdict"]], (m2.get("best") or {}).get("distance", 999))
+                if k2 < k1:
+                    m = dict(m2, turned=True)
             matches.append(dict(issue=issue, seq=seq, grid=gi, rows=g["rows"], cols=g["cols"], quad=g["quad"],
                                 has_letters=g["has_letters"], source=r["source"], **m))
+    # Identical patterns: which puzzle a shared grid answers is the paper's habit for that stretch of the run
+    # (same issue, next issue), learned from the keys whose pattern is unique; only then the text evidence.
+    # (1977-04-25 p16, "answers to page 4 puzzle", has the grid of 04-21, 04-22, 04-25 and 04-26: it is 04-25's.)
+    import datetime
+
+    def twins(m):
+        return [x for x in m.get("close") or [] if x["distance"] <= m["best"]["distance"]]
+    sure = [(datetime.date.fromisoformat(m["best"]["date"]), m["best"]["issues_after"])
+            for m in matches if m["verdict"] == "matched" and not twins(m)]
+
+    def habit(date):
+        d0 = datetime.date.fromisoformat(date)
+        for days in (LEARN_DAYS, 3 * LEARN_DAYS):
+            c = Counter(off for d, off in sure if abs((d - d0).days) <= days)
+            n = sum(c.values())
+            if n >= 5:
+                off, k = c.most_common(1)[0]
+                return (off, k, n, days) if k >= 0.7 * n else None
+        return None
+    for m in matches:
+        if m["verdict"] not in ("matched", "unclear") or not twins(m):
+            continue
+        tied = [m["best"]] + twins(m)
+        fit = [x for x in tied if (h := habit(x["date"])) and x["issues_after"] == h[0]]
+        if len(fit) == 1 and fit[0] is not m["best"] or (len(fit) == 1 and m["verdict"] == "unclear"):
+            w = fit[0]
+            off, k, n, days = habit(w["date"])
+            m["close"] = [x for x in tied if x is not w] + [x for x in m.get("close") or [] if x not in tied]
+            m["best"], m["verdict"] = w, "matched"
+            m["tie"] = (f"the same grid as {', '.join(x['date'] for x in tied if x is not w)}; chosen by the paper's habit: "
+                        f"{k} of {n} keys with a unique pattern within {days} days are {off} issue(s) after their puzzle")
     write_jl(MATCHES, matches)
     # per puzzle: the key it got, or why not
     by_puzzle = defaultdict(list)
@@ -664,9 +715,9 @@ def key_for(rec, dec):
     """The key to save for one puzzle: a person's decision wins over the matcher. Returns dict or None."""
     p = dec.get(rec["id"])
     if p:
-        if p["verdict"] != "key":
+        if p["verdict"] != "key":      # none, unsure, or "not this puzzle's key" (rejected): nothing to save
             return None
-        return dict(issue=p["issue"], seq=int(p["key_seq"]), quad=p.get("quad"), box=p.get("box"),
+        return dict(issue=p["issue"], seq=int(p["key_seq"]), quad=p.get("quad"), box=p.get("box"), grid=p.get("grid"),
                     how=(f"picked by {p['by']} on /answers ({p['at']}): " +
                          ("a grid xword-ocr's detect_grids found (answer_grids.jsonl)" if p.get("quad") else "a box drawn by hand")))
     if rec.get("status") == "matched":     # an odd-distance match waits for a person's yes on /answers
@@ -676,8 +727,60 @@ def key_for(rec, dec):
                f"(answer_matches.jsonl: score {k['score']}, {k['distance']} cells differ"
                + (f"; runner-up {ru['date']} score {ru['score']}, {ru['distance']} differ" if ru else "; no runner-up")
                + (f"; {k['tie']}" if k["tie"] else "") + ")")
-        return dict(issue=k["issue"], seq=k["seq"], quad=k["quad"], box=None, how=how)
+        return dict(issue=k["issue"], seq=k["seq"], quad=k["quad"], box=None, grid=k["grid"], how=how)
     return None
+
+
+def place_piece(cells, P):
+    """Where a detected grid sits in the puzzle's pattern: (dr, dc, cells differing, cells compared) for the offset
+    that fits best with at least 60% of the smaller grid overlapping; None if nothing fits within 10%."""
+    r, c, R, C = len(cells), len(cells[0]), len(P), len(P[0])
+    need = 0.6 * min(r * c, R * C)
+    best = None
+    for dr in range(-(r - 1), R):
+        for dc in range(-(c - 1), C):
+            d = n = 0
+            for i in range(max(0, -dr), min(r, R - dr)):
+                for j in range(max(0, -dc), min(c, C - dc)):
+                    n += 1
+                    d += (cells[i][j] == "#") != (P[i + dr][j + dc] == "#")
+            if n >= need and (best is None or d / n < best[2] / best[3]):
+                best = (dr, dc, d, n)
+    return best if best and best[2] <= 0.1 * best[3] else None
+
+
+def full_quad(quad, rows, cols, dr, dc, R, C):
+    """The puzzle-sized grid's corners from a detected piece's corners (TL, TR, BR, BL): the piece's lattice
+    (affine, from TL, TR and BL) carried out to the puzzle's rows and columns."""
+    (x0, y0), (x1, y1), _, (x3, y3) = quad
+    ux, uy = (x1 - x0) / cols, (y1 - y0) / cols
+    vx, vy = (x3 - x0) / rows, (y3 - y0) / rows
+
+    def at(u, v):
+        return [round(x0 + u * ux + v * vx), round(y0 + u * uy + v * vy)]
+    return [at(-dc, -dr), at(C - dc, -dr), at(C - dc, R - dr), at(-dc, R - dr)]
+
+
+def extend_key(k, rec, grids, pats):
+    """A key whose detected grid is only part of it (12x15 of a 15x15, a corner): the crop is carried out to the
+    puzzle's full size, placed where the piece fits the puzzle's pattern. Returns (quad, note) or (None, '')."""
+    if k.get("box") or k.get("grid") is None or (rec["date"], rec["seq"]) not in pats:
+        return None, ""
+    g = grids.get((k["issue"], k["seq"]))
+    if not g or k["grid"] >= len(g["grids"]):
+        return None, ""
+    x = g["grids"][k["grid"]]
+    P = pats[(rec["date"], rec["seq"])]
+    R, C = len(P), len(P[0])
+    if (x["rows"], x["cols"]) == (R, C):
+        return None, ""
+    fit = place_piece(x["cells"], P)
+    if not fit:
+        return None, ""
+    dr, dc, d, n = fit
+    return (full_quad(x["quad"], x["rows"], x["cols"], dr, dc, R, C),
+            f"extended from the detected {x['rows']}x{x['cols']} piece to the puzzle's {R}x{C} (the piece fits it at "
+            f"offset ({dr}, {dc}) in rows and columns, {d} of {n} cells differing)")
 
 
 def key_region(k, W, H):
@@ -694,11 +797,19 @@ def key_region(k, W, H):
 
 def cmd_save(a):
     dec = person_decisions()
-    keys = []
+    grids = {(r["issue"], r["seq"]): r for r in jl(GRIDS)}
+    pats = puzzle_patterns()
+    before = {r["id"]: r for r in jl(KEYS)}
+    ori = {r["id"]: r for r in jl(DATA / "key_orientation.jsonl")}     # a person's "printed upside down" (/crops)
+    keys, extended = [], 0
     for rec in jl(PUZZLES):
         k = key_for(rec, dec)
         if not k:
             continue
+        q, note = extend_key(k, rec, grids, pats)
+        if q:
+            k = dict(k, quad=q, how=k["how"] + "; " + note)
+            extended += 1
         cv = canvas(k["issue"], k["seq"])
         W, H = cv["width"], cv["height"]
         region = key_region(k, W, H)
@@ -708,14 +819,19 @@ def cmd_save(a):
                          page_file=f"pages/{k['issue']}/seq-{k['seq']}-page.jpg",
                          url=f"{scan.BASE}{iid}/{','.join(map(str, region))}/full/0/default.jpg",
                          page_url=f"{scan.BASE}{iid}/full/,{scan.PAGE_H}/0/default.jpg",
-                         how=k["how"], page_size=[W, H]))
+                         how=k["how"] + ("; the key was printed upside down: saved turned round (a person, /crops)"
+                                          if ori.get(rec["id"], {}).get("upside_down") else ""),
+                         turned=bool(ori.get(rec["id"], {}).get("upside_down")), page_size=[W, H]))
     jobs = []
     for k in keys:
-        if not (DATA / k["file"]).exists():
+        old = before.get(k["id"])
+        changed = old is not None and (old["region"] != k["region"] or old["file"] != k["file"]
+                                       or bool(old.get("turned")) != k["turned"])
+        if not (DATA / k["file"]).exists() or changed:
             jobs.append((DATA / k["file"], k["url"]))
         if not (DATA / k["page_file"]).exists() and (DATA / k["page_file"], k["page_url"]) not in jobs:
             jobs.append((DATA / k["page_file"], k["page_url"]))
-    print(f"{len(keys)} keys; {len(jobs)} images to fetch", flush=True)
+    print(f"{len(keys)} keys ({extended} extended from a detected piece to the puzzle's size); {len(jobs)} images to fetch", flush=True)
     t0, nb = time.time(), 0
 
     def fetch(job):
@@ -734,6 +850,17 @@ def cmd_save(a):
                                         at=time.strftime("%Y-%m-%dT%H:%M:%S"))) + "\n")
             if i % 50 == 0 or i == len(jobs):
                 print(f"  {i}/{len(jobs)}  {nb / 1e6:.0f} MB  {(time.time() - t0) / 60:.1f} min", flush=True)
+    # a key printed upside down is saved turned round (docs/sources.md: images the right way up); the archive's
+    # url in pages.tsv still gives the page as printed
+    from PIL import Image
+    for k in keys:
+        if k["turned"] and (DATA / k["file"]).exists():
+            old = before.get(k["id"])
+            fresh = any(j[0] == DATA / k["file"] for j in jobs)
+            if fresh or not (old and old.get("turned")):
+                with Image.open(DATA / k["file"]) as im:
+                    turned = im.rotate(180)
+                turned.save(DATA / k["file"], quality=92)
     write_jl(KEYS, keys)
     scan.write_pages_tsv()
 
@@ -774,10 +901,11 @@ def main():
     sub.add_parser("candidates").set_defaults(fn=cmd_candidates)
     q = sub.add_parser("detect")
     q.add_argument("--rank", type=int, default=1)
+    q.add_argument("--shortlist", action="store_true", help="every candidate page with real evidence (the pages /answers lists first)")
     q.add_argument("--limit", type=int)
     q.add_argument("--workers", type=int, default=3)
     q.add_argument("--pause", type=float, default=0.5)
-    q.set_defaults(fn=lambda a: detect(a.rank, a.workers, a.pause, a.limit))
+    q.set_defaults(fn=lambda a: detect(a.rank, a.workers, a.pause, a.limit, a.shortlist))
     sub.add_parser("match").set_defaults(fn=cmd_match)
     q = sub.add_parser("run", help="detect rank 1..N, matching after each round")
     q.add_argument("--max-rank", type=int, default=3)
