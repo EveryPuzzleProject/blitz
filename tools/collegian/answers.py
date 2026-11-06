@@ -705,7 +705,7 @@ def key_for(rec, dec):
     if p:
         if p["verdict"] != "key":      # none, unsure, or "not this puzzle's key" (rejected): nothing to save
             return None
-        return dict(issue=p["issue"], seq=int(p["key_seq"]), quad=p.get("quad"), box=p.get("box"),
+        return dict(issue=p["issue"], seq=int(p["key_seq"]), quad=p.get("quad"), box=p.get("box"), grid=p.get("grid"),
                     how=(f"picked by {p['by']} on /answers ({p['at']}): " +
                          ("a grid xword-ocr's detect_grids found (answer_grids.jsonl)" if p.get("quad") else "a box drawn by hand")))
     if rec.get("status") == "matched":     # an odd-distance match waits for a person's yes on /answers
@@ -715,8 +715,60 @@ def key_for(rec, dec):
                f"(answer_matches.jsonl: score {k['score']}, {k['distance']} cells differ"
                + (f"; runner-up {ru['date']} score {ru['score']}, {ru['distance']} differ" if ru else "; no runner-up")
                + (f"; {k['tie']}" if k["tie"] else "") + ")")
-        return dict(issue=k["issue"], seq=k["seq"], quad=k["quad"], box=None, how=how)
+        return dict(issue=k["issue"], seq=k["seq"], quad=k["quad"], box=None, grid=k["grid"], how=how)
     return None
+
+
+def place_piece(cells, P):
+    """Where a detected grid sits in the puzzle's pattern: (dr, dc, cells differing, cells compared) for the offset
+    that fits best with at least 60% of the smaller grid overlapping; None if nothing fits within 10%."""
+    r, c, R, C = len(cells), len(cells[0]), len(P), len(P[0])
+    need = 0.6 * min(r * c, R * C)
+    best = None
+    for dr in range(-(r - 1), R):
+        for dc in range(-(c - 1), C):
+            d = n = 0
+            for i in range(max(0, -dr), min(r, R - dr)):
+                for j in range(max(0, -dc), min(c, C - dc)):
+                    n += 1
+                    d += (cells[i][j] == "#") != (P[i + dr][j + dc] == "#")
+            if n >= need and (best is None or d / n < best[2] / best[3]):
+                best = (dr, dc, d, n)
+    return best if best and best[2] <= 0.1 * best[3] else None
+
+
+def full_quad(quad, rows, cols, dr, dc, R, C):
+    """The puzzle-sized grid's corners from a detected piece's corners (TL, TR, BR, BL): the piece's lattice
+    (affine, from TL, TR and BL) carried out to the puzzle's rows and columns."""
+    (x0, y0), (x1, y1), _, (x3, y3) = quad
+    ux, uy = (x1 - x0) / cols, (y1 - y0) / cols
+    vx, vy = (x3 - x0) / rows, (y3 - y0) / rows
+
+    def at(u, v):
+        return [round(x0 + u * ux + v * vx), round(y0 + u * uy + v * vy)]
+    return [at(-dc, -dr), at(C - dc, -dr), at(C - dc, R - dr), at(-dc, R - dr)]
+
+
+def extend_key(k, rec, grids, pats):
+    """A key whose detected grid is only part of it (12x15 of a 15x15, a corner): the crop is carried out to the
+    puzzle's full size, placed where the piece fits the puzzle's pattern. Returns (quad, note) or (None, '')."""
+    if k.get("box") or k.get("grid") is None or (rec["date"], rec["seq"]) not in pats:
+        return None, ""
+    g = grids.get((k["issue"], k["seq"]))
+    if not g or k["grid"] >= len(g["grids"]):
+        return None, ""
+    x = g["grids"][k["grid"]]
+    P = pats[(rec["date"], rec["seq"])]
+    R, C = len(P), len(P[0])
+    if (x["rows"], x["cols"]) == (R, C):
+        return None, ""
+    fit = place_piece(x["cells"], P)
+    if not fit:
+        return None, ""
+    dr, dc, d, n = fit
+    return (full_quad(x["quad"], x["rows"], x["cols"], dr, dc, R, C),
+            f"extended from the detected {x['rows']}x{x['cols']} piece to the puzzle's {R}x{C} (the piece fits it at "
+            f"offset ({dr}, {dc}) in rows and columns, {d} of {n} cells differing)")
 
 
 def key_region(k, W, H):
@@ -733,11 +785,18 @@ def key_region(k, W, H):
 
 def cmd_save(a):
     dec = person_decisions()
-    keys = []
+    grids = {(r["issue"], r["seq"]): r for r in jl(GRIDS)}
+    pats = puzzle_patterns()
+    before = {r["id"]: r for r in jl(KEYS)}
+    keys, extended = [], 0
     for rec in jl(PUZZLES):
         k = key_for(rec, dec)
         if not k:
             continue
+        q, note = extend_key(k, rec, grids, pats)
+        if q:
+            k = dict(k, quad=q, how=k["how"] + "; " + note)
+            extended += 1
         cv = canvas(k["issue"], k["seq"])
         W, H = cv["width"], cv["height"]
         region = key_region(k, W, H)
@@ -750,11 +809,13 @@ def cmd_save(a):
                          how=k["how"], page_size=[W, H]))
     jobs = []
     for k in keys:
-        if not (DATA / k["file"]).exists():
+        old = before.get(k["id"])
+        changed = old is not None and (old["region"] != k["region"] or old["file"] != k["file"])
+        if not (DATA / k["file"]).exists() or changed:
             jobs.append((DATA / k["file"], k["url"]))
         if not (DATA / k["page_file"]).exists() and (DATA / k["page_file"], k["page_url"]) not in jobs:
             jobs.append((DATA / k["page_file"], k["page_url"]))
-    print(f"{len(keys)} keys; {len(jobs)} images to fetch", flush=True)
+    print(f"{len(keys)} keys ({extended} extended from a detected piece to the puzzle's size); {len(jobs)} images to fetch", flush=True)
     t0, nb = time.time(), 0
 
     def fetch(job):

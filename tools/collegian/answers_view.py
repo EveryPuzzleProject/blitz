@@ -138,8 +138,8 @@ small{color:#555}
 #flash{display:none;position:fixed;right:14px;bottom:14px;background:#1d5c3a;color:#fff;padding:10px 16px;border-radius:6px;z-index:8;max-width:460px}
 </style>
 <header>
- <select id=filter><option value=todo>Needs a look</option><option value=shared>Matched on a shared grid (spot check)</option><option value=matched>All matched (spot check)</option><option value=mine>You decided</option><option value=all>All</option></select>
- <button id=prev>&larr; prev</button><b id=title></b><button id=next>next &rarr;</button>
+ <select id=filter><option value=todo>Needs a look</option><option value=shared>Matched on a shared grid (spot check)</option><option value=matched>All matched (spot check)</option><option value=none>You said no key printed (look again)</option><option value=mine>You decided</option><option value=all>All</option></select>
+ <button id=prev>&larr; prev</button><b id=title></b><small id=pos></small><button id=next>next &rarr;</button>
  <button id=back style="display:none">&larr; back (Esc)</button><button id=zin style="display:none">Zoom in (+)</button><button id=zout style="display:none">Zoom out (&minus;)</button><small id=zl></small>
  <button id=none>No key printed (n)</button><button id=unsure>Can't tell (u)</button>
  <small id=count></small> <a href="/">issues</a>
@@ -181,12 +181,16 @@ function sharpen(p,need){const s=sizes(p),w=s.find(x=>x>=need)||s[2];if(w<=(p.re
 const regionUrl=(pr,w)=>'/region/'+pr.issue+'/'+pr.seq+'.jpg?r='+pr.region.join(',')+'&w='+w;
 const rejected=r=>r.decision&&r.decision.verdict=='rejected';
 const inView=r=>{const f=$('filter').value;const open=!r.decision||rejected(r);
-  return f=='all'||(f=='todo'&&r.status!='matched'&&open)||(f=='mine'&&r.decision)||(f=='matched'&&r.status=='matched'&&!r.decision)||
+  return f=='all'||(f=='todo'&&r.status!='matched'&&open)||(f=='mine'&&r.decision)||(f=='none'&&r.decision&&r.decision.verdict=='none')||(f=='matched'&&r.status=='matched'&&!r.decision)||
     (f=='shared'&&r.status=='matched'&&!r.decision&&r.proposed&&r.proposed.shared.length)};
 async function load(){
   ALL=await (await fetch('/api/answers')).json(); list=ALL.filter(inView);
   const c={};ALL.forEach(r=>{const k=r.decision?'you: '+r.decision.verdict:r.status;c[k]=(c[k]||0)+1});
-  $('count').textContent=list.length+' in view · '+Object.entries(c).map(([k,v])=>k+' '+v).join(' · ');
+  // where you are: what is left to look at, what you have decided, and (in show) this item's place in the view
+  const need=ALL.filter(r=>r.status!='matched'), left=need.filter(r=>!r.decision||rejected(r)).length;
+  const dc={};ALL.forEach(r=>{if(r.decision)dc[r.decision.verdict]=(dc[r.decision.verdict]||0)+1});
+  $('count').innerHTML='<b>'+left+' left</b> of the '+need.length+' that need you · you decided '+Object.values(dc).reduce((a,b)=>a+b,0)+
+    ' ('+Object.entries(dc).map(([k,v])=>v+' '+({key:'keys',none:'no key',unsure:'can’t tell',rejected:'rejected'}[k]||k)).join(', ')+') · '+(ALL.length-need.length)+' matched automatically';
 }
 // the address is the puzzle (#1978-03-20) or the puzzle and a zoomed page (#1978-03-20/1978-03-21/14):
 // every step is a history entry, so back and forward work and a reload keeps your place
@@ -226,6 +230,7 @@ function show(){
   unzoom(true);
   if(!cur){$('title').textContent='nothing here';$('item').style.display='none';return}
   shown=cur.id;$('item').style.display='';
+  const at=list.findIndex(r=>r.id==cur.id);$('pos').textContent=at>=0?(at+1)+' of '+list.length+' in this view':'not in this view';
   $('title').textContent=cur.id+(cur.kind!='regular'?' · '+cur.kind:'');
   const pr=cur.proposed, ask=pr&&!cur.decision;
   $('info').innerHTML='<b>'+esc(statusText(cur))+'.</b> '+(cur.odd?esc(cur.odd)+'. ':'')+
