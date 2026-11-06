@@ -11,8 +11,9 @@ either to see it at full resolution). A proposed key is the matcher's choice (od
 match) or the nearest grid it found (unclear). y = yes, it is this puzzle's key; x = no, a different puzzle (it
 shares the grid: Shenk reused grids, so the clues and answers are the test). Without a proposed key, or after an
 x, pick the key from the issue's pages: first the pages where a grid was detected or the text points, the rest of
-the issue folded below; click a page to zoom it, then click the key's outline or drag a box round it. n = no key
-printed, u = can't tell.
+the issue folded below; click a page where the key is and it opens zoomed in there. On the page, one hand on the mouse:
+click = zoom in / out at that spot, drag = draw the box (Save sits beside it; Enter too), Shift+drag or right drag =
+pan, a found grid's outline = pick it. n = no key printed, u = can't tell.
 
 A person's choice is a line in answer_decisions.jsonl (id, date, seq, verdict key/rejected/none/unsure, the key's
 issue and page, the grid clicked or the box drawn, by, at, source); the last line per puzzle wins, and
@@ -129,7 +130,7 @@ details{margin:10px 14px}summary{cursor:pointer;color:#1d5c3a;font-weight:600;ma
 .gq.mine{border-color:#1c7ed6;background:#1c7ed633}.gq.own{border:2px dashed #888;background:none}
 .why{font-size:12px;color:#555;margin:3px 2px;min-height:15px}
 small{color:#555}
-#zoom{display:none;padding:10px}#zwrap{position:relative;cursor:crosshair;user-select:none;margin:0 auto}
+#zoom{display:none;position:fixed;left:0;right:0;bottom:0;top:120px;overflow:auto;padding:10px;background:#f4f1ea;z-index:2}#zwrap{position:relative;cursor:crosshair;user-select:none;margin:0 auto}#bsave{display:none;position:absolute;transform:translate(-100%,6px);z-index:3;background:#1d5c3a;color:#fff;border:0;border-radius:5px;padding:6px 12px;font:inherit;cursor:pointer;white-space:nowrap}
 #zwrap img{width:100%;display:block;background:#ddd;transition:opacity .15s}#zwrap.loading img{opacity:.25}
 #zwrap .gq{pointer-events:auto;cursor:pointer;border-width:3px}#zwrap .gq:hover{background:#e8590c66}#zwrap .gq.own{pointer-events:none}
 #dbox{position:absolute;border:3px solid #1c7ed6;background:#1c7ed633;pointer-events:none;display:none}
@@ -139,7 +140,7 @@ small{color:#555}
 <header>
  <select id=filter><option value=todo>Needs a look</option><option value=shared>Matched on a shared grid (spot check)</option><option value=matched>All matched (spot check)</option><option value=mine>You decided</option><option value=all>All</option></select>
  <button id=prev>&larr; prev</button><b id=title></b><button id=next>next &rarr;</button>
- <button id=back style="display:none">&larr; back (Esc)</button><button id=save class=primary style="display:none">Save my box (Enter)</button><button id=zin style="display:none">Zoom in (+)</button><button id=zout style="display:none">Zoom out (&minus;)</button><small id=zl></small>
+ <button id=back style="display:none">&larr; back (Esc)</button><button id=zin style="display:none">Zoom in (+)</button><button id=zout style="display:none">Zoom out (&minus;)</button><small id=zl></small>
  <button id=none>No key printed (n)</button><button id=unsure>Can't tell (u)</button>
  <small id=count></small> <a href="/">issues</a>
 </header>
@@ -150,7 +151,7 @@ small{color:#555}
    <div class=acts><button class=primary id=yes>Yes, this is its key (y)</button><button id=no>No, a different puzzle (x)</button></div></figure></div>
  <div id=browse></div>
 </div>
-<div id=zoom><div id=zwrap><img id=zimg><div id=dbox></div></div></div>
+<div id=zoom><div id=zwrap><img id=zimg><div id=dbox></div><button id=bsave>Save this box (Enter)</button></div></div>
 <div id=lb><img id=lbimg></div>
 <div id=flash></div>
 <script>
@@ -164,10 +165,13 @@ function dows(root){const w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT)
 const flash=m=>{m=withDow(m);const f=$('flash');f.textContent=m;f.style.display='block';clearTimeout(flash.t);flash.t=setTimeout(()=>f.style.display='none',5000)};
 let ALL=[],list=[],cur=null,zp=null,draft=null,drag=null,shown=null;
 const thumb=p=>'/thumb/'+p.issue+'/'+p.seq+'.jpg?w='+(p.W>9000?900:600);
-// the zoomed page has two levels: fit the window, and zoomed in (the page at half the archive's width, the copy
-// already on disk from detection, so it is sharp at once); + / - switch, keeping the spot in view
-let zf=1;const zoomedF=()=>zp?Math.max(1.5,Math.round(zp.W/2/(window.devicePixelRatio||1))/baseW()):2;
-const baseW=()=>Math.min(zp&&zp.W>9000?3000:2400,$('zoom').clientWidth-20);
+// The zoomed page sits in its own pane under the header, so the header's buttons stay in view. One hand on the
+// mouse: click = zoom in / out round that spot; drag = draw the box; Shift+drag (or right / middle drag) = pan;
+// clicking a found grid's outline picks it; a Save button sits by the finished box (Enter works too).
+let zf=1,focus=null;
+const pane=()=>$('zoom');
+const baseW=()=>Math.min(zp&&zp.W>9000?3000:2400,pane().clientWidth-20);
+const zoomedF=()=>zp?Math.max(1.5,Math.round(zp.W/2/(window.devicePixelRatio||1))/baseW()):2;
 // three sizes of a page, each fetched at most once: to fit the window, half the archive's width (usually already on
 // disk from detection, so it comes at once and is loaded straight away), and the archive's own (only when zoomed past half)
 const sizes=p=>[Math.min(p.W,Math.round(baseW()*(window.devicePixelRatio||1)/100)*100),Math.round(p.W/2),p.W];
@@ -213,7 +217,9 @@ function pageTile(p){
   d.innerHTML='<div class=im><img loading=lazy src="'+thumb(p)+'"><span class=n>'+(p.issue==cur.date?'same issue, ':p.issue+', ')+'p'+p.seq+'</span></div>'+
     '<div class=why title="'+esc(p.why.join('\n'))+'">'+esc(p.why[0]||'')+(p.why.length>1?' (+'+(p.why.length-1)+')':'')+(p.looked?'':' · <i>not looked at by the detector</i>')+'</div>';
   p.grids.forEach(g=>outline(d.querySelector('.im'),p,g,false));
-  d.onclick=()=>{location.hash=cur.id+'/'+p.issue+'/'+p.seq};
+  d.onclick=e=>{const r=d.querySelector('img').getBoundingClientRect();     // open zoomed in, centred where it was clicked
+    focus=[Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)),Math.max(0,Math.min(1,(e.clientY-r.top)/r.height))];
+    location.hash=cur.id+'/'+p.issue+'/'+p.seq};
   return d;
 }
 function show(){
@@ -256,7 +262,7 @@ function show(){
   else{
     const why=Object.entries(cur.browse_why||{}).map(([i,w])=>i+' ('+esc(w)+')').join(' and ');
     const first=cur.pages.filter(p=>p.first), rest=cur.pages.filter(p=>!p.first);
-    b.insertAdjacentHTML('beforeend','<h3>'+(ks.length?'None of these? ':'')+'The pages its key may be on: '+why+'. Click a page to zoom it and drag a box round the key.</h3>');
+    b.insertAdjacentHTML('beforeend','<h3>'+(ks.length?'None of these? ':'')+'The pages its key may be on: '+why+'. Click a page where you see the key: it opens zoomed in there.</h3>');
     const s1=document.createElement('div');s1.className='sheet';first.forEach(p=>s1.appendChild(pageTile(p)));b.appendChild(s1);
     if(!first.length)s1.innerHTML='<i style="padding:0 14px">No page with a detected grid or a pointer in the text.</i>';
     if(rest.length){const d=document.createElement('details');d.innerHTML='<summary>The rest of the issue ('+rest.length+' pages: nothing detected, no pointer)</summary>';
@@ -271,39 +277,54 @@ function show(){
 function lightbox(src){$('lbimg').src=src;$('lb').style.display='block';$('lb').scrollTo(0,0)}
 $('lb').onclick=()=>{$('lb').style.display='none'};
 function zoom(p){
-  zp=p;draft=null;$('dbox').style.display='none';$('item').style.display='none';$('zoom').style.display='block';
-  ['back','save','zin','zout'].forEach(i=>$(i).style.display='');
-  $('info').innerHTML='<b>'+p.issue+' page '+p.seq+'</b> for the puzzle of '+cur.date+'. Click the answer key’s outline, or drag a box round it if it has none. <b>+</b> zooms in, <b>-</b> back out; scroll to move round (or drag with the right button); Esc goes back.';
+  zp=p;draft=null;hideBox();$('item').style.display='none';
+  ['back','zin','zout'].forEach(i=>$(i).style.display='');
+  $('info').innerHTML='<b>'+p.issue+' page '+p.seq+'</b> for the puzzle of '+cur.date+'. <b>Click</b> to zoom in or out there; <b>drag</b> a box round the key (then Save beside it); <b>Shift+drag</b> to move round; click a found grid\u2019s outline to pick it. Esc goes back.';
+  dows($('info'));
+  const z=pane();z.style.top=Math.ceil($('info').getBoundingClientRect().bottom)+'px';z.style.display='block';
   const w=$('zwrap');[...w.querySelectorAll('.gq')].forEach(e=>e.remove());w.classList.add('loading');
+  const f=focus;focus=null;
+  zf=f?zoomedF():1;sizeZoom();p.res=sizes(p)[f?1:0];p.want=p.res;
   let first=true;
-  $('zimg').onload=()=>{if(zp!==p||!first)return;first=false;w.classList.remove('loading');p.grids.forEach(g=>outline(w,p,g,true));sharpen(p,sizes(p)[1]);
-    const g=p.grids.find(g=>!g.own&&g.mine)||p.grids.find(g=>!g.own);   // land near a found grid
-    if(g){const y=Math.min(...g.quad.map(v=>v[1]))/p.H*$('zimg').clientHeight;window.scrollTo(0,Math.max(0,y-200))} else window.scrollTo(0,0)};
-  zf=1;sizeZoom();p.res=sizes(p)[0];p.want=p.res;$('zimg').src=big(p,p.res);dows($('info'));
+  $('zimg').onload=()=>{if(zp!==p||!first)return;first=false;w.classList.remove('loading');p.grids.forEach(g=>outline(w,p,g,true));
+    if(f)requestAnimationFrame(()=>requestAnimationFrame(()=>centerOn(f[0],f[1])));
+    else{const g=p.grids.find(g=>!g.own&&g.mine)||p.grids.find(g=>!g.own);   // land near a found grid
+      if(g){const xs=g.quad.map(v=>v[0]),ys=g.quad.map(v=>v[1]);requestAnimationFrame(()=>centerOn((Math.min(...xs)+Math.max(...xs))/2/p.W,(Math.min(...ys)+Math.max(...ys))/2/p.H))}
+      else z.scrollTo(0,0)}
+    sharpen(p,sizes(p)[1])};
+  $('zimg').src=big(p,p.res);
 }
 function sizeZoom(){const w=Math.round(baseW()*zf);$('zwrap').style.width=w+'px';$('zl').textContent=zf>1?'zoomed in':'';return w}
-function setZoom(f,cx,cy){if(!zp)return;if(Math.abs(f-zf)<0.01)return;
-  if(cx==null){cx=innerWidth/2;cy=innerHeight/2}
+function centerOn(fx,fy){const z=pane(),w=$('zwrap');z.scrollLeft=w.offsetLeft+fx*w.offsetWidth-z.clientWidth/2;z.scrollTop=w.offsetTop+fy*w.offsetHeight-z.clientHeight/2}
+function setZoom(f,cx,cy){if(!zp||Math.abs(f-zf)<0.01)return;const z=pane();
+  if(cx==null){const zr=z.getBoundingClientRect();cx=zr.left+zr.width/2;cy=zr.top+zr.height/2}
   const r=$('zwrap').getBoundingClientRect(), fx=(cx-r.left)/r.width, fy=(cy-r.top)/r.height;   // keep the spot under the pointer
   zf=f;const w=sizeZoom(), r2=$('zwrap').getBoundingClientRect();
-  window.scrollBy(r2.left+fx*r2.width-cx, r2.top+fy*r2.height-cy);
-  clearTimeout(setZoom.t);setZoom.t=setTimeout(()=>{if(zp)sharpen(zp,w*(window.devicePixelRatio||1))},250)}
-// pan with the right or middle button (the left one draws the box)
-let pan=null;
-$('zwrap').addEventListener('mousedown',e=>{if(zp&&(e.button===1||e.button===2)){e.preventDefault();pan=[e.clientX,e.clientY]}});
-window.addEventListener('mousemove',e=>{if(!pan)return;window.scrollBy(pan[0]-e.clientX,pan[1]-e.clientY);pan=[e.clientX,e.clientY]});
-window.addEventListener('mouseup',e=>{if(e.button===1||e.button===2)pan=null});
-$('zwrap').addEventListener('contextmenu',e=>{if(zp)e.preventDefault()});
+  z.scrollLeft+=r2.left+fx*r2.width-cx;z.scrollTop+=r2.top+fy*r2.height-cy;
+  sharpen(zp,w*(window.devicePixelRatio||1))}
 $('zin').onclick=()=>setZoom(zoomedF());$('zout').onclick=()=>setZoom(1);
-function unzoom(quiet){const was=!!zp;zp=null;$('zoom').style.display='none';['back','save','zin','zout'].forEach(i=>$(i).style.display='none');$('zl').textContent='';
+function unzoom(quiet){const was=!!zp;zp=null;pane().style.display='none';['back','zin','zout'].forEach(i=>$(i).style.display='none');$('zl').textContent='';hideBox();
   if(cur)$('item').style.display='';if(was&&!quiet&&cur)show()}
 const pt=e=>{const r=$('zimg').getBoundingClientRect();return [Math.max(0,Math.min(e.clientX-r.left,r.width)),Math.max(0,Math.min(e.clientY-r.top,r.height))]};
-$('zwrap').onmousedown=e=>{if(e.button!==0||!zp)return;e.preventDefault();drag=pt(e)};
-window.onmousemove=e=>{if(!drag||!zp)return;const p=pt(e),k=zp.W/$('zimg').clientWidth;
-  const x0=Math.min(drag[0],p[0]),y0=Math.min(drag[1],p[1]),w=Math.abs(p[0]-drag[0]),h=Math.abs(p[1]-drag[1]);
-  draft=[Math.round(x0*k),Math.round(y0*k),Math.round(w*k),Math.round(h*k)];
-  Object.assign($('dbox').style,{display:'block',left:100*draft[0]/zp.W+'%',top:100*draft[1]/zp.H+'%',width:100*draft[2]/zp.W+'%',height:100*draft[3]/zp.H+'%'})};
-window.onmouseup=e=>{if(e.button===0)drag=null};
+function hideBox(){$('dbox').style.display='none';$('bsave').style.display='none'}
+// one gesture at a time: a press that hardly moves is a click (zoom), a left drag is the box, Shift / right / middle pans
+let g0=null;
+$('zwrap').addEventListener('mousedown',e=>{if(!zp||e.target.classList.contains('gq')||e.target.id=='bsave')return;e.preventDefault();
+  g0={x:e.clientX,y:e.clientY,p:pt(e),pan:e.shiftKey||e.button!==0,moved:false}});
+window.addEventListener('mousemove',e=>{if(!g0||!zp)return;
+  if(!g0.moved&&Math.abs(e.clientX-g0.x)+Math.abs(e.clientY-g0.y)<6)return;g0.moved=true;
+  if(g0.pan){pane().scrollBy(g0.x-e.clientX,g0.y-e.clientY);g0.x=e.clientX;g0.y=e.clientY;return}
+  const q=pt(e),k=zp.W/$('zimg').clientWidth,a=g0.p;
+  draft=[Math.round(Math.min(a[0],q[0])*k),Math.round(Math.min(a[1],q[1])*k),Math.round(Math.abs(q[0]-a[0])*k),Math.round(Math.abs(q[1]-a[1])*k)];
+  Object.assign($('dbox').style,{display:'block',left:100*draft[0]/zp.W+'%',top:100*draft[1]/zp.H+'%',width:100*draft[2]/zp.W+'%',height:100*draft[3]/zp.H+'%'});
+  $('bsave').style.display='none'});
+window.addEventListener('mouseup',e=>{if(!g0)return;const g=g0;g0=null;if(!zp)return;
+  if(!g.moved){if(!g.pan)setZoom(zf>1?1:zoomedF(),e.clientX,e.clientY);return}
+  if(!g.pan&&draft){if(draft[2]<40||draft[3]<40){draft=null;hideBox();return}
+    Object.assign($('bsave').style,{display:'block',left:100*(draft[0]+draft[2])/zp.W+'%',top:100*(draft[1]+draft[3])/zp.H+'%'})}});
+$('zwrap').addEventListener('contextmenu',e=>{if(zp)e.preventDefault()});
+$('bsave').addEventListener('mousedown',e=>e.stopPropagation());
+$('bsave').onclick=e=>{e.stopPropagation();saveBox()};
 function saveBox(){if(!zp||!draft||draft[2]<40||draft[3]<40){flash('Drag a box round the answer grid first');return}
   decide({verdict:'key',issue:zp.issue,key_seq:zp.seq,box:draft},'a box you drew on '+zp.issue+' page '+zp.seq)}
 function yes(){const pr=cur&&cur.proposed;if(!pr||cur.decision)return;
@@ -325,7 +346,7 @@ async function decide(o,what){
 $('filter').onchange=async()=>{await load();if(list[0])location.hash=list[0].id;else{cur=null;show()}};
 $('prev').onclick=()=>{const i=list.findIndex(r=>cur&&r.id==cur.id);if(i>0)location.hash=list[i-1].id};
 $('next').onclick=()=>{const i=list.findIndex(r=>cur&&r.id==cur.id);if(list[i+1])location.hash=list[i+1].id};
-$('back').onclick=()=>{location.hash=cur.id};$('save').onclick=saveBox;$('yes').onclick=yes;$('no').onclick=no;
+$('back').onclick=()=>{location.hash=cur.id};$('yes').onclick=yes;$('no').onclick=no;
 $('none').onclick=()=>decide({verdict:'none'});$('unsure').onclick=()=>decide({verdict:'unsure'});
 document.onkeydown=e=>{if(e.target.tagName=='SELECT')return;
   if($('lb').style.display=='block'){if(e.key=='Escape')$('lb').style.display='none';return}
