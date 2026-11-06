@@ -129,7 +129,7 @@ details{margin:10px 14px}summary{cursor:pointer;color:#1d5c3a;font-weight:600;ma
 .gq.mine{border-color:#1c7ed6;background:#1c7ed633}.gq.own{border:2px dashed #888;background:none}
 .why{font-size:12px;color:#555;margin:3px 2px;min-height:15px}
 small{color:#555}
-#zoom{display:none;padding:10px}#zwrap{position:relative;cursor:crosshair;user-select:none;margin:0 auto;max-width:2400px}
+#zoom{display:none;padding:10px}#zwrap{position:relative;cursor:crosshair;user-select:none;margin:0 auto}
 #zwrap img{width:100%;display:block;background:#ddd;transition:opacity .15s}#zwrap.loading img{opacity:.25}
 #zwrap .gq{pointer-events:auto;cursor:pointer;border-width:3px}#zwrap .gq:hover{background:#e8590c66}#zwrap .gq.own{pointer-events:none}
 #dbox{position:absolute;border:3px solid #1c7ed6;background:#1c7ed633;pointer-events:none;display:none}
@@ -139,7 +139,7 @@ small{color:#555}
 <header>
  <select id=filter><option value=todo>Needs a look</option><option value=shared>Matched on a shared grid (spot check)</option><option value=matched>All matched (spot check)</option><option value=mine>You decided</option><option value=all>All</option></select>
  <button id=prev>&larr; prev</button><b id=title></b><button id=next>next &rarr;</button>
- <button id=back style="display:none">&larr; back (Esc)</button><button id=save class=primary style="display:none">Save my box (Enter)</button>
+ <button id=back style="display:none">&larr; back (Esc)</button><button id=save class=primary style="display:none">Save my box (Enter)</button><button id=zout style="display:none">&minus; (-)</button><button id=zin style="display:none">Zoom in (+)</button><small id=zl></small>
  <button id=none>No key printed (n)</button><button id=unsure>Can't tell (u)</button>
  <small id=count></small> <a href="/">issues</a>
 </header>
@@ -164,7 +164,11 @@ function dows(root){const w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT)
 const flash=m=>{m=withDow(m);const f=$('flash');f.textContent=m;f.style.display='block';clearTimeout(flash.t);flash.t=setTimeout(()=>f.style.display='none',5000)};
 let ALL=[],list=[],cur=null,zp=null,draft=null,drag=null,shown=null;
 const thumb=p=>'/thumb/'+p.issue+'/'+p.seq+'.jpg?w='+(p.W>9000?900:600);
-const big=p=>'/thumb/'+p.issue+'/'+p.seq+'.jpg?w='+(p.W>9000?3000:1800);
+// the zoomed page: 1x fits the window; the wheel zooms round the pointer (up to 6x), and the page is fetched
+// again at more pixels (in 500 px steps, up to the archive's own) once the zoom settles
+let zf=1;const ZMAX=6;
+const baseW=()=>Math.min(zp&&zp.W>9000?3000:2400,$('zoom').clientWidth-20);
+const big=(p,px)=>'/thumb/'+p.issue+'/'+p.seq+'.jpg?w='+Math.min(p.W,Math.round(px*(window.devicePixelRatio||1)/100)*100);
 const regionUrl=(pr,w)=>'/region/'+pr.issue+'/'+pr.seq+'.jpg?r='+pr.region.join(',')+'&w='+w;
 const rejected=r=>r.decision&&r.decision.verdict=='rejected';
 const inView=r=>{const f=$('filter').value;const open=!r.decision||rejected(r);
@@ -263,22 +267,38 @@ function lightbox(src){$('lbimg').src=src;$('lb').style.display='block';$('lb').
 $('lb').onclick=()=>{$('lb').style.display='none'};
 function zoom(p){
   zp=p;draft=null;$('dbox').style.display='none';$('item').style.display='none';$('zoom').style.display='block';
-  $('back').style.display='';$('save').style.display='';
-  $('info').innerHTML='<b>'+p.issue+' page '+p.seq+'</b> for the puzzle of '+cur.date+'. Click the answer key’s outline, or drag a box round it if it has none. Esc goes back.';
+  ['back','save','zin','zout'].forEach(i=>$(i).style.display='');
+  $('info').innerHTML='<b>'+p.issue+' page '+p.seq+'</b> for the puzzle of '+cur.date+'. Click the answer key’s outline, or drag a box round it if it has none. The wheel (or <b>+</b> / <b>-</b>) zooms; drag with the right button to move round; Esc goes back.';
   const w=$('zwrap');[...w.querySelectorAll('.gq')].forEach(e=>e.remove());w.classList.add('loading');
   $('zimg').onload=()=>{if(zp!==p)return;w.classList.remove('loading');p.grids.forEach(g=>outline(w,p,g,true));
     const g=p.grids.find(g=>!g.own&&g.mine)||p.grids.find(g=>!g.own);   // land near a found grid
     if(g){const y=Math.min(...g.quad.map(v=>v[1]))/p.H*$('zimg').clientHeight;window.scrollTo(0,Math.max(0,y-200))} else window.scrollTo(0,0)};
-  $('zimg').src=big(p);dows($('info'));
+  zf=1;sizeZoom();$('zimg').src=big(p,baseW());dows($('info'));
 }
-function unzoom(quiet){const was=!!zp;zp=null;$('zoom').style.display='none';$('back').style.display='none';$('save').style.display='none';
+function sizeZoom(){const w=Math.round(baseW()*zf);$('zwrap').style.width=w+'px';$('zl').textContent=zf.toFixed(1)+'x';return w}
+function setZoom(f,cx,cy){if(!zp)return;f=Math.max(1,Math.min(ZMAX,f));if(Math.abs(f-zf)<0.01)return;
+  if(cx==null){cx=innerWidth/2;cy=innerHeight/2}
+  const r=$('zwrap').getBoundingClientRect(), fx=(cx-r.left)/r.width, fy=(cy-r.top)/r.height;   // keep the spot under the pointer
+  zf=f;const w=sizeZoom(), r2=$('zwrap').getBoundingClientRect();
+  window.scrollBy(r2.left+fx*r2.width-cx, r2.top+fy*r2.height-cy);
+  clearTimeout(setZoom.t);setZoom.t=setTimeout(()=>{if(!zp)return;const src=big(zp,Math.ceil(w/500)*500);
+    if($('zimg').src.indexOf(src)<0){const im=new Image(),want=zp;im.onload=()=>{if(zp===want)$('zimg').src=src};im.src=src}},300)}
+$('zwrap').addEventListener('wheel',e=>{if(!zp)return;e.preventDefault();setZoom(zf*Math.pow(1.0015,-e.deltaY),e.clientX,e.clientY)},{passive:false});
+// pan with the right or middle button (the left one draws the box)
+let pan=null;
+$('zwrap').addEventListener('mousedown',e=>{if(zp&&(e.button===1||e.button===2)){e.preventDefault();pan=[e.clientX,e.clientY]}});
+window.addEventListener('mousemove',e=>{if(!pan)return;window.scrollBy(pan[0]-e.clientX,pan[1]-e.clientY);pan=[e.clientX,e.clientY]});
+window.addEventListener('mouseup',e=>{if(e.button===1||e.button===2)pan=null});
+$('zwrap').addEventListener('contextmenu',e=>{if(zp)e.preventDefault()});
+$('zin').onclick=()=>setZoom(zf*1.5);$('zout').onclick=()=>setZoom(zf/1.5);
+function unzoom(quiet){const was=!!zp;zp=null;$('zoom').style.display='none';['back','save','zin','zout'].forEach(i=>$(i).style.display='none');$('zl').textContent='';
   if(cur)$('item').style.display='';if(was&&!quiet&&cur)show()}
 const pt=e=>{const r=$('zimg').getBoundingClientRect();return [Math.max(0,Math.min(e.clientX-r.left,r.width)),Math.max(0,Math.min(e.clientY-r.top,r.height))]};
 $('zwrap').onmousedown=e=>{if(e.button!==0||!zp)return;e.preventDefault();drag=pt(e)};
 window.onmousemove=e=>{if(!drag||!zp)return;const p=pt(e),k=zp.W/$('zimg').clientWidth;
   const x0=Math.min(drag[0],p[0]),y0=Math.min(drag[1],p[1]),w=Math.abs(p[0]-drag[0]),h=Math.abs(p[1]-drag[1]);
   draft=[Math.round(x0*k),Math.round(y0*k),Math.round(w*k),Math.round(h*k)];
-  Object.assign($('dbox').style,{display:'block',left:x0+'px',top:y0+'px',width:w+'px',height:h+'px'})};
+  Object.assign($('dbox').style,{display:'block',left:100*draft[0]/zp.W+'%',top:100*draft[1]/zp.H+'%',width:100*draft[2]/zp.W+'%',height:100*draft[3]/zp.H+'%'})};
 window.onmouseup=e=>{if(e.button===0)drag=null};
 function saveBox(){if(!zp||!draft||draft[2]<40||draft[3]<40){flash('Drag a box round the answer grid first');return}
   decide({verdict:'key',issue:zp.issue,key_seq:zp.seq,box:draft},'a box you drew on '+zp.issue+' page '+zp.seq)}
@@ -305,7 +325,7 @@ $('back').onclick=()=>{location.hash=cur.id};$('save').onclick=saveBox;$('yes').
 $('none').onclick=()=>decide({verdict:'none'});$('unsure').onclick=()=>decide({verdict:'unsure'});
 document.onkeydown=e=>{if(e.target.tagName=='SELECT')return;
   if($('lb').style.display=='block'){if(e.key=='Escape')$('lb').style.display='none';return}
-  if(zp){if(e.key=='Enter')saveBox();if(e.key=='Escape')location.hash=cur.id}
+  if(zp){if(e.key=='Enter')saveBox();if(e.key=='Escape')location.hash=cur.id;if(e.key=='+'||e.key=='=')setZoom(zf*1.5);if(e.key=='-'||e.key=='_')setZoom(zf/1.5)}
   if(e.key=='n')decide({verdict:'none'});if(e.key=='u')decide({verdict:'unsure'});
   if(!zp&&e.key=='y')yes();if(!zp&&e.key=='x')no();
   if(!zp&&e.key=='ArrowRight')$('next').click();if(!zp&&e.key=='ArrowLeft')$('prev').click()};
