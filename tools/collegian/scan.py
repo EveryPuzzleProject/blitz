@@ -592,7 +592,6 @@ def cmd_pages(a):
     Per page: the whole page PAGE_H px tall, and the puzzle's box padded by PAD at the archive's native
     resolution (a `crop_of` crop, the one the harvest reads). Resumable: a file already on disk is never
     fetched again (and never replaced). Each fetch is logged in pages_fetch.jsonl with its IIIF url."""
-    import datetime
     todo = puzzle_pages()
     if a.limit:
         todo = todo[: a.limit]
@@ -635,27 +634,58 @@ def cmd_pages(a):
             if done % 50 == 0 or done == len(need):
                 el = time.time() - t0
                 print(f"  {done}/{len(need)}  {nbytes / 1e6:.0f} MB  {el / 60:.1f} min", flush=True)
-    # pages.tsv: the page's own row, then its crop. Leaves count in this order, which is the archive's
-    # scan order (seq), not the printed page number (the archive doesn't give one).
-    rows = ["file\tissue\tdate\tpage\turl\tcaptured\tnote\tcrop_of"]
+    if not a.limit:
+        write_pages_tsv()
+
+
+def write_pages_tsv():
+    """pages.tsv (xword-ocr's folder source): per issue, in seq order, the page's own row, then its crops: the
+    puzzle's (cmd_pages) and any answer key printed on it (answers.py save, answer_keys.jsonl). Leaves count in
+    this order, which is the archive's scan order (seq), not the printed page number (the archive gives none).
+    A key goes under the issue it was printed in (docs/sources.md), with its note naming the puzzle it answers."""
+    import datetime
+    pages = {}          # (date, seq) -> [page row, crop rows...]
     missing = 0
+
+    def cap(f):
+        return datetime.date.fromtimestamp((DATA / f).stat().st_mtime).isoformat()
     for date, seq, box, how, notes in puzzle_pages():
         page_f, crop_f = page_files(date, seq)
         if not (DATA / page_f).exists() or not (DATA / crop_f).exists():
             missing += 1
             continue
         url = f"https://panewsarchive.psu.edu/lccn/{LCCN}/{date}/ed-1/seq-{seq}/"
-        cap = datetime.date.fromtimestamp((DATA / crop_f).stat().st_mtime).isoformat()
         cv = manifest(date)["sequences"][0]["canvases"][seq - 1]
         region = padded(box, cv["width"], cv["height"]) if box else [0, 0, cv["width"], cv["height"]]
         pnote = "; ".join([f"whole page at {PAGE_H} px tall (archive image {cv['width']}x{cv['height']})"] + notes)
         cnote = "; ".join([f"archive pixels {','.join(map(str, region))} at native resolution: the box from {how}, "
                            f"padded {round(PAD * 100)}% each side" if box else "no box recorded: the whole page"] + notes)
-        rows.append("\t".join([page_f, f"collegian-{date}", date, str(seq), url, cap, pnote, ""]))
-        rows.append("\t".join([crop_f, f"collegian-{date}", date, str(seq), url, cap, cnote, page_f]))
-    if not a.limit:
-        (DATA / "pages.tsv").write_text("\n".join(rows) + "\n", "utf8")
-        print(f"{(len(rows) - 1) // 2} pages -> {DATA / 'pages.tsv'}" + (f"; {missing} not yet fetched" if missing else ""))
+        pages[(date, seq)] = [[page_f, f"collegian-{date}", date, str(seq), url, cap(crop_f), pnote, ""],
+                              [crop_f, f"collegian-{date}", date, str(seq), url, cap(crop_f), cnote, page_f]]
+    keys = DATA / "answer_keys.jsonl"
+    nkeys = 0
+    for line in (keys.read_text("utf8").splitlines() if keys.exists() else []):
+        if not line.strip():
+            continue
+        k = json.loads(line)
+        if not (DATA / k["file"]).exists() or not (DATA / k["page_file"]).exists():
+            missing += 1
+            continue
+        date, seq = k["issue"], k["seq"]
+        url = f"https://panewsarchive.psu.edu/lccn/{LCCN}/{date}/ed-1/seq-{seq}/"
+        W, H = k["page_size"]
+        if (date, seq) not in pages:
+            pages[(date, seq)] = [[k["page_file"], f"collegian-{date}", date, str(seq), url, cap(k["page_file"]),
+                                   f"whole page at {PAGE_H} px tall (archive image {W}x{H}); carries an answer key", ""]]
+        knote = (f"answer key to the puzzle of {k['date']} (page {k['puzzle_seq']} of that issue), printed in this issue; "
+                 f"archive pixels {','.join(map(str, k['region']))} at native resolution: {k['how']}; padded each side")
+        pages[(date, seq)].append([k["file"], f"collegian-{date}", date, str(seq), url, cap(k["file"]), knote, k["page_file"]])
+        nkeys += 1
+    rows = ["\t".join(["file", "issue", "date", "page", "url", "captured", "note", "crop_of"])]
+    for _, rs in sorted(pages.items()):
+        rows += ["\t".join(r) for r in rs]
+    (DATA / "pages.tsv").write_text("\n".join(rows) + "\n", "utf8")
+    print(f"{len(pages)} pages, {nkeys} answer keys -> {DATA / 'pages.tsv'}" + (f"; {missing} not yet fetched" if missing else ""))
 
 
 def cmd_report(a):
