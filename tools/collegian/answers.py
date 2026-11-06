@@ -597,7 +597,18 @@ def cmd_match(a):
         for gi, g in enumerate(r["grids"]):
             if g.get("own_puzzle") or min(g["rows"], g["cols"]) < K:
                 continue
-            m = score_grid(index, g["cells"], issue, after, prior=lambda p, k=(issue, seq): prior.get(k, {}).get(p, 0))
+            pr = (lambda p, k=(issue, seq): prior.get(k, {}).get(p, 0))
+            m = score_grid(index, g["cells"], issue, after, prior=pr)
+            # a key printed upside down (Oct 1976) has the same black squares as its puzzle only if the grid is
+            # symmetric: score it turned round too, and keep the better reading
+            turned = ["".join(reversed(row)) for row in reversed(g["cells"])]
+            if turned != g["cells"]:
+                m2 = score_grid(index, turned, issue, after, prior=pr)
+                rank = {"matched": 0, "unclear": 1, "partial": 2, "no-match": 3, "no-vote": 4}
+                k1 = (rank[m["verdict"]], (m.get("best") or {}).get("distance", 999))
+                k2 = (rank[m2["verdict"]], (m2.get("best") or {}).get("distance", 999))
+                if k2 < k1:
+                    m = dict(m2, turned=True)
             matches.append(dict(issue=issue, seq=seq, grid=gi, rows=g["rows"], cols=g["cols"], quad=g["quad"],
                                 has_letters=g["has_letters"], source=r["source"], **m))
     # Identical patterns: which puzzle a shared grid answers is the paper's habit for that stretch of the run
@@ -788,6 +799,7 @@ def cmd_save(a):
     grids = {(r["issue"], r["seq"]): r for r in jl(GRIDS)}
     pats = puzzle_patterns()
     before = {r["id"]: r for r in jl(KEYS)}
+    ori = {r["id"]: r for r in jl(DATA / "key_orientation.jsonl")}     # a person's "printed upside down" (/crops)
     keys, extended = [], 0
     for rec in jl(PUZZLES):
         k = key_for(rec, dec)
@@ -806,11 +818,14 @@ def cmd_save(a):
                          page_file=f"pages/{k['issue']}/seq-{k['seq']}-page.jpg",
                          url=f"{scan.BASE}{iid}/{','.join(map(str, region))}/full/0/default.jpg",
                          page_url=f"{scan.BASE}{iid}/full/,{scan.PAGE_H}/0/default.jpg",
-                         how=k["how"], page_size=[W, H]))
+                         how=k["how"] + ("; the key was printed upside down: saved turned round (a person, /crops)"
+                                          if ori.get(rec["id"], {}).get("upside_down") else ""),
+                         turned=bool(ori.get(rec["id"], {}).get("upside_down")), page_size=[W, H]))
     jobs = []
     for k in keys:
         old = before.get(k["id"])
-        changed = old is not None and (old["region"] != k["region"] or old["file"] != k["file"])
+        changed = old is not None and (old["region"] != k["region"] or old["file"] != k["file"]
+                                       or bool(old.get("turned")) != k["turned"])
         if not (DATA / k["file"]).exists() or changed:
             jobs.append((DATA / k["file"], k["url"]))
         if not (DATA / k["page_file"]).exists() and (DATA / k["page_file"], k["page_url"]) not in jobs:
@@ -834,6 +849,17 @@ def cmd_save(a):
                                         at=time.strftime("%Y-%m-%dT%H:%M:%S"))) + "\n")
             if i % 50 == 0 or i == len(jobs):
                 print(f"  {i}/{len(jobs)}  {nb / 1e6:.0f} MB  {(time.time() - t0) / 60:.1f} min", flush=True)
+    # a key printed upside down is saved turned round (docs/sources.md: images the right way up); the archive's
+    # url in pages.tsv still gives the page as printed
+    from PIL import Image
+    for k in keys:
+        if k["turned"] and (DATA / k["file"]).exists():
+            old = before.get(k["id"])
+            fresh = any(j[0] == DATA / k["file"] for j in jobs)
+            if fresh or not (old and old.get("turned")):
+                with Image.open(DATA / k["file"]) as im:
+                    turned = im.rotate(180)
+                turned.save(DATA / k["file"], quality=92)
     write_jl(KEYS, keys)
     scan.write_pages_tsv()
 
