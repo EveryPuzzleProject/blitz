@@ -283,7 +283,10 @@ def cmd_candidates(a):
         ranked = sorted(c.items(), key=lambda kv: (-kv[1][0], kv[0]))
         # the issues a person browses on /answers: the next one, and the puzzle's own when the evidence points there
         browse = ([d] if any(k[0] == d and v[0] >= 4 for k, v in ranked) else []) + ([nxt] if nxt else [])
+        own_best = next((v[1][0] for k, v in ranked if k[0] == d), "")
+        browse_why = {d: f"the puzzle's own issue: {own_best}", **({nxt: "the next issue"} if nxt else {})}
         out.append(dict(id=pid(d, s, extras), date=d, seq=s, kind=kind, next_issue=nxt, pointer=ptr, browse=browse,
+                        browse_why={k: v for k, v in browse_why.items() if k in browse},
                         candidates=[dict(issue=k[0], seq=k[1], score=v[0], why=v[1]) for k, v in ranked]))
     write_jl(CANDS, out)
     top = Counter((r["candidates"][0]["why"][0].split(":")[0][:40] if r["candidates"] else "none") for r in out)
@@ -592,6 +595,37 @@ def cmd_match(a):
             m = score_grid(index, g["cells"], issue, after, prior=lambda p, k=(issue, seq): prior.get(k, {}).get(p, 0))
             matches.append(dict(issue=issue, seq=seq, grid=gi, rows=g["rows"], cols=g["cols"], quad=g["quad"],
                                 has_letters=g["has_letters"], source=r["source"], **m))
+    # Identical patterns: which puzzle a shared grid answers is the paper's habit for that stretch of the run
+    # (same issue, next issue), learned from the keys whose pattern is unique; only then the text evidence.
+    # (1977-04-25 p16, "answers to page 4 puzzle", has the grid of 04-21, 04-22, 04-25 and 04-26: it is 04-25's.)
+    import datetime
+
+    def twins(m):
+        return [x for x in m.get("close") or [] if x["distance"] <= m["best"]["distance"]]
+    sure = [(datetime.date.fromisoformat(m["best"]["date"]), m["best"]["issues_after"])
+            for m in matches if m["verdict"] == "matched" and not twins(m)]
+
+    def habit(date):
+        d0 = datetime.date.fromisoformat(date)
+        for days in (LEARN_DAYS, 3 * LEARN_DAYS):
+            c = Counter(off for d, off in sure if abs((d - d0).days) <= days)
+            n = sum(c.values())
+            if n >= 5:
+                off, k = c.most_common(1)[0]
+                return (off, k, n, days) if k >= 0.7 * n else None
+        return None
+    for m in matches:
+        if m["verdict"] not in ("matched", "unclear") or not twins(m):
+            continue
+        tied = [m["best"]] + twins(m)
+        fit = [x for x in tied if (h := habit(x["date"])) and x["issues_after"] == h[0]]
+        if len(fit) == 1 and fit[0] is not m["best"] or (len(fit) == 1 and m["verdict"] == "unclear"):
+            w = fit[0]
+            off, k, n, days = habit(w["date"])
+            m["close"] = [x for x in tied if x is not w] + [x for x in m.get("close") or [] if x not in tied]
+            m["best"], m["verdict"] = w, "matched"
+            m["tie"] = (f"the same grid as {', '.join(x['date'] for x in tied if x is not w)}; chosen by the paper's habit: "
+                        f"{k} of {n} keys with a unique pattern within {days} days are {off} issue(s) after their puzzle")
     write_jl(MATCHES, matches)
     # per puzzle: the key it got, or why not
     by_puzzle = defaultdict(list)
@@ -664,7 +698,7 @@ def key_for(rec, dec):
     """The key to save for one puzzle: a person's decision wins over the matcher. Returns dict or None."""
     p = dec.get(rec["id"])
     if p:
-        if p["verdict"] != "key":
+        if p["verdict"] != "key":      # none, unsure, or "not this puzzle's key" (rejected): nothing to save
             return None
         return dict(issue=p["issue"], seq=int(p["key_seq"]), quad=p.get("quad"), box=p.get("box"),
                     how=(f"picked by {p['by']} on /answers ({p['at']}): " +
