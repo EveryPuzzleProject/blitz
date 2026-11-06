@@ -156,7 +156,12 @@ small{color:#555}
 <script>
 const $=id=>document.getElementById(id);
 const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
-const flash=m=>{const f=$('flash');f.textContent=m;f.style.display='block';clearTimeout(flash.t);flash.t=setTimeout(()=>f.style.display='none',5000)};
+// every date shown gets its weekday (keys say "Answers to Friday's puzzle"); text only, never the address
+const DOW=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const withDow=t=>t.replace(/\b(\d{4})-(\d{2})-(\d{2})\b(?! (Sun|Mon|Tue|Wed|Thu|Fri|Sat)\b)/g,(m,y,mo,d)=>m+' '+DOW[new Date(Date.UTC(+y,+mo-1,+d)).getUTCDay()]);
+function dows(root){const w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);const ns=[];while(w.nextNode())ns.push(w.currentNode);
+  ns.forEach(n=>{const t=withDow(n.nodeValue);if(t!==n.nodeValue)n.nodeValue=t})}
+const flash=m=>{m=withDow(m);const f=$('flash');f.textContent=m;f.style.display='block';clearTimeout(flash.t);flash.t=setTimeout(()=>f.style.display='none',5000)};
 let ALL=[],list=[],cur=null,zp=null,draft=null,drag=null,shown=null;
 const thumb=p=>'/thumb/'+p.issue+'/'+p.seq+'.jpg?w='+(p.W>9000?900:600);
 const big=p=>'/thumb/'+p.issue+'/'+p.seq+'.jpg?w='+(p.W>9000?3000:1800);
@@ -247,8 +252,9 @@ function show(){
     if(!first.length)s1.innerHTML='<i style="padding:0 14px">No page with a detected grid or a pointer in the text.</i>';
     if(rest.length){const d=document.createElement('details');d.innerHTML='<summary>The rest of the issue ('+rest.length+' pages: nothing detected, no pointer)</summary>';
       const s2=document.createElement('div');s2.className='sheet';d.appendChild(s2);
-      d.ontoggle=()=>{if(d.open&&!s2.children.length)rest.forEach(p=>s2.appendChild(pageTile(p)))};b.appendChild(d);}
+      d.ontoggle=()=>{if(d.open&&!s2.children.length){rest.forEach(p=>s2.appendChild(pageTile(p)));dows(s2)}};b.appendChild(d);}
   }
+  ['title','info','item'].forEach(id=>dows($(id)));
   const i=list.findIndex(r=>r.id==cur.id);       // warm the next puzzles' images
   list.slice(i+1,i+3).forEach(r=>{new Image().src='/file/'+r.puzzle_img;if(r.proposed)new Image().src=regionUrl(r.proposed,900)});
   window.scrollTo(0,0);
@@ -263,7 +269,7 @@ function zoom(p){
   $('zimg').onload=()=>{if(zp!==p)return;w.classList.remove('loading');p.grids.forEach(g=>outline(w,p,g,true));
     const g=p.grids.find(g=>!g.own&&g.mine)||p.grids.find(g=>!g.own);   // land near a found grid
     if(g){const y=Math.min(...g.quad.map(v=>v[1]))/p.H*$('zimg').clientHeight;window.scrollTo(0,Math.max(0,y-200))} else window.scrollTo(0,0)};
-  $('zimg').src=big(p);
+  $('zimg').src=big(p);dows($('info'));
 }
 function unzoom(quiet){const was=!!zp;zp=null;$('zoom').style.display='none';$('back').style.display='none';$('save').style.display='none';
   if(cur)$('item').style.display='';if(was&&!quiet&&cur)show()}
@@ -290,7 +296,7 @@ async function decide(o,what){
   await load();
   if(nx){flash(msg);location.hash=nx.id}
   else{cur=null;unzoom(true);$('item').style.display='none';$('title').textContent='nothing more here';
-    $('info').innerHTML='<div style="background:#fff;border:2px solid #1d5c3a;padding:24px;text-align:center;max-width:600px;margin:20px auto"><h2 style="margin:0 0 8px">Nothing more to see here</h2><p>'+esc(msg)+'. That was the last puzzle in this view.</p><p><button onclick="history.back()">&larr; back to the last one</button></p></div>'}
+    $('info').innerHTML='<div style="background:#fff;border:2px solid #1d5c3a;padding:24px;text-align:center;max-width:600px;margin:20px auto"><h2 style="margin:0 0 8px">Nothing more to see here</h2><p>'+esc(msg)+'. That was the last puzzle in this view.</p><p><button onclick="history.back()">&larr; back to the last one</button></p></div>';dows($('info'))}
 }
 $('filter').onchange=async()=>{await load();if(list[0])location.hash=list[0].id;else{cur=null;show()}};
 $('prev').onclick=()=>{const i=list.findIndex(r=>cur&&r.id==cur.id);if(i>0)location.hash=list[i-1].id};
