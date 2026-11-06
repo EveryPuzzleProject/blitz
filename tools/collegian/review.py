@@ -2,6 +2,7 @@
 
     python tools/collegian/review.py serve [--port 8765]
     http://localhost:8765/answers   the answer keys the matcher could not settle (answers_view.py, answers.py)
+    http://localhost:8765/crops     check every saved key crop, mark the bad ones (crops_view.py)
 
 Shows one issue at a time as a contact sheet of all its pages (a spread each). Click the
 page the crossword is on, or say there is no crossword that day. Each decision is a line in
@@ -26,6 +27,7 @@ DATA = scan.DATA
 DECISIONS = DATA / "decisions.jsonl"
 sys.path.insert(0, str(Path(__file__).parent))
 import answers_view  # noqa: E402  (the /answers sheet; reads answers.py's milestones)
+import crops_view  # noqa: E402  (the /crops sheet: check the saved key crops)
 
 
 def decisions():
@@ -91,6 +93,20 @@ def thumb(date, seq, width):
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_bytes(b)
     return p.read_bytes()
+
+
+def page_image(date, seq, w):
+    """The page at w px or more: the smallest copy on disk (answers.py's detection images in cache/answers, the
+    thumbnails in cache/thumb), else fetched from the archive at w and cached like a thumbnail."""
+    import re
+    have = []
+    for d, pat in ((DATA / "cache" / "answers" / date, rf"seq-{seq}-w(\d+)\.jpg"), (DATA / "cache" / "thumb" / date, rf"seq-{seq}-(\d+)\.jpg")):
+        for f in (d.glob(f"seq-{seq}-*.jpg") if d.exists() else []):
+            m = re.fullmatch(pat, f.name)
+            if m:
+                have.append((int(m.group(1)), f))
+    ok = sorted((n, f) for n, f in have if n >= w)
+    return ok[0][1].read_bytes() if ok else thumb(date, seq, w)
 
 
 PAGE = r"""<!doctype html><meta charset=utf-8><title>Collegian crosswords</title>
@@ -496,6 +512,10 @@ class H(BaseHTTPRequestHandler):
             return self.send(BOXES, "text/html; charset=utf-8")
         if u.path == "/answers":
             return self.send(answers_view.PAGE, "text/html; charset=utf-8")
+        if u.path == "/crops":
+            return self.send(crops_view.PAGE, "text/html; charset=utf-8")
+        if u.path == "/api/crops":
+            return self.send(json.dumps(crops_view.queue()))
         if u.path == "/api/answers":
             return self.send(json.dumps(answers_view.queue(page_size)))
         if u.path.startswith("/region/"):          # a recorded box of a page (a proposed key), cached
@@ -535,6 +555,13 @@ class H(BaseHTTPRequestHandler):
             return self.send(json.dumps(seen[-30:]))
         if u.path == "/api/issues":
             return self.send(json.dumps(issues()))
+        if u.path.startswith("/pageimg/"):   # a page at >= w px: the smallest copy already on disk, else fetched once
+            date, seqf = u.path[9:].split("/")
+            w = int(urllib.parse.parse_qs(u.query).get("w", ["1200"])[0])
+            try:
+                return self.send(page_image(date, int(seqf.split(".")[0]), w), "image/jpeg")
+            except Exception as e:
+                return self.send(str(e), "text/plain", 502)
         if u.path.startswith("/thumb/"):
             date, seqf = u.path[7:].split("/")
             w = int(urllib.parse.parse_qs(u.query).get("w", ["700"])[0])
@@ -573,6 +600,9 @@ class H(BaseHTTPRequestHandler):
                 with open(CROP_FLAGS, "a", encoding="utf8") as f:
                     f.write(json.dumps(rec) + "\n")
             return self.send(json.dumps(rec))
+        if self.path == "/api/cropflags":     # /crops: a batch's bad crops, the rest fine
+            r = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            return self.send(json.dumps(crops_view.record(r)))
         if self.path == "/api/answer":       # /answers: which grid is a puzzle's key, a box drawn, or none printed
             r = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
             return self.send(json.dumps(answers_view.record(r)))
