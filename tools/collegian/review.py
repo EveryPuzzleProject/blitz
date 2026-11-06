@@ -1,6 +1,7 @@
 """A page for a person to settle the Collegian issues the scan could not.
 
     python tools/collegian/review.py serve [--port 8765]
+    http://localhost:8765/answers   the answer keys the matcher could not settle (answers_view.py, answers.py)
 
 Shows one issue at a time as a contact sheet of all its pages (a spread each). Click the
 page the crossword is on, or say there is no crossword that day. Each decision is a line in
@@ -23,6 +24,8 @@ scan = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(scan)
 DATA = scan.DATA
 DECISIONS = DATA / "decisions.jsonl"
+sys.path.insert(0, str(Path(__file__).parent))
+import answers_view  # noqa: E402  (the /answers sheet; reads answers.py's milestones)
 
 
 def decisions():
@@ -491,6 +494,26 @@ class H(BaseHTTPRequestHandler):
             return self.send(CONFIRM, "text/html; charset=utf-8")
         if u.path == "/boxes":
             return self.send(BOXES, "text/html; charset=utf-8")
+        if u.path == "/answers":
+            return self.send(answers_view.PAGE, "text/html; charset=utf-8")
+        if u.path == "/api/answers":
+            return self.send(json.dumps(answers_view.queue(page_size)))
+        if u.path.startswith("/region/"):          # a recorded box of a page (a proposed key), cached
+            date, seqf = u.path[8:].split("/")
+            q = urllib.parse.parse_qs(u.query)
+            x, y, w, h = (int(v) for v in q["r"][0].split(","))
+            width = int(q.get("w", ["620"])[0])
+            f = DATA / "cache" / "region" / date / f"seq-{seqf.split('.')[0]}-{x}_{y}_{w}_{h}-{width}.jpg"
+            if not f.exists():
+                iid = scan.manifest(date)["sequences"][0]["canvases"][int(seqf.split(".")[0]) - 1]["images"][0]["resource"]["@id"]
+                f.parent.mkdir(parents=True, exist_ok=True)
+                f.write_bytes(scan.get(f"{scan.BASE}{iid}/{x},{y},{w},{h}/{width},/0/default.jpg"))
+            return self.send(f.read_bytes(), "image/jpeg")
+        if u.path.startswith("/file/pages/"):      # an image already in the folder source (pages/)
+            f = (DATA / urllib.parse.unquote(u.path[6:])).resolve()
+            if (DATA / "pages").resolve() in f.parents and f.exists():
+                return self.send(f.read_bytes(), "image/jpeg")
+            return self.send("not found", "text/plain", 404)
         if u.path == "/api/boxqueue":
             return self.send(json.dumps(box_queue()))
         if u.path.startswith("/crop/"):
@@ -550,6 +573,9 @@ class H(BaseHTTPRequestHandler):
                 with open(CROP_FLAGS, "a", encoding="utf8") as f:
                     f.write(json.dumps(rec) + "\n")
             return self.send(json.dumps(rec))
+        if self.path == "/api/answer":       # /answers: which grid is a puzzle's key, a box drawn, or none printed
+            r = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            return self.send(json.dumps(answers_view.record(r)))
         if self.path == "/api/bulk":
             # the confirm sheet: tiles a person left alone are confirmed; tiles they clicked go back to "needs a look"
             r = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
