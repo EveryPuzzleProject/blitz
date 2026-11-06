@@ -22,7 +22,8 @@ issue and page, the grid clicked or the box drawn, by, at, source); the last lin
 import json
 import time
 
-from answers import CANDS, DECISIONS, GRIDS, MATCHES, PUZZLES, SHORTLIST, jl, key_region, n_pages
+from answers import CANDS, DECISIONS, GRIDS, KEYS, MATCHES, PUZZLES, SHORTLIST, jl, key_region, n_pages
+from crops_view import flags as crop_flags
 
 ORDER = {"odd-distance": 0, "unclear": 1, "no-key-found": 2, "no-pattern": 3, "matched": 4}
 
@@ -34,6 +35,29 @@ def queue(page_size):
         grids[(r["issue"], r["seq"])] = r
     match = {(m["issue"], m["seq"], m["grid"]): m for m in jl(MATCHES)}
     dec = {r["id"]: r for r in jl(DECISIONS)}
+    saved = {k["id"]: k for k in jl(KEYS)}
+    cflags = crop_flags()
+
+    def page_entry(issue, q, ev, p):
+        g = grids.get((issue, q))
+        W, H = page_size(issue, q)
+        gs = []
+        for gi, x in enumerate(g["grids"] if g else []):
+            m = match.get((issue, q, gi))
+            b = m.get("best") if m else None
+            gs.append(dict(gi=gi, quad=x["quad"], rows=x["rows"], cols=x["cols"], has_letters=x["has_letters"],
+                           region=key_region(dict(quad=x["quad"]), W, H),
+                           own=x.get("own_puzzle", False), verdict=m["verdict"] if m else "not scored",
+                           best=(f"{b['date']} p{b['seq']}: {b['distance']} cells differ"
+                                 + ("" if b["same_size"] and b["offset"] == [0, 0] else
+                                    f", a {x['rows']}x{x['cols']} grid at offset {b['offset']}")) if b else "",
+                           mine=bool(b and b["date"] == p["date"] and b["seq"] == p["seq"]),
+                           source=g["source"]))
+        e = ev.get((issue, q))
+        score = e["score"] if e else 0
+        return dict(issue=issue, seq=q, W=W, H=H, score=score, why=e["why"] if e else [],
+                    looked=g is not None, grids=gs,
+                    first=score >= SHORTLIST or any(not x["own"] and x["rows"] >= 5 for x in gs))
 
     def proposal(issue, seq, gi, how):
         g = grids.get((issue, seq))
@@ -51,32 +75,20 @@ def queue(page_size):
     for p in jl(PUZZLES):
         c = cands.get((p["date"], p["seq"]), {})
         ev = {(x["issue"], x["seq"]): x for x in c.get("candidates", [])}
-        pages = []
-        for issue in c.get("browse", []):
-            for q in range(1, n_pages(issue) + 1):
-                g = grids.get((issue, q))
-                W, H = page_size(issue, q)
-                gs = []
-                for gi, x in enumerate(g["grids"] if g else []):
-                    m = match.get((issue, q, gi))
-                    b = m.get("best") if m else None
-                    gs.append(dict(gi=gi, quad=x["quad"], rows=x["rows"], cols=x["cols"], has_letters=x["has_letters"],
-                                   region=key_region(dict(quad=x["quad"]), W, H),
-                                   own=x.get("own_puzzle", False), verdict=m["verdict"] if m else "not scored",
-                                   best=(f"{b['date']} p{b['seq']}: {b['distance']} cells differ"
-                                         + ("" if b["same_size"] and b["offset"] == [0, 0] else
-                                            f", a {x['rows']}x{x['cols']} grid at offset {b['offset']}")) if b else "",
-                                   mine=bool(b and b["date"] == p["date"] and b["seq"] == p["seq"]),
-                                   source=g["source"]))
-                e = ev.get((issue, q))
-                score = e["score"] if e else 0
-                pages.append(dict(issue=issue, seq=q, W=W, H=H, score=score, why=e["why"] if e else [],
-                                  looked=g is not None, grids=gs,
-                                  first=score >= SHORTLIST or any(not x["own"] and x["rows"] >= 5 for x in gs)))
+        pages = [page_entry(issue, q, ev, p) for issue in c.get("browse", []) for q in range(1, n_pages(issue) + 1)]
+        # the saved key's crop, and whether a person marked it bad on /crops (a flag about an older crop, or one
+        # answered by a later decision here, no longer counts)
+        k, f, d = saved.get(p["id"]), cflags.get(p["id"]), dec.get(p["id"])
+        crop = None
+        if k:
+            bad = bool(f and f["label"] == "bad-crop" and f.get("region") == k["region"] and not (d and d["at"] > f["at"]))
+            crop = dict(file=k["file"], region=k["region"], issue=k["issue"], seq=k["seq"], bad=bad)
+            if not any(x["issue"] == k["issue"] and x["seq"] == k["seq"] for x in pages):
+                pages.insert(0, dict(page_entry(k["issue"], k["seq"], ev, p), first=True))
         item = dict(id=p["id"], date=p["date"], seq=p["seq"], kind=p["kind"], status=p["status"],
                     why=p.get("why", ""), odd=p.get("odd", ""), decision=dec.get(p["id"]),
                     puzzle_img=f"pages/{p['date']}/seq-{p['seq']}-puzzle.jpg", pages=pages,
-                    browse_why=c.get("browse_why", {}))
+                    browse_why=c.get("browse_why", {}), crop=crop)
         k = p.get("key")
         if k:
             item["proposed"] = proposal(k["issue"], k["seq"], k["grid"],
@@ -138,7 +150,7 @@ small{color:#555}
 #flash{display:none;position:fixed;right:14px;bottom:14px;background:#1d5c3a;color:#fff;padding:10px 16px;border-radius:6px;z-index:8;max-width:460px}
 </style>
 <header>
- <select id=filter><option value=todo>Needs a look</option><option value=shared>Matched on a shared grid (spot check)</option><option value=matched>All matched (spot check)</option><option value=none>You said no key printed (look again)</option><option value=mine>You decided</option><option value=all>All</option></select>
+ <select id=filter><option value=todo>Needs a look</option><option value=shared>Matched on a shared grid (spot check)</option><option value=matched>All matched (spot check)</option><option value=bad>Bad crops (redraw)</option><option value=none>You said no key printed (look again)</option><option value=mine>You decided</option><option value=all>All</option></select>
  <button id=prev>&larr; prev</button><b id=title></b><small id=pos></small><button id=next>next &rarr;</button>
  <button id=back style="display:none">&larr; back (Esc)</button><button id=zin style="display:none">Zoom in (+)</button><button id=zout style="display:none">Zoom out (&minus;)</button><small id=zl></small>
  <button id=none>No key printed (n)</button><button id=unsure>Can't tell (u)</button>
@@ -181,7 +193,7 @@ function sharpen(p,need){const s=sizes(p),w=s.find(x=>x>=need)||s[2];if(w<=(p.re
 const regionUrl=(pr,w)=>'/region/'+pr.issue+'/'+pr.seq+'.jpg?r='+pr.region.join(',')+'&w='+w;
 const rejected=r=>r.decision&&r.decision.verdict=='rejected';
 const inView=r=>{const f=$('filter').value;const open=!r.decision||rejected(r);
-  return f=='all'||(f=='todo'&&r.status!='matched'&&open)||(f=='mine'&&r.decision)||(f=='none'&&r.decision&&r.decision.verdict=='none')||(f=='matched'&&r.status=='matched'&&!r.decision)||
+  return f=='all'||(f=='todo'&&r.status!='matched'&&open)||(f=='mine'&&r.decision)||(f=='none'&&r.decision&&r.decision.verdict=='none')||(f=='bad'&&r.crop&&r.crop.bad)||(f=='matched'&&r.status=='matched'&&!r.decision)||
     (f=='shared'&&r.status=='matched'&&!r.decision&&r.proposed&&r.proposed.shared.length)};
 async function load(){
   ALL=await (await fetch('/api/answers')).json(); list=ALL.filter(inView);
@@ -239,7 +251,13 @@ function show(){
   $('puzhd').textContent='The puzzle: '+cur.date+' page '+cur.seq; $('puzimg').src='/file/'+cur.puzzle_img;
   $('puzimg').onclick=()=>lightbox('/file/'+cur.puzzle_img);
   const kf=$('keyfig');
-  if(pr){kf.style.display='';
+  if(cur.crop&&cur.crop.bad){const c=cur.crop;kf.style.display='';     // marked bad on /crops: redraw it on its page
+    $('keyhd').textContent='You marked this saved crop bad: '+c.issue+' page '+c.seq;
+    $('keyimg').src='/file/'+c.file;$('keyimg').onclick=()=>lightbox('/file/'+c.file);
+    $('keynote').innerHTML='<button class=primary id=redraw>Redraw it on its page (r)</button> the page opens zoomed in on this crop; drag a box round the whole key.';
+    $('redraw').onclick=redraw;kf.querySelector('.acts').style.display='none';
+    $('info').innerHTML='<b>The saved key\u2019s crop is bad.</b> Press <b>r</b> (or Redraw) to open its page there and drag a new box.';
+  } else if(pr){kf.style.display='';
     $('keyhd').textContent=(cur.decision&&cur.decision.verdict=='rejected'?'You rejected: ':'Proposed key: ')+pr.issue+' page '+pr.seq+(pr.issue==cur.date?' (same issue)':'');
     $('keyimg').src=regionUrl(pr,900);$('keyimg').onclick=()=>lightbox(regionUrl(pr,Math.min(2400,pr.region[2])));
     $('keynote').innerHTML=esc(pr.how)+(pr.distance!=null?'; '+pr.distance+' cells differ from this puzzle’s grid':'')+
@@ -332,6 +350,8 @@ $('bsave').addEventListener('mousedown',e=>e.stopPropagation());
 $('bsave').onclick=e=>{e.stopPropagation();saveBox()};
 function saveBox(){if(!zp||!draft||draft[2]<40||draft[3]<40){flash('Drag a box round the answer grid first');return}
   decide({verdict:'key',issue:zp.issue,key_seq:zp.seq,box:draft},'a box you drew on '+zp.issue+' page '+zp.seq)}
+function redraw(){const c=cur&&cur.crop;if(!c)return;const p=cur.pages.find(p=>p.issue==c.issue&&p.seq==c.seq);if(!p)return;
+  focus=[(c.region[0]+c.region[2]/2)/p.W,(c.region[1]+c.region[3]/2)/p.H];location.hash=cur.id+'/'+c.issue+'/'+c.seq}
 function yes(){const pr=cur&&cur.proposed;if(!pr||cur.decision)return;
   decide({verdict:'key',issue:pr.issue,key_seq:pr.seq,grid:pr.grid,quad:pr.quad,how:'said yes to '+pr.how+' (answer_matches.jsonl)'},'the proposed grid on '+pr.issue+' page '+pr.seq)}
 async function no(){const pr=cur&&cur.proposed;if(!pr||cur.decision)return;const r=cur;
@@ -357,7 +377,7 @@ document.onkeydown=e=>{if(e.target.tagName=='SELECT')return;
   if($('lb').style.display=='block'){if(e.key=='Escape')$('lb').style.display='none';return}
   if(zp){if(e.key=='Enter')saveBox();if(e.key=='Escape')location.hash=cur.id;if(e.key=='+'||e.key=='=')setZoom(zoomedF());if(e.key=='-'||e.key=='_')setZoom(1)}
   if(e.key=='n')decide({verdict:'none'});if(e.key=='u')decide({verdict:'unsure'});
-  if(!zp&&e.key=='y')yes();if(!zp&&e.key=='x')no();
+  if(!zp&&e.key=='y')yes();if(!zp&&e.key=='r')redraw();if(!zp&&e.key=='x')no();
   if(!zp&&e.key=='ArrowRight')$('next').click();if(!zp&&e.key=='ArrowLeft')$('prev').click()};
 start();
 </script>"""

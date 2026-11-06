@@ -2,6 +2,7 @@
 
     python tools/collegian/review.py serve [--port 8765]
     http://localhost:8765/answers   the answer keys the matcher could not settle (answers_view.py, answers.py)
+    http://localhost:8765/crops     check every saved key crop, mark the bad ones (crops_view.py)
 
 Shows one issue at a time as a contact sheet of all its pages (a spread each). Click the
 page the crossword is on, or say there is no crossword that day. Each decision is a line in
@@ -26,6 +27,7 @@ DATA = scan.DATA
 DECISIONS = DATA / "decisions.jsonl"
 sys.path.insert(0, str(Path(__file__).parent))
 import answers_view  # noqa: E402  (the /answers sheet; reads answers.py's milestones)
+import crops_view  # noqa: E402  (the /crops sheet: check the saved key crops)
 
 
 def decisions():
@@ -510,6 +512,10 @@ class H(BaseHTTPRequestHandler):
             return self.send(BOXES, "text/html; charset=utf-8")
         if u.path == "/answers":
             return self.send(answers_view.PAGE, "text/html; charset=utf-8")
+        if u.path == "/crops":
+            return self.send(crops_view.PAGE, "text/html; charset=utf-8")
+        if u.path == "/api/crops":
+            return self.send(json.dumps(crops_view.queue()))
         if u.path == "/api/answers":
             return self.send(json.dumps(answers_view.queue(page_size)))
         if u.path.startswith("/region/"):          # a recorded box of a page (a proposed key), cached
@@ -594,6 +600,9 @@ class H(BaseHTTPRequestHandler):
                 with open(CROP_FLAGS, "a", encoding="utf8") as f:
                     f.write(json.dumps(rec) + "\n")
             return self.send(json.dumps(rec))
+        if self.path == "/api/cropflags":     # /crops: a batch's bad crops, the rest fine
+            r = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            return self.send(json.dumps(crops_view.record(r)))
         if self.path == "/api/answer":       # /answers: which grid is a puzzle's key, a box drawn, or none printed
             r = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
             return self.send(json.dumps(answers_view.record(r)))
