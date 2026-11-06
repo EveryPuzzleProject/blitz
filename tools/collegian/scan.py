@@ -7,12 +7,23 @@ Nothing here reads a puzzle; it scores each page's OCR text for the look of a cr
     python tools/collegian/scan.py issues          # the issue list for the run -> issues.tsv
     python tools/collegian/scan.py scan [--limit N] [--from DATE --to DATE]
     python tools/collegian/scan.py report
+    python tools/collegian/scan.py pages [--limit N]   # the puzzle pages' images -> pages/, pages.tsv
 
 Data lives outside the repo (COLLEGIAN_DIR, default ~/Projects/collegian-scans):
     cache/manifest/<date>.json     the issue's IIIF manifest (page list, image ids)
     cache/ocr/<date>/seq-<n>.txt   every page's OCR text we fetched (never discarded)
     issues.tsv                     one row per issue: verdict, page, score, evidence
     scan_log.jsonl                 what each page scored (so a verdict can be traced)
+    pages/<date>/seq-<n>-page.jpg  each puzzle page whole, 1000 px tall (to see the layout and place the puzzle)
+    pages/<date>/seq-<n>-puzzle.jpg  the puzzle's box padded 12% each side, at the archive's native resolution
+    pages.tsv                      xword-ocr's folder source (docs/sources.md): the page row, then its crop
+                                   (`crop_of`), each with its archive url; `page` is the archive's seq
+    pages_fetch.jsonl              every image fetched, with its IIIF url
+
+`pages` takes the page a person settled (decisions.jsonl) plus extra_pages.jsonl (pages beyond one per
+date: the 1978-01-20 p1 reprint stub), and the box from box_fixes.jsonl, else crops.tsv, else the extra
+page's own. Files already on disk are never fetched again. Then:
+    cd ../xword-ocr && uv run xword-ocr harvest --folder ~/Projects/collegian-scans --pubid collegian --out harvests/collegian
 
 Archive: https://panewsarchive.psu.edu/lccn/sn85054904/ (open, IIIF, per-page OCR).
 Pages are scanned from the LAST page backwards, because the puzzle is usually near the
@@ -506,6 +517,147 @@ def cmd_publish(a):
     print(f"{len(lines) - 1} issues -> {out/'puzzles.tsv'}  {n}")
 
 
+PAGE_H = 1000   # the whole page, 1000 px tall (spreads ~1300 wide): layout, headlines and the puzzle's place show; reading is the crop's job
+PAD = 0.12      # each side of a puzzle's box, as a share of the box: err on too much (grid, clues, title, byline)
+
+
+def _last_by_date(name):
+    out = {}
+    p = DATA / name
+    if p.exists():
+        for line in p.read_text("utf8").splitlines():
+            if line.strip():
+                r = json.loads(line)
+                out[r["date"]] = r
+    return out
+
+
+def puzzle_pages():
+    """Every puzzle page to collect, in date and page order: (date, seq, box, box_source, notes).
+
+    The page is the one a person settled in decisions.jsonl (last line per date wins); extra_pages.jsonl adds
+    pages beyond one per date (the 1978-01-20 p1 reprint stub). The box is the hand-placed one in
+    box_fixes.jsonl if any, else crops.tsv's, else the extra page's own; all in archive (native) pixels."""
+    import csv
+    crops = {}
+    p = DATA / "crops.tsv"
+    if p.exists():
+        with open(p, encoding="utf8", newline="") as f:
+            for r in csv.DictReader(f, delimiter="\t"):
+                if r["x"]:
+                    crops[(r["date"], int(r["seq"]))] = ([int(r[k]) for k in "xywh"], r["method"])
+    fixes = {(d, int(r["seq"])): (r["box"], f"hand-placed by a person ({r.get('how', '')})")
+             for d, r in _last_by_date("box_fixes.jsonl").items() if r.get("box")}
+    notes = {}
+    ex = DATA / "exceptions.tsv"
+    if ex.exists():
+        for line in ex.read_text("utf8").splitlines()[1:]:
+            f = line.split("\t")
+            if len(f) >= 3 and f[1].isdigit() and f[2] in ("reprint-stub", "flag-on-import"):
+                notes.setdefault((f[0], int(f[1])), []).append(f"{f[2]} (exceptions.tsv)")
+    out = {}
+    for d, r in _last_by_date("decisions.jsonl").items():
+        if r["verdict"] == "found" and r.get("seq"):
+            k = (d, int(r["seq"]))
+            box, how = fixes.get(k) or crops.get(k) or (None, "no box recorded")
+            n = list(notes.get(k, []))
+            if r.get("kind") and r["kind"] != "regular":
+                n.append(r["kind"])
+            out[k] = (box, how, n)
+    p = DATA / "extra_pages.jsonl"
+    if p.exists():
+        for line in p.read_text("utf8").splitlines():
+            if line.strip():
+                r = json.loads(line)
+                k = (r["date"], int(r["seq"]))
+                box, how = fixes.get(k) or (r["box"], f"{r['how']} (extra_pages.jsonl, {r['by']})")
+                out[k] = (box, how, list(notes.get(k, [])) or [r.get("kind", "extra page")])
+    return [(d, s, *v) for (d, s), v in sorted(out.items())]
+
+
+def padded(box, W, H):
+    x, y, w, h = box
+    px, py = round(PAD * w), round(PAD * h)
+    x0, y0 = max(0, x - px), max(0, y - py)
+    return [x0, y0, min(W, x + w + px) - x0, min(H, y + h + py) - y0]
+
+
+def page_files(date, seq):
+    return f"pages/{date}/seq-{seq}-page.jpg", f"pages/{date}/seq-{seq}-puzzle.jpg"
+
+
+def cmd_pages(a):
+    """Fetch each puzzle page's images into pages/ and write pages.tsv (xword-ocr's folder source).
+
+    Per page: the whole page PAGE_H px tall, and the puzzle's box padded by PAD at the archive's native
+    resolution (a `crop_of` crop, the one the harvest reads). Resumable: a file already on disk is never
+    fetched again (and never replaced). Each fetch is logged in pages_fetch.jsonl with its IIIF url."""
+    import datetime
+    todo = puzzle_pages()
+    if a.limit:
+        todo = todo[: a.limit]
+    jobs = []
+    for date, seq, box, how, notes in todo:
+        cv = manifest(date)["sequences"][0]["canvases"][seq - 1]
+        iid = cv["images"][0]["resource"]["@id"]
+        W, H = cv["width"], cv["height"]
+        page_f, crop_f = page_files(date, seq)
+        jobs.append((DATA / page_f, f"{BASE}{iid}/full/,{PAGE_H}/0/default.jpg"))
+        region = padded(box, W, H) if box else [0, 0, W, H]
+        jobs.append((DATA / crop_f, f"{BASE}{iid}/{','.join(map(str, region))}/full/0/default.jpg"))
+    need = [j for j in jobs if not j[0].exists()]
+    print(f"{len(todo)} puzzle pages, {len(jobs)} images, {len(need)} to fetch with {a.workers} workers", flush=True)
+    t0, done, nbytes = time.time(), 0, 0
+
+    def fetch(job):
+        path, url = job
+        t = time.time()
+        b = get(url)
+        if not b:
+            return path, url, 0, "not found"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(".tmp")
+        tmp.write_bytes(b)
+        tmp.replace(path)
+        if a.pause:
+            time.sleep(a.pause)
+        return path, url, len(b), f"{time.time() - t:.1f}s"
+
+    with cf.ThreadPoolExecutor(a.workers) as ex:
+        for path, url, n, how in ex.map(fetch, need):
+            done += 1
+            nbytes += n
+            with _lock, open(DATA / "pages_fetch.jsonl", "a", encoding="utf8") as f:
+                f.write(json.dumps(dict(file=path.relative_to(DATA).as_posix(), url=url, bytes=n, result=how,
+                                        at=time.strftime("%Y-%m-%dT%H:%M:%S"))) + "\n")
+            if not n:
+                print(f"  FAILED {path.relative_to(DATA)}: {url}", flush=True)
+            if done % 50 == 0 or done == len(need):
+                el = time.time() - t0
+                print(f"  {done}/{len(need)}  {nbytes / 1e6:.0f} MB  {el / 60:.1f} min", flush=True)
+    # pages.tsv: the page's own row, then its crop. Leaves count in this order, which is the archive's
+    # scan order (seq), not the printed page number (the archive doesn't give one).
+    rows = ["file\tissue\tdate\tpage\turl\tcaptured\tnote\tcrop_of"]
+    missing = 0
+    for date, seq, box, how, notes in puzzle_pages():
+        page_f, crop_f = page_files(date, seq)
+        if not (DATA / page_f).exists() or not (DATA / crop_f).exists():
+            missing += 1
+            continue
+        url = f"https://panewsarchive.psu.edu/lccn/{LCCN}/{date}/ed-1/seq-{seq}/"
+        cap = datetime.date.fromtimestamp((DATA / crop_f).stat().st_mtime).isoformat()
+        cv = manifest(date)["sequences"][0]["canvases"][seq - 1]
+        region = padded(box, cv["width"], cv["height"]) if box else [0, 0, cv["width"], cv["height"]]
+        pnote = "; ".join([f"whole page at {PAGE_H} px tall (archive image {cv['width']}x{cv['height']})"] + notes)
+        cnote = "; ".join([f"archive pixels {','.join(map(str, region))} at native resolution: the box from {how}, "
+                           f"padded {round(PAD * 100)}% each side" if box else "no box recorded: the whole page"] + notes)
+        rows.append("\t".join([page_f, f"collegian-{date}", date, str(seq), url, cap, pnote, ""]))
+        rows.append("\t".join([crop_f, f"collegian-{date}", date, str(seq), url, cap, cnote, page_f]))
+    if not a.limit:
+        (DATA / "pages.tsv").write_text("\n".join(rows) + "\n", "utf8")
+        print(f"{(len(rows) - 1) // 2} pages -> {DATA / 'pages.tsv'}" + (f"; {missing} not yet fetched" if missing else ""))
+
+
 def cmd_report(a):
     rows = read_rows()
     from collections import Counter
@@ -539,7 +691,12 @@ def main():
     q = sub.add_parser("publish", help="write the public index (puzzles.tsv, exceptions.tsv) for the collegian repo")
     q.add_argument("--to", default=str(Path.home() / "Projects" / "collegian"))
     q.set_defaults(fn=cmd_publish)
-    sub.add_parser("prior", help="guess the page of issues without a hit from found issues nearby").set_defaults(fn=cmd_prior)
+    q = sub.add_parser("pages", help="fetch each puzzle page (whole page reduced, puzzle crop native) -> pages/, pages.tsv")
+    q.add_argument("--limit", type=int, help="fetch only the first N pages (pages.tsv is written only for a full run)")
+    q.add_argument("--workers", type=int, default=3)
+    q.add_argument("--pause", type=float, default=0.5, help="seconds each worker waits after a fetch")
+    q.set_defaults(fn=cmd_pages)
+    sub.add_parser("prior",help="guess the page of issues without a hit from found issues nearby").set_defaults(fn=cmd_prior)
     a = p.parse_args()
     a.fn(a)
 
