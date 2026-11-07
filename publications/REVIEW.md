@@ -20,34 +20,42 @@ Title and byline: as printed. Author: the name alone, without "Mr.", "Miss" or "
 Style: dashes as an em dash (—); a word hyphenated only because of a line
 break is joined as it's normally written; the magazine's recurring notices
 (e.g. "Judge will run a Crossword Puzzle every week and will pay $25...") are
-not part of the puzzle: remove them from captions. Everything else exactly as
-printed, misprints included; record an obvious misprint under "sic" with what
-was meant ("cockail" -> "cocktail") rather than correcting it.
+not part of the puzzle: remove them from captions.
+
+The text is the puzzle as the publisher meant it, not a facsimile of the page
+(the corpus's rule, EDITORIAL.md: obvious mistakes are corrected to what was
+meant; nothing the publisher did on purpose is changed).
 
 A correction is for an OCR misreading (the scan shows something different
 from the text) and for damaged type: letters the press printed broken, faint
 or partly missing ("quarre!" for quarrel, "shel!", "wal's" for walls; an e
 whose bar didn't print looks like an o or c, as in "highor"), a stray space
 or a missing one ("fan ier", "highor der"), and ink specks read as accents
-or punctuation ("aré"). Transcribe what was set in type. "sic" is only for a
-mistake set cleanly in type: a wrong, extra or missing letter in sharp print
-("Tumeric", "Treelees", "tresspassing", "Tbis"). If the scan shows a word
-cleanly spelled that way, it is never a correction, however wrong it looks.
-Puzzles have gimmicks (missing or
-extra letters, pun spellings, several letters in one square), so an odd
-spelling may be the point: check whether the answer grid only works with it,
-and say so in "sic" or the note. Never "fix" what is printed.
+or punctuation ("aré"). A plain printer's typo is corrected too: a wrong,
+extra or missing letter set cleanly in type ("cockail" for cocktail,
+"Tumeric", "tresspassing", "Tbis") becomes the word that was meant. When the
+scan shows the misspelling cleanly, say so in `note` ("D1 is printed
+'cockail'; corrected to cocktail"), so the record shows the slip was the
+printer's, not the OCR's.
 
-The one exception is the answer key, which is evidence for the answers rather than part of the
+What the publisher did on purpose stays. Puzzles have gimmicks (missing or
+extra letters, pun spellings, several letters in one square, dialect), so an
+odd spelling may be the point: check whether the answer grid only works with
+it, keep it, and list it under "as_printed" with why ("Soury: a pun"). When
+you can't tell a typo from wordplay, keep it as printed under "as_printed",
+say it's a close call, and a person decides.
+
+The answer key is evidence for the answers rather than part of the
 puzzle. When a letter in the printed key is plainly a misprint (the clue and the crossing words
 both call for another letter, and anyone solving the puzzle would agree: TANG, not TAHG), correct
 the square to the right letter and say so in the note, in this form: "The solution grid that
 ran on September 8, 1928 printed 1 Down as TAHG. It has been corrected to TANG." If the puzzle's
 gimmick needs the odd letter, keep it.
 
-Only correct what you can see in the scan. Transcribe exactly as printed,
-including the original spelling and punctuation. Don't modernize or improve
-anything. If something can't be read, list it under "unsure" rather than guess.
+Only correct what you can see in the scan. Keep the original spelling and
+punctuation where they are what the publisher meant; don't modernize or
+improve anything. If something can't be read, list it under "unsure" rather
+than guess.
 
 
 ## How to review a puzzle folder (text first)
@@ -105,10 +113,10 @@ every call re-reads the whole conversation.
   "corrections": {"clue:A14": "full corrected clue text", "grid:r3c5": "#", "other:2": "",
                   "meta:title": "...", "meta:author": "...", "meta:byline": "..."},
   "answers": {"A13": "ROMAN"},          (answer-key words that differ: the whole word as printed)
-  "sic": {"D1": "cocktail"},            (misprints kept as printed: clue id -> what was meant)
   "confirm": ["clue:A7"],               (suspects you checked and found right)
   "unsure": {"clue:D22": "words"},      ("grid", "letters", "words", "cut off" or "punctuation")
-  "as_printed": {"D51": "Soury: a pun"},  (odd words that are printed so: names, puns, dialect)
+  "as_printed": {"D51": "Soury: a pun"},  (odd words printed so on purpose: names, puns, dialect,
+                                        a gimmick; or a close call for a person to decide)
   "tool_notes": [{"kind": "heading-in-clue", "target": "clue:D68", "note": "..."}]
 }
 ```
@@ -135,7 +143,8 @@ place), "sheets", "finish", "text-md" or "other". Keep each note to one line. An
 fine.
 
 `finish` lists every clue that still has an odd word after your corrections. Each one must be
-settled: corrected, kept under "sic", or listed under "as_printed". "Confirm" doesn't settle an
+settled: corrected, or listed under "as_printed". (Reviews from before November 2026 may carry
+a "sic" field, a misprint kept as printed; don't write one.) "Confirm" doesn't settle an
 odd word, because it's easy to confirm a clue for one reason (its text belongs there) and miss a
 misread word in it. Settle them and run finish again.
 
@@ -152,6 +161,7 @@ clue's own text too: it has usually been read separately, with its own slips.
 
 Most odd-looking words are OCR misreads, not misprints: if the text says "bundred" and the crop
 shows "hundred", correct the clue. Damaged type is corrected too ("quarre!", "shel!", "fan ier":
-broken, faint or spaced-out letters). Use "sic" only for a misspelling set cleanly in type.
+broken, faint or spaced-out letters), and so is a printer's typo set cleanly in type (say so in
+`note`). What's printed that way on purpose goes under "as_printed".
 Never put an answer word in a clue; answer fixes go in "answers". Captions that belong to the
 magazine, an ad or another puzzle are removed with "other:N": "".
