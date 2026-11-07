@@ -21,7 +21,7 @@ repos, never folders or special cases inside the tools.
 | `blitz` | The project and its one CLI: harvest, packets, review, the site, import, status, export. Generic docs (rules, volunteer guide, process notes). | yes |
 | `<pub>` (e.g. `judge`) | The publication's record: what exists, what we have, its corrections, its puzzles, its status, its notes. | public by default |
 | `<pub>-scans` | The publication's evidence and working files: page images, OCR caches, harvest state, raw review attempts. | private |
-| `catalog` | Facts about every publication, one file each. | yes |
+| `census` | Facts about every publication, one file each (the Crossword Census; was `catalog`). | yes |
 | Supabase + R2 | The review site's live data (puzzle list, proofs, verdicts; packet images). Generic: one database for all publications. | site |
 
 `tools` (epp) folds into blitz (`blitz scans ...`) or is retired; see step 3.
@@ -59,7 +59,7 @@ there, what's in progress, what's reviewed").
 
 | Kind | Example | Home |
 |---|---|---|
-| Facts and history | Judge went monthly in Aug 1932; numbering restarts in 1927 | `catalog/publications/judge.md` (facts), `judge/README.md` (the public story) |
+| Facts and history | Judge went monthly in Aug 1932; numbering restarts in 1927 | `census/publications/judge.md` (facts), `judge/README.md` (the public story) |
 | Reviewer guidance for this publication | "the $10 notice isn't part of the puzzle"; changing the grid | `judge/review-notes.md` (now blitz `publications/judge/NOTES.md` + the Judge part of `INSTRUCTIONS.md`). `blitz instructions judge` reads it from `../judge`. |
 | Hand fixes to the harvest | page hints, a typed grid, extra pages | `judge/fixes.toml` (now `xword-ocr/fixes/judge.toml`) |
 | Reviewers' notes on the tools | "D60 crop shows D59" | `judge/tool-notes.jsonl`: evidence for fixing the tools, kept with the publication it came from |
@@ -191,7 +191,7 @@ The flow: the control room gets puzzles ready for review, then publishes the bat
 So the hosted viewer covers only the review pages; stage views and interventions are never hosted. The internal dashboard is a v3 deliverable of its own: today the watch page has stage tabs but no batch list, and `/review/`'s batch landing page is only the public half. The hosted proof page drops internal cues (stage links, raw triage codes) or words them for volunteers.
 
 **The harvest split.** Harvest is standalone rather than a folder in blitz because finding
-and fetching a publication's scans is useful beyond this pipeline (the catalog, the universe
+and fetching a publication's scans is useful beyond this pipeline (the census, the universe
 estimate), and its contract is clean.
 
 **The flow, as it should be in v3** (the goals are in both repos' CLAUDE.md: "The pipeline:
@@ -233,7 +233,7 @@ What a PR to a publication repo can carry, by stage:
 
 | Stage | A contribution | Lands as |
 |---|---|---|
-| Find | a puzzle we didn't know about, a sighting, a better source | a row in `manual.tsv` (and `catalog` for publication-level facts) |
+| Find | a puzzle we didn't know about, a sighting, a better source | a row in `manual.tsv` (and `census` for publication-level facts) |
 | Harvest | run `blitz harvest` over a source, tune page hints | `fixes.toml` changes, `manifest.json`; packets as a release |
 | Review | an agent's or a person's review of puzzles | `reviews/<xdid>.json` (+ the packet's `ocr.json`) |
 | Fix | a correction to a reviewed puzzle | a review file, like any other review |

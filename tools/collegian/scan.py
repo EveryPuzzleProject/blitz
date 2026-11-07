@@ -44,7 +44,7 @@ from pathlib import Path
 
 BASE = "https://pana.ulprod.k8s.libraries.psu.edu"
 LCCN = "sn85054904"
-FIRST, LAST = "1976-03-01", "1981-06-30"   # catalog: first 1976-03-11/12, last found 1981-05-15
+FIRST, LAST = "1976-03-01", "1981-06-30"   # census: first 1976-03-11/12, last found 1981-05-15
 HEAD = {"User-Agent": "EPP-blitz collegian harvest (research; contact via github.com/EveryPuzzleProject)"}
 DATA = Path(os.environ.get("COLLEGIAN_DIR", Path.home() / "Projects" / "collegian-scans"))
 COLS = ["date", "pages", "verdict", "seq", "score", "evidence", "scanned", "decided_by", "guess"]

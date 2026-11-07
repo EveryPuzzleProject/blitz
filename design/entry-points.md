@@ -17,8 +17,8 @@ looks, and nothing linked them into one chain.
 
 The project is a chain, and the sites follow it:
 
-1. **Find.** The catalog: every publication known to have printed a crossword, and a census
-   of how many there are. https://everypuzzleproject.org/catalog/ (repo `catalog`).
+1. **Find.** The Crossword Census: every publication known to have printed a crossword, and
+   a count of how many there are. https://everypuzzleproject.org/census/ (repo `census`).
 2. **Index.** One repo per publication, each with a status page under the domain: which puzzles
    exist, which we have a copy of, which pages are still wanted. `/judge/`, `/bostonglobe/`,
    `/newyorkworld/`, `/bell/`, `/games/`, `/collegian/`.
@@ -32,7 +32,7 @@ The project is a chain, and the sites follow it:
 | Page | Purpose | Repo |
 |---|---|---|
 | everypuzzleproject.org | The front door: the mission, the chain, the publications board (one card per publication, live counts), ways to help, the newest posts. | `everypuzzleproject.github.io` |
-| /catalog/ | The census: publications, counts, what is in the corpus, what is a lead. | `catalog` |
+| /census/ | The census: publications, counts, what is in the corpus, what is a lead. | `census` |
 | /<publication>/ | The publication's status page: its puzzles, their states, the pages wanted. | `<publication>` |
 | /blog/ | The project's writing: one HTML file per post, newest first in the index. Moved here from blitz on 2026-11-06. | `everypuzzleproject.github.io` |
 | blitz.xwordapp.com | The review tool's page: what blitz is, the two ways in (the review site; directing your Claude), what is open for review now, contributors. | `blitz` |
@@ -84,7 +84,8 @@ the system preference. The org site's README documents it.
 - The org profile README on GitHub, rewritten to match.
 - GAMES and Collegian status pages; the shared header on all six status pages.
 - The catalog reframed as a census (131 publications; the Library of Congress denominator;
-  "In the corpus" column) and its page at /catalog/.
+  "In the corpus" column) and its page at /catalog/; renamed to the Crossword Census
+  (repo `census`, page at /census/) on 2026-11-07.
 - Five blog posts: Judge, Pelham, Collegian, GAMES, New York World.
 - The blog moved under the domain (/blog/); blitz's old post URLs redirect there (meta refresh
   plus canonical). Blitz's home page became the review tool's page, with the header, the two
@@ -93,10 +94,10 @@ the system preference. The org site's README documents it.
 
 ## Deliberately left
 
-- Seeding the catalog from the Editor & Publisher yearbooks and Syndicate Directory
-  (`census/ep-crossword-features.csv`): the next big source of papers that carried
+- Seeding the census from the Editor & Publisher yearbooks and Syndicate Directory
+  (`universe/ep-crossword-features.csv`): the next big source of papers that carried
   syndicated puzzles.
-- The "gxd" wording in the catalog's research notes, people/ and bylines/README.md (the README
+- The "gxd" wording in the census's research notes, people/ and bylines/README.md (the README
   and the table were cleaned; the rest still says gxd where it means the corpus).
 - Retiring the images under blitz.xwordapp.com/blog/img/. External links may point at them, so
   the folder stays for a few weeks after the move; then it goes, and the blog image scripts in
