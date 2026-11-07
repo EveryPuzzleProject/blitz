@@ -223,8 +223,8 @@ Volunteers work through these in order, or pick one:
 
 Know of a scanned crossword that should be here?
 [Request a blitz](https://github.com/EveryPuzzleProject/blitz/issues/new?template=request-blitz.yml).
-Know of a publication that ran crosswords? Add it to the
-[catalog](https://github.com/EveryPuzzleProject/catalog).
+Know of a publication that ran crosswords? Add it to
+[the Crossword Census](https://github.com/EveryPuzzleProject/census).
 
 ## Layout
 

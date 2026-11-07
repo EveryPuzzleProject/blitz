@@ -1,5 +1,5 @@
 blank_issues_enabled: true
 contact_links:
-  - name: Suggest a publication for the catalog
-    url: https://github.com/EveryPuzzleProject/catalog/issues/new/choose
+  - name: Suggest a publication for the census
+    url: https://github.com/EveryPuzzleProject/census/issues/new/choose
     about: A newspaper, magazine, book or website that printed crosswords.

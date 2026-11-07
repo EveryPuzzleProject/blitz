@@ -161,7 +161,7 @@ missing keys, and a few misread key squares were counted as a full review.
 These catch what the pipeline is confidently wrong about, like the swapped headers above:
 - **gxd's clue database.** A clue and answer pair seen before is strong confirmation. A near
   miss (same answer, a clue one or two letters off) points at an OCR error.
-- **Bylines against the catalog's known constructors** (`catalog/people/`).
+- **Bylines against the census's known constructors** (`census/people/`).
 - **Crossings against the key**, and header consistency across the issue (two puzzles on one
   page shouldn't share a byline unless printed so).
 

@@ -67,8 +67,8 @@ judgement from intake and gets its own brief.
 
 ### Research (sourcing)
 
-Which papers carried the feature, where scans exist, what the catalog knows. Writes to
-the catalog and to `RESEARCH.md`, never to the tables.
+Which papers carried the feature, where scans exist, what the census knows. Writes to
+the census and to `RESEARCH.md`, never to the tables.
 
 ### OCR operator
 
