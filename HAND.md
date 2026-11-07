@@ -50,9 +50,10 @@ square to see it there.
   square and type the right letter (`#` makes it black, `.` marks it
   unreadable).
 - **Clues:** each clue's text sits under its scan crop. Fix what the OCR
-  misread. Keep misprints and odd spellings exactly as printed, and mark them
-  with **Misprint** (say what was meant) instead of correcting them. Mark
-  anything you can't read with **Unsure**.
+  misread, and fix a plain printer's typo too: the text is the puzzle as the
+  publisher meant it, so "cockail" becomes cocktail (say what was printed in
+  your finishing note). Keep what the puzzle does on purpose: a pun, a gimmick
+  spelling, dialect. Mark anything you can't read with **Unsure**.
 - **Finish:** say whether it's ready to publish, and anything left over.
 
 The editor saves as you go, in your browser, so you can close it and come

@@ -157,6 +157,11 @@ Newest at the bottom of each section; strike through or delete when done.
    a clearly wrong printed letter is corrected, with a note. To do: drop "sic" from
    publications/REVIEW.md and INSTRUCTIONS.md, the draft.json schema and `blitz finish`'s
    "settled" check; the importer and export keep reading old sic records.
+   **Update, 2026-11-06:** the corpus's EDITORIAL.md (xd PR 160) corrects a publisher's clue typo
+   to what was meant, so "leave wrong text as printed" is withdrawn: a plain printer's typo is
+   corrected, with what was printed said in `note`; `as_printed` is for wordplay, gimmicks, dialect
+   and close calls. REVIEW.md, INSTRUCTIONS.md, HAND.md and VOLUNTEER.md say so. Still to do: drop
+   "sic" from draft.json, `blitz finish` and the "misprints kept" strings in cli.py.
    **Background:**
    While drafting the Judge blog post, many clue texts kept as "sic" turned out to be possibly real,
    uncorrected errors (OCR or transcription, not the printer). The opposite also happened: a

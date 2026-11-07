@@ -101,7 +101,7 @@ time, with this prompt (fill in the folder, puzzles and model):
 > Puzzles: `<puzzle>`, `<puzzle>`, `<puzzle>`, `<puzzle>`
 >
 > When done, reply with one line per puzzle, in this form and nothing else:
-> `<puzzle> | <title as printed> | <N> corrections | <N> misprints kept | <N> unsure | escalated or not | ready or not | "<the clue you found most charming, quoted exactly>"`
+> `<puzzle> | <title as printed> | <N> corrections | <N> unsure | escalated or not | ready or not | "<the clue you found most charming, quoted exactly>"`
 
 If the person wants to watch, run `uv run blitz watch` in the background
 before starting the subagents: it opens a page in their browser that follows
@@ -124,7 +124,7 @@ and say so.
 
 Tell the person, in one line:
 
-> ✓ *Judge*, March 16, 1929, "Cross Word Puzzle No. 231": 7 corrections, 1 printed misprint kept. Favorite clue: "…". Record: <link> · Try it yourself: <path>
+> ✓ *Judge*, March 16, 1929, "Cross Word Puzzle No. 231": 7 corrections. Favorite clue: "…". Record: <link> · Try it yourself: <path>
 
 `uv run blitz status` shows where every puzzle of the run stands.
 
