@@ -66,8 +66,8 @@ Use the answers as a cross-check: each clue's answer must fit its clue.
     "meta:title": "corrected title",
     "meta:author": "the name alone",   (also "meta:byline", "meta:puzzle_number")
   },
-  "sic": {"D1": "cocktail"},            (a misprint you kept as printed: clue id -> what was meant;
-                                        for a misprinted answer use the answer's clue id)
+  "as_printed": {"D51": "Soury: a pun"}, (odd words printed so on purpose: names, puns, dialect, a
+                                        gimmick; or a close call for a person to decide)
   "regions": {"clue:A64": [x0, y0, x1, y1]},  (only if a clue's "box" misses part of its printed
                                         text: the corrected box, in pixels of the clue image)
   "confirm": ["clue:A7", "cell:r2c3"],   (flagged or low-confidence items you checked and found correct)
@@ -78,24 +78,39 @@ Use the answers as a cross-check: each clue's answer must fit its clue.
 Style: dashes as an em dash (—); a word hyphenated only because of a line
 break is joined as it's normally written; the magazine's recurring notices
 (e.g. "Judge will run a Crossword Puzzle every week and will pay $25...") are
-not part of the puzzle: remove them from captions. Everything else exactly as
-printed, misprints included; record an obvious misprint under "sic" with what
-was meant ("cockail" -> "cocktail") rather than correcting it.
+not part of the puzzle: remove them from captions.
 
-A correction is only for an OCR misreading: the scan shows something
-different from the text. If the scan shows a word spelled that way, it is
-never a correction, however wrong it looks. Puzzles have gimmicks (missing or
-extra letters, pun spellings, several letters in one square), so an odd
-spelling may be the point: check whether the answer grid only works with it,
-and say so in "sic" or the note. Never "fix" what is printed.
+The text is the puzzle as the publisher meant it, not a facsimile of the page
+(the corpus's rule, EDITORIAL.md: obvious mistakes are corrected to what was
+meant; nothing the publisher did on purpose is changed).
 
-The one exception is the answer key, which is evidence for the answers rather than part of the
+A correction is for an OCR misreading (the scan shows something different
+from the text) and for damaged type: letters the press printed broken, faint
+or partly missing ("quarre!" for quarrel, "shel!", "wal's" for walls; an e
+whose bar didn't print looks like an o or c, as in "highor"), a stray space
+or a missing one ("fan ier", "highor der"), and ink specks read as accents
+or punctuation ("aré"). A plain printer's typo is corrected too: a wrong,
+extra or missing letter set cleanly in type ("cockail" for cocktail,
+"Tumeric", "tresspassing", "Tbis") becomes the word that was meant. When the
+scan shows the misspelling cleanly, say so in `note` ("D1 is printed
+'cockail'; corrected to cocktail"), so the record shows the slip was the
+printer's, not the OCR's.
+
+What the publisher did on purpose stays. Puzzles have gimmicks (missing or
+extra letters, pun spellings, several letters in one square, dialect), so an
+odd spelling may be the point: check whether the answer grid only works with
+it, keep it, and list it under "as_printed" with why ("Soury: a pun"). When
+you can't tell a typo from wordplay, keep it as printed under "as_printed",
+say it's a close call, and a person decides.
+
+The answer key is evidence for the answers rather than part of the
 puzzle. When a letter in the printed key is plainly a misprint (the clue and the crossing words
 both call for another letter, and anyone solving the puzzle would agree: TANG, not TAHG), correct
 the square to the right letter and say so in the note, in this form: "The solution grid that
 ran on September 8, 1928 printed 1 Down as TAHG. It has been corrected to TANG." If the puzzle's
 gimmick needs the odd letter, keep it.
 
-Only correct what you can see in the scan. Transcribe exactly as printed,
-including the original spelling and punctuation. Don't modernize or improve
-anything. If something can't be read, list it under "unsure" rather than guess.
+Only correct what you can see in the scan. Keep the original spelling and
+punctuation where they are what the publisher meant; don't modernize or
+improve anything. If something can't be read, list it under "unsure" rather
+than guess.
