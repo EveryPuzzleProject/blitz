@@ -124,6 +124,11 @@ cd blitz
 uv run --extra site blitz site-publish <folder of reviewed packets> --batch <name>
 ```
 
+Publishing again is cheap: `site-publish` and `site-publish-batch` list the bucket once, skip every
+file it already has byte for byte (local MD5 against R2's ETag), upload the rest 16 at a time, and
+print how many went up and how many were skipped. `--force` uploads everything (e.g. after a change
+to the files' Content-Type or Cache-Control, which the check doesn't compare).
+
 To bring their proofs back, one command does the whole loop and stops on surprises:
 
 ```

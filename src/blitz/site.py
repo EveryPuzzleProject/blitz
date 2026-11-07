@@ -23,13 +23,13 @@ R2_SECRET_ACCESS_KEY, R2_BUCKET, R2_PUBLIC_URL (publish).
 from __future__ import annotations
 
 import json
-import mimetypes
 import os
 import shutil
 import urllib.error
 import urllib.request
 from pathlib import Path
 
+from . import r2
 from .work import Stop
 
 # What a helper's page needs from a packet (the clue crops and agent sheets stay local). checks.json: what the
@@ -208,12 +208,13 @@ def dropped(folder: Path) -> dict[str, dict]:
 
 
 def publish(folder: Path, batch: str = "", dry_run: bool = False, skip: tuple[str, ...] = (),
-            squares_only: bool = False) -> list[str]:
+            squares_only: bool = False, force: bool = False) -> list[str]:
     """Put a folder's reviewed puzzles on the site (except the puzzles in skip: e.g. ones already imported),
     and its key squares (key-squares.json from `blitz key-squares`) if it has them. squares_only: only the
     key squares and the key images their cards crop, without opening the puzzles' review pages.
     Puzzles in the folder's dropped.json go up marked dropped, with who dropped them and why
     (site/schema-7-drops.sql); a puzzle no longer on that list goes up open again.
+    Files the bucket already has byte for byte are skipped (r2.sync; force: upload them all anyway).
     Returns the puzzles published."""
     drops = dropped(folder)
     squares = (json.loads((folder / "key-squares.json").read_text(encoding="utf-8"))
@@ -263,20 +264,26 @@ def publish(folder: Path, batch: str = "", dry_run: bool = False, skip: tuple[st
                                                    "R2_BUCKET", "R2_PUBLIC_URL")
     _env("SUPABASE_URL", "SUPABASE_SERVICE_KEY")
     try:
-        import boto3
+        import boto3  # noqa: F401
     except ImportError:
         raise Stop("Publishing needs boto3: run it as  uv run --extra site blitz site-publish ...")
-    s3 = boto3.client("s3", endpoint_url=f"https://{account}.r2.cloudflarestorage.com",
-                      aws_access_key_id=key_id, aws_secret_access_key=secret, region_name="auto")
-    rows = []
+    s3 = r2.client(account, key_id, secret)
+    rows, puts = [], []
     base = lambda x: f"{public.rstrip('/')}/{_pub(x)}/{x}"
+
+    def upload() -> None:
+        """Everything in puts, skipping what the bucket already has (one listing per publication)."""
+        remote = {}
+        for pub in sorted({p.key.split("/", 1)[0] for p in puts}):
+            remote |= r2.listing(s3, bucket, pub + "/")
+        res = r2.sync(s3, bucket, puts, remote, force=force)
+        print(f"  {r2.summary(res)}")
+
     if squares_only:
         need = {f["xdid"]: f["card"]["img"] for f in squares["flags"] if f["card"].get("img")}
-        for d in packets:
-            if d.name in need and (d / need[d.name]).exists():
-                s3.upload_file(str(d / need[d.name]), bucket, f"{_pub(d.name)}/{d.name}/{need[d.name]}", ExtraArgs={
-                    "ContentType": mimetypes.guess_type(need[d.name])[0] or "application/octet-stream",
-                    "CacheControl": "no-cache"})
+        puts = [r2.Put(f"{_pub(d.name)}/{d.name}/{need[d.name]}", src=d / need[d.name], cache="no-cache")
+                for d in packets if d.name in need and (d / need[d.name]).exists()]
+        upload()
         publish_squares(squares, base, batch or folder.name)
         return [d.name for d in packets]
     for d in packets:
@@ -285,19 +292,16 @@ def publish(folder: Path, batch: str = "", dry_run: bool = False, skip: tuple[st
         for f in FILES:
             src = d / f
             if src.exists():
-                s3.upload_file(str(src), bucket, f"{pub}/{d.name}/{f}", ExtraArgs={
-                    "ContentType": mimetypes.guess_type(f)[0] or "application/octet-stream",
-                    "CacheControl": "no-cache" if f.endswith(".json") else "public, max-age=86400"})
+                puts.append(r2.Put(f"{pub}/{d.name}/{f}", src=src,
+                                   cache="no-cache" if f.endswith(".json") else "public, max-age=86400"))
                 files[f] = True
         thumb = _thumb(d)
         if thumb:
-            s3.put_object(Bucket=bucket, Key=f"{pub}/{d.name}/thumb.png", Body=thumb, ContentType="image/png",
-                          CacheControl="public, max-age=86400")
+            puts.append(r2.Put(f"{pub}/{d.name}/thumb.png", body=thumb, type="image/png"))
             files["thumb.png"] = True
         small = _page_small(d) if d.name in drops else None
         if small:
-            s3.put_object(Bucket=bucket, Key=f"{pub}/{d.name}/page-small.jpg", Body=small, ContentType="image/jpeg",
-                          CacheControl="public, max-age=86400")
+            puts.append(r2.Put(f"{pub}/{d.name}/page-small.jpg", body=small, type="image/jpeg"))
             files["page-small.jpg"] = True
         rv = json.loads((d / "review.json").read_text(encoding="utf-8"))
         ocr = json.loads((d / "ocr.json").read_text(encoding="utf-8"))
@@ -312,6 +316,7 @@ def publish(folder: Path, batch: str = "", dry_run: bool = False, skip: tuple[st
                      "dropped": ({"by": drops[d.name].get("by", ""), "note": drops[d.name].get("note", "")[:500]}
                                  if d.name in drops else None)})
         print(f"  {d.name}: {len(files)} files")
+    upload()  # the files first: a row on the site never points at files that aren't there
     try:
         _rest("POST", "puzzles?on_conflict=xdid", rows, prefer="resolution=merge-duplicates,return=minimal")
     except urllib.error.HTTPError as e:  # the checkup column (schema-4-checkup.sql) isn't there yet: publish without it

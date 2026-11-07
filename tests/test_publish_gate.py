@@ -44,16 +44,10 @@ def test_publish_marks_the_puzzles_dropped_as_not_crosswords(tmp_path, monkeypat
     for k in ("R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_BUCKET", "SUPABASE_URL", "SUPABASE_SERVICE_KEY"):
         monkeypatch.setenv(k, "x")
     monkeypatch.setenv("R2_PUBLIC_URL", "https://r2.example")
-    put = []
+    from test_r2 import FakeBucket
 
-    class S3:
-        def upload_file(self, src, bucket, key, ExtraArgs=None):
-            put.append(key)
-
-        def put_object(self, Bucket, Key, Body, **kw):
-            put.append(Key)
-
-    monkeypatch.setitem(sys.modules, "boto3", types.SimpleNamespace(client=lambda *a, **k: S3()))
+    s3 = FakeBucket(page_size=1000)
+    monkeypatch.setitem(sys.modules, "boto3", types.SimpleNamespace(client=lambda *a, **k: s3))
     sent = []
     monkeypatch.setattr(site, "_rest", lambda method, path, body=None, prefer="": sent.append(body))
     assert publish(tmp_path) == ["games1977-11-01-L037", "games1977-11-01-L040"]  # dropped ones go up too, marked
@@ -62,3 +56,8 @@ def test_publish_marks_the_puzzles_dropped_as_not_crosswords(tmp_path, monkeypat
     assert rows["games1977-11-01-L040"]["dropped"] is None  # not dropped (or kept since): open again
     assert rows["games1977-11-01-L037"]["files"].get("page-small.jpg") and rows["games1977-11-01-L037"]["files"].get("thumb.png")
     assert "page-small.jpg" not in rows["games1977-11-01-L040"]["files"]
+    first = len(s3.sent)
+    assert first == 11 and "games/games1977-11-01-L037/page-small.jpg" in s3.objects
+    # published again with nothing changed: every file skipped, none sent
+    assert publish(tmp_path) == ["games1977-11-01-L037", "games1977-11-01-L040"]
+    assert len(s3.sent) == first
