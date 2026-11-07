@@ -15,15 +15,16 @@ and Not ready are the proof page's (the site's database). Drops stay: they're th
 from __future__ import annotations
 
 import json
-import mimetypes
 import re
 import shutil
 import urllib.error
 import urllib.parse
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 
+from . import r2
 from .work import Stop
 
 # what the page reads from /api/batch; the rest (the tools' data) stays local
@@ -32,9 +33,23 @@ KEEP = ("run", "current", "pubid", "counts", "causes", "puzzles")
 VOLUNTEER_DROP = ("proof", "diagnosis", "said", "held_for_you", "rule")
 
 
+FETCHERS = 8  # requests to the watch at once (its ThreadingHTTPServer takes them; pages and overlays are CPU work there)
+
+
+def watch_url(watch: str) -> str:
+    """The watch's address with localhost spelled 127.0.0.1. The watch listens on 127.0.0.1 only, and
+    on Windows localhost resolves to ::1 first: every request then waits about 2 s for the refused IPv6
+    connect before falling back (5,679 requests, 3 h 12 m of the Collegian snapshot, 2026-11-07)."""
+    u = urllib.parse.urlsplit(watch.rstrip("/"))
+    if (u.hostname or "").lower() == "localhost":
+        host = "127.0.0.1" + (f":{u.port}" if u.port else "")
+        u = u._replace(netloc=(u.netloc.rsplit("@", 1)[0] + "@" if "@" in u.netloc else "") + host)
+    return urllib.parse.urlunsplit(u)
+
+
 def _get(watch: str, path: str) -> bytes:
     try:
-        with urllib.request.urlopen(watch.rstrip("/") + path, timeout=300) as r:
+        with urllib.request.urlopen(watch_url(watch) + path, timeout=300) as r:
             return r.read()
     except urllib.error.HTTPError as e:
         raise Stop(f"The watch answered {e.code} for {path}: {e.read()[:300].decode('utf-8', 'replace')}")
@@ -60,14 +75,11 @@ def snapshot(watch: str, out: Path, name: str, title: str = "", run: str = "") -
             raise Stop(f"{out} exists and isn't a batch snapshot: give another --out.")
         shutil.rmtree(out)
     out.mkdir(parents=True)
-    got: set[str] = set()
+    want: dict[str, str] = {}  # rel -> the watch's URL: one file a page, however many puzzles are on it
+    overlays: list[tuple[str, str]] = []  # (rel, the watch's URL)
 
     def fetch(url: str, rel: str) -> str:
-        if rel not in got:
-            f = out / rel
-            f.parent.mkdir(parents=True, exist_ok=True)
-            f.write_bytes(_get(watch, url))
-            got.add(rel)
+        want.setdefault(rel, url)
         return rel
 
     for p in d["puzzles"]:
@@ -75,19 +87,34 @@ def snapshot(watch: str, out: Path, name: str, title: str = "", run: str = "") -
         p["thumb"] = fetch(p["thumb"], f"thumbs/{pid}.png") if p.get("thumb") else ""
         p["page"] = fetch(p["page"], f"page/{pid}.jpg") if p.get("page") else ""
         for m in p.get("maps") or []:
-            page = _slug(m["page"])  # one file a page, however many puzzles are on it
+            page = _slug(m["page"])
             src = m["image"]
             m["image"] = fetch(src, f"pages/{page}.jpg")
             m["full"] = fetch(src + "?w=1400", f"pages/{page}-1400.jpg")
-            ov = json.loads(_get(watch, f"/api/overlay/{urllib.parse.quote(run)}/{pid}/{m['n']}"))
-            ov["image"] = m["image"]
             m["overlay"] = f"overlay/{pid}-{m['n']}.json"
-            (out / "overlay").mkdir(exist_ok=True)
-            (out / m["overlay"]).write_text(json.dumps(ov, ensure_ascii=False), encoding="utf-8")
+            overlays.append((m["overlay"], f"/api/overlay/{urllib.parse.quote(run)}/{pid}/{m['n']}", m["image"]))
         if p.get("choice") != "drop":
             p.update(choice="", by="", note="", at="")
         for k in VOLUNTEER_DROP:
             p.pop(k, None)
+    # the requests are independent: FETCHERS at a time
+    def get_file(item):
+        rel, url = item
+        f = out / rel
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_bytes(_get(watch, url))
+
+    def get_overlay(item):
+        rel, url, image = item
+        ov = json.loads(_get(watch, url))
+        ov["image"] = image
+        f = out / rel
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(json.dumps(ov, ensure_ascii=False), encoding="utf-8")
+
+    with ThreadPoolExecutor(max_workers=FETCHERS) as pool:
+        list(pool.map(get_file, want.items()))
+        list(pool.map(get_overlay, overlays))
     thumbs = {p["pid"]: p["thumb"] for p in d["puzzles"]}
     for c in (d.get("causes") or {}).get("causes", []):
         for x in c.get("puzzles", []):
@@ -104,9 +131,10 @@ def snapshot(watch: str, out: Path, name: str, title: str = "", run: str = "") -
     return snap
 
 
-def publish(out: Path, dry_run: bool = False) -> list[str]:
+def publish(out: Path, dry_run: bool = False, force: bool = False) -> list[str]:
     """A snapshot folder to the site's bucket under batch/<name>/ (what was there before is replaced),
-    and the batch first in batch/batches.json. Returns the keys written."""
+    and the batch first in batch/batches.json. Files already there byte for byte are skipped (r2.sync;
+    force: upload them all). Returns the snapshot's keys."""
     from .site import _env
 
     snap = json.loads((out / "batch.json").read_text(encoding="utf-8"))["snapshot"]
@@ -117,18 +145,15 @@ def publish(out: Path, dry_run: bool = False) -> list[str]:
         return keys
     account, key_id, secret, bucket = _env("R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_BUCKET")
     try:
-        import boto3
+        import boto3  # noqa: F401
     except ImportError:
         raise Stop("Publishing needs boto3: run it as  uv run --extra site blitz site-publish-batch ...")
-    s3 = boto3.client("s3", endpoint_url=f"https://{account}.r2.cloudflarestorage.com",
-                      aws_access_key_id=key_id, aws_secret_access_key=secret, region_name="auto")
-    old = set()
-    for page in s3.get_paginator("list_objects_v2").paginate(Bucket=bucket, Prefix=prefix):
-        old |= {o["Key"] for o in page.get("Contents", [])}
-    for f, k in zip(files, keys):
-        s3.upload_file(str(f), bucket, k, ExtraArgs={
-            "ContentType": mimetypes.guess_type(f.name)[0] or "application/octet-stream",
-            "CacheControl": "no-cache" if f.suffix == ".json" else "public, max-age=86400"})
+    s3 = r2.client(account, key_id, secret)
+    remote = r2.listing(s3, bucket, prefix)
+    old = set(remote)
+    res = r2.sync(s3, bucket, [r2.Put(k, src=f, cache="no-cache" if f.suffix == ".json" else "public, max-age=86400")
+                              for f, k in zip(files, keys)], remote, force=force)
+    print(f"  {r2.summary(res)}")
     stale = sorted(old - set(keys))  # an earlier snapshot's files this one doesn't have
     for i in range(0, len(stale), 1000):
         s3.delete_objects(Bucket=bucket, Delete={"Objects": [{"Key": k} for k in stale[i:i + 1000]]})

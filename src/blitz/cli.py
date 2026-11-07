@@ -239,7 +239,7 @@ def cmd_site_build(a) -> None:
 def cmd_site_publish(a) -> None:
     from .site import publish
 
-    done = publish(Path(a.folder), a.batch or "", a.dry_run, tuple(a.skip or ()), a.squares_only)
+    done = publish(Path(a.folder), a.batch or "", a.dry_run, tuple(a.skip or ()), a.squares_only, a.force)
     print(f"{'would publish' if a.dry_run else 'published'} {len(done)} puzzles"
           + (" (their key squares only)" if a.squares_only else ""))
 
@@ -254,11 +254,11 @@ def cmd_site_publish_batch(a) -> None:
     else:
         snap = sitebatch.snapshot(a.watch, out, a.name, a.title or "", a.run or "")["snapshot"]
         print(f"{snap['run']}: {snap['puzzles']} puzzles ({snap['dropped']} dropped), written to {out}")
-    keys = sitebatch.publish(out, a.dry_run)
+    keys = sitebatch.publish(out, a.dry_run, a.force)
     if a.dry_run:
         print(f"would put {len(keys)} files under batch/{a.name}/; see it locally with batch.html?data=<that folder>")
     else:
-        print(f"put {len(keys)} files under batch/{a.name}/: https://blitz.xwordapp.com/review/batch/?b={a.name}")
+        print(f"batch/{a.name}/ has the snapshot's {len(keys)} files: https://blitz.xwordapp.com/review/batch/?b={a.name}")
 
 
 def cmd_key_squares(a) -> None:
@@ -431,17 +431,19 @@ def main(argv=None) -> None:
     q.add_argument("--squares-only", action="store_true",
                    help="only the folder's key squares (key-squares.json and the key images): the puzzles' "
                         "review pages aren't opened")
+    q.add_argument("--force", action="store_true", help="upload every file, even ones the site already has byte for byte")
     q.set_defaults(fn=cmd_site_publish)
     q = sub.add_parser("site-publish-batch", help="the batch page's records (a snapshot of a running watch's batch) "
                                                   "to the review site's /review/batch/")
     q.add_argument("name", help="the batch's name on the site, e.g. games-1977-79 (as site-publish --batch)")
     q.add_argument("--title", help="its heading, e.g. 'GAMES 1977-79' (default: the name)")
-    q.add_argument("--watch", default="http://localhost:8772", help="the running watch (xword-ocr watch) to snapshot")
+    q.add_argument("--watch", default="http://127.0.0.1:8772", help="the running watch (xword-ocr watch) to snapshot")
     q.add_argument("--run", help="the text step run (default: the watch's current one, from the publication's "
                                  "pipeline/triage/runs.json)")
     q.add_argument("--out", help="where to write the snapshot (default: ../blitz-work/site-batch/<name>)")
     q.add_argument("--dry-run", action="store_true", help="write the snapshot, upload nothing")
     q.add_argument("--keep", action="store_true", help="upload the snapshot already in --out instead of making it again")
+    q.add_argument("--force", action="store_true", help="upload every file, even ones the site already has byte for byte")
     q.set_defaults(fn=cmd_site_publish_batch)
     q = sub.add_parser("key-squares", help="the answer-key squares worth a person's glance (the OCR was unsure, or "
                                            "the word check), for the key-squares page")
