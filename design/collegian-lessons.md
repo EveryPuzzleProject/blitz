@@ -75,3 +75,24 @@ Data: `collegian-scans` (private: records, ephemera) and `collegian` (public ind
 4. blitz: move the views, reading milestones only.
 5. Build the Collegian `pages.tsv` folder (`docs/sources.md` in xword-ocr: page images + `crop_of` crops with
    the archive URL on each) and run the pipeline on it.
+
+## After run1: what run2 needs (2026-11-10)
+
+Run1 (797 puzzles, 2026-11-07) left 495 needs work and 238 AI Not-readys. Most of it was kinds of
+failure fixed in a stage or said once as a publication rule, not scan damage; the fixes, what each
+clears on run1's own outputs, the projected run2 picture and its cost are in xword-ocr
+`docs/collegian-run2.md` (branch `claude/collegian-run2-prep`). What touches this repo:
+
+- `tools/collegian/scan.py publish` also writes the publication's `fixes/no-key-printed.tsv` from
+  the "none" settlements on /answers (`answer_decisions.jsonl`); the fix file's `[publication]
+  no_key_printed` names it, and triage takes each as a key confirmed not printed.
+- The proof page shows a header a publication rule gives (the standing byline) as "Publication
+  rule: byline", with where the rule is written, and a title confirmed not printed says who
+  confirmed it in its row.
+- Findings for the box function here: the autumn 1977 layout prints title, byline and three
+  columns of clues above the grid, and "grid + typical margins" starts the crop below them (42
+  puzzles, now marked `scan-cut-clues` by assembly); the December 1977 to 1978 layout loses its
+  left clue column to the same margins (not yet detected). Those crops need a box that takes the
+  lists in (/boxes, or margins per layout), then `scan.py pages` for those dates.
+- Run data lives in `blitz-work/runs/<publication>` (`EPP_RUNS`), outside every repo; xword-ocr
+  refuses a run folder inside a git worktree.

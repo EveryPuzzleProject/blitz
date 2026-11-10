@@ -1900,6 +1900,8 @@ const take = {
     const v = t.replace(/[\s.:!]+$/, ''); return [v, v === t ? '' : 'trailing punctuation dropped']; },
   date: t => [t, '']};
 // Feature: our own header until the gxd export decides which of its headers it becomes
+// a header confirmed not printed (review.json's gaps: a person's confirmation in the ledger, or a publication rule)
+const gapOf = f => (rev?.gaps || []).find(g => g.part === f);
 const HEADERS = [['title', 'Title'], ['number', 'Number'], ['date', 'Date'], ['byline', 'Byline'], ['author', 'Author'], ['editor', 'Editor'],
   ['feature', 'Feature']];
 const META = {number: 'puzzle_number'};  // the edit key a header's own value is saved under (meta:puzzle_number)
@@ -1922,7 +1924,8 @@ function headerValue(f) {  // [value by the rule, the rule, the line] from the h
   const shared = evOf('title') != null && evOf('title') === bylineEv();
   let n = f === 'byline' ? bylineEv() : evOf(f);
   if (f === 'author' && n == null) n = bylineEv();
-  if (typeof n === 'string' && metaOf(n)) return [metaOf(n).value, `from the puzzle's metadata: ${metaOf(n).name}`, n];
+  // a metadata item: the issue's (a masthead role), or a publication rule's (the standing byline: ocr.metadata[].rule)
+  if (typeof n === 'string' && metaOf(n)) return [metaOf(n).value, metaOf(n).rule ? `by a publication rule: ${metaOf(n).name}` : `from the puzzle's metadata: ${metaOf(n).name}`, n];
   if (n == null || !lineN(n)) return f === 'date' && !ocr.metadata ? [ocr.issue_date || '', "computed: the date of the issue it's in", null] : ['', 'not found', null];
   const t = one(final('line:B' + n));
   if ((f === 'title' || f === 'byline') && !shared) return [t, '', n];
@@ -2010,9 +2013,10 @@ function headerSection(hs) {
       <td class="hv"><span class="v" contenteditable="true" spellcheck="false"></span>
         ${own ? `<div class="ovr" style="color:${last.color}">${esc(last.who)}'s value; the rule gives “${esc(derived)}” <button class="undo">use the rule's</button></div>` : ''}
         ${ask ? `<div class="askline"><b>${esc(ask.says)}</b> If it's printed, type it here as printed; if not, say so in a comment.</div>`
+          : !derived && !own && gapOf(f) ? `<div class="askline">None printed: confirmed by ${esc(gapOf(f).by)}${gapOf(f).note ? ` (${esc(gapOf(f).note)})` : ''}. If you see a ${f} on the scan, type it here as printed.</div>`
           : !derived && !own && (f === 'title' || f === 'byline') ? `<div class="askline">None found. If the puzzle has a ${f} printed, click here and type it as printed.</div>` : ''}</td>
       <td class="hs">${typeof n === 'number' && lineN(n) ? `<a href="#B${n}">from line B${n}</a>${rule ? ` <span class="hint">· ${esc(rule)}</span>` : ''}`
-        : m ? `${esc(m.name)} <span class="hint">(${m.image ? 'printed on another page of the issue' : "the issue's metadata, not printed"})</span>${m.image ? `<img class="metaimg" src="${dir}${esc(m.image)}" alt="${esc(m.name)}, as printed">` : ''}`
+        : m ? `${esc(m.name)} <span class="hint">(${m.rule ? esc(m.says || 'a publication rule, not read from this page') : m.image ? 'printed on another page of the issue' : "the issue's metadata, not printed"})</span>${m.image ? `<img class="metaimg" src="${dir}${esc(m.image)}" alt="${esc(m.name)}, as printed">` : ''}`
         : f === 'date' && derived ? `<span class="hint">${esc(rule)}</span>` : '<span class="hint">not found</span>'}
         ${cur.edits['ev:' + f] !== undefined ? ' <span class="hint">(you chose it)</span>' : ''}
         <details class="evch"><summary>change</summary>from <select>${opts(evOf(f))}</select></details></td>`;
