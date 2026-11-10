@@ -245,6 +245,10 @@ body.show-changes .fintext { display: none; }
 .note.unsure.settled { opacity: .6; }
 .note .settle { font: 600 11px var(--sans); border: 1px solid var(--ok); color: var(--ok); background: #fff; border-radius: 10px; padding: 1px 8px; cursor: pointer; margin-left: 4px; }
 .m-ok { background: #e8f3e9; color: var(--ok); }
+.m-src { background: #e6eefb; color: #1f4f9c; }   /* supplied by the text step, its source crop shown */
+.m-nosrc { box-shadow: inset 0 0 0 1px var(--flag); }   /* supplied, no source recorded */
+.srcframe { max-height: 240px; overflow: auto; border: 1px solid #b9c9e6; border-radius: 4px; display: inline-block; max-width: 100%; }
+.srccap { font-size: 11px; color: #1f4f9c; margin: 2px 0; }
 body:not(.show-marks) .marks { display: none; }
 .margin { font-size: 12px; }
 .note { background: var(--note); border: 1px solid var(--noteborder); border-left-width: 3px; border-radius: 5px; padding: 4px 8px; margin-bottom: 4px; }
@@ -643,7 +647,7 @@ async function load() {
   store.xd = fp;
   // every page a crop is cut from: the clues' and the printed lines' (a title on the grid's page when most clues are on another)
   const names = new Set([MAIN(), ...Object.values(ocr.clues).map(c => c.image), ...(ocr.lines || []).map(l => l.image),
-    ...(ocr.clue_sets || []).map(c => c.image)].filter(Boolean));
+    ...(ocr.clue_sets || []).map(c => c.image), ...Object.values(rev.supplied || {}).map(c => c.box && c.image)].filter(Boolean));
   images = {};
   await Promise.all([...names].map(n => new Promise((ok, bad) => {
     const im = new Image(); im.onload = () => { images[n] = im; ok(); }; im.onerror = bad; im.src = dir + '_src/' + n;
@@ -790,6 +794,24 @@ function strip(box, im) {
   return cv;
 }
 
+// A clue whose text is the text step's alone, as the proof packet recorded it (review.json's supplied:
+// {kind, says, sourced, from, lines, box, image}), or undefined. Nothing is worked out here.
+const suppliedFor = k => (rev.supplied || {})['clue:' + k];
+// The crop the text step read a supplied clue from: the recorded box, whole, at reading size; a tall one
+// (a column read off one wide crop) scrolls in its frame.
+function sourceStrip(box, im) {
+  const s = scaleOf(im), [x0, y0, x1, y1] = box.map(v => v * s), w = x1 - x0, h = y1 - y0;
+  const cv = document.createElement('canvas');
+  cv.width = Math.round(w); cv.height = Math.round(h);
+  cv.getContext('2d').drawImage(images[im || MAIN()], x0, y0, w, h, 0, 0, w, h);
+  cv.className = 'strip';
+  cv.style.width = Math.min(w * 22 / (13.5 * s), 760) + 'px';
+  const f = document.createElement('div');
+  f.className = 'srcframe';
+  f.append(cv);
+  return f;
+}
+
 // Two clue sets printed for the grid (assembly's record, ocr.clue_sets): which is the clues and which
 // the ^Key line under each, with the printed headings they were named from
 // Which clue set's rows the page builds (a viewer's choice, remembered in this browser): 'both' (the
@@ -888,8 +910,13 @@ function render() {
     const keys = Object.keys(ocr.clues).filter(k => k[0] === d).sort(clueOrder);
     if (ocr.clue_sets && d === 'A') s.append(setsNote());
     for (const k of keys.filter(showClue)) {
-      const src = sourceFor(k);
-      addRow(s, 'clue:' + k, k, src.box, ocr.clues[k].flags || [], src);
+      // Text the text step supplied with no OCR reading of its own (review.json's supplied, the proof packet's
+      // record): the row shows the crop the packet recorded as its source, never one matched here; with no
+      // source recorded, the clue's own place as the packet has it (or none), and the badge says so.
+      const sup = suppliedFor(k), own = ocr.clues[k];
+      const src = !sup ? sourceFor(k) : sup.box ? {label: k, ...own, box: sup.box, image: sup.image === MAIN() ? undefined : sup.image, supplied: sup}
+        : {label: k, ...own, supplied: sup};
+      addRow(s, 'clue:' + k, k, src.box, own.flags || [], src);
     }
     main.append(s);
   }
@@ -1997,8 +2024,12 @@ function opsList() {
   const go = (anchor, label) => `<a href="#${esc(anchor)}">${esc(label)}</a>`;
   const short = t => t.length > 60 ? t.slice(0, 57) + '…' : t;
   const why = key => (a.comments.find(c => c.key === key && !c.text.startsWith('Not sure'))?.text || '').replace(/^Changed by the (?:LLM text step|AI reviewer)[^:]*: ?/, '').replace(/^Changed by the (?:LLM text step|AI reviewer)\.$/, '');
-  const clue = Object.keys(ed).filter(k => k.startsWith('clue:')).map(k =>
+  // text that is the text step's alone (the packet's record, rev.supplied) is listed apart, each with where it was read
+  const supd = rev.supplied || {};
+  const clue = Object.keys(ed).filter(k => k.startsWith('clue:') && !supd[k]).map(k =>
     `${go(k.slice(5), k.slice(5))}: “${esc(short(base(k)))}” → “${esc(short(ed[k]))}”${why(k) ? ` <span class="hint">${esc(why(k))}</span>` : ''}`);
+  const given = Object.keys(ed).filter(k => k.startsWith('clue:') && supd[k]).map(k =>
+    `${go(k.slice(5), k.slice(5))}: “${esc(short(base(k)))}” → “${esc(short(ed[k]))}” <b class="${supd[k].sourced ? 'm-src' : 'm-flag'}" style="border-radius:8px;padding:0 6px;font-size:11px">${esc(supd[k].says)}</b>`);
   const lines = Object.keys(ed).filter(k => k.startsWith('line:')).map(k =>
     `${go(k.slice(5), k.slice(5))}: corrected the text${why(k) ? ` <span class="hint">${esc(why(k))}</span>` : ''}`);
   const heads = HEADERS.filter(([f]) => ocr.evidence?.[f] != null).map(([f, name]) =>
@@ -2012,7 +2043,7 @@ function opsList() {
   const found = (rev.findings || []).map(f => `${f.row ? go(f.row.replace(/^(clue|line):/, ''), f.target) : esc(f.target)}: ${esc(KINDNAME[f.kind] || f.kind)} “${esc(short(f.read))}” → “${esc(short(f.suggest))}”`
     + ` <span class="hint">${esc(f.status === 'open' ? 'to confirm on the grid' : f.status || 'on its row')}</span>`);
   const asked = (rev.requests || []).map(q => `${q.key ? go(q.key.replace(/^(clue|line):/, ''), q.key.replace(/^(clue|line):/, '')) + ': ' : ''}${esc(q.kind || 'other')}: ${esc(q.what || '')}${q.where ? ` <span class="hint">(${esc(q.where)})</span>` : ''}`);
-  for (const [name, items] of [['findings', found], ['clues changed', clue], ['lines corrected', lines], ['headers taken from', heads], ['header values given', typed],
+  for (const [name, items] of [['findings', found], ['clues supplied or replaced whole', given], ['clues changed', clue], ['lines corrected', lines], ['headers taken from', heads], ['header values given', typed],
     ['other lines labelled', labels], ['fill-in blanks', blanks], ['not sure', unsure], ['asked for', asked]]) if (items.length) groups.push([name, items]);
   const s = document.createElement('section');
   if (!groups.length) return s;
@@ -2055,11 +2086,18 @@ function addRow(s, key, label, box, flags = [], src = null) {
     <div class="abox"></div>
     <div class="margin"></div>`;
   const im = src ? src.image : null;
-  const sc = row.querySelector('.scan'), tight = strip(box, im);
+  const sup = src && src.supplied, srcBox = sup && sup.box;  // the text step's text, and the crop recorded as its source
+  const sc = row.querySelector('.scan'), tight = srcBox ? sourceStrip(box, im) : strip(box, im);
   sc.append(tight);
   const btn = document.createElement('button');
   btn.className = 'ctxbtn';
-  if (box) {
+  if (srcBox) {
+    // the recorded source crop is the row's evidence as it is: no wider view is worked out around it
+    const cap = document.createElement('div');
+    cap.className = 'srccap';
+    cap.textContent = `The crop the text step read this from: ${sup.from}` + (sup.lines ? (sup.lines[0] === sup.lines[1] ? `, line ${sup.lines[0]}` : `, lines ${sup.lines[0]}–${sup.lines[1]}`) + ' from its top' : '');
+    sc.append(cap, scanLink(im, box), stageLink(im));
+  } else if (box) {
     const hh = history(key), who = hh.length > 1 ? hh[hh.length - 1].who : '';
     const why = suspectCrop(box, src ? src.text : base(key), final(key), who, im);
     let wide = null;
@@ -2124,7 +2162,7 @@ function addRow(s, key, label, box, flags = [], src = null) {
       markSuggest(x, r, c, sug);
     });
     const h = moved ? history(key, src.text) : history(key), fin = h[h.length - 1].value;
-    row.look = row.suspect || h.length > 1 || flags.length || odd || commentsFor(key).length || flagged.has(key);
+    row.look = row.suspect || !!sup || h.length > 1 || flags.length || odd || commentsFor(key).length || flagged.has(key);
     let kind = '';
     const nearby = key.startsWith('other:'), out = nearby && fin === '';
     const text = [...h].reverse().find(v => v.value)?.value || '';   // the line itself, even when left out
@@ -2153,6 +2191,7 @@ function addRow(s, key, label, box, flags = [], src = null) {
       (isClue && !NUM[slot] ? `<b class="m-flag">no ${esc(slot)} in our grid</b>` : '') +
       (isClue && linkedEnds() && givenWord(label) ? `<b class="m-ok" title="Every square of this word has its letter printed in the grid, so the puzzle gives it as a start and prints no clue for it; the xd lists none.">printed in the grid, not clued</b>` : '') +
       (isClue && NUM[slot] && pn !== slot.slice(1) && !pairOf(label) ? `<b class="m-flag">printed as ${esc(pn)}, sits at ${esc(slot)} in our grid</b>` : '') +
+      (sup ? `<b class="${sup.sourced ? 'm-src' : 'm-flag m-nosrc'}" title="${esc(sup.sourced ? (sup.box ? 'The crop above is the one the text step named as where it read this text; the OCR read nothing of this clue.' : 'The text step named the crop it read this from, but that crop is on a page this packet doesn’t show.') : 'The text step gave this text and recorded no crop it read it from: check it against the scan.')}">${esc(sup.says)}</b>` : '') +
       (moved ? `<b class="m-flag" title="the reviewer moved this text from where the OCR put it; the scan line came with it">printed line found in ${esc(src.label)}'s crop</b>` : '') +
       flags.filter(f => !f.startsWith('number-corrected') && !f.startsWith('fill-in blank')).map(f => `<b class="m-flag" title="${esc(f)}">${esc(f.split(':')[0])}</b>`).join('') +
       flags.filter(f => f.startsWith('fill-in blank')).map(f => {
