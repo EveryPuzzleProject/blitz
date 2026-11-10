@@ -263,3 +263,27 @@ def test_the_spot_check_sample_is_fixed_by_the_id():
     ids = [f"games1978-03-01-L{i:03d}" for i in range(400)]
     assert [spot(i) for i in ids] == [spot(i) for i in ids]
     assert 20 <= sum(spot(i) for i in ids) <= 60                                       # about one in ten
+
+
+def test_a_send_back_from_the_proof_page_moves_a_question_to_broken(tmp_path):
+    """A person on the proof page says the question is the pipeline's (a Not ready with a sendback): the
+    puzzle leaves the question queue for broken, with what they said and the stage it points to."""
+    back = proof(f"sam ({SITE})", "notready", "2026-11-10T00:00:00Z", SITE)
+    back["proof"]["review"]["sendback"] = {"kind": "mixed", "part": "", "note": "the notes hold a neighbour's clues"}
+    said = {P + "31": [_ai_no(P + "31", ("meta:note", "Drop the block?", "drop it")), back],
+            P + "32": [_ai_no(P + "32", ("meta:note", "Drop the block?", "drop it"))]}
+    repo, proofs = _batch(tmp_path, said, {P + "31": DOUBT, P + "32": DOUBT})
+    p = plan(repo, proofs, Rule(ai_ready="both"), "b")
+    by = {r["pid"][-2:]: r for r in p["rows"]}
+    assert (by["31"]["queue"], by["31"]["reason"], by["32"]["queue"]) == ("broken", "sent-back", "question")
+    assert by["31"]["broken"] == [{"what": "sent back from the proof page: parts of two puzzles are mixed together", "stage": "assembly",
+                                   "code": "sent-back", "detail": "the notes hold a neighbour's clues"}]
+    assert not by["31"]["asks"] and by["31"]["reviewed"]
+    pub = {r["pid"][-2:]: r for r in record(p)["puzzles"]}
+    assert "sam" not in json.dumps(pub["31"])                                          # a helper's name stays out of the site's copy
+    assert counts(p["rows"])["queues"]["broken"] == 1 and counts(p["rows"])["held_by"]["sent-back"] == 1
+
+
+def test_the_xd_goes_up_with_the_packet():
+    from blitz.site import FILES
+    assert "puzzle.xd" in FILES                                                        # the proof page draws the xd's notes from it

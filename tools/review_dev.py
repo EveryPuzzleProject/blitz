@@ -13,6 +13,12 @@ harvest or a ledger.
     packets/<pid>/        proof packets (xword-ocr's harvests/<h>/proof/<run>/<pid>), and its dropped.json
     files/batch/          the batch page's snapshot: batches.json and <name>/ (blitz site-publish-batch)
 A file missing from files/ (a snapshot's full-size page, say) is fetched once from the site's bucket.
+A puzzle's batch is the snapshot in files/batch/ that lists it, so the proof page finds that batch's ship
+record (files/batch/<name>/ship.json: the questions puzzles are held on).
+
+    --without puzzle.xd,ai_review.json[:<pid prefix>]   serve the packets as if they were published without these
+                                                        files (as the site has an older batch's), for the pids
+                                                        starting with the prefix (default: all); repeatable
 """
 
 from __future__ import annotations
@@ -89,9 +95,13 @@ RELOAD = """<script>
 """
 
 
-def puzzles(data: Path) -> list[dict]:
+def puzzles(data: Path, without=lambda pid, f: False) -> list[dict]:
     """The site's puzzles table for the copied packets, as site.publish writes it."""
     packets = data / "packets"
+    batch = {}  # pid -> the batch whose snapshot lists it
+    for b in sorted((data / "files" / "batch").glob("*/batch.json")):
+        for p in json.loads(b.read_text(encoding="utf-8")).get("puzzles", []):
+            batch.setdefault(p["pid"], b.parent.name)
     drops = {}
     if (packets / "dropped.json").exists():
         d = json.loads((packets / "dropped.json").read_text(encoding="utf-8"))
@@ -101,11 +111,11 @@ def puzzles(data: Path) -> list[dict]:
         rv = json.loads((d / "review.json").read_text(encoding="utf-8"))
         ocr = json.loads((d / "ocr.json").read_text(encoding="utf-8"))
         cu = rv.get("checkup") or {}
-        files = {f.name: True for f in d.iterdir() if f.is_file()}
+        files = {f.name: True for f in d.iterdir() if f.is_file() and not without(d.name, f.name)}
         if (d / "sheets" / "shown.json").exists():
             files["sheets/shown.json"] = True
         dr = drops.get(d.name) if isinstance(drops, dict) else None
-        rows.append({"xdid": d.name, "pub": re.match(r"[a-z]+", d.name)[0], "batch": "games-1977-79",
+        rows.append({"xdid": d.name, "pub": re.match(r"[a-z]+", d.name)[0], "batch": batch.get(d.name, "games-1977-79"),
                      "title": ((rv.get("corrections") or {}).get("meta:title") or ocr.get("title", ""))[:200],
                      "base_url": f"/packets/{d.name}", "files": files, "open": True,
                      "checkup": {"grade": cu.get("grade", ""),
@@ -119,12 +129,15 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--data", required=True, type=Path)
     ap.add_argument("--port", type=int, default=8795)
+    ap.add_argument("--without", action="append", default=[], help="files[:pid prefix]: packets served as if published without these files (repeatable)")
     a = ap.parse_args()
     data = a.data.resolve()
     db = data / "db"
     db.mkdir(exist_ok=True)
     lock = threading.Lock()
-    tables = {"puzzles": puzzles(data)}
+    gone = [({x for x in w.partition(":")[0].split(",") if x}, w.partition(":")[2]) for w in a.without]
+    without = lambda pid, f: any(f in names and pid.startswith(prefix) for names, prefix in gone)
+    tables = {"puzzles": puzzles(data, without)}
     for t in KEYS:
         f = db / f"{t}.json"
         tables[t] = json.loads(f.read_text(encoding="utf-8")) if f.exists() else []
@@ -232,6 +245,9 @@ def main():
                     rows = [{c: r.get(c) for c in cols} for r in rows]
                 return self.out(json.dumps(rows).encode(), "application/json")
             if path.startswith("/packets/"):
+                pid, _, name = path[len("/packets/"):].partition("/")
+                if without(pid, name):
+                    return self.out(b"not found", "text/plain", 404)
                 return self.file(data / path.lstrip("/"))
             if path.startswith("/files/"):
                 f = data / path.lstrip("/")

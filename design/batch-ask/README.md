@@ -34,6 +34,9 @@ with no text), which an answer won't mend; their cards say so: GAMES 1, Collegia
 
 ## The pictures
 
+The pictures are not in the repository (its .gitignore keeps images out). They are in
+`../blitz-work/batch-ask/`, beside a copy of this file, so the links below work there.
+
 - [00-landing.jpg](00-landing.jpg): the site's way in, one card per batch; the third card is a copy of
   GAMES with no ship record, to show "not recorded".
 - `games-1` to `games-9`, `collegian-1` to `collegian-5`: the default view and each filter.
@@ -42,13 +45,29 @@ with no text), which an answer won't mend; their cards say so: GAMES 1, Collegia
   page at the question's row with the walk bar.
 - [no-record-batch.jpg](no-record-batch.jpg): a batch with no record.
 
+## The question on the proof page (added the same day, after the first use)
+
+"Answer it" used to open a proof page that showed no question. The landing now:
+
+- [landing-work-ethic-notes-as-live-today.jpg](landing-work-ethic-notes-as-live-today.jpg): The Work Ethic with the packet as the site has it
+  today: the question at the top, and that the notes it is about aren't on the page.
+- [landing-work-ethic-top-of-page.jpg](landing-work-ethic-top-of-page.jpg), [landing-work-ethic-notes-published-again.jpg](landing-work-ethic-notes-published-again.jpg): the same
+  once the packet is published again: the box, and the landing on "Notes in the xd file" with the block.
+- [landing-title-question.jpg](landing-title-question.jpg), [landing-byline-question.jpg](landing-byline-question.jpg), [landing-clue-question.jpg](landing-clue-question.jpg),
+  [landing-square-question.jpg](landing-square-question.jpg): one of each kind.
+- [landing-row-not-in-packet.jpg](landing-row-not-in-packet.jpg): a question about an answer key the packet doesn't have.
+- [answer-pipeline-question-send-back.jpg](answer-pipeline-question-send-back.jpg): "It's a pipeline question" opens the send-back form.
+- [walk-next-opens-at-the-question.jpg](walk-next-opens-at-the-question.jpg): Next in the walk opens the next puzzle at its question.
+- [link-check.md](link-check.md): every GAMES question link and a sample of 30 Collegian ones, checked.
+
 ## To see it again
 
 ```
 uv run python tools/review_dev.py --data ../blitz-work/batch-ask-dev --port 8797
 ```
 
-then <http://localhost:8797/review/batch/>. The folder holds copies of the two batches' `batch.json`,
+then <http://localhost:8797/review/batch/> (add `--without puzzle.xd --without ai_review.json,checks.json:games`
+on another port to see the packets as the live site has them). The folder holds copies of the two batches' `batch.json`,
 links to their pictures in `blitz-work/site-batch/`, and the two `ship.json` made with:
 
 ```

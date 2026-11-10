@@ -171,6 +171,13 @@ INCOMPLETE_STAGE = {"grid-unsolved": "key reading", "clue-empty": "parts", "clue
 # a question about a header belongs to a group shared across puzzles (by the header it is about); one
 # about a clue, a square or a printed line is that puzzle's own
 GROUPS = {"title": "the title", "byline": "the byline", "notes": "the notes"}
+# A reviewer's send-back from the proof page (a Not ready that says the pipeline has to read something again:
+# review.sendback {kind, part, note}): the words and the stage each points to, as xword-ocr problems.py has them
+SENT_BACK = {"missing-part": ("a part of the puzzle is missing", "parts"), "ocr-broken": ("the text is badly misread", "parts"),
+             "mixed": ("parts of two puzzles are mixed together", "assembly"), "not-a-puzzle": ("this isn't a crossword", ""),
+             "other": ("something no edit on the proof page fixes", "")}
+SENT_BACK_PART = {"across": ("the Across clues", "parts"), "down": ("the Down clues", "parts"), "grid": ("the grid", "parts"),
+                  "key": ("the answer key", "assembly"), "title": ("the title or byline", "assembly")}
 SPOT_ONE_IN = 10
 
 
@@ -217,6 +224,18 @@ def asks_of(reason: str, why: str, batch: dict, proofs: list[dict], rule: Rule) 
     return out
 
 
+def sent_back(proofs: list[dict], rule: Rule) -> dict | None:
+    """The latest standing Not ready that sends the puzzle back to the pipeline (its review carries a
+    sendback): {who, at, kind, part, note}, or None. The person is saying the question isn't one to
+    answer on the proof page, so the puzzle is the pipeline's (broken), not held on a question."""
+    for r in sorted(proofs, key=lambda r: r.get("at", ""), reverse=True):
+        sb = ((r.get("proof") or {}).get("review") or {}).get("sendback")
+        if r.get("answer") == "notready" and sb and _name(r) not in rule.ignore:
+            return {"who": r.get("by", ""), "at": r.get("at", ""), "kind": sb.get("kind") or "other", "part": sb.get("part") or "",
+                    "note": (sb.get("note") or "").strip()}
+    return None
+
+
 def broken_of(row: dict, blocking: list, incomplete: list) -> list[dict]:
     """What is broken in a puzzle the pipeline holds, each with the stage it points to: triage's blocking
     parts (their restart stage), the ship check's incompleteness, or the import's own reason.
@@ -228,6 +247,12 @@ def broken_of(row: dict, blocking: list, incomplete: list) -> list[dict]:
                 seen.add((b.get("restart"), b.get("part")))
                 detail = "" if b.get("detail") == "from the verdict" else (b.get("detail") or "")[:200]
                 out.append({"what": b.get("part") or b.get("code") or "", "stage": b.get("restart") or "", "code": b.get("code") or "", "detail": detail})
+    elif row["reason"] == "sent-back":
+        sb = row["sent_back"]
+        says, stage = SENT_BACK.get(sb["kind"], (sb["kind"], ""))
+        part = SENT_BACK_PART.get(sb["part"])
+        out = [{"what": "sent back from the proof page: " + says + (f" ({part[0]})" if part else ""), "stage": part[1] if part else stage,
+                "code": "sent-back", "detail": sb["note"][:600]}]
     elif row["reason"] == "incomplete":
         stages = [INCOMPLETE_STAGE[c] for c in row["check"]["findings"] if c in INCOMPLETE_STAGE]
         out = [{"what": str(x), "stage": stages[i] if len(stages) == len(incomplete) else (stages[0] if len(set(stages)) == 1 else ""),
@@ -520,6 +545,10 @@ def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict |
             if st["reason"] == "no-ready" and t.get("decision") != "ready":
                 row.update(reason="needs-work", why="needs work: " + ("; ".join(
                     sorted({b.get("code") or b.get("part") or "" for b in t.get("blocking") or [] if isinstance(b, dict)} - {""})) or "triage's defects") + "; " + st["why"])
+            sb = sent_back(list((proofs.get(pid) or {}).values()), rule) if row["reason"] == "not-ready" else None
+            if sb:  # a reviewer said it is the pipeline's to mend, not a question for the proof page
+                row.update(reason="sent-back", sent_back=sb, why=f"sent back from the proof page by {sb['who']}: "
+                           + SENT_BACK.get(sb["kind"], (sb["kind"], ""))[0] + (f": {sb['note']}" if sb["note"] else ""))
             if QUEUE_OF.get(row["reason"]) == "question":
                 row["asks"] = asks_of(row["reason"], row["why"], latest.get(f"batch:{pid}") or {}, list((proofs.get(pid) or {}).values()), rule)
                 # what an answer won't mend: said beside the question, so nobody is surprised when it still doesn't ship
