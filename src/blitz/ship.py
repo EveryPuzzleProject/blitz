@@ -160,7 +160,7 @@ def standing(batch: dict, proofs: list[dict], *, check_ok: bool = False, codes: 
 
 QUEUES = ("question", "unchecked", "broken", "shippable", "shipped", "set-aside", "not-a-crossword")
 # a held puzzle's queue, by its reason; every reason not named here is the pipeline's (broken)
-QUEUE_OF = {"not-ready": "question", "owner-hold": "question", "edits-differ": "question",
+QUEUE_OF = {"not-ready": "question", "owner-hold": "question", "edits-differ": "question", "candidate-undecided": "question",
             "no-ready": "unchecked", "proof-stale": "unchecked"}
 # the stage a broken puzzle's reason points to, where triage recorded none (triage's blocking names its own)
 STAGE_OF = {"packet-stale": "proof packet", "no-packet": "proof packet", "edits-unapplied": "import", "xd-exists": "import",
@@ -170,7 +170,7 @@ INCOMPLETE_STAGE = {"grid-unsolved": "key reading", "clue-empty": "parts", "clue
                     "second-set-missing": "assembly"}
 # a question about a header belongs to a group shared across puzzles (by the header it is about); one
 # about a clue, a square or a printed line is that puzzle's own
-GROUPS = {"title": "the title", "byline": "the byline", "notes": "the notes"}
+GROUPS = {"title": "the title", "byline": "the byline", "notes": "the notes", "candidate": "a candidate clue list"}
 # A reviewer's send-back from the proof page (a Not ready that says the pipeline has to read something again:
 # review.sendback {kind, part, note}): the words and the stage each points to, as xword-ocr problems.py has them
 SENT_BACK = {"missing-part": ("a part of the puzzle is missing", "parts"), "ocr-broken": ("the text is badly misread", "parts"),
@@ -185,7 +185,7 @@ def group_of(row: str) -> str:
     """The shared-question group of a proof-page row: the header field it is about (ev:title and
     meta:title: title; author as byline; note as notes), "" for a clue, a square or a printed line."""
     m = re.fullmatch(r"(?:ev|meta):(\w+)", row or "")
-    field = m[1] if m else "notes" if row == "notes" else ""
+    field = m[1] if m else "notes" if row == "notes" else "candidate" if (row or "").startswith("candidate:") else ""
     return {"author": "byline", "note": "notes"}.get(field, field)
 
 
@@ -352,8 +352,15 @@ def _header(xd: str, key: str) -> str:
 
 # ---- the reviewers' edits, onto the packet's xd ----------------------------------------------
 
-APPLIED = re.compile(r"clue:[AD]\d+(?:\^[A-Za-z][\w-]*)?|cell:r\d+c\d+|meta:(title|author|byline|puzzle_number|editor|feature)")
-HEADER = {"title": "Title", "author": "Author", "byline": "Byline", "puzzle_number": "Number", "editor": "Editor", "feature": "Feature"}
+APPLIED = re.compile(r"clue:[AD]\d+(?:\^[A-Za-z][\w-]*)?|cell:r\d+c\d+|meta:(title|author|byline|puzzle_number|editor|feature)"
+                     r"|candidate:[AD]-alt\d+")
+# A candidate clue list (assembly's: a list that fits the grid, neither its clues nor a recognised second set; the
+# packet's ocr.json candidates) is decided on the proof page by an edit candidate:<id> with one of these values:
+# remove (not this puzzle's), answers (the printed answers, not clues), clues (these are the real clues: they
+# replace the list in the xd), second:<Key> (a second clue set: its clues become the "A1 ^Key:" lines).
+CANDIDATE_VALUE = re.compile(r"remove|answers|clues|second:[A-Za-z][\w-]*")
+_NOTES_ASK = re.compile(r"another list|other list|list that fits|list block", re.I)  # a question about one, asked of the notes
+HEADER ={"title": "Title", "author": "Author", "byline": "Byline", "puzzle_number": "Number", "editor": "Editor", "feature": "Feature"}
 META_RE = re.compile(r"^([AD]\d+) \^([A-Za-z][\w-]*): ?(.*)$")
 
 
@@ -367,7 +374,8 @@ def refused(edits: dict, text: str) -> list[str]:
     any clue or square of a linked-ends puzzle (xword-ocr's import-batch knows that numbering)."""
     linked = "\nClues: linked ends" in "\n" + text.split("\n\n\n")[0]
     return sorted(k for k, v in edits.items() if not APPLIED.fullmatch(k) or (k.startswith("cell:") and len(v or "") != 1)
-                  or (k.startswith("meta:") and "\n" in (v or "")) or (linked and not k.startswith("meta:")))
+                  or (k.startswith("meta:") and "\n" in (v or "")) or (linked and not k.startswith("meta:"))
+                  or (k.startswith("candidate:") and not CANDIDATE_VALUE.fullmatch(v or "")))
 
 
 def answers(cells: list[list[str]]) -> dict[str, str]:
@@ -433,6 +441,68 @@ def apply_edits(text: str, edits: dict) -> tuple[str, list[str]]:
     if rest[1:]:
         out += "\n\n" + "\n\n\n".join(rest[1:]) + "\n"
     return out, done
+
+
+def apply_candidates(text: str, candidates: list[dict], edits: dict) -> tuple[str, list[str], list[str]]:
+    """The xd text with the decisions on its candidate clue lists applied (the candidate:<id> edits; candidates:
+    the packet's ocr.json candidates). remove and answers leave the xd as it is: an undecided candidate was never
+    in it. second:<Key> writes each of the candidate's clues as the "D1 ^Key:" line under its clue; clues puts
+    the candidate's text in place of each clue of its direction. Each of those two is said in the xd's notes (a
+    decision is a note). Returns (text, the keys applied, what is left partial: a chosen list that doesn't
+    cover its direction's slots, or a second set that doesn't cover every clue, which holds the puzzle)."""
+    by = {c["id"]: c for c in candidates}
+    done, partial, notes = [], [], []
+    body = text.replace("\r\n", "\n").rstrip("\n").split("\n\n\n")
+    was = body[2].split("\n") if len(body) > 2 else []
+    lines = list(was)
+    for k, v in edits.items():
+        c = by.get(k[len("candidate:"):]) if k.startswith("candidate:") else None
+        if c is None or not CANDIDATE_VALUE.fullmatch(v or ""):
+            continue
+        done.append(k)
+        name, d = ("Across" if c["dir"] == "A" else "Down"), c["dir"]
+        texts = {label: (x.get("text") or "").strip() for label, x in (c.get("clues") or {}).items()}
+        if v == "clues":
+            gone = []
+            for i, ln in enumerate(lines):
+                m = re.match(r"([AD]\d+)\. (.*) ~ (.*)$", ln)
+                if m and m[1][0] == d:
+                    lines[i] = f"{m[1]}. {texts.get(m[1]) or '[missing]'} ~ {m[3]}"
+                    if not texts.get(m[1]):
+                        gone.append(m[1])
+            if gone:
+                partial.append(f"the list chosen as the {name} clues has no clue for {' '.join(gone[:8])}"
+                               + (f" (+{len(gone) - 8})" if len(gone) > 8 else ""))
+            notes.append(f"Clues: the {name} clues are the list assembly recorded as a candidate ({c.get('why', '')}); a reviewer "
+                         "decided on the proof page that these are the real clues. They are as the OCR read them.")
+        elif v.startswith("second:"):
+            key, out, i = _meta_key(v.split(":", 1)[1]), [], 0
+            while i < len(lines):
+                out.append(lines[i])
+                m = re.match(r"([AD]\d+)\. ", lines[i])
+                i += 1
+                if m and m[1][0] == d and texts.get(m[1]):
+                    while i < len(lines) and META_RE.match(lines[i]) and lines[i].startswith(m[1] + " "):
+                        out.append(lines[i])  # after the clue's own metadata lines
+                        i += 1
+                    out.append(f"{m[1]} ^{key}: {texts[m[1]]}")
+            lines = out
+            notes.append(f"Clue sets: the ^{key} line under each {name} clue is a second list that fits the grid, recorded by "
+                         f"assembly as a candidate ({c.get('why', '')}); a reviewer decided on the proof page that it is a second "
+                         "clue set. Its clues are as the OCR read them.")
+    if lines == was and not notes:
+        return text, done, partial
+    clues = {m[1] for ln in lines if (m := re.match(r"([AD]\d+)\. ", ln))}
+    for key in sorted({_meta_key(v.split(":", 1)[1]) for k, v in edits.items() if k in done and v.startswith("second:")}):
+        have = {m[1] for ln in lines if (m := META_RE.match(ln)) and _meta_key(m[2]) == key}
+        if have != clues:
+            partial.append(f"the ^{key} set has {len(have)} of {len(clues)} clues")
+    body[2] = "\n".join(lines)
+    rest = [b.strip("\n") for b in "\n\n\n".join(body[3:]).split("\n\n") if b.strip()]
+    out = "\n\n\n".join(body[:3]) + "\n"
+    if rest or notes:
+        out += "\n\n" + "\n\n".join([*rest, *notes]) + "\n"
+    return out, done, partial
 
 
 # ---- ids -----------------------------------------------------------------------------------
@@ -541,6 +611,37 @@ def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict |
         row["ships_with"] = next((opt for opt in AI_READY if standing(
             latest.get(f"batch:{pid}") or {}, list((proofs.get(pid) or {}).values()), rule=replace(rule, ai_ready=opt), **args)["status"] == "ship"), "")
         row.update(status="held", reason=st["reason"], why=st["why"], rule=st["rule"], said=st["said"], asks=[], broken=[])
+        # The packet's candidate clue lists (assembly's record), each with the decision a person has made on the
+        # proof page, if any: the latest candidate:<id> edit of a person's Ready or Not ready (an AI asks, it
+        # doesn't decide). The page and the batch card draw this; the import applies the Ready reviewers' edits.
+        cands = pk["ocr"].get("candidates") or []
+        if cands:
+            said_c = {}
+            for r in sorted((proofs.get(pid) or {}).values(), key=lambda r: r.get("at", "")):
+                if kind_of(r, rule) in ("owner", "helper") and r.get("answer") in ("ready", "notready") and _name(r) not in rule.ignore:
+                    for k, v in (((r.get("proof") or {}).get("review") or {}).get("edits") or {}).items():
+                        if k.startswith("candidate:") and CANDIDATE_VALUE.fullmatch(v or ""):
+                            said_c[k[10:]] = {"decision": v, "kind": kind_of(r, rule), "at": r.get("at", "")[:10]}
+            row["candidates"] = [{"id": c["id"], "dir": c["dir"], "clues": len(c.get("clues") or {}), "slots": c.get("slots", 0),
+                                  "reads_as": c.get("reads_as", ""), **(said_c.get(c["id"]) or {"decision": ""})} for c in cands]
+        open_c = [c for c in row.get("candidates") or [] if not c["decision"]]
+
+        def candidate_asks(row=row, open_c=open_c):
+            """The questions about its undecided candidate lists: a reviewer's question about the notes' "another
+            list" block (what a candidate was before it had a place of its own) points at the candidate's row; a
+            candidate nobody asked about gets the pipeline's own question."""
+            if not open_c:
+                return
+            for a in row["asks"]:
+                if a["row"] in ("notes", "meta:note", "ev:note") and _NOTES_ASK.search(a["text"]):
+                    a.update(row=f"candidate:{open_c[0]['id']}", group="candidate")
+            asked = {a["row"] for a in row["asks"]}
+            for c in open_c if not any(r.startswith("candidate:") for r in asked) else []:
+                name = "Across" if c["dir"] == "A" else "Down"
+                row["asks"].append({"who": "assembly", "kind": "pipeline", "at": "", "row": f"candidate:{c['id']}", "group": "candidate",
+                                    "text": f"Another {name} list fits this grid ({c['clues']} of {c['slots']} slots) and isn't its clues or a "
+                                            "recognised second set. What is it: not this puzzle's, a second clue set, the real clues, or the "
+                                            "printed answers?"})
         if st["status"] != "ship":
             if st["reason"] == "no-ready" and t.get("decision") != "ready":
                 row.update(reason="needs-work", why="needs work: " + ("; ".join(
@@ -553,6 +654,7 @@ def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict |
                 row["asks"] = asks_of(row["reason"], row["why"], latest.get(f"batch:{pid}") or {}, list((proofs.get(pid) or {}).values()), rule)
                 # what an answer won't mend: said beside the question, so nobody is surprised when it still doesn't ship
                 row["also"] = [str(x) for x in ship.get("incomplete") or []]
+                candidate_asks()
             elif row["reason"] not in QUEUE_OF:
                 row["broken"] = broken_of(row, t.get("blocking"), ship.get("incomplete"))
             continue
@@ -586,7 +688,20 @@ def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict |
         if bad:
             hold("edits-unapplied", "proof-page edits the import can't apply yet: " + ", ".join(bad[:6]))
             continue
-        text, done = apply_edits(pk["xd"], edits)
+        # its candidate clue lists: each decided by a Ready reviewer's edit, or the puzzle waits for that decision
+        undecided = [c["id"] for c in cands if f"candidate:{c['id']}" not in edits]
+        if undecided:
+            row.update(reason="candidate-undecided", why=f"{st['why']}; but {len(undecided)} candidate clue list(s) "
+                       f"({', '.join(undecided)}) not decided by a reviewer who said Ready")
+            candidate_asks(open_c=[c for c in row["candidates"] if c["id"] in undecided])
+            row["also"] = [str(x) for x in ship.get("incomplete") or []]
+            continue
+        text, cdone, partial = apply_candidates(pk["xd"], cands, edits)
+        if partial:
+            hold("candidate-partial", "a candidate list was taken into the puzzle, and it isn't whole: " + "; ".join(partial))
+            continue
+        text, done = apply_edits(text, edits)
+        done = cdone + done
         passing[pid] = {"text": text, "edits": done, "edit_sources": sources, "standing": st, "row": row,
                         "packet": f"{rel}/{pid}", "xd_fp": review.get("xd_fp", "")}
     ids, pins = assign_ids(list(passing), places, repo)
@@ -745,7 +860,9 @@ def record(p: dict, public: bool = True) -> dict:
     rows = [{**{k: r.get(k, "") for k in ("pid", "xdid", "title", "date", "status", "reason", "rule", "ships_with", "queue", "group", "order")},
              "reviewed": bool(r.get("reviewed")), "spot_check": bool(r.get("spot_check")),
              "why": why(r), "asks": asks(r), "also": r.get("also") or [], "broken": r.get("broken") or [],
-             "said": said(r), "check": r["check"]} for r in p["rows"]]
+             "said": said(r), "check": r["check"],
+             # its candidate clue lists and what a person decided for each ("" undecided): the packet's, and the ledger's
+             **({"candidates": r["candidates"]} if r.get("candidates") else {})} for r in p["rows"]]
     return {"_about": "blitz ship: which puzzles of the batch are shipped (in the publication repo's xd/), shippable (pass the "
                       "ship rule, not written yet) or held, with the reason, and the queue each is in: what the batch page asks "
                       "of people. Format: blitz design/ship.md.",

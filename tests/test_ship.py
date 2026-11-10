@@ -287,3 +287,104 @@ def test_a_send_back_from_the_proof_page_moves_a_question_to_broken(tmp_path):
 def test_the_xd_goes_up_with_the_packet():
     from blitz.site import FILES
     assert "puzzle.xd" in FILES                                                        # the proof page draws the xd's notes from it
+
+
+# ---- candidate clue lists: decided on the proof page, applied by the import ----
+
+from blitz.ship import apply_candidates
+
+CAND = {"id": "D-alt1", "dir": "D", "slots": 3, "share": 1.0, "why": "1 lists fit Across and 2 Down, not two sets", "reads_as": "clues",
+        "from": "assembly", "clues": {"D1": {"text": "Quatre"}, "D2": {"text": "Cinq"}, "D4": {"text": "Six, again"}}}
+
+
+def test_removing_a_candidate_leaves_the_xd_as_it_is():
+    for v in ("remove", "answers"):
+        assert apply_candidates(XD, [CAND], {"candidate:D-alt1": v}) == (XD, ["candidate:D-alt1"], [])
+    assert apply_candidates(XD, [CAND], {}) == (XD, [], [])
+    assert refused({"candidate:D-alt1": "remove", "candidate:D-alt1x": "remove"}, XD) == ["candidate:D-alt1x"]
+    assert refused({"candidate:D-alt1": "keep it"}, XD) == ["candidate:D-alt1"]
+
+
+def test_a_candidate_taken_as_the_real_clues_replaces_the_list_and_says_so():
+    out, done, partial = apply_candidates(XD, [CAND], {"candidate:D-alt1": "clues"})
+    assert "D1. Quatre ~ AC\nD2. Cinq ~ BDF\nD4. Six, again ~ EG" in out and "A1. One ~ AB" in out and not partial
+    assert "Clues: the Down clues are the list assembly recorded as a candidate" in out and "OCR review flags:\nA1: missing" in out
+    assert out.count("\n\n\n") == XD.count("\n\n\n")  # still headers, grid, clues, notes
+    short = {**CAND, "clues": {"D1": {"text": "Quatre"}}}
+    out, done, partial = apply_candidates(XD, [short], {"candidate:D-alt1": "clues"})
+    assert "D2. [missing] ~ BDF" in out and partial == ["the list chosen as the Down clues has no clue for D2 D4"]
+
+
+def test_a_candidate_taken_as_a_second_set_becomes_its_metadata_lines():
+    xd = XD.replace("A1 ^Easy: Uno\n", "")
+    out, done, partial = apply_candidates(xd, [CAND], {"candidate:D-alt1": "second:easy"})
+    assert "D1. Four ~ AC\nD1 ^Easy: Quatre\nD2. Five ~ BDF\nD2 ^Easy: Cinq\nD4. Six ~ EG\nD4 ^Easy: Six, again\n" in out
+    assert partial == ["the ^Easy set has 3 of 6 clues"]  # one direction only: not a whole second set
+    across = {**CAND, "id": "A-alt1", "dir": "A", "clues": {"A1": {"text": "Uno"}, "A3": {"text": "Dos"}, "A5": {"text": "Tres"}}}
+    out, done, partial = apply_candidates(xd, [CAND, across], {"candidate:D-alt1": "second:Easy", "candidate:A-alt1": "second:Easy"})
+    assert not partial and sorted(done) == ["candidate:A-alt1", "candidate:D-alt1"]
+    assert "A1. One ~ AB\nA1 ^Easy: Uno\nA3. Two ~ CDE\nA3 ^Easy: Dos" in out and out.count("Clue sets: the ^Easy line") == 2
+    # a reviewer's own fix to one of its clues is applied after, like any second set's
+    assert "D2 ^Easy: Cinq!" in apply_edits(out, {"clue:D2^Easy": "Cinq!"})[0]
+
+
+def _candidates(tmp_path, said, cands=(CAND,)):
+    held = {"decision": "ready", "ship": {"ok": False, "findings": [{"code": "candidate-undecided"}]}}
+    repo, proofs = _batch(tmp_path, said, {pid: held for pid in said})
+    for pid in said:
+        f = proofs / pid / "ocr.json"
+        f.write_text(json.dumps({**json.loads(f.read_text(encoding="utf-8")), "candidates": list(cands)}), encoding="utf-8")
+    return repo, proofs
+
+
+def _decides(by, value, answer="ready", at="2026-11-11T00:00:00Z", via=SITE):
+    r = proof(by, answer, at, via, xd="fp")
+    r["proof"]["review"]["edits"] = {"candidate:D-alt1": value}
+    return r
+
+
+def test_an_undecided_candidate_holds_the_puzzle_on_a_question_at_its_row(tmp_path):
+    ask = ("meta:note", "The notes hold an 'another list' block of a neighbour's clues. Drop the block?", "drop it")
+    said = {P + "31": [_ai_no(P + "31", ask)],            # the AI asked about the notes' block: the question is the candidate's
+            P + "32": [HELPER],                           # a person's Ready that decided nothing
+            P + "33": [AI, CHECK]}                        # nobody asked: the pipeline's own question
+    repo, proofs = _candidates(tmp_path, said)
+    p = plan(repo, proofs, Rule(ai_ready="both"), "b")
+    by = {r["pid"][-2:]: r for r in p["rows"]}
+    assert [(r["queue"], r["reason"]) for r in (by["31"], by["32"])] == [("question", "not-ready"), ("question", "candidate-undecided")]
+    assert [(a["row"], a["group"]) for a in by["31"]["asks"]] == [("candidate:D-alt1", "candidate")]
+    assert by["31"]["asks"][0]["kind"] == "ai" and by["31"]["asks"][0]["text"].startswith("The notes hold")
+    (a,) = by["32"]["asks"]
+    assert (a["who"], a["row"], a["group"]) == ("assembly", "candidate:D-alt1", "candidate") and "3 of 3 slots" in a["text"]
+    assert by["33"]["queue"] == "unchecked"               # the check doesn't pass while a candidate is undecided
+    assert by["32"]["candidates"] == [{"id": "D-alt1", "dir": "D", "clues": 3, "slots": 3, "reads_as": "clues", "decision": ""}]
+    assert p["groups"][0] == {"key": "candidate", "label": "a candidate clue list", "puzzles": 2, "asks": 2}
+    assert not p["passing"]
+    assert record(p)["puzzles"][0]["candidates"][0]["decision"] == ""
+
+
+def test_a_persons_decision_releases_the_hold_and_the_import_applies_it(tmp_path):
+    said = {P + "31": [_ai_no(P + "31", ("meta:note", "Drop the 'another list' block?", "drop it")),
+                       _decides("Reviewer 2", "remove", via="watch")],                     # the owner: not this puzzle's
+            P + "32": [_decides(f"pat ({SITE})", "clues")],                                  # a helper: these are the real clues
+            P + "33": [_decides(f"pat ({SITE})", "second:Easy")],                            # a second set, one direction only
+            P + "34": [_decides(f"pat ({SITE})", "remove", answer="notready")]}              # decided, but said Not ready
+    repo, proofs = _candidates(tmp_path, said)
+    p = plan(repo, proofs, Rule(ai_ready="both"), "b")
+    by = {r["pid"][-2:]: r for r in p["rows"]}
+    assert (by["31"]["status"], by["32"]["status"]) == ("shippable", "shippable")
+    assert p["passing"][P + "31"]["text"] == XD and p["passing"][P + "31"]["edits"] == ["candidate:D-alt1"]
+    assert "D1. Quatre ~ AC" in p["passing"][P + "32"]["text"]
+    assert (by["33"]["reason"], by["33"]["queue"]) == ("candidate-partial", "broken") and "^Easy set has 4 of 6" in by["33"]["why"]
+    assert (by["34"]["reason"], by["34"]["queue"]) == ("not-ready", "question")
+    assert by["31"]["candidates"][0]["decision"] == "remove" and by["31"]["candidates"][0]["kind"] == "owner"
+    assert by["34"]["candidates"][0]["decision"] == "remove"                              # shown as decided, though it doesn't ship
+    assert not by["34"]["asks"][0]["row"].startswith("candidate:")                        # nothing left to ask about the candidate
+    write(repo, p, "2026-11-11")
+    prov = [json.loads(x) for x in (repo / "provenance.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert {r["pid"][-2:]: r["edits"]["applied"] for r in prov} == {"31": ["candidate:D-alt1"], "32": ["candidate:D-alt1"]}
+
+
+def test_candidate_pages_go_up_with_the_packet():
+    from blitz.site import FILES
+    assert {"candidate_page.jpg", "_src/candidate_page.jpg"} <= set(FILES)
