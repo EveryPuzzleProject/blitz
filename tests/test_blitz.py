@@ -279,3 +279,17 @@ def test_the_proof_page_draws_the_ai_proof_reviewers_record_as_its_own_round():
         assert needed in page, needed
     from blitz.site import FILES
     assert "ai_review.json" in FILES
+
+
+def test_the_proof_page_shows_a_supplied_clues_source_crop_and_badge_from_the_packets_record():
+    # a clue the text step supplied where the OCR read nothing (review.json's supplied, xword-ocr proofpacket.supplied):
+    # the row draws the recorded source box and the record's own words as its badge; with no source recorded the
+    # badge says so. The page matches no crop of its own for such a row (sourceFor is for the others).
+    from pathlib import Path
+
+    page = (Path(__file__).parents[1] / "src" / "blitz" / "proof.html").read_text(encoding="utf-8")
+    for needed in ("const suppliedFor = k => (rev.supplied || {})['clue:' + k]", "function sourceStrip(box, im)",
+                   "const src = !sup ? sourceFor(k)", "esc(sup.says)", "sup.sourced ? 'm-src' : 'm-flag m-nosrc'",
+                   "Object.values(rev.supplied || {}).map(c => c.box && c.image)", "'clues supplied or replaced whole'",
+                   "The crop the text step read this from:"):
+        assert needed in page, needed
