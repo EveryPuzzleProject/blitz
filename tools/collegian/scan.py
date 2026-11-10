@@ -515,6 +515,49 @@ def cmd_publish(a):
     if ex.exists():
         (out / "exceptions.tsv").write_text(ex.read_text("utf8"), "utf8")
     print(f"{len(lines) - 1} issues -> {out/'puzzles.tsv'}  {n}")
+    k = no_key_rows()
+    if k:
+        (out / "fixes").mkdir(exist_ok=True)
+        (out / "fixes" / "no-key-printed.tsv").write_text(
+            "scan\tleaf\tby\tat\tnote\n" + "\n".join("\t".join(r) for r in k) + "\n", "utf8")
+        print(f"{len(k)} rows ({len({r[0] for r in k})} issues with no key printed) -> {out/'fixes'/'no-key-printed.tsv'}")
+
+
+def no_key_rows():
+    """The puzzles a person settled as having no answer key printed (answer_decisions.jsonl, verdict
+    "none", the last line per id), as the rows of the publication's fixes/no-key-printed.tsv: one per
+    leaf the puzzle is read from (its page and its crop, as pages.tsv orders the issue's rows), with
+    who settled it, when and where. xword-ocr reads the file through the fix file's [publication]
+    no_key_printed (pubrules.py), so triage doesn't ask for a key that was never printed."""
+    f, pages = DATA / "answer_decisions.jsonl", DATA / "pages.tsv"
+    if not f.exists() or not pages.exists():
+        return []
+    last = {}
+    for line in f.read_text("utf8").splitlines():
+        if line.strip():
+            r = json.loads(line)
+            last[r["id"]] = r
+    text = pages.read_text("utf8").splitlines()
+    cols = text[0].split("\t")
+    leaves, count = {}, {}  # (issue, printed page seq) -> the leaves of its puzzle rows (not the key rows)
+    for ln in text[1:]:
+        if not ln.strip():
+            continue
+        r = dict(zip(cols, ln.split("\t")))
+        leaf = count.get(r["issue"], 0)
+        count[r["issue"]] = leaf + 1
+        if not r.get("answers") and "-key-" not in r["file"]:
+            leaves.setdefault((r["issue"], str(r["page"])), []).append(leaf)
+    out = []
+    for r in sorted(last.values(), key=lambda r: (r["date"], str(r.get("seq", "")))):
+        if r.get("verdict") != "none":
+            continue
+        scan = f"collegian-{r['date']}"
+        note = (f"no answer key printed for the puzzle on page {r.get('seq', '?')}: settled on blitz's "
+                f"{r.get('source', '/answers')} view (collegian-scans answer_decisions.jsonl)")
+        for leaf in leaves.get((scan, str(r.get("seq", ""))), [""]):
+            out.append([scan, str(leaf), r.get("by", "person"), r.get("at", ""), note])
+    return out
 
 
 PAGE_H = 1000   # the whole page, 1000 px tall (spreads ~1300 wide): layout, headlines and the puzzle's place show; reading is the crop's job
