@@ -33,19 +33,22 @@ archive has already turned up
 accurate data archive of puzzles as they were printed, each one linked back
 to its source scan. It isn't a site for playing old puzzles.
 
-## What we collect first
+## How we work toward it
 
-The [Crossword Census](https://github.com/EveryPuzzleProject/census) aims at every publication that ever printed a crossword. Knowing that a puzzle ran is cheap, and that knowledge is a record in its own right.
+The [Crossword Census](https://github.com/EveryPuzzleProject/census) counts every publication that ever printed a crossword. A first and a last issue establish a run; sampled years give the counts.
 
-The collection doesn't aim at every puzzle. We choose what to transcribe, and these come first:
+We preserve the puzzles one whole run at a time. We finish each series we start, and list the issues we can't find as missing, with the date, so the record shows they ran. The corpus is worth most for comparison across a run: editor eras, constructor careers, puzzles reused between publications, the 2016 plagiarism case. None of that works on a sample. Two puzzles out of a series answer nothing.
 
-- Puzzles whose only copy is decaying: magazines no library holds, puzzle pages left off the microfilm.
-- Puzzles that are the only surviving work of a constructor.
-- Puzzles that had consequences: a first, a contest, a plagiarism case.
-- The first and last issues of a run, and the issues on either side of an editor change.
-- A sample of everything else, large enough to estimate how many there were.
+Which series come next:
 
-Some puzzles are lost. When we know one ran and can't find a copy, its publication's repo still lists it, with the date and what we know, so the record shows it existed.
+- Series we have nearly complete. Finishing the last 1% comes first.
+- Series whose only copies are decaying: magazines no library holds, puzzle pages left off the microfilm.
+- A constructor's otherwise lost work.
+- Runs that mattered.
+- Series we can do: the scans exist, the pages OCR cleanly, and the rights are clear enough to hold them.
+- Series someone asked for: a historian, a constructor, an editor.
+
+In practice, what we can do orders the queue.
 
 ## What's done, and what's left
 
