@@ -54,10 +54,13 @@ class Rule:
       "either" (one of them is enough: xword-ocr docs/ship-gate.md's design).
     hold_codes: triage reason codes that hold a puzzle whoever said Ready (clue-typed: a clue the
       text step supplied with no OCR reading behind it).
-    ignore: reviewers whose decisions don't count (a scripted usability test's account)."""
+    ignore: reviewers whose decisions don't count (a scripted usability test's account).
+    owner: the owner's own accounts on the review site. A decision made there under one of these
+      names is the owner's, and overrides as the owner's do in their own tools."""
     ai_ready: str = "off"
     hold_codes: tuple = ("clue-typed",)
     ignore: tuple = ()
+    owner: tuple = ()
 
 
 def rule_of(repo: Path, **over) -> Rule:
@@ -70,12 +73,13 @@ def rule_of(repo: Path, **over) -> Rule:
     return Rule(**{k: tuple(v) if isinstance(v, list) else v for k, v in d.items()})
 
 
-def kind_of(rec: dict) -> str:
-    """Whose decision a proof record is: owner (made in the maintainer's own tools), helper (the
-    review site), ai (the AI proof reviewer) or check (the ship check)."""
+def kind_of(rec: dict, rule: Rule = Rule()) -> str:
+    """Whose decision a proof record is: owner (made in the maintainer's own tools, or on the review
+    site under one of rule.owner's names), helper (anyone else on the review site), ai (the AI proof
+    reviewer) or check (the ship check)."""
     if rec.get("via") == AGENT:
         return "check" if rec.get("by", "").startswith(CHECK_BY) else "ai"
-    return "helper" if rec.get("via") == SITE else "owner"
+    return "helper" if rec.get("via") == SITE and _name(rec) not in rule.owner else "owner"
 
 
 def _name(rec: dict) -> str:
@@ -104,7 +108,7 @@ def standing(batch: dict, proofs: list[dict], *, check_ok: bool = False, codes: 
         if r.get("answer") not in ("ready", "notready") or _name(r) in rule.ignore:
             continue
         xd = ((r.get("proof") or {}).get("review") or {}).get("xd")
-        said.append({"who": r.get("by", ""), "kind": kind_of(r), "answer": r["answer"], "note": r.get("note", ""),
+        said.append({"who": r.get("by", ""), "kind": kind_of(r, rule), "answer": r["answer"], "note": r.get("note", ""),
                      "at": r.get("at", ""), "stale": bool(r["answer"] == "ready" and current and xd and xd not in current), "rec": r})
     ready = [s for s in said if s["answer"] == "ready" and not s["stale"]]
     who = lambda ss: ", ".join(s["who"] for s in ss)
@@ -122,7 +126,9 @@ def standing(batch: dict, proofs: list[dict], *, check_ok: bool = False, codes: 
         elif mine["stale"]:
             res = out("hold", "proof-stale", f"{mine['who']}'s Ready was on an earlier version of the puzzle: look again")
         else:
-            res = out("ship", "", f"Ready by {mine['who']}", mine["who"], "owner")
+            over = [s for s in said if s["answer"] == "notready"]  # said so: the owner may not have seen a later one
+            res = out("ship", "", f"Ready by {mine['who']}" + (f", over a Not ready by {who(over)}"
+                      + (" given after it" if any(s["at"] > mine["at"] for s in over) else "") if over else ""), mine["who"], "owner")
     elif batch.get("answer") == "hold":
         res = out("hold", "owner-hold", f"held on the batch page by {batch.get('by', '')}" + (f": {batch['note']}" if batch.get("note") else ""))
     elif batch.get("answer") == "ship":
@@ -431,7 +437,7 @@ def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict |
         if row["status"] == "held" and p and (repo / "xd" / f"{p['xdid']}.xd").exists():
             row.update(xdid=p["xdid"], why=row["why"] + f" (already in xd/ as {p['xdid']})")
     return {"pub": pub or re.match(r"[a-z]+", repo.name)[0], "batch": batch or run, "run": run, "packets": rel, "rule": {"ai_ready": rule.ai_ready, "hold_codes": list(rule.hold_codes),
-            "ignore": list(rule.ignore)}, "rows": rows, "passing": passing, "pins": [p for p in pins if p["xdid"] in {x["xdid"] for x in passing.values()}],
+            "ignore": list(rule.ignore), "owner": list(rule.owner)}, "rows": rows, "passing": passing, "pins": [p for p in pins if p["xdid"] in {x["xdid"] for x in passing.values()}],
             "site": new_site, "packs": packs}
 
 
@@ -533,16 +539,21 @@ def write_exports(repo: Path, pub: str) -> None:
 
 def record(p: dict, public: bool = True) -> dict:
     """The batch's ship record (pipeline/ship/<batch>.json; batch/<name>/ship.json on the site): the rule, the
-    counts, and every puzzle's status with its reason. Helpers' names are left out of the copy the site shows."""
+    counts, and every puzzle's status with its reason. Review-site account names are left out of the copy the
+    site shows: a helper is "a helper", the owner's account there "the owner"."""
+    site = lambda s: s["who"].endswith(f"({SITE})")
+    alias = lambda s: "a helper" if s["kind"] == "helper" else "the owner"
+
     def said(row):
         return [{"kind": s["kind"], "answer": s["answer"], "at": s["at"][:10], **({"stale": True} if s.get("stale") else {}),
-                 **({} if public and s["kind"] == "helper" else {"who": s["who"]})} for s in row.get("said") or []]
+                 **({} if public and s["kind"] == "helper" else {"who": alias(s) if public and site(s) else s["who"]})}
+                for s in row.get("said") or []]
 
     def why(row):
         text = row["why"]
         for s in row.get("said") or []:
-            if public and s["kind"] == "helper" and s["who"]:
-                text = text.replace(s["who"], "a helper")
+            if public and site(s):
+                text = text.replace(s["who"], alias(s))
         return text
 
     rows = [{**{k: r.get(k, "") for k in ("pid", "xdid", "title", "date", "status", "reason", "rule", "ships_with")},

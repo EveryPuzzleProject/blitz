@@ -75,6 +75,16 @@ def test_ignored_reviewers_do_not_count():
     assert standing({}, [test], rule=Rule(ignore=("walkthrough test",)))["reason"] == "no-ready"
 
 
+def test_the_owners_review_site_account_is_the_owner():
+    mine = Rule(owner=("pat",))
+    assert standing({}, [HELPER, AI_NO])["reason"] == "not-ready"                 # a helper's Ready doesn't override
+    r = standing({}, [HELPER, AI_NO], rule=mine)                                  # the owner's does
+    assert (r["status"], r["rule"]) == ("ship", "owner")
+    no = proof(f"pat ({SITE})", "notready", "2026-10-25T00:00:00Z", SITE)
+    assert standing({}, [AI, CHECK, no], check_ok=True, rule=Rule(owner=("pat",), ai_ready="both"))["reason"] == "owner-hold"
+    assert standing({}, [HELPER_NO, HELPER], rule=mine)["status"] == "ship"       # as in their own tools: over a helper's Not ready too
+
+
 XD = """Title: T
 Author: A
 Date: 1978-03-01

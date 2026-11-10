@@ -29,8 +29,10 @@ One function, `ship.standing()`. Its options are `ship.Rule`, read from the publ
 `fixes/ship-rule.json` and overridden on the command line.
 
 1. The owner's own latest decision wins: the later of the batch page's Ship / Hold and their
-   own proof page's Ready / Not ready (a record whose `via` is neither `review site` nor
-   `agent review`).
+   own proof page's Ready / Not ready. A proof record is the owner's when its `via` is neither
+   `review site` nor `agent review` (their own tools), or when it was made on the review site
+   under one of the names in the rule's `owner` list. It overrides a Not ready by anyone else,
+   earlier or later; the reason then says so ("over a Not ready by ..., given after it").
 2. Otherwise any Not ready, a person's or the AI proof reviewer's, holds the puzzle for the
    owner.
 3. Otherwise one person's Ready ships it.
@@ -41,8 +43,9 @@ of `xd_fp_same`).
 
 | option | default | what it does |
 |---|---|---|
-| `ai_ready` | `off` | `both`: with no person's Ready, the AI proof reviewer's Ready and a passing ship check together count as the one Ready. `either`: one of them is enough (xword-ocr docs/ship-gate.md's design). Not decided by the owner, so off. |
+| `ai_ready` | `off` | `both`: with no person's Ready, the AI proof reviewer's Ready and a passing ship check together count as the one Ready. `either`: one of them is enough (xword-ocr docs/ship-gate.md's design). GAMES: `both`, the owner's decision of 2026-11-10. |
 | `hold_codes` | `["clue-typed"]` | triage reason codes that hold a puzzle whoever said Ready. `clue-typed` (a clue the text step supplied with no OCR reading) doesn't exist in triage yet; when it does, such puzzles are held with no change here. |
+| `owner` | `[]` | the owner's own accounts on the review site. Who the owner is isn't in the code: it is this list in the publication's `fixes/ship-rule.json` (GAMES: `oops6498`, confirmed by the owner 2026-11-10). The site's copy of the ship record shows such a decision as "the owner", a helper's as "a helper". |
 | `ignore` | `[]` | review-site accounts whose decisions don't count (GAMES: `walkthrough test`, a scripted usability test that left a Ready and a Not ready on the live site). |
 
 A puzzle the rule passes can still be held by the import, each with its own reason:
@@ -89,6 +92,26 @@ Shipping row (Shipped, Ready to ship, Held, and the holds by reason, each a filt
 every card: shipped as which id, or held and why. The page draws the record; it never applies
 the rule.
 
+## Status and milestones on the EPP site
+
+Nothing is published by `--write`. Two things carry a batch's status outward, both made from
+the same plan:
+
+- `<pub>/pipeline/ship/<batch>.json` in the publication's repo (public): `counts` (puzzles,
+  shipped, shippable, held, out, held_by) and every puzzle's status. This is the input for a
+  status page or a milestone note ("35 of 76 shipped"); `gxd-exports.tsv` lists the shipped
+  puzzles with their proof pages.
+- `ship.json` on the review site, which the batch page draws. To publish it, from a blitz
+  checkout that has this code, with the publication's checkout beside it holding the shipped
+  `xd/` (otherwise shipped puzzles show as "ready to ship"):
+
+  ```
+  uv run blitz ship games --proof ../xword-ocr/harvests/games-7779/proof/run15-restart --batch games-1977-79 --publish
+  ```
+
+  It needs the site's R2 settings (`R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`,
+  `R2_BUCKET`) and writes one object, `batch/games-1977-79/ship.json`.
+
 ## The gxd export
 
 `blitz ship-export <pub> --dest <folder>` writes files only: `<shelf>/<YYYY>/<gxd id>.xd`,
@@ -109,7 +132,8 @@ exported.
 - xword-ocr still has its own copy of the rule (`batchpage.standing`, where an AI's Ready
   always counts) and its own `import-batch`; the local watch's batch page shows that one. They
   should go, or read `pipeline/ship/<batch>.json`.
-- `puzzles.tsv` and the status page don't read the ship record.
+- `puzzles.tsv` and the publication's status page (`games/tools/render.py`) don't read the ship
+  record yet; the EPP home page has no milestone line fed from it.
 - A cryptic that has a key grid carries no code saying it's a cryptic, so the export can't hold
   it back.
 - Pages v2 read that the scans repo never backed up have no capture date for the receipts.

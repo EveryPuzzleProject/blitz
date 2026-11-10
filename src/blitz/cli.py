@@ -388,7 +388,8 @@ def cmd_ship(a) -> None:
     c = rec["counts"]
     print(f"{p['batch']} ({p['run']}), {c['puzzles']} puzzles; rule: one person's Ready and no Not ready, the owner's decision "
           f"overrides; ai_ready {rule.ai_ready}; held on {', '.join(rule.hold_codes) or 'no reason codes'}"
-          + (f"; not counted: {', '.join(rule.ignore)}" if rule.ignore else ""))
+          + (f"; not counted: {', '.join(rule.ignore)}" if rule.ignore else "")
+          + (f"; the owner on the review site: {', '.join(rule.owner)}" if rule.owner else ""))
     if p["site"]:
         print(f"{len(p['site'])} decision(s) from the review site {'added to' if a.write else 'not yet in'} the ledger")
     print(f"shipped {c['shipped']}, shippable {c['shippable']}, held {c['held']}, set aside or not a crossword {c['out']}")
