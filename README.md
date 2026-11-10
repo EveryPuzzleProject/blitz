@@ -33,6 +33,20 @@ archive has already turned up
 accurate data archive of puzzles as they were printed, each one linked back
 to its source scan. It isn't a site for playing old puzzles.
 
+## What we collect first
+
+The [Crossword Census](https://github.com/EveryPuzzleProject/census) aims at every publication that ever printed a crossword. Knowing that a puzzle ran is cheap, and that knowledge is a record in its own right.
+
+The collection doesn't aim at every puzzle. We choose what to transcribe, and these come first:
+
+- Puzzles whose only copy is decaying: magazines no library holds, puzzle pages left off the microfilm.
+- Puzzles that are the only surviving work of a constructor.
+- Puzzles that had consequences: a first, a contest, a plagiarism case.
+- The first and last issues of a run, and the issues on either side of an editor change.
+- A sample of everything else, large enough to estimate how many there were.
+
+Some puzzles are lost. When we know one ran and can't find a copy, its publication's repo still lists it, with the date and what we know, so the record shows it existed.
+
 ## What's done, and what's left
 
 **Done, by machine.** We found the puzzles in scanned magazines, cut out
