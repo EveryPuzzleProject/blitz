@@ -27,6 +27,12 @@ The public review site (helpers check agents' reviews in the browser; see site/R
     blitz site-close <puzzle...>         take puzzles off the site
     blitz key-squares <folder> --pub P   the key squares worth a glance, for /review/squares/ (site-publish puts them up)
 
+Shipping a batch (design/ship.md):
+    blitz ship <pub> --proof <run's proof packets> [--batch NAME] [--write] [--ai-ready off|both|either]
+                                         the batch's reviewed puzzles into ../<pub>/xd/ under the ship rule: which
+                                         are shipped, shippable and held, and why (dry run without --write)
+    blitz ship-export <pub> --dest DIR   the gxd export of what's shipped, as files (nothing is sent anywhere)
+
 A <puzzle> is its id (judge1931-03-14), looked up in ../blitz-work, or a path
 to any puzzle folder. `text` also takes a folder of puzzle folders (a batch).
 """
@@ -361,6 +367,81 @@ def cmd_site_close(a) -> None:
     print(f"closed {len(a.puzzles)} puzzles")
 
 
+def cmd_ship(a) -> None:
+    from . import ship
+
+    repo = Path(a.repo or f"../{a.pub}").resolve()
+    site = None
+    if a.decisions:
+        site = json.loads(Path(a.decisions).read_text(encoding="utf-8"))
+    elif not a.no_site:
+        from .site import fetch_decisions
+
+        site = fetch_decisions(False)
+    rule = ship.rule_of(repo, ai_ready=a.ai_ready, ignore=a.ignore or None)
+    p = ship.plan(repo, Path(a.proof), rule, a.batch or "", site, a.pub)
+    res = ship.write(repo, p) if a.write else {"written": [], "ledger": 0}
+    rec = ship.record(p, public=False)
+    if a.json:
+        print(json.dumps(rec, ensure_ascii=False, indent=1))
+        return
+    c = rec["counts"]
+    print(f"{p['batch']} ({p['run']}), {c['puzzles']} puzzles; rule: one person's Ready and no Not ready, the owner's decision "
+          f"overrides; ai_ready {rule.ai_ready}; held on {', '.join(rule.hold_codes) or 'no reason codes'}"
+          + (f"; not counted: {', '.join(rule.ignore)}" if rule.ignore else "")
+          + (f"; the owner on the review site: {', '.join(rule.owner)}" if rule.owner else ""))
+    if p["site"]:
+        print(f"{len(p['site'])} decision(s) from the review site {'added to' if a.write else 'not yet in'} the ledger")
+    print(f"shipped {c['shipped']}, shippable {c['shippable']}, held {c['held']}, set aside or not a crossword {c['out']}")
+    w = c["ships_with"]
+    print(f"the rule passes {w.get('off', 0)} as it stands; with --ai-ready both {w.get('off', 0) + w.get('both', 0)}; "
+          f"with --ai-ready either {sum(w.values())} (before the import's own holds)")
+    for status in ("shipped", "shippable"):
+        for r in rec["puzzles"]:
+            if r["status"] == status:
+                print(f"  {status} {r['pid']} -> {r['xdid']}  {r['why']}")
+    for reason, n in sorted(c["held_by"].items(), key=lambda kv: -kv[1]):
+        print(f"held, {reason}: {n}")
+        for r in rec["puzzles"]:
+            if r["status"] == "held" and r["reason"] == reason:
+                print(f"  {r['pid']}  {r['why'][:160]}" + (f"  [ships with --ai-ready {r['ships_with']}]" if r["ships_with"] not in ("", "off") else ""))
+    if a.write:
+        print(f"wrote {len(res['written'])} xd file(s) to {repo / 'xd'}, {res['ledger']} ledger record(s), provenance.jsonl, "
+              f"gxd-exports.tsv and {repo / 'pipeline' / 'ship' / (p['batch'] + '.json')}")
+    else:
+        print("dry run: --write writes the shippable puzzles and the batch's ship record")
+    for d in a.snapshot or []:
+        Path(d).mkdir(parents=True, exist_ok=True)
+        (Path(d) / "ship.json").write_text(json.dumps(ship.record(p), ensure_ascii=False, indent=1), encoding="utf-8")
+        print(f"wrote {Path(d) / 'ship.json'} (the batch page reads it beside batch.json)")
+    if a.publish:
+        from . import r2
+        from .site import _env
+
+        account, key_id, secret, bucket = _env("R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_BUCKET")
+        s3 = r2.client(account, key_id, secret)
+        key = f"batch/{p['batch']}/ship.json"
+        r2.sync(s3, bucket, [r2.Put(key, body=json.dumps(ship.record(p), ensure_ascii=False, indent=1).encode("utf-8"),
+                                    cache="no-cache", type="application/json")], {}, force=True)
+        print(f"published {key}: https://blitz.xwordapp.com/review/batch/?b={p['batch']}")
+
+
+def cmd_ship_export(a) -> None:
+    from . import ship
+
+    repo = Path(a.repo or f"../{a.pub}").resolve()
+    scans = Path(a.scans or f"../{a.pub}-scans").resolve()
+    r = ship.export(repo, Path(a.dest), a.pub, scans if scans.exists() else None, a.shelf or "", a.archive or "", a.received or "",
+                    a.feature_as, a.pages, a.name or "")
+    print(f"{len(r['exported'])} puzzle(s) in {Path(a.dest) / r['shelf']}; {len(r['held'])} held back (held-back.tsv); "
+          f"{r['pages']} source page(s) (source-pages.tsv), {r['pages_not_in_scans']} not in the scans repo; "
+          f"{r['no_capture_date']} receipt(s) with no capture date")
+    print(f"notes: {r['notes_from']}")
+    for x, why in r["held"]:
+        print(f"  held back {x}: {why}")
+    print(f"nothing was sent anywhere. Lint it:  python ../xd/xdlint.py --profile gxd {Path(a.dest) / r['shelf']}")
+
+
 def cmd_drop(a) -> None:
     s = work.drop(_root())
     print(f"Dropped {s['pr']}; its claims expire after 48 hours." if s else "No run to drop.")
@@ -478,6 +559,36 @@ def main(argv=None) -> None:
     q.add_argument("--max-lines", type=int, default=MAX_LINES, help="refuse crediting anyone with more ledger lines than this")
     q.add_argument("--json", action="store_true")
     q.set_defaults(fn=cmd_sync)
+    q = sub.add_parser("ship", help="a batch's reviewed puzzles into the publication repo's xd/ under the ship rule; which "
+                                     "are shipped, shippable and held, with the reason (dry run without --write)")
+    q.add_argument("pub")
+    q.add_argument("--proof", required=True, help="the run's proof packets, e.g. ../xword-ocr/harvests/games-7779/proof/run15-restart")
+    q.add_argument("--batch", help="the batch's name on the review site (default: the run's name)")
+    q.add_argument("--repo", help="the publication's checkout (default ../<pub>)")
+    q.add_argument("--decisions", help="a site-import file instead of fetching helpers' decisions from the review site")
+    q.add_argument("--no-site", action="store_true", help="the ledger only: don't read the review site")
+    q.add_argument("--ai-ready", choices=("off", "both", "either"),
+                   help="let an AI count as the one Ready: both (the AI reviewer's Ready and a passing ship check) or either; "
+                        "default: the publication's fixes/ship-rule.json, else off")
+    q.add_argument("--ignore", action="append", help="a reviewer whose decisions don't count (repeatable; replaces "
+                                                     "ship-rule.json's list)")
+    q.add_argument("--write", action="store_true", help="write the xd files, ledger records, provenance and the ship record")
+    q.add_argument("--snapshot", action="append", help="also write ship.json into this batch snapshot folder (repeatable)")
+    q.add_argument("--publish", action="store_true", help="put ship.json on the review site, beside the batch's batch.json")
+    q.add_argument("--json", action="store_true")
+    q.set_defaults(fn=cmd_ship)
+    q = sub.add_parser("ship-export", help="the gxd export of the publication's shipped puzzles, as files: nothing is sent")
+    q.add_argument("pub")
+    q.add_argument("--dest", required=True, help="where to write it, e.g. ../blitz-work/gxd-export-games")
+    q.add_argument("--repo", help="the publication's checkout (default ../<pub>)")
+    q.add_argument("--scans", help="the publication's scans repo, for capture dates and page files (default ../<pub>-scans)")
+    q.add_argument("--shelf", help="gxd's folder for the publication (default: the pubid)")
+    q.add_argument("--archive", help="the source archive's name, the receipts' InternalSource (default <pub>-scans-<date>.zip)")
+    q.add_argument("--received", help="ReceivedTime for the receipts (default: today)")
+    q.add_argument("--feature-as", help="the gxd header a Feature becomes, e.g. Category (default: left out, not decided)")
+    q.add_argument("--pages", action="store_true", help="also copy the source pages into <dest>/source/")
+    q.add_argument("--name", help="the publication's name for gxd's publications.tsv (default: the pubid in capitals)")
+    q.set_defaults(fn=cmd_ship_export)
     q = sub.add_parser("site-close", help="take puzzles off the public review site")
     q.add_argument("puzzles", nargs="+")
     q.set_defaults(fn=cmd_site_close)

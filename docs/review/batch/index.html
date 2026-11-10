@@ -108,6 +108,11 @@ details.more { margin-top: 6px; } details.more > summary { font-size: 12px; }
 .checked { margin: 18px 0 6px; padding-top: 8px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); }
 .said { font-size: 13px; margin-top: 4px; } .said .r { color: var(--ship); } .said .n { color: var(--person); }
 .chip.held { border-color: var(--person); }
+/* where a puzzle stands for shipping (blitz ship's record, ship.json): drawn as recorded */
+.shipline { font-size: 13px; margin-top: 6px; padding: 5px 10px; border-left: 3px solid var(--line); background: var(--paper); border-radius: 0 6px 6px 0; }
+.shipline.shipped, .shipline.shippable { border-color: var(--ship); } .shipline.held { border-color: var(--person); }
+.shipline b { font-weight: 600; } .shipline.shipped b, .shipline.shippable b { color: var(--ship); } .shipline.held b { color: var(--person); }
+#shipchips .meta a { margin-left: 4px; }
 .uns { font-size: 13px; margin-top: 4px; } .uns summary { cursor: pointer; color: var(--muted); }
 .uns ul { margin: 2px 0 0; padding-left: 16px; } .uns li { margin: 1px 0; }
 a { color: var(--accent); } a.open { font-size: 12px; white-space: nowrap; }
@@ -148,6 +153,7 @@ table.mh details img { max-height: 44px; }
   <div class="bar" id="bar"></div>
   <div class="chips" id="chips"></div>
   <div class="chips" id="causechips"></div>
+  <div class="chips" id="shipchips"></div>
   <div class="legend" id="legend">Drawn from the records only: <b style="color:#1f5fbf">this puzzle's region boxes</b> (what its parts were read from) and <b style="color:#c46e00">its key</b> as assembly cut it; other puzzles in grey; the harvest's answer grids dashed. Hover a box for the milestone it came from.</div>
 </header>
 <details id="rerun" hidden></details>
@@ -199,6 +205,24 @@ const TAB = window.BLITZ_SITE ? '' : ' target="_blank"';
 // and a puzzle's Ready or Not ready is on the proof page, not here.
 const SITE = window.BLITZ_SITE || null;
 let DATA = params.get('data') || '', BATCHES = [];
+// blitz ship's record for the batch (design/ship.md): every puzzle shipped, shippable or held, with the reason.
+// The page draws it as recorded; the rule is blitz ship's (src/blitz/ship.py standing()), never worked out here.
+let SHIP = null, SHIPBY = {};
+const SHIPNAME = {shipped: 'Shipped', shippable: 'Ready to ship', held: 'Held'};
+const HELD = {'no-ready': "waiting for a person's Ready", 'not-ready': 'a reviewer said Not ready', 'owner-hold': 'held by the maintainer',
+              'needs-work': 'needs work', 'incomplete': 'incomplete', 'proof-stale': 'its Ready was on an earlier version',
+              'packet-stale': 'its proof packet is out of date', 'edits-differ': "reviewers' edits differ",
+              'edits-unapplied': "an edit the import can't apply yet", 'xd-exists': 'another file has its id', 'no-packet': 'no proof packet',
+              'clue-typed': 'a clue typed with no OCR reading'};
+const shipOf = p => SHIPBY[p.pid];
+const shipLabel = f => SHIPNAME[f.split(':')[1]] + (f.split(':')[2] ? ': ' + (HELD[f.split(':')[2]] || f.split(':')[2]) : '');
+function shipHtml(p) {
+  const x = shipOf(p);
+  if (!x || x.status === 'out') return '';
+  const head = x.status === 'held' ? `Held: ${esc(HELD[x.reason] || x.reason)}` : SHIPNAME[x.status] + (x.xdid ? ` as ${esc(x.xdid)}` : '');
+  const more = x.status === 'held' && x.ships_with && x.ships_with !== 'off' ? ` <span class="meta">(would ship if an AI's Ready counted)</span>` : '';
+  return `<div class="shipline ${esc(x.status)}" title="${esc(x.reason || x.rule || '')}: blitz ship, ${esc((SHIP.at || '').slice(0, 10))}"><b>${head}</b>${more}<br><span class="meta">${esc(x.why)}</span></div>`;
+}
 const U = u => u && DATA ? new URL(u, new URL(DATA, location.href)).href : u;
 const FILES = () => params.get('files') || SITE.filesBase;  // the site's bucket (?files=: a local copy of its layout)
 const full = m => DATA ? U(m.full || m.image) : m.image + '?w=1400';  // a page, full size
@@ -215,6 +239,9 @@ async function load() {
                         {cache: 'no-cache'});
   D = await r.json();
   if (D.error) throw new Error(D.error);
+  // the batch's ship record (blitz ship writes it beside batch.json): absent until the batch has one
+  SHIP = DATA ? await fetch(U('ship.json'), {cache: 'no-cache'}).then(r => r.ok ? r.json() : null).catch(() => null) : null;
+  SHIPBY = Object.fromEntries(((SHIP || {}).puzzles || []).map(x => [x.pid, x]));
   await liveVotes();
   draw();
   $('#tools').hidden = !!DATA;
@@ -333,7 +360,7 @@ document.addEventListener('visibilitychange', async () => {
 });
 const causeOf = pid => ((D.causes || {}).causes || []).find(c => c.pids.includes(pid));
 function shown() {
-  return D.puzzles.filter(p => (filter === 'all' || (filter === 'held' ? p.held_for_you : filter === 'foryou' ? forYou(p) : filter === 'sentback' ? !!p.sent_back : kindOf(p) === filter)) && (!cause || (causeOf(p.pid) || {}).id === cause))
+  return D.puzzles.filter(p => (filter === 'all' || (filter.startsWith('ship:') ? ((shipOf(p) || {}).status === filter.split(':')[1] && (!filter.split(':')[2] || shipOf(p).reason === filter.split(':')[2])) : filter === 'held' ? p.held_for_you : filter === 'foryou' ? forYou(p) : filter === 'sentback' ? !!p.sent_back : kindOf(p) === filter)) && (!cause || (causeOf(p.pid) || {}).id === cause))
     .sort((a, b) => checked(a) - checked(b) || ORDER.indexOf(kindOf(a)) - ORDER.indexOf(kindOf(b)) || a.pid.localeCompare(b.pid));
 }
 // a Needs work card: what a reviewer settles later (doubts, the verdict, the agent's check, unsure items)
@@ -392,7 +419,7 @@ const walkable = (rows, pid = '') => filter === 'setaside' && !DATA ? rows : row
 function proofUrl(pid, k, rows) {
   rows = walkable(rows, pid);
   const c = ((D.causes || {}).causes || []).find(x => x.id === cause);
-  const label = [filter === 'held' ? 'Held for you' : filter === 'foryou' ? 'For you' : filter === 'sentback' ? 'Sent back' : filter !== 'all' ? KIND[filter][0] : '', c ? c.title : ''].filter(Boolean).join(' · ') || 'all puzzles';
+  const label = [filter === 'held' ? 'Held for you' : filter === 'foryou' ? 'For you' : filter === 'sentback' ? 'Sent back' : filter.startsWith('ship:') ? shipLabel(filter) : filter !== 'all' ? KIND[filter][0] : '', c ? c.title : ''].filter(Boolean).join(' · ') || 'all puzzles';
   const back = '&back=' + encodeURIComponent(location.pathname + location.search);
   if (DATA) return `${SITE ? '../' : params.get('proof') || '/proof/'}?p=${encodeURIComponent(pid)}`
     + (!SITE && params.get('base') ? '&base=' + encodeURIComponent(params.get('base')) : '')
@@ -624,9 +651,13 @@ function draw() {
       + `<button class="chip held ${filter === 'held' ? 'on' : ''}" data-f="held" title="a reviewer said Not ready and you haven't decided">Held for you <b>${(D.chosen || {}).held_for_you || 0}</b></button>`
       + `<span class="meta">${ready} ship</span>`)
     + (walk.length ? `<a class="walk${SITE ? ' go' : ''}" href="${proofUrl(walk[0].pid, '', walk)}"${TAB}>${SITE ? `Start proofreading these ${walk.length} →` : `Walk these ${walk.length} on the proof page →`}</a>` : '');
+  const sc = (SHIP || {}).counts;
+  $('#shipchips').innerHTML = sc ? `<span class="meta" title="blitz ship, ${esc(SHIP.at || '')}: one person's Ready and no Not ready ships; the maintainer's decision overrides${SHIP.rule.ai_ready !== 'off' ? "; an AI's Ready counts (" + esc(SHIP.rule.ai_ready) + ")" : ''}">Shipping:</span>`
+    + ['shipped', 'shippable', 'held'].map(k => `<button class="chip ${filter === 'ship:' + k ? 'on' : ''}" data-f="ship:${k}">${SHIPNAME[k]} <b>${sc[k]}</b></button>`).join('')
+    + (filter.startsWith('ship:held') || sc.held ? `<span class="meta">held by:${Object.entries(sc.held_by).sort((a, b) => b[1] - a[1]).map(([r, n]) => ` <a href="#" data-f="ship:held:${esc(r)}" class="${filter === 'ship:held:' + r ? 'cur' : ''}">${esc(HELD[r] || r)} ${n}</a>`).join(' ·')}</span>` : '') : '';
   const cs = (D.causes || {}).causes || [];
   $('#causechips').innerHTML = cs.length ? `<span class="meta">By cause:</span>` + cs.map(c => `<button class="chip ${cause === c.id ? 'on' : ''}" data-c="${esc(c.id)}" title="${esc(c.recommend)}">${esc(c.title)} <b>${c.puzzles.length}</b></button>`).join('') : '';
-  document.querySelectorAll('[data-f]').forEach(b => b.onclick = () => { filter = b.dataset.f; setUrl(); draw(); });
+  document.querySelectorAll('[data-f]').forEach(b => b.onclick = e => { e.preventDefault(); filter = b.dataset.f; setUrl(); draw(); });
   document.querySelectorAll('[data-c]').forEach(b => b.onclick = () => { cause = cause === b.dataset.c ? '' : b.dataset.c; setUrl(); draw(); });
   $('#list').innerHTML = rows.map((p, i) => {
     const k = KIND[kindOf(p)], c = causeOf(p.pid);
@@ -650,7 +681,7 @@ function draw() {
     return `${head}<div class="row withpage" id="${esc(p.pid)}">${pic}
       <div>${p.feature ? `<div class="feat" title="the feature (a sub-series it runs in)${p.feature_line ? ', from printed line B' + p.feature_line : ''}: our own Feature header until the export maps it">${esc(p.feature)}</div>` : ''}<div class="t">${DATA && closed(p) ? '' : `<a class="tl" href="${proofUrl(p.pid, '', rows)}"${TAB}>`}${p.title ? esc(p.title) : '<span class="none">no title found</span>'}${DATA && closed(p) ? '' : '</a>'}</div>
         <div class="meta">${esc(p.date)} · ${p.grid.length}×${(p.grid[0] || '').length}${p.byline ? ' · ' + esc(p.byline) : ''}${p.cryptic ? ' · cryptic' : ''} · ${p.changes} changes, ${p.unsure_items.length} unsure, ${p.blanks} blanks</div>
-        ${asideHtml(p)}${sentBackHtml(p)}${remedyHtml(p)}${blockHtml(p)}${closed(p) ? '' : asksHtml(p)}
+        ${shipHtml(p)}${asideHtml(p)}${sentBackHtml(p)}${remedyHtml(p)}${blockHtml(p)}${closed(p) ? '' : asksHtml(p)}
         ${closed(p) ? moreHtml(p, why, verdict, c, rows) : `${checkHtml(p)}
         ${why ? `<div class="doubts">To check on the proof page:</div><ul class="why">${why}</ul>` : ''}
         ${verdict ? `<div class="verdict">${esc(verdict)}</div>` : ''}

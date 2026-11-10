@@ -1,0 +1,749 @@
+"""blitz ship: a batch's reviewed puzzles into the publication repo's xd/, and from there a gxd export.
+
+The last milestone of a batch (docs: design/ship.md). It reads what the earlier ones recorded and
+works nothing out about a puzzle itself:
+
+    the run's proof packets   <harvest>/proof/<run>/<pid>/puzzle.xd, review.json, ocr.json
+    triage's record           <harvest>/triage/<run>/triage.json (reason codes, the ship check)
+    the ledger                <publication repo>/fixes/decisions.jsonl (proof:<pid>, batch:<pid>, drops)
+    the review site           helpers' Ready / Not ready (blitz site-import), taken into the ledger first
+
+and writes, in the publication's repo:
+
+    xd/<xdid>.xd              the puzzle as its proof packet shows it, with the reviewers' edits
+    fixes/xdids.tsv           the ids it pinned
+    provenance.jsonl          per xdid: the packet, who said what, which rule shipped it, the edits
+    gxd-exports.tsv           per xdid: its gxd id and the links crossref credits (as judge's)
+    pipeline/ship/<batch>.json  every puzzle of the batch: shipped, shippable or held, with the reason
+                              (the batch page draws this file; it computes nothing)
+
+The ship rule is one function, standing(), with its options in Rule. Everything else here applies it.
+"""
+
+from __future__ import annotations
+
+import csv
+import hashlib
+import io
+import json
+import re
+import shutil
+from dataclasses import dataclass, replace
+from datetime import date, datetime, timezone
+from pathlib import Path
+
+from .work import Stop
+
+SITE, AGENT = "review site", "agent review"  # a ledger record's via: a helper's (the hosted proof page), an AI's
+CHECK_BY = "the ship check"  # the by of the no-model ship check's own Ready (xword-ocr shipcheck)
+AI_READY = ("off", "both", "either")
+PUBLIC = "https://pub-52ac4a15c4ba43fe8e4af5a496733fb5.r2.dev"  # the review site's packages
+PROOF_PAGE = "https://blitz.xwordapp.com/review/?p="
+CREDIT = "Every Puzzle Project"
+
+
+# ---- the ship rule -------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class Rule:
+    """The ship rule's options. The defaults are the owner's standing rule (2026-10-19): a puzzle
+    ships with at least one person's Ready and no Not ready, and the owner's own decision overrides.
+
+    ai_ready: whether an AI counts as the one Ready when no person has said it. "off" (the default:
+      not decided), "both" (the AI proof reviewer's Ready and a passing ship check together) or
+      "either" (one of them is enough: xword-ocr docs/ship-gate.md's design).
+    hold_codes: triage reason codes that hold a puzzle whoever said Ready (clue-typed: a clue the
+      text step supplied with no OCR reading behind it).
+    ignore: reviewers whose decisions don't count (a scripted usability test's account).
+    owner: the owner's own accounts on the review site. A decision made there under one of these
+      names is the owner's, and overrides as the owner's do in their own tools."""
+    ai_ready: str = "off"
+    hold_codes: tuple = ("clue-typed",)
+    ignore: tuple = ()
+    owner: tuple = ()
+
+
+def rule_of(repo: Path, **over) -> Rule:
+    """The publication's rule: fixes/ship-rule.json where it has one, then the caller's overrides."""
+    f = Path(repo) / "fixes" / "ship-rule.json"
+    d = {k: v for k, v in (json.loads(f.read_text(encoding="utf-8")) if f.exists() else {}).items() if not k.startswith("_")}
+    d.update({k: v for k, v in over.items() if v is not None})
+    if d.get("ai_ready", "off") not in AI_READY:
+        raise Stop(f"ai_ready is one of {', '.join(AI_READY)}, not {d['ai_ready']!r}")
+    return Rule(**{k: tuple(v) if isinstance(v, list) else v for k, v in d.items()})
+
+
+def kind_of(rec: dict, rule: Rule = Rule()) -> str:
+    """Whose decision a proof record is: owner (made in the maintainer's own tools, or on the review
+    site under one of rule.owner's names), helper (anyone else on the review site), ai (the AI proof
+    reviewer) or check (the ship check)."""
+    if rec.get("via") == AGENT:
+        return "check" if rec.get("by", "").startswith(CHECK_BY) else "ai"
+    return "helper" if rec.get("via") == SITE and _name(rec) not in rule.owner else "owner"
+
+
+def _name(rec: dict) -> str:
+    return re.sub(rf" \({SITE}\)$", "", rec.get("by", ""))
+
+
+def standing(batch: dict, proofs: list[dict], *, check_ok: bool = False, codes: frozenset | set = frozenset(),
+             current: tuple = (), rule: Rule = Rule()) -> dict:
+    """Whether one puzzle ships: THE ship rule. Nothing else decides it.
+
+    batch: the ledger's latest batch:<pid> (the owner's Ship / Hold on the batch page), or {}.
+    proofs: each reviewer's latest proof:<pid> record (Ready / Not ready).
+    check_ok: triage's ship check passes. codes: triage's reason codes for the puzzle.
+    current: the fingerprints of the puzzle's current version (a Ready on another version doesn't count).
+
+    Returns {status: ship | hold, reason, why, rule: owner | people | ai | "", by, said, apply}:
+    - the owner's own latest decision wins (reason owner-hold when it is Hold or Not ready);
+    - otherwise any Not ready, a person's or the AI reviewer's, holds it for the owner (not-ready);
+    - otherwise one person's Ready ships it (rule "people");
+    - otherwise, with rule.ai_ready on, the AI's Ready ships it (rule "ai");
+    - otherwise it waits (no-ready; proof-stale when the only Ready was on an earlier version);
+    - and a puzzle that would ship is held when it carries one of rule.hold_codes (the code is the reason).
+    said: every decision counted, oldest first; apply: the Ready records whose edits the import applies."""
+    said = []
+    for r in sorted(proofs, key=lambda r: r.get("at", "")):
+        if r.get("answer") not in ("ready", "notready") or _name(r) in rule.ignore:
+            continue
+        xd = ((r.get("proof") or {}).get("review") or {}).get("xd")
+        said.append({"who": r.get("by", ""), "kind": kind_of(r, rule), "answer": r["answer"], "note": r.get("note", ""),
+                     "at": r.get("at", ""), "stale": bool(r["answer"] == "ready" and current and xd and xd not in current), "rec": r})
+    ready = [s for s in said if s["answer"] == "ready" and not s["stale"]]
+    who = lambda ss: ", ".join(s["who"] for s in ss)
+
+    def out(status, reason, why, by="", how=""):
+        return {"status": status, "reason": reason, "why": why, "rule": how, "by": by,
+                "said": [{k: v for k, v in s.items() if k != "rec"} for s in said],
+                "apply": [s["rec"] for s in ready] if status == "ship" else []}
+
+    mine = max((s for s in said if s["kind"] == "owner"), key=lambda s: s["at"], default=None)
+    res = None
+    if mine and mine["at"] > batch.get("at", ""):
+        if mine["answer"] == "notready":
+            res = out("hold", "owner-hold", f"{mine['who']} said Not ready on the proof page" + (f": {mine['note']}" if mine["note"] else ""))
+        elif mine["stale"]:
+            res = out("hold", "proof-stale", f"{mine['who']}'s Ready was on an earlier version of the puzzle: look again")
+        else:
+            over = [s for s in said if s["answer"] == "notready"]  # said so: the owner may not have seen a later one
+            res = out("ship", "", f"Ready by {mine['who']}" + (f", over a Not ready by {who(over)}"
+                      + (" given after it" if any(s["at"] > mine["at"] for s in over) else "") if over else ""), mine["who"], "owner")
+    elif batch.get("answer") == "hold":
+        res = out("hold", "owner-hold", f"held on the batch page by {batch.get('by', '')}" + (f": {batch['note']}" if batch.get("note") else ""))
+    elif batch.get("answer") == "ship":
+        res = out("ship", "", f"Ship on the batch page by {batch.get('by', '')}", batch.get("by", ""), "owner")
+    if res is None:
+        no = [s for s in said if s["answer"] == "notready"]
+        people = [s for s in ready if s["kind"] == "helper"]
+        ai = any(s["kind"] == "ai" for s in ready)
+        ai_ok = {"off": False, "both": ai and check_ok, "either": ai or check_ok}[rule.ai_ready]
+        if no:
+            res = out("hold", "not-ready", "said Not ready by " + "; ".join(s["who"] + (f": {s['note']}" if s["note"] else "") for s in no))
+        elif people:
+            res = out("ship", "", f"Ready by {who(people)}, no Not ready", who(people), "people")
+        elif ai_ok:
+            by = " and ".join(x for x in ("the AI proof reviewer's Ready" if ai else "", "the ship check passes" if check_ok else "") if x)
+            res = out("ship", "", f"{by} (ai_ready: {rule.ai_ready}), no Not ready", by, "ai")
+        elif any(s["stale"] for s in said):
+            res = out("hold", "proof-stale", f"{who([s for s in said if s['stale']])}'s Ready was on an earlier version of the puzzle")
+        else:
+            has = [x for x in ("the AI proof reviewer said Ready" if ai else "", "the ship check passes" if check_ok else "") if x]
+            res = out("hold", "no-ready", "no person has said Ready" + (f" ({'; '.join(has)})" if has else ""))
+    held = sorted(set(codes) & set(rule.hold_codes))
+    if res["status"] == "ship" and held:
+        res = {**out("hold", held[0], f"carries {', '.join(held)}: held whoever said Ready"), "rule": res["rule"]}
+    return res
+
+
+# ---- reading the milestones ----------------------------------------------------------------
+
+def _load(path: Path, default=None):
+    return json.loads(Path(path).read_text(encoding="utf-8")) if Path(path).exists() else default
+
+
+def ledger(repo: Path) -> list[dict]:
+    f = Path(repo) / "fixes" / "decisions.jsonl"
+    return [json.loads(line) for line in f.read_text(encoding="utf-8").splitlines() if line.strip()] if f.exists() else []
+
+
+def from_site(decisions: dict, have: list[dict], pids: set) -> list[dict]:
+    """Helpers' Ready / Not ready from the review site (blitz site-import's file) as ledger records,
+    in the shape xword-ocr's batchpage.take_decisions writes: proof:<pid> by "<helper> (review site)".
+    One already in the ledger as it stands (same answer, same time) isn't made again."""
+    old = {(r["id"], r.get("by")): r for r in have if r["id"].startswith("proof:")}
+    out = []
+    for pid, d in sorted((decisions.get("puzzles") or decisions).items()):
+        for name, p in sorted((d.get("proofs") or {}).items(), key=lambda kv: kv[1].get("at", "")):
+            if pid not in pids or p.get("decision") not in ("ready", "notready"):
+                continue
+            by = f"{name} ({SITE})"
+            o = old.get((f"proof:{pid}", by)) or {}
+            if o.get("answer") == p["decision"] and o.get("at") == p.get("at", ""):
+                continue
+            review = {"edits": p.get("edits") or {}, "comments": p.get("comments") or [], "status": p.get("parts") or {},
+                      "note": p.get("note", ""), "xd": p.get("xd", ""), **({"sendback": p["sendback"]} if p.get("sendback") else {})}
+            out.append({"id": f"proof:{pid}", "answer": p["decision"], "note": (p.get("note") or "").strip(), "fix": "", "by": by,
+                        "at": p.get("at", ""), "via": SITE, "proof": {"xdid": pid, "review": review, "at": p.get("at", "")}})
+    return out
+
+
+def fingerprint(text: str) -> str:
+    return hashlib.sha1(text.replace("\r\n", "\n").encode("utf-8")).hexdigest()[:12]
+
+
+def _header(xd: str, key: str) -> str:
+    return next((line[len(key) + 2:].strip() for line in xd.split("\n\n\n")[0].split("\n") if line.startswith(key + ": ")), "")
+
+
+# ---- the reviewers' edits, onto the packet's xd ----------------------------------------------
+
+APPLIED = re.compile(r"clue:[AD]\d+(?:\^[A-Za-z][\w-]*)?|cell:r\d+c\d+|meta:(title|author|byline|puzzle_number|editor|feature)")
+HEADER = {"title": "Title", "author": "Author", "byline": "Byline", "puzzle_number": "Number", "editor": "Editor", "feature": "Feature"}
+META_RE = re.compile(r"^([AD]\d+) \^([A-Za-z][\w-]*): ?(.*)$")
+
+
+def _meta_key(name: str) -> str:
+    return "-".join(w[:1].upper() + w[1:].lower() for w in name.strip().split("-"))
+
+
+def refused(edits: dict, text: str) -> list[str]:
+    """The edits this import can't apply (the puzzle is held for them): kinds it doesn't know (a
+    line's label or keep, a fill-in blank, a note), a rebus square, a header of several lines, and
+    any clue or square of a linked-ends puzzle (xword-ocr's import-batch knows that numbering)."""
+    linked = "\nClues: linked ends" in "\n" + text.split("\n\n\n")[0]
+    return sorted(k for k, v in edits.items() if not APPLIED.fullmatch(k) or (k.startswith("cell:") and len(v or "") != 1)
+                  or (k.startswith("meta:") and "\n" in (v or "")) or (linked and not k.startswith("meta:")))
+
+
+def answers(cells: list[list[str]]) -> dict[str, str]:
+    """{A1: HELP, D1: HUGE} for a grid's numbered words (words of one letter aren't numbered)."""
+    rows, cols = len(cells), len(cells[0])
+    white = lambda r, c: 0 <= r < rows and 0 <= c < cols and cells[r][c] != "#"
+    out, n = {}, 0
+    for r in range(rows):
+        for c in range(cols):
+            if not white(r, c):
+                continue
+            a = not white(r, c - 1) and white(r, c + 1)
+            d = not white(r - 1, c) and white(r + 1, c)
+            if not (a or d):
+                continue
+            n += 1
+            for on, dr, dc, lab in ((a, 0, 1, "A"), (d, 1, 0, "D")):
+                if on:
+                    word, i = "", 0
+                    while white(r + dr * i, c + dc * i):
+                        word += cells[r + dr * i][c + dc * i]
+                        i += 1
+                    out[f"{lab}{n}"] = word
+    return out
+
+
+def apply_edits(text: str, edits: dict) -> tuple[str, list[str]]:
+    """The xd text with the edits applied (APPLIED kinds; refused() says which can't be). A changed key
+    square changes the answers of the words through it. Returns (text, the keys applied)."""
+    head, grid, *rest = text.replace("\r\n", "\n").rstrip("\n").split("\n\n\n")
+    head, cells, done = head.split("\n"), [list(r) for r in grid.split("\n")], []
+    for k, v in edits.items():
+        m = re.fullmatch(r"cell:r(\d+)c(\d+)", k)
+        if m:
+            cells[int(m[1]) - 1][int(m[2]) - 1] = v.upper()
+            done.append(k)
+        elif k.startswith("meta:"):
+            name = HEADER[k[5:]]
+            at = next((i for i, h in enumerate(head) if h.startswith(f"{name}:")), None)
+            head = [h for h in head if not h.startswith(f"{name}:")]
+            if v and at is not None:  # a header that's there keeps its place
+                head.insert(at, f"{name}: {v}")
+            elif v:
+                head.insert(next((i for i, h in enumerate(head) if h.split(":")[0] not in HEADER.values()), len(head)), f"{name}: {v}")
+            done.append(k)
+    cell_edits = any(k.startswith("cell:") for k in done)
+    answer = answers(cells) if cell_edits else {}
+    lines = []
+    for line in (rest[0].split("\n") if rest else []):
+        m = re.match(r"([AD]\d+)\. (.*) ~ (.*)$", line)
+        if m:
+            clue = edits.get(f"clue:{m[1]}", m[2])
+            if f"clue:{m[1]}" in edits:
+                done.append(f"clue:{m[1]}")
+            line = f"{m[1]}. {clue} ~ {answer.get(m[1], m[3])}"
+        elif m := META_RE.match(line):
+            k = f"clue:{m[1]}^{_meta_key(m[2])}"
+            if k in edits:
+                line = f"{m[1]} ^{_meta_key(m[2])}: {edits[k]}"
+                done.append(k)
+        lines.append(line)
+    out = "\n".join(head) + "\n\n\n" + "\n".join("".join(r) for r in cells) + "\n\n\n" + "\n".join(lines) + "\n"
+    if rest[1:]:
+        out += "\n\n" + "\n\n\n".join(rest[1:]) + "\n"
+    return out, done
+
+
+# ---- ids -----------------------------------------------------------------------------------
+
+def _pins(repo: Path) -> tuple[dict, dict]:
+    """({provisional pid as pipeline/ids.tsv spells it: xdid}, {(scan, leaf, size, nth): xdid} from fixes/xdids.tsv)."""
+    alias = {}
+    for r in _tsv(repo / "pipeline" / "ids.tsv"):
+        names = (r.get("aliases") or "").split()
+        xd = [a for a in names if not re.search(r"-L\d", a)]
+        alias.update({a: xd[0] for a in names if re.search(r"-L\d", a) and xd})
+    return alias, {(r["identifier"], r["leaf"], r["size"], r["nth"]): r["xdid"] for r in _tsv(repo / "fixes" / "xdids.tsv")}
+
+
+def _tsv(path: Path) -> list[dict]:
+    if not Path(path).exists():
+        return []
+    return list(csv.DictReader(io.StringIO(Path(path).read_text(encoding="utf-8")), delimiter="\t", quoting=csv.QUOTE_NONE))
+
+
+def assign_ids(want: list[str], places: dict[str, tuple], repo: Path) -> tuple[dict[str, str], list[dict]]:
+    """{pid: xdid} for the puzzles to import and the new pins (rows for fixes/xdids.tsv). A puzzle the
+    publication already pinned keeps its id (pipeline/ids.tsv's aliases, or fixes/xdids.tsv by its place:
+    scan, leaf, grid size, n-th of that size on the page among every puzzle of the run); a new one gets
+    its date's next free letter, in page order. places: {pid: (scan, leaf, size)} for the whole run."""
+    alias, by_page = _pins(repo)
+    used = set(by_page.values()) | set(alias.values()) | {f.stem for f in (repo / "xd").glob("*.xd")}
+    seen, nth = {}, {}
+    for pid in sorted(places):
+        nth[pid] = seen.get(places[pid], 0)
+        seen[places[pid]] = nth[pid] + 1
+    out, new = {}, []
+    for pid in sorted(want):
+        scan, leaf, size = places[pid]
+        spelled = re.sub(r"-L(\d+)([b-h])$", lambda m: f"-L{m[1]}-{ord(m[2]) - ord('a') + 1}", pid)
+        x = alias.get(pid) or alias.get(spelled) or by_page.get((scan, str(leaf), size, str(nth[pid])))
+        if not x:
+            base = re.match(r"([a-z]+\d{4}-\d\d-\d\d)", pid)[1]
+            x = next(base + s for s in ["", *"bcdefghijklmnopqrstuvwxyz"] if base + s not in used)
+            new.append({"xdid": x, "identifier": scan, "leaf": str(leaf), "size": size, "nth": str(nth[pid])})
+        used.add(x)
+        out[pid] = x
+    return out, new
+
+
+# ---- the plan ------------------------------------------------------------------------------
+
+def _where(proof_root: Path) -> tuple[Path, str, str]:
+    proof_root = Path(proof_root).resolve()
+    return proof_root.parent.parent, proof_root.name, "/".join([*proof_root.parts[-3:]])  # harvest, run, games-7779/proof/run15
+
+
+def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict | None = None, pub: str = "") -> dict:
+    """What shipping the batch would do, written nowhere: every puzzle of the run with its status
+    (shipped: in xd/ as it stands; shippable: passes, not written yet; held, with the reason; out: set
+    aside or not a crossword), and the xd text and provenance of each one that passes.
+
+    A puzzle the rule passes can still be held by the import, each a reason of its own: no-packet,
+    packet-stale (the packet doesn't show its xd), incomplete (the ship check's: no Ready makes a
+    puzzle whole), edits-differ (two reviewers changed one thing two ways), edits-unapplied (a kind of
+    edit the import doesn't apply), xd-exists (xd/ has another file under its id)."""
+    repo = Path(repo)
+    harvest, run, rel = _where(proof_root)
+    tri = _load(harvest / "triage" / run / "triage.json")
+    if not tri:
+        raise Stop(f"No triage record for {run} at {harvest / 'triage' / run}: run xword-ocr triage --proof first.")
+    recs = ledger(repo)
+    pids = [p["pid"] for p in tri["puzzles"]]
+    new_site = from_site(site, recs, set(pids)) if site else []
+    recs += new_site
+    latest, proofs = {}, {}
+    for r in recs:
+        latest[r["id"]] = r
+        if r["id"].startswith("proof:"):
+            proofs.setdefault(r["id"][6:], {})[r.get("by", "")] = r
+    packs, places = {}, {}
+    for pid in pids:
+        folder = Path(proof_root) / pid
+        o = _load(folder / "ocr.json") or {}
+        xd = (folder / "puzzle.xd").read_text(encoding="utf-8") if (folder / "puzzle.xd").exists() else ""
+        packs[pid] = {"folder": folder, "ocr": o, "xd": xd, "review": _load(folder / "review.json") or {}}
+        page = ((o.get("stages") or {}).get("pages") or {}).get("page.jpg") or ["", ""]
+        grid = xd.split("\n\n\n")[1].split("\n") if xd else o.get("grid") or [""]
+        places[pid] = (page[0], str(page[1]), f"{len(grid)}x{len(grid[0])}")
+    prov = {r["pid"]: r for r in provenance(repo)}
+    rows, passing = [], {}
+    for t in tri["puzzles"]:
+        pid, pk = t["pid"], packs[t["pid"]]
+        codes = {r["code"] for r in t.get("reasons") or []}
+        ship = t.get("ship") or {}
+        row = {"pid": pid, "title": _header(pk["xd"], "Title"), "date": _header(pk["xd"], "Date"), "disposition": t.get("decision", ""),
+               "codes": sorted(codes),
+               "check": {"ok": bool(ship.get("ok")), "findings": [f.get("code", "") if isinstance(f, dict) else str(f) for f in ship.get("findings") or []]}}
+        rows.append(row)
+        drop, aside = latest.get(f"drop:{pid}") or {}, latest.get(f"setaside:{pid}") or {}
+        if drop.get("answer") == "not-a-crossword" or aside.get("answer") == "set-aside":
+            kind = "not-a-crossword" if drop.get("answer") else "set-aside"
+            rec = drop if drop.get("answer") else aside
+            row.update(status="out", reason=kind, why=f"{kind.replace('-', ' ')}: {rec.get('note', '')} ({rec.get('by', '')})", said=[], rule="")
+            continue
+        review = pk["review"]
+        current = tuple(x for x in (review.get("xd_fp"), *(review.get("xd_fp_same") or [])) if x)
+        args = dict(check_ok=bool(ship.get("ok")), codes=codes, current=current)
+        st = standing(latest.get(f"batch:{pid}") or {}, list((proofs.get(pid) or {}).values()), rule=rule, **args)
+        # the smallest ai_ready setting under which the rule passes it: "" when it never does
+        row["ships_with"] = next((opt for opt in AI_READY if standing(
+            latest.get(f"batch:{pid}") or {}, list((proofs.get(pid) or {}).values()), rule=replace(rule, ai_ready=opt), **args)["status"] == "ship"), "")
+        row.update(status="held", reason=st["reason"], why=st["why"], rule=st["rule"], said=st["said"])
+        if st["status"] != "ship":
+            if st["reason"] == "no-ready" and t.get("decision") != "ready":
+                row.update(reason="needs-work", why="needs work: " + ("; ".join(
+                    sorted({b.get("code") or b.get("part") or "" for b in t.get("blocking") or [] if isinstance(b, dict)} - {""})) or "triage's defects") + "; " + st["why"])
+            continue
+        hold = lambda reason, why: row.update(reason=reason, why=why)
+        if not pk["xd"]:
+            hold("no-packet", "no proof packet for it in this run")
+            continue
+        if not review.get("matches_xd", True):
+            hold("packet-stale", "its proof packet doesn't show its xd: rebuild the packet")
+            continue
+        if ship.get("incomplete"):
+            hold("incomplete", "Ready, but incomplete: " + "; ".join(map(str, ship["incomplete"])))
+            continue
+        edits, differ, sources = {}, set(), []
+        for r in st["apply"]:
+            mine = ((r.get("proof") or {}).get("review") or {}).get("edits") or {}
+            differ |= {k for k, v in mine.items() if k in edits and edits[k] != v}
+            edits.update({k: v for k, v in mine.items() if k not in edits})
+            if mine:
+                sources.append(r.get("by", ""))
+        if differ:
+            hold("edits-differ", "reviewers' edits differ: " + ", ".join(sorted(differ)[:6]))
+            continue
+        bad = refused(edits, pk["xd"])
+        if bad:
+            hold("edits-unapplied", "proof-page edits the import can't apply yet: " + ", ".join(bad[:6]))
+            continue
+        text, done = apply_edits(pk["xd"], edits)
+        passing[pid] = {"text": text, "edits": done, "edit_sources": sources, "standing": st, "row": row,
+                        "packet": f"{rel}/{pid}", "xd_fp": review.get("xd_fp", "")}
+    ids, pins = assign_ids(list(passing), places, repo)
+    for pid, x in sorted(passing.items()):
+        row, xdid = x["row"], ids[pid]
+        f = repo / "xd" / f"{xdid}.xd"
+        row["xdid"] = x["xdid"] = xdid
+        ours = (prov.get(pid) or {}).get("xdid") == xdid
+        if f.exists() and f.read_text(encoding="utf-8") == x["text"] and ours:
+            row.update(status="shipped", reason="", why=f"in xd/ as {xdid}: {(prov[pid].get('shipped') or {}).get('why', '')}")
+        elif f.exists() and not ours:
+            row.update(reason="xd-exists", why=f"xd/{xdid}.xd is another file (an earlier import's): replace it by hand, or drop it")
+            del passing[pid]
+        else:
+            row.update(status="shippable", reason="", why=x["standing"]["why"])
+    for row in rows:  # a puzzle shipped earlier that the rule now holds: still in xd/, and said so
+        p = prov.get(row["pid"])
+        if row["status"] == "held" and p and (repo / "xd" / f"{p['xdid']}.xd").exists():
+            row.update(xdid=p["xdid"], why=row["why"] + f" (already in xd/ as {p['xdid']})")
+    return {"pub": pub or re.match(r"[a-z]+", repo.name)[0], "batch": batch or run, "run": run, "packets": rel, "rule": {"ai_ready": rule.ai_ready, "hold_codes": list(rule.hold_codes),
+            "ignore": list(rule.ignore), "owner": list(rule.owner)}, "rows": rows, "passing": passing, "pins": [p for p in pins if p["xdid"] in {x["xdid"] for x in passing.values()}],
+            "site": new_site, "packs": packs}
+
+
+def counts(rows: list[dict]) -> dict:
+    out = {"puzzles": len(rows), "shipped": 0, "shippable": 0, "held": 0, "out": 0, "held_by": {}, "ships_with": {}}
+    for r in rows:
+        out[r["status"]] += 1
+        if r["status"] == "held":
+            out["held_by"][r["reason"]] = out["held_by"].get(r["reason"], 0) + 1
+        if r["status"] != "out" and r.get("ships_with"):
+            out["ships_with"][r["ships_with"]] = out["ships_with"].get(r["ships_with"], 0) + 1
+    return out
+
+
+# ---- writing -------------------------------------------------------------------------------
+
+def provenance(repo: Path) -> list[dict]:
+    """provenance.jsonl's standing rows: the last one written for each xdid."""
+    f = Path(repo) / "provenance.jsonl"
+    rows = {}
+    for line in (f.read_text(encoding="utf-8").splitlines() if f.exists() else []):
+        if line.strip():
+            r = json.loads(line)
+            rows[r["xdid"]] = r
+    return list(rows.values())
+
+
+def _printed(ocr: dict, review: dict) -> list[dict]:
+    """The lines printed with the puzzle that the packet keeps, with the text step's label for each
+    (the export's Notes rule picks among them by label), as the text step corrected them (line:B<n>)."""
+    fixed = review.get("corrections") or {}
+    return [{"label": ln.get("label") or "", "text": fixed.get(f"line:B{ln.get('n')}") or ln["text"]} for ln in ocr.get("lines") or []
+            if ln.get("keep", True) and ln.get("label") and (ln.get("text") or "").strip()]
+
+
+def write(repo: Path, p: dict, today: str = "") -> dict:
+    """plan()'s result into the publication's repo: the review site's decisions into the ledger, the
+    passing puzzles' xd files and pins, their provenance rows, gxd-exports.tsv, and the batch's ship
+    record. Returns {written: [xdid], ledger: n}."""
+    repo, today = Path(repo), today or date.today().isoformat()
+    if p["site"]:
+        with (repo / "fixes" / "decisions.jsonl").open("a", encoding="utf-8", newline="\n") as fh:
+            fh.writelines(json.dumps(r, ensure_ascii=False) + "\n" for r in p["site"])
+    written = []
+    for pid, x in sorted(p["passing"].items()):
+        if x["row"]["status"] == "shipped":
+            continue
+        f = repo / "xd" / f"{x['xdid']}.xd"
+        f.parent.mkdir(exist_ok=True)
+        f.write_text(x["text"], encoding="utf-8", newline="\n")
+        st, pk = x["standing"], p["packs"][pid]
+        row = {"xdid": x["xdid"], "pid": pid, "batch": p["batch"], "run": p["run"], "packet": x["packet"], "packet_xd": x["xd_fp"],
+               "xd": fingerprint(x["text"]),
+               "shipped": {"at": today, "rule": st["rule"], "ai_ready": p["rule"]["ai_ready"], "by": st["by"], "why": st["why"]},
+               "said": st["said"], "edits": {"applied": x["edits"], "from": x["edit_sources"]},
+               "check": x["row"]["check"], "codes": x["row"]["codes"],
+               "sources": {k: _header(x["text"], h) for k, h in (("grid", "Source"), ("clues", "Clue-Source"), ("key", "Solution-Source"))
+                           if _header(x["text"], h)},
+               "printed": _printed(pk["ocr"], pk["review"])}
+        with (repo / "provenance.jsonl").open("a", encoding="utf-8", newline="\n") as fh:
+            fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+        x["row"].update(status="shipped", why=f"in xd/ as {x['xdid']}: {st['why']}")
+        written.append(x["xdid"])
+    pins = [r for r in p["pins"] if r["xdid"] in written]
+    if pins:
+        path = repo / "fixes" / "xdids.tsv"
+        new = not path.exists()
+        with path.open("a", encoding="utf-8", newline="\n") as fh:
+            if new:
+                fh.write("xdid\tidentifier\tleaf\tsize\tnth\n")
+            fh.writelines("\t".join(r[k] for k in ("xdid", "identifier", "leaf", "size", "nth")) + "\n" for r in pins)
+    write_exports(repo, p["pub"])
+    write_record(repo, p)
+    return {"written": written, "ledger": len(p["site"])}
+
+
+EXPORT_COLS = ("gxd_id", "xdid", "date", "number", "gxd_mr", "exported", "proof_url", "package_url", "scan_url",
+               "ai_reviewed", "person_reviewed", "credit")
+
+
+def write_exports(repo: Path, pub: str) -> None:
+    """gxd-exports.tsv from provenance.jsonl: one row per puzzle shipped this way (judge's columns; gxd_mr and
+    exported stay empty until an MR carries the puzzle, and a row's values for them are kept)."""
+    repo = Path(repo)
+    old = {r["xdid"]: r for r in _tsv(repo / "gxd-exports.tsv")}
+    out = ["\t".join(EXPORT_COLS)]
+    for r in sorted(provenance(repo), key=lambda r: r["xdid"]):
+        f = repo / "xd" / f"{r['xdid']}.xd"
+        if not f.exists():
+            continue
+        xd = f.read_text(encoding="utf-8")
+        kinds = {s["kind"] for s in r.get("said") or [] if s["answer"] == "ready" and not s.get("stale")}
+        o = old.get(r["xdid"]) or {}
+        out.append("\t".join([o.get("gxd_id") or r["xdid"], r["xdid"], _header(xd, "Date"), _header(xd, "Number"), o.get("gxd_mr", ""),
+                              o.get("exported", ""), PROOF_PAGE + r["pid"], f"{PUBLIC}/{pub}/{r['pid']}/", _header(xd, "Source"),
+                              "y" if kinds & {"ai", "check"} or "Text-Review: " in xd else "", "y" if kinds & {"owner", "helper"} else "", CREDIT]))
+    (repo / "gxd-exports.tsv").write_text("\n".join(out) + "\n", encoding="utf-8", newline="\n")
+
+
+def record(p: dict, public: bool = True) -> dict:
+    """The batch's ship record (pipeline/ship/<batch>.json; batch/<name>/ship.json on the site): the rule, the
+    counts, and every puzzle's status with its reason. Review-site account names are left out of the copy the
+    site shows: a helper is "a helper", the owner's account there "the owner"."""
+    site = lambda s: s["who"].endswith(f"({SITE})")
+    alias = lambda s: "a helper" if s["kind"] == "helper" else "the owner"
+
+    def said(row):
+        return [{"kind": s["kind"], "answer": s["answer"], "at": s["at"][:10], **({"stale": True} if s.get("stale") else {}),
+                 **({} if public and s["kind"] == "helper" else {"who": alias(s) if public and site(s) else s["who"]})}
+                for s in row.get("said") or []]
+
+    def why(row):
+        text = row["why"]
+        for s in row.get("said") or []:
+            if public and site(s):
+                text = text.replace(s["who"], alias(s))
+        return text
+
+    rows = [{**{k: r.get(k, "") for k in ("pid", "xdid", "title", "date", "status", "reason", "rule", "ships_with")},
+             "why": why(r), "said": said(r), "check": r["check"]} for r in p["rows"]]
+    return {"_about": "blitz ship: which puzzles of the batch are shipped (in the publication repo's xd/), shippable (pass the "
+                      "ship rule, not written yet) or held, with the reason. Format: blitz design/ship.md.",
+            "batch": p["batch"], "run": p["run"], "packets": p["packets"], "rule": p["rule"],
+            "at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "counts": counts(p["rows"]), "puzzles": rows}
+
+
+def write_record(repo: Path, p: dict) -> Path:
+    f = Path(repo) / "pipeline" / "ship" / f"{p['batch']}.json"
+    f.parent.mkdir(parents=True, exist_ok=True)
+    f.write_text(json.dumps(record(p), ensure_ascii=False, indent=1) + "\n", encoding="utf-8", newline="\n")
+    return f
+
+
+# ---- the gxd export ------------------------------------------------------------------------
+
+KEEP = ("Title", "Author", "Editor", "Date", "Number", "Byline", "Rebus", "Special", "Notes")
+FLATTEN = str.maketrans({"“": '"', "”": '"', "‘": "'", "’": "'"})  # gxd's lint wants plain quotes
+NOTE_LABELS = ("intro", "instructions")  # the printed lines that go in gxd's notes when the publication has no Notes rule
+NOT_EXPORTED = {"cryptic-no-key": "a cryptic with no key grid: kept in xd/, not exported"}  # triage codes the export holds back
+
+
+def normalize_author(name: str) -> str:
+    """The constructor's name as printed, tidied (xword-ocr export.normalize_author): no Mr./Miss/Ms.,
+    a space after a period, single spaces, no trailing punctuation."""
+    s = re.sub(r"\.(?=[A-Za-z])", ". ", name)
+    s = re.sub(r"\b(?:Mr|Ms|Miss)\.?\s+(?=[A-Z])", "", s)
+    return re.sub(r"\s+", " ", s).strip().rstrip(",;:")
+
+
+def to_gxd(text: str, notes: list[str] = (), feature_as: str | None = None) -> str:
+    """A publication repo's xd reduced to the puzzle, as gxd keeps it: Title, Author (tidied), Editor, Date,
+    Number, Byline, Rebus, Special and a one-line Notes header; the grid; the clues (with their ^Easy lines);
+    and `notes`, the printed text that explains the puzzle. Everything about how we made it (sources, OCR
+    flags, what the text step was unsure of, assembly's notes) stays behind, in provenance.jsonl."""
+    head, grid, clues, *_ = text.replace("\r\n", "\n").translate(FLATTEN).split("\n\n\n") + [""]
+    heads = []
+    for line in head.split("\n"):
+        key, sep, value = line.partition(": ")
+        if key == "Feature" and feature_as and value.strip():
+            heads.append((feature_as, value.strip()))
+        elif sep and key in KEEP and value.strip():
+            heads.append((key, normalize_author(value) if key == "Author" else value.strip()))
+    heads.sort(key=lambda kv: KEEP.index(kv[0]) if kv[0] in KEEP else len(KEEP))
+    out = "\n".join(f"{k}: {v}" for k, v in heads) + "\n\n\n" + grid.strip("\n") + "\n\n\n" + clues.strip("\n") + "\n"
+    if notes:
+        out += "\n\n" + "\n\n".join(n.translate(FLATTEN) for n in notes) + "\n"
+    return out
+
+
+def notes_labels(repo: Path, pub: str) -> tuple[tuple, str]:
+    """The line labels whose kept lines go in gxd's notes: the owner's Notes rule in the ledger
+    (notes-rule:<pubid>, set on the batch page), else NOTE_LABELS. Returns (labels, where it came from)."""
+    rec = next((r for r in reversed(ledger(repo)) if r["id"] == f"notes-rule:{pub}"), None)
+    if rec and rec.get("answer") is not None:
+        return tuple((rec.get("notes_rule") or {}).get("labels") or []), f"the Notes rule of {rec.get('at', '')[:10]} by {rec.get('by', '')}"
+    return NOTE_LABELS, "no Notes rule recorded: the default (intro, instructions)"
+
+
+COMMANDS = """# {pub}: {n} puzzles to gxd (a dry run: none of this has been run)
+
+This folder is what `blitz ship-export {pub}` wrote. Nothing was sent anywhere. gxd branches go to the
+fork (gitlab.com/alexdej1/gxd), never to rabidrat/gxd; check `git remote -v` before the push, and go by
+the URL. The push and the merge request are the owner's to approve.
+
+Lint (clean apart from what's listed in the report):
+
+    python C:/Users/adeja/Projects/xd/xdlint.py --profile gxd {dest}/{shelf}
+
+A worktree of gxd on its own branch, with only these folders checked out:
+
+    cd C:/Users/adeja/Projects/xd/gxd
+    git fetch upstream
+    scripts/new-worktree.sh ../../gxd-{branch} {branch} {years}
+    cd ../../gxd-{branch}
+
+The puzzles, the receipts, and the publication's row (publications.tsv is sorted by PublicationAbbr: put
+the row in its place; add a pubregex.tsv row only if file names need one):
+
+    mkdir -p {shelf} && cp -r {dest}/{shelf}/. {shelf}/
+    cat {dest}/receipts.tsv >> receipts.tsv
+    # publications.tsv: insert the line in {dest}/publications.tsv
+
+The source archive: every page in source-pages.tsv, named as its archive_path. Pages the scans repo
+doesn't hold (in_scans empty) come from archive.org first (`blitz ship-export {pub} --pages` copies the
+ones it has into source/):
+
+    scripts/make-source-archive.py {archive} {dest}/source/ --notes NOTES.md --base-url https://archive.org/download/
+    scripts/make-source-archive.py --verify {archive} --receipts {dest}/receipts.tsv
+    aws s3 cp {archive} s3://gxd-sources/src/{archive}
+
+The checks CI runs, then the commit:
+
+    scripts/check-mr.sh
+    git add {shelf} receipts.tsv publications.tsv
+    git commit -m "import: {pub}, {n} puzzles ({branch})"
+
+Only with the owner's go-ahead: push to the fork and open the merge request into rabidrat/gxd's master
+(gxd/AGENTS.md has the glab command for a fork):
+
+    git remote -v                      # origin must be gitlab.com/alexdej1/gxd
+    git push -u origin {branch}
+
+After the merge: fill gxd_mr and exported in {pub}/gxd-exports.tsv for these rows.
+"""
+
+
+def export(repo: Path, dest: Path, pub: str, scans: Path | None = None, shelf: str = "", archive: str = "", received: str = "",
+           feature_as: str | None = None, copy_pages: bool = False, name: str = "") -> dict:
+    """The gxd export of every puzzle in provenance.jsonl, as a dry run in dest (nothing is sent anywhere):
+
+        <shelf>/<YYYY>/<gxd id>.xd   the puzzles as they'd sit in gxd
+        receipts.tsv                 rows for gxd's receipts.tsv (no header)
+        source-pages.tsv             every page the puzzles were read from, with its archive name
+        source/                      those pages (copy_pages, when the scans repo has them), for make-source-archive.py
+        held-back.tsv                puzzles left out, and why
+        publications.tsv             the publication's row for gxd's publications.tsv, if it has none yet (no header)
+        COMMANDS.md                  the exact commands that would turn this folder into a merge request
+
+    A puzzle triage marked with one of NOT_EXPORTED's codes stays in the publication's xd/ (a cryptic with
+    no key grid: blitz design/games-series-plan.md). The export reads the kind triage recorded; it doesn't guess one."""
+    repo, dest = Path(repo), Path(dest)
+    shelf, received = shelf or pub, received or date.today().isoformat()
+    archive = archive or f"{pub}-scans-{received}.zip"
+    labels, labels_from = notes_labels(repo, pub)
+    captured = {}
+    for r in _tsv(Path(scans) / "sources.tsv") if scans else []:
+        m = re.fullmatch(r"pages/([^/]+)/leaf0*(\d+)\.jpg", r["path"])
+        if m:
+            captured[(m[1], m[2])] = r
+    for old in (dest / shelf, dest / "source"):
+        if old.exists():
+            shutil.rmtree(old)
+    dest.mkdir(parents=True, exist_ok=True)
+    receipts, held, pages, done, days = [], [], {}, [], []
+    for r in sorted(provenance(repo), key=lambda r: r["xdid"]):
+        f = repo / "xd" / f"{r['xdid']}.xd"
+        if not f.exists():
+            held.append((r["xdid"], "not in xd/"))
+            continue
+        text = f.read_text(encoding="utf-8")
+        out_code = next((c for c in r.get("codes") or [] if c in NOT_EXPORTED), "")
+        if out_code:
+            held.append((r["xdid"], NOT_EXPORTED[out_code]))
+            continue
+        gid = next((o["gxd_id"] for o in _tsv(repo / "gxd-exports.tsv") if o["xdid"] == r["xdid"] and o.get("gxd_id")), r["xdid"])
+        xd = to_gxd(text, [p["text"] for p in r.get("printed") or [] if p["label"] in labels], feature_as)
+        day = _header(xd, "Date") or r["xdid"][len(pub):len(pub) + 10]
+        used = []
+        for role, urls in (r.get("sources") or {}).items():
+            for url in urls.split():
+                m = re.search(r"archive\.org/details/([^/]+)/page/n(\d+)", url)
+                if m:
+                    used.append((role, m[1], m[2], f"https://archive.org/details/{m[1]}/page/n{m[2]}/mode/1up"))
+        grid_page = next((u for u in used if u[0] == "grid"), None)
+        if not grid_page:
+            held.append((r["xdid"], "no scan page recorded for its grid"))
+            continue
+        out = dest / shelf / day[:4] / f"{gid}.xd"
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(xd, encoding="utf-8", newline="\n")
+        cap = (captured.get(grid_page[1:3]) or {}).get("captured", "")
+        receipts.append([cap, received, f"https://github.com/EveryPuzzleProject/{pub}", archive, f"{grid_page[1]}/page/n{grid_page[2]}.jpg", gid])
+        for role, item, leaf, url in used:
+            pages.setdefault((item, leaf), {"url": url, "used_by": []})["used_by"].append(f"{role}:{gid}")
+        done.append(gid)
+        days.append(day)
+    (dest / "receipts.tsv").write_text("".join("\t".join(r) + "\n" for r in receipts), encoding="utf-8", newline="\n")
+    (dest / "held-back.tsv").write_text("xdid\twhy\n" + "".join(f"{x}\t{w}\n" for x, w in held), encoding="utf-8", newline="\n")
+    lines, missing = ["archive_path\tsource\tin_scans\tsha256\tcaptured\tused_by"], 0
+    for (item, leaf), pg in sorted(pages.items(), key=lambda kv: (kv[0][0], int(kv[0][1]))):
+        row = captured.get((item, leaf)) or {}
+        missing += not row
+        lines.append("\t".join([f"{item}/page/n{leaf}.jpg", pg["url"], row.get("path", ""), row.get("sha256", ""), row.get("captured", ""),
+                                " ".join(pg["used_by"])]))
+        if copy_pages and row and (Path(scans) / row["path"]).exists():
+            target = dest / "source" / item / "page" / f"n{leaf}.jpg"
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(Path(scans) / row["path"], target)
+    (dest / "source-pages.tsv").write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
+    days = sorted(d for d in days if d)
+    row = [pub, pub, name or pub.upper(), "", days[0] if days else "", days[-1] if days else "", str(len(done)), "",
+           f"https://github.com/EveryPuzzleProject/{pub}"]
+    (dest / "publications.tsv").write_text(chr(9).join(row) + chr(10), encoding="utf-8", newline=chr(10))
+    (dest / "COMMANDS.md").write_text(COMMANDS.format(pub=pub, shelf=shelf, n=len(done), archive=archive, dest=dest.resolve().as_posix(),
+                                                      years=" ".join(sorted({f"{shelf}/{d[:4]}" for d in days})),
+                                                      branch=f"import-{pub}-{days[0][:4]}-{days[-1][2:4]}" if days else f"import-{pub}"),
+                                      encoding="utf-8", newline=chr(10))
+    return {"exported": done, "held": held, "pages": len(pages), "pages_not_in_scans": missing, "no_capture_date": sum(not r[0] for r in receipts),
+            "notes_from": labels_from, "shelf": shelf, "archive": archive, "dest": str(dest)}

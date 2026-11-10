@@ -145,6 +145,22 @@ the publication's repo. Pushing, rebuilding packets for the changed puzzles and 
 printed as next steps. A sign-off lapses when the puzzle's xd changes later, so readiness always
 means "a person said this exact version is ready".
 
+### Shipping a batch
+
+When a batch has been reviewed, `blitz ship` puts the puzzles that pass the ship rule into the
+publication's `xd/` and says why each of the others is held (design/ship.md has the rule, its
+options and the file formats):
+
+```
+uv run --extra site blitz ship games --proof ../xword-ocr/harvests/games-7779/proof/run15-restart --batch games-1977-79
+```
+
+Without `--write` it's a dry run. With it: helpers' decisions from the site go into the ledger, the
+xd files, `provenance.jsonl`, `gxd-exports.tsv` and `pipeline/ship/<batch>.json` are written.
+`--publish` puts the batch's ship record on the site, where the batch page shows Shipped, Ready to
+ship and Held with the reason on every card. `blitz ship-export games --dest <folder>` writes the
+gxd export as files, with the commands for a merge request; it sends nothing.
+
 ### Working on the site's pages
 
 To change the proof page or the batch page (`src/blitz/proof.html`, `batch.html`) and see each edit
