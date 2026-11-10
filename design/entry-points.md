@@ -68,6 +68,12 @@ the system preference. The org site's README documents it.
 
 - Preservation and discoverability first: preserving, archiving, saving. Never "bringing back",
   never "playable". The headline is "Preserving every crossword ever printed".
+- The headline is the goal; the text under it says how we work toward it. The census counts
+  every publication that printed a crossword. The collection preserves whole runs, one at a
+  time, finishes each series it starts, and lists the issues it can't find as missing, with
+  the date. Which series come next is in blitz's README, "How we work toward it". Don't promise
+  every puzzle in any other words; "every" about puzzles is for a finished run ("every crossword
+  in *Judge* from 1924 to 1939"). The survey behind this rule: [priorities-review.md](priorities-review.md).
 - The corpus is "the xd Crossword Corpus". Only the word "xd" is linked, to
   https://github.com/century-arcade/xdformat.
 - Volunteers "contribute by directing their Claude"; the prompt lives in blitz's README under
