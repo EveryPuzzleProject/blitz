@@ -35,7 +35,8 @@ from .work import Stop
 # What a helper's page needs from a packet (the clue crops and agent sheets stay local). checks.json: what the
 # checks found (xword-ocr proofreview.checks_record, written by `triage --proof` / `proof-checks`): the proof page
 # opens with it. ai_review.json: the AI proof reviewer's record (proofreview.record / attach), drawn as its own round.
-FILES = ("ocr.json", "review.json", "checks.json", "ai_review.json", "sheets/shown.json", "page.jpg", "clue_page.jpg", "continued_page.jpg", "grid.png",
+# puzzle.xd: the xd itself, so the proof page can show the notes it carries after its clues (nothing else records them).
+FILES = ("ocr.json", "review.json", "checks.json", "ai_review.json", "puzzle.xd", "sheets/shown.json", "page.jpg", "clue_page.jpg", "continued_page.jpg", "grid.png",
          "answers.png", "answer_page.jpg", "cover.jpg", "_src/page.jpg", "_src/clue_page.jpg", "_src/continued_page.jpg")
 SUPABASE_JS = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"
 
@@ -293,7 +294,8 @@ def publish(folder: Path, batch: str = "", dry_run: bool = False, skip: tuple[st
             src = d / f
             if src.exists():
                 puts.append(r2.Put(f"{pub}/{d.name}/{f}", src=src,
-                                   cache="no-cache" if f.endswith(".json") else "public, max-age=86400"))
+                                   cache="no-cache" if f.endswith((".json", ".xd")) else "public, max-age=86400",
+                                   **({"type": "text/plain; charset=utf-8"} if f.endswith(".xd") else {})))
                 files[f] = True
         thumb = _thumb(d)
         if thumb:

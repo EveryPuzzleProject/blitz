@@ -105,7 +105,7 @@ draws these fields and works none of them out.
 |---|---|---|
 | `question` | held as `not-ready`, `owner-hold` or `edits-differ` | a person: answer on the proof page, and it can ship. The page's default list and its walk. |
 | `unchecked` | held as `no-ready` or `proof-stale` | a person: nobody's Ready counts for it yet, so it wants a whole proofread. No question to lead with. |
-| `broken` | every other hold: `needs-work`, `incomplete`, `edits-unapplied`, `packet-stale`, `no-packet`, `xd-exists`, a hold code | agents (as kinds of failure) and the maintainer (a diagnosis of the stage). Shown with its reason; no proofreading ask. |
+| `broken` | every other hold: `needs-work`, `incomplete`, `sent-back`, `edits-unapplied`, `packet-stale`, `no-packet`, `xd-exists`, a hold code | agents (as kinds of failure) and the maintainer (a diagnosis of the stage). Shown with its reason; no proofreading ask. |
 | `shippable` | passes, not written | nobody: `--write` ships it |
 | `shipped` | in `xd/` | nobody; a sample goes to the maintainer (`spot_check`) |
 | `set-aside`, `not-a-crossword` | the ledger's `setaside:` / `drop:` | nobody |
@@ -146,6 +146,51 @@ Per puzzle:
   record's `spot` says how it was drawn.
 
 `counts.queues` has every queue's count; they add up to `counts.puzzles`.
+
+### A question that isn't a person's to answer: `sent-back`
+
+A person who opens a question and finds it is the pipeline's (a block linked from a neighbour, a line
+that has to be read again) says so with the proof page's existing send-back: a Not ready whose review
+carries `sendback: {kind, part, note}` (the kinds and parts are xword-ocr problems.py's, which the
+packet's `review.json` lists). It reaches the ledger like any helper's decision (`proof:<pid>`, by
+`<helper> (review site)`), so there is no second ledger. A standing Not ready with a send-back makes
+the hold `sent-back` instead of `not-ready`: the puzzle leaves `question` for `broken`, with what the
+person said and the stage it points to (a part's stage: the clue lists and the grid are parts, the key
+and the title assembly; else the kind's: missing or misread is parts, mixed is assembly; "" for
+something else). The owner's later Ready still overrides, as it does any Not ready.
+
+## The question on the proof page
+
+The batch page's "Answer it" opens `/review/?p=<pid>&k=<row>`. The proof page reads the puzzle's
+batch from the site's puzzles table and that batch's `ship.json`, and when the record holds the puzzle
+on a question it draws, from the record:
+
+- a box at the top: each question with who asked, its text and what was suggested, and a button to
+  its row; the incompleteness an answer won't mend; how to answer (fix the row or comment on it, then
+  Ready or Not ready), and "It's a pipeline question: send it back", which opens the send-back form
+  with the question as its note;
+- the question again at its row, unless a reviewer's comment there already says it (the AI's round,
+  from the packet's `ai_review.json`).
+
+The ship record is the source, not `ai_review.json`: the record is what put the puzzle in the question
+queue, it carries a person's and the import's questions as well as the AI's, and it exists for packets
+published before the AI review did. A row the packet doesn't have (a clue number that isn't in the
+grid, an answer key the packet doesn't show, the xd's notes when the packet went up without its xd) is
+said so in the box, and the page stays there instead of landing somewhere else. In a walk, Next opens
+the next puzzle at its own first question.
+
+The xd's notes: `blitz site-publish` now uploads the packet's `puzzle.xd`, and the proof page shows
+everything the xd carries after its clues, block by block as written, read-only, under "Notes in the
+xd file" (`meta:note` and `notes` land there; comments on the notes are made there). Each block's
+first line is its own heading and names what it is (Another list that fits the grid, Assembly flags,
+OCR review flags, Text step, Printed with puzzle). This is not the header table's Notes row that the
+2026-10-17 redesign left out: which printed lines go into the gxd export's notes is still the
+run-wide Notes rule. It shows what the xd holds now, so nothing in it is hidden. A packet published
+without its xd says "not recorded" there.
+
+`tools/check_question_links.py` checks every question link of a ship record against real packets on
+the dev server (does the row exist, is the question shown at the top and at the row, does the page land
+there); design/batch-ask/link-check.md is its table of 2026-11-10.
 
 ## Where a person sees it
 

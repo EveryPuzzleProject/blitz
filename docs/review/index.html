@@ -264,6 +264,27 @@ body.show-changes .fintext { display: none; }
 .srccap { font-size: 11px; color: #1f4f9c; margin: 2px 0; }
 body:not(.show-marks) .marks { display: none; }
 .margin { font-size: 12px; }
+/* the question a puzzle is held on (the batch's ship record): said at the top, and again at the row it is about */
+#question { border: 2px solid #c79a1e; background: #fdf6df; }
+#question h2 .hint { font-weight: 400; }
+#question, #xdnotes { scroll-margin-top: 130px; }  /* clear of the page's fixed header */
+#question .qbody { padding: 8px 14px 12px; font-size: 14px; }
+#question .qask { padding: 7px 0; border-top: 1px dotted #d8c58a; } #question .qask:first-child { border-top: 0; }
+#question .qask .by { color: var(--muted); font-size: 12px; margin-left: 6px; }
+#question .qask .sug, .qcall .sug { color: var(--muted); }
+#question .qmiss { margin-top: 4px; padding: 5px 9px; border-left: 3px solid var(--bad); background: #fff; font-size: 13px; }
+#question .qhow { margin-top: 8px; padding-top: 8px; border-top: 1px solid #d8c58a; font-size: 13px; }
+#question .qalso { color: var(--bad); font-size: 13px; margin-top: 6px; }
+button.qgo { font: inherit; font-weight: 600; font-size: 13px; border: 1px solid #c79a1e; background: #fff; border-radius: 6px; padding: 1px 8px; cursor: pointer; }
+.qcall { margin: 6px 14px; padding: 6px 10px; border: 1px solid #c79a1e; border-left-width: 4px; border-radius: 6px; background: #fdf6df; font-size: 13px; }
+.qcall b { color: #7a5a00; }
+/* the xd's notes: everything it carries after the clues, read-only, each block as written */
+#xdnotes .xdbody { padding: 8px 14px 12px; }
+#xdnotes .xdn { margin: 0 0 10px; border: 1px solid var(--line); border-radius: 6px; background: #fff; }
+#xdnotes .xdn .xdh { font-weight: 600; font-size: 13px; padding: 5px 10px; border-bottom: 1px solid var(--line); }
+#xdnotes .xdn pre { margin: 0; padding: 6px 10px; font: 13px/1.45 var(--serif, Georgia, serif); white-space: pre-wrap; max-height: 260px; overflow: auto; }
+#xdnotes .xdnone { padding: 6px 10px; border-left: 3px solid var(--bad); background: #fff; font-size: 13px; }
+#xdnotes .margin { margin-top: 8px; max-width: 520px; }
 .note { background: var(--note); border: 1px solid var(--noteborder); border-left-width: 3px; border-radius: 5px; padding: 4px 8px; margin-bottom: 4px; }
 .note .by { font-weight: 600; font-size: 11px; display: block; }
 .note .by i { font-weight: normal; color: var(--muted); }
@@ -443,6 +464,16 @@ const params = new URLSearchParams(location.search);
 const SITE = window.BLITZ_SITE;
 if (SITE && !location.search) location.replace('batch/');  // /review/ itself: the way in is the batches
 let ID = params.get('p') || 'judge1931-10-03';
+// the packet's files as the site lists them (null: not listed, so ask for each); the batch's ship record
+// (blitz ship: design/ship.md), which holds the questions puzzles are held on; this packet's xd, as text
+let FILES = null, SHIP = null, SHIPBY = {}, xdText = null;
+async function loadShip(batch) {
+  if (!SITE || !/^[\w.-]+$/.test(batch || '')) return;
+  SHIP = await fetch(`${params.get('files') || SITE.filesBase}/batch/${batch}/ship.json`, {cache: 'no-cache'}).then(r => r.ok ? r.json() : null).catch(() => null);
+  SHIPBY = Object.fromEntries(((SHIP || {}).puzzles || []).map(x => [x.pid, x]));
+}
+// the questions a puzzle is held on, as the ship record has them: [{who, at, row, text, suggest}]
+const asksOf = pid => { const x = SHIPBY[pid]; return x && x.queue === 'question' ? x.asks || [] : []; };
 let dir = (params.get('base') || '/blitz-work/') + ID + '/';
 // locally, ?save=<url> (xword-ocr watch's /api/proof): a submitted review is posted there, into the
 // publication's ledger, so the import can take it; without it a local review stays in this browser
@@ -490,6 +521,8 @@ async function pickPuzzle() {
   const want = params.get('p');
   const here = all.find(p => p.xdid === want) || all.find(p => !isDropped(p)) || all[0];
   ID = here.xdid; dir = here.base_url + '/';
+  FILES = here.files || null;
+  await loadShip(here.batch);
   // its batch's page; from the batch page, back to the list as it was left (this site's pages only)
   let back = params.get('back');
   try { if (back && new URL(back, location.href).origin !== location.origin) back = ''; } catch (e) { back = ''; }
@@ -644,6 +677,9 @@ async function load() {
   [ocr, rev, checks] = await Promise.all([...[dir + 'ocr.json', dir + 'review.json'].map(u => fetch(u).then(r => r.json())),
     // what the checks found (checks.json): a packet made before the record existed has none
     fetch(dir + 'checks.json').then(r => r.ok ? r.json() : null).catch(() => null)]);
+  // the xd itself (puzzle.xd, published with the packet since 2026-11-10): its notes are drawn from it, as written
+  xdText = FILES && !FILES['puzzle.xd'] ? null
+    : await fetch(dir + 'puzzle.xd').then(r => r.ok ? r.text() : null).then(t => t && t.replace(/\r\n/g, '\n')).then(t => t && t.includes('\n\n\n') && !/^\s*</.test(t) ? t : null).catch(() => null);
   // A review kept in this browser from another version of the puzzle (its xd has changed since, or
   // it predates versions) is set aside, not laid over this one: its edits were to rows that may now
   // hold other lines. It stays in this browser under its version. A version that differs only in how we
@@ -701,7 +737,9 @@ async function load() {
   render();
   setTimeout(navRail, 900);
   // ?k=clue:A14 (any row's item) opens the page at that row, e.g. from a review card's link
-  if (params.get('k')) { setTimeout(() => goTo(params.get('k')), 0); setTimeout(() => goTo(params.get('k')), 900); }
+  // (a question's row that this packet doesn't have: the page stays at the top, where the question says so)
+  const k = params.get('k');
+  if (k && !(asksOf(ID).some(a => a.row === k) && !rowTarget(k))) { setTimeout(() => goTo(params.get('k')), 0); setTimeout(() => goTo(params.get('k')), 900); }
 }
 
 // The AI proof reviewer's round: the ledger's proof:<pid> record (xword-ocr proofreview.record: edits keyed
@@ -936,8 +974,98 @@ function render() {
     main.append(s);
   }
   for (const s of main.querySelectorAll('section[data-sec]')) s.append(s.foot);
+  main.append(xdNotesSection());
   main.append(summarySection());
+  const qs = questionSection();  // last, so it can say whether each question's row is on the page; shown first
+  if (qs) main.prepend(qs);
   applyShow(); progress(); historyButtons();
+}
+
+// ---- the question this puzzle is held on ----
+// From the batch's ship record (batch/<batch>/ship.json, blitz ship), not the packet's ai_review.json: the record is
+// what put the puzzle in the batch page's question queue and built the link here, it holds a person's questions and
+// the import's as well as the AI reviewer's, and it is there for packets published before the AI review existed.
+// The page draws it; it decides nothing. A row the packet doesn't have is said so, with the question, at the top.
+function rowTarget(key) {
+  if (!key) return document.getElementById('main');  // about the puzzle as a whole
+  if (key === 'grid' || /^cell:r\d+c\d+$/.test(key)) return document.querySelector('section[data-sec=grid]');
+  const hk = /^(?:ev|meta):(\w+)$/.exec(key);
+  if (key === 'notes' || (hk && hk[1] === 'note')) return document.querySelector('#xdnotes .xdn') ? document.getElementById('xdnotes') : null;
+  if (hk) return document.getElementById('hdr-' + (hk[1] === 'puzzle_number' ? 'number' : hk[1])) || rows.find(r => r.dataset.key === 'meta:' + hk[1]) || null;
+  const lk = /^(?:line|keep|label):(B\d+)$/.exec(key);
+  if (lk) return document.getElementById(lk[1]) || rows.find(r => r.dataset.key === key) || null;
+  if (key.startsWith('clue:') && ocr.clues[key.slice(5)] && !showClue(key.slice(5))) return document.querySelector(`section[data-sec=${key[5]}]`);  // a row of the set not shown: goTo shows it
+  return rows.find(r => r.dataset.key === key) || null;
+}
+const rowWords = k => !k ? 'the puzzle as a whole' : /^(ev|meta):/.test(k) ? ({note: 'the notes', puzzle_number: 'the number'}[k.split(':')[1]] || 'the ' + k.split(':')[1])
+  : k === 'notes' ? 'the notes' : k === 'grid' ? 'the answer key' : /^cell:/.test(k) ? 'square ' + k.slice(5) + ' of the answer key' : /^line:/.test(k) ? 'printed line ' + k.slice(5)
+  : /^clue:/.test(k) ? 'clue ' + k.slice(5).replace(/\^(.*)$/, ' ($1)') : k;
+function whyNoRow(key) {
+  if (key === 'notes' || /^(ev|meta):note$/.test(key)) return xdText == null
+    ? "this packet was published without its xd file, so the notes the xd carries can't be shown here. The question is about text you can't see on this page: say so with Not ready, or send it back."
+    : 'the xd has no notes.';
+  if (key === 'grid' || key.startsWith('cell:')) return 'this packet shows no answer key.';
+  return 'this packet has no such row.';
+}
+function questionSection() {
+  const asks = asksOf(ID);
+  document.querySelectorAll('.qcall').forEach(e => e.remove());
+  if (!asks.length) return null;
+  const x = SHIPBY[ID], s = document.createElement('section');
+  s.id = 'question';
+  const who = a => a.who + (a.at ? ', ' + a.at : '');
+  const one = (a, i) => {
+    const t = rowTarget(a.row);
+    return `<div class="qask">${t ? `<button class="qgo" data-i="${i}" title="go to it on this page">${esc(rowWords(a.row))} ↓</button>` : `<b>${esc(rowWords(a.row))}</b>`}
+      <span class="by">asked by ${esc(who(a))}</span><div>${esc(a.text)}${a.suggest ? ` <span class="sug">Suggested: ${esc(a.suggest)}</span>` : ''}</div>
+      ${t ? '' : `<div class="qmiss"><b>Not on this page:</b> ${esc(whyNoRow(a.row))}</div>`}</div>`;
+  };
+  s.innerHTML = `<h2>This puzzle is held on ${asks.length === 1 ? 'a question' : asks.length + ' questions'}
+    <span class="hint">from the batch's ship record${SHIP.at ? ', ' + esc(SHIP.at.slice(0, 10)) : ''}</span></h2><div class="qbody">${asks.map(one).join('')}
+    ${(x.also || []).length ? `<div class="qalso">Also incomplete, which an answer won't mend: ${x.also.map(esc).join('; ')}</div>` : ''}
+    <div class="qhow"><b>To answer:</b> look at the scan where the question points. Fix the row, or leave a comment on it, then say <b>Ready</b> or <b>Not ready</b> under <a href="#summary">Your review</a>.
+      ${rev?.send_back ? `If it can't be settled on this page, because something has to be read again or linked differently, it is the pipeline's question, not yours:
+      <button class="qgo" id="qpipe">It's a pipeline question: send it back…</button>` : ''}</div></div>`;
+  s.querySelectorAll('.qgo[data-i]').forEach(b => b.onclick = () => goTo(asks[+b.dataset.i].row));
+  const pipe = s.querySelector('#qpipe');
+  if (pipe) pipe.onclick = () => {
+    const sum = document.getElementById('summary'), el = sum.querySelector('#sendback');
+    el.dataset.open = '1';
+    el.dataset.prefill = 'A pipeline question, not one to answer on the proof page: ' + asks.map(a => `${rowWords(a.row)}: ${a.text.slice(0, 160)}`).join(' / ').slice(0, 600);
+    paintSendBack(sum);
+    el.scrollIntoView({block: 'center'});
+  };
+  // at each row: the question again, unless a reviewer's comment there already says it (the AI's round, from ai_review.json)
+  asks.forEach(a => {
+    const t = rowTarget(a.row);
+    if (!t || !a.row || commentsFor(a.row).some(([, c]) => (c.text || '').includes(a.text))) return;
+    const c = document.createElement('div');
+    c.className = 'qcall';
+    c.innerHTML = `<b>The question here</b> (${esc(who(a))}; ${esc(rowWords(a.row))}): ${esc(a.text)}${a.suggest ? ` <span class="sug">Suggested: ${esc(a.suggest)}</span>` : ''}`;
+    const at = t.tagName === 'TR' ? t.closest('table') : t.tagName === 'SECTION' ? t.querySelector('h2') : t;
+    if (t.tagName === 'SECTION') at.after(c); else at.before(c);
+  });
+  return s;
+}
+// ---- the xd's notes ----
+// Everything the xd file carries after its clues, read-only, block by block as written in this packet's puzzle.xd
+// (the proof packet's copy of the xd: review.json's xd_fp is its fingerprint). Each block's first line is its own
+// heading, and says what it is and which stage wrote it (Assembly flags, Text step, Printed with puzzle, Another
+// list that fits the grid, ...). This is not the header table's missing Notes row: which printed lines go into the
+// gxd export's notes is still the run-wide Notes rule (the batch page); this shows what the xd holds now, so
+// nothing in it is hidden, and a question about the notes has somewhere to point (meta:note, notes).
+function xdNotesSection() {
+  const s = document.createElement('section');
+  s.id = 'xdnotes';
+  const blocks = xdText == null ? [] : xdText.replace(/\r\n/g, '\n').replace(/\n+$/, '').split('\n\n\n').slice(3).join('\n\n').split(/\n\n+/).filter(b => b.trim());
+  const cs = ['meta:note', 'notes', 'ev:note'].flatMap(commentsFor);
+  s.innerHTML = `<h2>Notes in the xd file <span class="hint">read-only: what the xd carries after its clues, as written in this packet's puzzle.xd${rev?.xd_fp ? ' (xd ' + esc(rev.xd_fp) + ')' : ''}</span></h2><div class="xdbody">`
+    + (xdText == null ? `<div class="xdnone"><b>Not recorded here.</b> This packet was published without its xd file (puzzle.xd), so whatever notes the xd carries can't be shown on this page. Publishing the packet again adds it.</div>`
+      : !blocks.length ? `<div class="hint">The xd has no notes.</div>`
+      : blocks.map((b, i) => { const [h, ...rest] = b.split('\n'); return `<div class="xdn" id="xdnote-${i + 1}"><div class="xdh">${esc(h)}</div>${rest.length ? `<pre>${esc(rest.join('\n'))}</pre>` : ''}</div>`; }).join(''))
+    + `<div class="margin">${cs.map(([r, c]) => noteHtml(r, c.text, c.why, c)).join('')}<button class="t" id="xdcomment">＋ Comment on the notes</button></div></div>`;
+  s.querySelector('#xdcomment').onclick = () => compose(s.querySelector('.margin'), 'meta:note');
+  return s;
 }
 
 function legend() {
@@ -1171,7 +1299,7 @@ function paintSendBack(s) {
   } else if (!el.dataset.open) {
     el.innerHTML = `<a data-a="open">Is something badly wrong that no edit can fix (a part missing, the text garbled, not a crossword)? Send it back…</a>`;
   } else {
-    const cur_ = cur.sendback || {};
+    const cur_ = cur.sendback || (el.dataset.prefill ? {kind: 'other', note: el.dataset.prefill} : {});
     el.innerHTML = `<div class="sbform"><div><b>Send this puzzle back to be read again.</b> What's wrong?</div>
       ${sb.kinds.map(k => `<label><input type="radio" name="sbkind" value="${esc(k.id)}"${cur_.kind === k.id ? ' checked' : ''}> ${esc(k.says)}</label>`).join('')}
       <div id="sbpart"></div>
@@ -1526,6 +1654,11 @@ function goTo(key) {
     (document.querySelector('section[data-sec=grid]') || document.getElementById('blankpanel'))?.scrollIntoView({block: 'center'});
     flash(document.querySelectorAll(`.typedgrid div[data-rc="${+cm[1] - 1},${+cm[2] - 1}"]`));
     return;
+  }
+  if (key === 'notes' || /^(?:ev|meta):note$/.test(key)) {  // the xd's notes (or the question at the top, when the packet doesn't show them)
+    const n = document.querySelector('#xdnotes .xdn') ? document.getElementById('xdnotes') : document.getElementById('question') || document.getElementById('xdnotes');
+    n?.scrollIntoView({block: 'start'});
+    return flash([n]);
   }
   jumpTo(key);
   const hk = /^(?:ev|meta):(\w+)$/.exec(key);
@@ -2830,7 +2963,9 @@ if (!SITE && params.get('list')) (async () => {
 function walkBar(items) {
   if (!Array.isArray(items) || !items.length) return;
   const i = items.findIndex(x => x.pid === ID), bar = document.getElementById('walkbar');
-  const to = x => { const u = new URL(location.href); u.searchParams.set('p', x.pid); u.searchParams.delete('k'); return u.href; };
+  // the next puzzle opens at its own first question (the ship record's), when it is held on one
+  const to = x => { const u = new URL(location.href), k = (asksOf(x.pid)[0] || {}).row; u.searchParams.set('p', x.pid);
+                    if (k) u.searchParams.set('k', k); else u.searchParams.delete('k'); return u.href; };
   let back = params.get('back');
   try { if (back && new URL(back, location.href).origin !== location.origin) back = ''; } catch (e) { back = ''; }  // this site's pages only
   bar.innerHTML = `<b>${esc(items[0].label)}</b> <span>${i + 1} of ${items.length}</span>`
