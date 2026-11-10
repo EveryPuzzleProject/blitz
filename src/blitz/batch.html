@@ -99,7 +99,16 @@ details.more { margin-top: 6px; } details.more > summary { font-size: 12px; }
 .shipline { font-size: 13px; margin-top: 6px; padding: 5px 10px; border-left: 3px solid var(--line); background: var(--paper); border-radius: 0 6px 6px 0; }
 .shipline.shipped, .shipline.shippable { border-color: var(--ship); } .shipline.held { border-color: var(--person); }
 .shipline b { font-weight: 600; } .shipline.shipped b, .shipline.shippable b { color: var(--ship); } .shipline.held b { color: var(--person); }
-#shipchips .meta a { margin-left: 4px; }
+.shipline.question { border-color: var(--glance); } .shipline.unchecked { border-color: var(--rev); } .shipline.none { border-style: dashed; }
+/* a question a puzzle is held on: where on the proof page, what is asked, what the asker suggests */
+.q { font-size: 13px; margin-top: 6px; padding: 6px 10px; background: var(--glance-bg); border-left: 3px solid var(--glance); border-radius: 0 6px 6px 0; }
+.q .who { color: var(--muted); font-size: 12px; } .q .qa { margin: 4px 0 0; } .q .qa + .qa { padding-top: 4px; border-top: 1px dotted var(--line); }
+.q .qa a.rowk { font-weight: 600; white-space: nowrap; } .q .sug { color: var(--muted); } .q .also { margin-top: 5px; color: var(--person); font-size: 12px; }
+.q details > summary { cursor: pointer; color: var(--muted); font-size: 12px; margin-top: 4px; }
+.p-done { color: var(--ship); background: transparent; box-shadow: inset 0 0 0 1px var(--ship); } .p-none { color: var(--muted); background: transparent; box-shadow: inset 0 0 0 1px var(--line); }
+.p-spot { color: var(--accent); background: transparent; box-shadow: inset 0 0 0 1px var(--accent); }
+.subchips .chip { font-size: 12px; padding: 2px 9px; } .recnote { margin-top: 6px; }
+a.plain { font-size: 12px; white-space: nowrap; }
 .uns { font-size: 13px; margin-top: 4px; } .uns summary { cursor: pointer; color: var(--muted); }
 .uns ul { margin: 2px 0 0; padding-left: 16px; } .uns li { margin: 1px 0; }
 a { color: var(--accent); } a.open { font-size: 12px; white-space: nowrap; }
@@ -182,7 +191,7 @@ const STAGENAME = {parts: 'parts (the boxes on the page)', assembly: 'assembly (
 const KEY = a => /^[AD]\d+$/.test(a) ? 'clue:' + a : /^[BL]\d+$/.test(a) ? 'line:B' + a.slice(1) : '';
 // on the site a batch opens on the puzzles waiting for a check; locally on all of them
 const FDEF = window.BLITZ_SITE ? 'ready' : 'all';
-let D, filter = params.get('f') || FDEF, cause = params.get('cause') || '';
+let D, filter = params.get('f') || FDEF, cause = params.get('cause') || '', sub = params.get('sub') || '';
 const TAB = window.BLITZ_SITE ? '' : ' target="_blank"';
 // Where the records come from. Locally, the watch's API (xword-ocr watch: /api/batch, /api/overlay, the
 // images it serves). On the review site (config.js sets BLITZ_SITE), or given ?data=<folder>, a snapshot
@@ -194,20 +203,63 @@ let DATA = params.get('data') || '', BATCHES = [];
 // blitz ship's record for the batch (design/ship.md): every puzzle shipped, shippable or held, with the reason.
 // The page draws it as recorded; the rule is blitz ship's (src/blitz/ship.py standing()), never worked out here.
 let SHIP = null, SHIPBY = {};
-const SHIPNAME = {shipped: 'Shipped', shippable: 'Ready to ship', held: 'Held'};
 const HELD = {'no-ready': "waiting for a person's Ready", 'not-ready': 'a reviewer said Not ready', 'owner-hold': 'held by the maintainer',
               'needs-work': 'needs work', 'incomplete': 'incomplete', 'proof-stale': 'its Ready was on an earlier version',
               'packet-stale': 'its proof packet is out of date', 'edits-differ': "reviewers' edits differ",
               'edits-unapplied': "an edit the import can't apply yet", 'xd-exists': 'another file has its id', 'no-packet': 'no proof packet',
               'clue-typed': 'a clue typed with no OCR reading'};
+// ---- what the batch asks of people: each puzzle's queue, as blitz ship recorded it (ship.json: queue, asks, broken,
+// group, order, spot_check). On a snapshot the page draws these and nothing else: it never sorts a puzzle into a
+// queue itself. No record (or one from before the queues): "not recorded".
+const QUEUE = {question: ['Held on a question', 'p-glance', 'var(--glance)', 'a person can answer it on the proof page, and then it can ship'],
+               unchecked: ['Not checked yet', 'p-rev', 'var(--rev)', "nobody's Ready counts for it yet: it wants a whole proofread"],
+               broken: ['Broken in the pipeline', 'p-person', 'var(--person)', 'for the maintainer and the agents, with the stage it points to: not a proofreading job'],
+               shippable: ['Ready to ship', 'p-ship', 'var(--ship)', 'passes the ship rule; not written to the publication yet'],
+               shipped: ['Shipped', 'p-done', 'var(--ship)', "done: in the publication's xd/"],
+               'set-aside': ['Set aside', 'p-aside', 'var(--glance)', 'in scope, not a priority now'],
+               'not-a-crossword': ['Not a crossword', 'p-drop', 'var(--drop)', 'dropped from the batch']};
+const QORDER = ['question', 'unchecked', 'broken', 'shippable', 'shipped', 'set-aside', 'not-a-crossword'];
+const WALKED = ['question', 'unchecked', 'spot'];  // the lists a person walks on the proof page
+const recorded = () => !!(SHIP && SHIP.counts && SHIP.counts.queues);
 const shipOf = p => SHIPBY[p.pid];
-const shipLabel = f => SHIPNAME[f.split(':')[1]] + (f.split(':')[2] ? ': ' + (HELD[f.split(':')[2]] || f.split(':')[2]) : '');
-function shipHtml(p) {
-  const x = shipOf(p);
-  if (!x || x.status === 'out') return '';
-  const head = x.status === 'held' ? `Held: ${esc(HELD[x.reason] || x.reason)}` : SHIPNAME[x.status] + (x.xdid ? ` as ${esc(x.xdid)}` : '');
-  const more = x.status === 'held' && x.ships_with && x.ships_with !== 'off' ? ` <span class="meta">(would ship if an AI's Ready counted)</span>` : '';
-  return `<div class="shipline ${esc(x.status)}" title="${esc(x.reason || x.rule || '')}: blitz ship, ${esc((SHIP.at || '').slice(0, 10))}"><b>${head}</b>${more}<br><span class="meta">${esc(x.why)}</span></div>`;
+// a puzzle's queue: the ship record's. One the record doesn't list that the snapshot records as dropped is not a
+// crossword (the watch's record of the drop); any other is not recorded ('').
+const queueOf = p => recorded() ? (shipOf(p) || {}).queue || (p.choice === 'drop' ? 'not-a-crossword' : '') : '';
+const ordOf = p => (shipOf(p) || {}).order ?? 1e9;
+const stageOf = p => (((shipOf(p) || {}).broken || [])[0] || {}).stage || 'not recorded';
+const groupOf = p => (shipOf(p) || {}).group || 'own';
+const groupName = g => g === 'own' ? "one puzzle's own" : 'about ' + ((((SHIP || {}).groups || []).find(x => x.key === g) || {}).label || g);
+// a proof-page row as a person reads it
+const rowName = k => !k ? 'the puzzle' : /^(ev|meta):/.test(k) ? ({note: 'Notes', puzzle_number: 'Number'}[k.split(':')[1]] || k.split(':')[1].replace(/^./, c => c.toUpperCase()))
+  : k === 'notes' ? 'Notes' : k === 'grid' ? 'the grid' : /^cell:/.test(k) ? 'square ' + k.slice(5) : /^line:/.test(k) ? 'printed line ' + k.slice(5)
+  : /^clue:/.test(k) ? k.slice(5).replace(/\^(.*)$/, ' ($1)') : k;
+const saidQ = (x, only = () => true) => (x.said || []).filter(only).map(s => `${s.answer === 'ready' ? 'Ready' : 'Not ready'}${s.stale ? ' (an earlier version)' : ''}: ${esc(s.who || 'a helper')} ${esc(s.at || '')}`).join(' · ');
+function asksHtmlQ(p, x, rows) {
+  const one = a => `<div class="qa"><a class="rowk" href="${proofUrl(p.pid, a.row, rows)}"${TAB} title="opens the proof page at this row">${esc(rowName(a.row))} →</a> ${esc(a.text)}`
+    + (a.suggest ? ` <span class="sug">Suggested: ${esc(a.suggest)}</span>` : '') + `</div>`;
+  const who = [...new Set(x.asks.map(a => a.who + (a.at ? ', ' + a.at : '')))];
+  const head = x.asks.slice(0, 3), rest = x.asks.slice(3);
+  return `<div class="q"><div class="who">${x.asks.length === 1 ? 'Question' : x.asks.length + ' questions'} from ${who.map(esc).join('; ')}</div>
+    ${head.map(one).join('')}${rest.length ? `<details><summary>${rest.length} more</summary>${rest.map(one).join('')}</details>` : ''}
+    ${(x.also || []).length ? `<div class="also" title="the ship check's finding: an answer here won't mend it">Also incomplete, which an answer won't mend: ${x.also.map(esc).join('; ')}</div>` : ''}</div>`;
+}
+function brokenHtmlQ(x) {
+  return `<div class="block">${x.broken.map(b => `<div><b>${esc(b.what)}</b> <span class="st">· points to ${b.stage ? esc(STAGENAME[b.stage] || b.stage) : 'a stage not recorded'}`
+    + ` · ${esc(b.code)}${b.detail ? ': ' + esc(b.detail) : ''}</span></div>`).join('')}
+    <div class="st" style="margin-top:3px">For the maintainer and the agents: not a proofreading job.</div></div>`;
+}
+// the line that says where a puzzle stands, with who said what (the record's said): nothing about it is left out
+function standsHtmlQ(p, x, q) {
+  if (!x) return `<div class="shipline none"><b>${q === 'not-a-crossword' ? 'Dropped as not a crossword' : 'Not recorded'}</b><br><span class="meta">${q === 'not-a-crossword'
+    ? esc((p.note || '').replace(/^triage: /, '')) + ' (the snapshot\'s record; the ship record doesn\'t list it)' : "blitz ship's record doesn't list this puzzle"}</span></div>`;
+  const head = {shipped: `Shipped as ${esc(x.xdid)}`, shippable: `Ready to ship as ${esc(x.xdid)}`, question: 'Also said', unchecked: "Waiting for a person's Ready",
+                broken: `Held: ${esc(HELD[x.reason] || x.reason)}`, 'set-aside': 'Set aside', 'not-a-crossword': 'Not a crossword'}[q];
+  const why = q === 'question' || q === 'broken' ? '' : esc(x.why.replace(/^in xd\/ as \S+: /, ''));
+  // a question's askers are named with their questions: here, only what anyone else said
+  const said = saidQ(x, s => q !== 'question' || s.answer === 'ready');
+  if (q === 'question' && !said) return '';
+  return `<div class="shipline ${q === 'broken' ? 'held' : esc(q)}" title="${esc(x.reason || x.rule || '')}: blitz ship, ${esc((SHIP.at || '').slice(0, 10))}"><b>${head}</b>`
+    + (why ? `<br><span class="meta">${why}</span>` : '') + (said ? `<br><span class="meta">${x.reviewed ? 'Reviewed by a person. ' : ''}${said}</span>` : '') + `</div>`;
 }
 const U = u => u && DATA ? new URL(u, new URL(DATA, location.href)).href : u;
 const FILES = () => params.get('files') || SITE.filesBase;  // the site's bucket (?files=: a local copy of its layout)
@@ -229,6 +281,8 @@ async function load() {
   SHIP = DATA ? await fetch(U('ship.json'), {cache: 'no-cache'}).then(r => r.ok ? r.json() : null).catch(() => null) : null;
   SHIPBY = Object.fromEntries(((SHIP || {}).puzzles || []).map(x => [x.pid, x]));
   await liveVotes();
+  // a snapshot opens on the puzzles held on a question; with no record of the queues, on all of them
+  if (DATA) filter = !recorded() ? 'all' : [...QORDER, 'all', 'spot', 'none'].includes(params.get('f')) ? params.get('f') : 'question';
   draw();
   $('#tools').hidden = !!DATA;
   if (!DATA) { drawTools(); drawRerun(); }
@@ -241,12 +295,14 @@ async function landing() {
   $('#sitenav').hidden = false;
   $('#runsel').hidden = true;
   $('#h1').textContent = 'Help check old crosswords';
-  $('#about').innerHTML = `We turn crosswords from scanned old magazines into text, and every puzzle needs a person to check it against the printed page.
-    Press <b>Start proofreading</b>: compare our text with the scan, fix what's wrong, and say whether it's ready. <b>Next</b> takes you to the next one.`;
+  $('#about').innerHTML = `We turn crosswords from scanned old magazines into text. Some puzzles are held on a question that a person can answer by looking at the printed page.
+    Press <b>Start with the questions</b>: the proof page opens where the question points; fix or confirm it, and say whether the puzzle is ready. <b>Next</b> takes you to the next one.`;
   for (const id of ['#bar', '#chips', '#causechips', '#runnote']) $(id).innerHTML = '';
   $('#legend').hidden = true; $('#tools').hidden = true; $('#bar').style.display = 'none';
   const snaps = await Promise.all(BATCHES.map(b => fetch(`${FILES()}/batch/${b.name}/batch.json`, {cache: 'no-cache'})
     .then(r => r.json()).catch(() => null)));
+  const ships = await Promise.all(BATCHES.map(b => fetch(`${FILES()}/batch/${b.name}/ship.json`, {cache: 'no-cache'})
+    .then(r => r.ok ? r.json() : null).catch(() => null)));
   const h = {apikey: SITE.supabaseAnonKey, Authorization: 'Bearer ' + SITE.supabaseAnonKey};
   let rows = await fetch(`${SITE.supabaseUrl}/rest/v1/puzzles?select=xdid,batch,dropped&open=eq.true&order=xdid`, {headers: h})
     .then(r => r.ok ? r.json() : []).catch(() => []);
@@ -254,18 +310,22 @@ async function landing() {
     .then(r => r.ok ? r.json() : []).catch(() => []);  // no dropped column
   const other = {};
   for (const r of rows) if (!BATCHES.some(b => b.name === r.batch)) (other[r.batch || ''] ||= []).push(r);
-  const card = (b, d) => {
-    const n = k => d.puzzles.filter(p => kindOf(p) === k).length, all = d.puzzles.length;
-    // the way in: straight to the first puzzle waiting for a check, Next walking the rest (as the batch's own button)
+  const card = (b, d, ship) => {
+    // what the batch asks of people, from its ship record (drawn as recorded); none: not recorded, and no walk offered
+    SHIP = ship; SHIPBY = Object.fromEntries(((ship || {}).puzzles || []).map(x => [x.pid, x]));
+    const all = d.puzzles.length, n = q => d.puzzles.filter(p => queueOf(p) === q).length;
     const list = `?b=${encodeURIComponent(b.name)}${params.get('files') ? '&files=' + encodeURIComponent(params.get('files')) : ''}`;
-    const ready = d.puzzles.filter(p => kindOf(p) === 'ready');
-    const start = ready.length ? `../?p=${encodeURIComponent(ready[0].pid)}&walk=${encodeURIComponent(KIND.ready[0])}&pids=${ready.map(p => p.pid).join(',')}`
+    if (!recorded()) return `<div class="bcard"><div><div class="t"><a class="tl" href="${list}">${esc(b.title || b.name)}</a></div>
+      <div class="meta">${all} puzzles · what it asks of people: <b>not recorded</b></div></div><span><a href="${list}">See the list</a></span></div>`;
+    const qs = d.puzzles.filter(p => queueOf(p) === 'question').sort((x, y) => ordOf(x) - ordOf(y));
+    const first = qs[0] && ((shipOf(qs[0]).asks || [])[0] || {}).row;
+    const start = qs.length ? `../?p=${encodeURIComponent(qs[0].pid)}${first ? '&k=' + encodeURIComponent(first) : ''}&walk=${encodeURIComponent(QUEUE.question[0])}&pids=${qs.map(p => p.pid).join(',')}`
       + '&back=' + encodeURIComponent(location.pathname + list) : '';
     return `<div class="bcard"><div><div class="t"><a class="tl" href="${list}">${esc(b.title || b.name)}</a></div>
-      <div class="meta"><b>${ready.length} puzzles waiting for a check</b> · ${all} in all · about 15 minutes each; stop whenever you like</div></div>
-      <span>${start ? `<a class="go" href="${start}">Start proofreading →</a> ` : ''}<a href="${list}">See the list</a></span>
-      <div class="bar">${ORDER.map(k => `<span style="width:${100 * n(k) / all}%;background:${KIND[k][2]}"></span>`).join('')}</div>
-      <div class="pills">${ORDER.filter(n).map(k => `<span class="pill ${KIND[k][1]}">${KIND[k][0]} ${n(k)}</span>`).join('')}</div></div>`;
+      <div class="meta"><b>${qs.length} puzzles held on a question you can answer</b> · ${n('shipped')} shipped · ${all} in all · a question takes a few minutes; stop whenever you like</div></div>
+      <span>${start ? `<a class="go" href="${start}">Start with the questions →</a> ` : ''}<a href="${list}">See the list</a></span>
+      <div class="bar">${QORDER.map(q => `<span style="width:${100 * n(q) / all}%;background:${QUEUE[q][2]}${q === 'shipped' ? ';opacity:.45' : ''}"></span>`).join('')}</div>
+      <div class="pills">${QORDER.filter(n).map(q => `<span class="pill ${QUEUE[q][1]}">${QUEUE[q][0]} ${n(q)}</span>`).join('')}</div></div>`;
   };
   const plain = (name, ps) => {
     const open = ps.filter(p => !p.dropped), pub = ((ps[0] || {}).xdid || '').match(/^[a-z]+/);
@@ -273,7 +333,7 @@ async function landing() {
       <div class="meta">${open.length} open puzzles · no batch page yet: they open on the proof page, one after another</div></div>
       <span class="go">Proof pages →</span></a>`;
   };
-  $('#list').innerHTML = BATCHES.map((b, i) => snaps[i] ? card(b, snaps[i]) : '').join('')
+  $('#list').innerHTML = BATCHES.map((b, i) => snaps[i] ? card(b, snaps[i], ships[i]) : '').join('')
     + Object.entries(other).sort((a, b) => b[1].length - a[1].length).map(([k, v]) => plain(k, v)).join('')
     || '<p class="meta">Nothing to check right now.</p>';
 }
@@ -346,7 +406,11 @@ document.addEventListener('visibilitychange', async () => {
 });
 const causeOf = pid => ((D.causes || {}).causes || []).find(c => c.pids.includes(pid));
 function shown() {
-  return D.puzzles.filter(p => (filter === 'all' || (filter.startsWith('ship:') ? ((shipOf(p) || {}).status === filter.split(':')[1] && (!filter.split(':')[2] || shipOf(p).reason === filter.split(':')[2])) : filter === 'held' ? p.held_for_you : filter === 'foryou' ? forYou(p) : filter === 'sentback' ? !!p.sent_back : kindOf(p) === filter)) && (!cause || (causeOf(p.pid) || {}).id === cause))
+  // a snapshot: the recorded queue's puzzles in the recorded order (the ones you've answered go last)
+  if (DATA) return D.puzzles.filter(p => filter === 'all' || (filter === 'spot' ? !!(shipOf(p) || {}).spot_check : filter === 'none' ? !queueOf(p) : queueOf(p) === filter))
+    .filter(p => !sub || (filter === 'question' ? groupOf(p) === sub : filter === 'broken' ? stageOf(p) === sub : true))
+    .sort((a, b) => (WALKED.includes(filter) ? (checked(a) === 2) - (checked(b) === 2) : 0) || ordOf(a) - ordOf(b) || a.pid.localeCompare(b.pid));
+  return D.puzzles.filter(p => (filter === 'all' || (filter === 'held' ? p.held_for_you : filter === 'foryou' ? forYou(p) : filter === 'sentback' ? !!p.sent_back : kindOf(p) === filter)) && (!cause || (causeOf(p.pid) || {}).id === cause))
     .sort((a, b) => checked(a) - checked(b) || ORDER.indexOf(kindOf(a)) - ORDER.indexOf(kindOf(b)) || a.pid.localeCompare(b.pid));
 }
 // a Needs work card: what a reviewer settles later (doubts, the verdict, the agent's check, unsure items)
@@ -405,7 +469,7 @@ const walkable = (rows, pid = '') => filter === 'setaside' && !DATA ? rows : row
 function proofUrl(pid, k, rows) {
   rows = walkable(rows, pid);
   const c = ((D.causes || {}).causes || []).find(x => x.id === cause);
-  const label = [filter === 'held' ? 'Held for you' : filter === 'foryou' ? 'For you' : filter === 'sentback' ? 'Sent back' : filter.startsWith('ship:') ? shipLabel(filter) : filter !== 'all' ? KIND[filter][0] : '', c ? c.title : ''].filter(Boolean).join(' · ') || 'all puzzles';
+  const label = [filter === 'held' ? 'Held for you' : filter === 'foryou' ? 'For you' : filter === 'sentback' ? 'Sent back' : filter === 'spot' ? 'Spot-check' : filter === 'none' ? 'Not recorded' : DATA && QUEUE[filter] ? QUEUE[filter][0] + (sub ? ', ' + (filter === 'question' ? groupName(sub) : sub) : '') : filter !== 'all' ? KIND[filter][0] : '', c ? c.title : ''].filter(Boolean).join(' · ') || 'all puzzles';
   const back = '&back=' + encodeURIComponent(location.pathname + location.search);
   if (DATA) return `${SITE ? '../' : params.get('proof') || '/proof/'}?p=${encodeURIComponent(pid)}`
     + (!SITE && params.get('base') ? '&base=' + encodeURIComponent(params.get('base')) : '')
@@ -417,8 +481,9 @@ function proofUrl(pid, k, rows) {
 function setUrl() {
   const q = new URLSearchParams();
   for (const x of ['run', 'b', 'data', 'files', 'proof', 'base']) if (params.get(x)) q.set(x, params.get(x));
-  if (filter !== FDEF) q.set('f', filter);
+  if (filter !== (DATA ? (recorded() ? 'question' : 'all') : FDEF)) q.set('f', filter);
   if (cause) q.set('cause', cause);
+  if (sub) q.set('sub', sub);
   history.replaceState(null, '', '?' + q);
 }
 function mini(grid) {
@@ -614,9 +679,11 @@ function draw() {
     $('#runsel').innerHTML = BATCHES.map(b => `<option value="${esc(b.name)}"${b.name === snap.name ? ' selected' : ''}>${esc(b.title || b.name)}</option>`).join('');
     $('#runsel').onchange = e => { params.set('b', e.target.value); setUrl(); location.reload(); };
     // what to do here, in one line, and how far you've got (your proofs in the site's database)
-    const mine = LIVE ? D.puzzles.filter(p => kindOf(p) === 'ready' && votes(p).you).length : 0, open = D.puzzles.filter(p => kindOf(p) === 'ready').length;
-    $('#about').innerHTML = `<b>What to do:</b> press <b>Start proofreading</b>, compare each puzzle with its scan, fix what's wrong and say whether it's ready. <b>Next</b> takes you through the list. A puzzle takes about 15 minutes; stop whenever you like.`
-      + (mine ? ` <span class="mine">You've checked ${mine} · ${open - mine} to go.</span>` : '');
+    const asked = D.puzzles.filter(p => queueOf(p) === 'question'), mine = LIVE ? asked.filter(p => votes(p).you).length : 0;
+    $('#about').innerHTML = !recorded() ? `What this batch asks of people is <b>not recorded</b>: ${SHIP ? "its ship record is from before the queues" : "it has no ship record"} (<code>blitz ship</code> writes it). The puzzles are listed as the pipeline left them; nothing here says which of them wait on a person.`
+      : `<b>What to do:</b> ${asked.length} puzzles are <b>held on a question</b> a person can answer. Press <b>Start</b>: the proof page opens where the question points; look at the scan, fix or confirm it, and say Ready. <b>Next</b> takes you to the next one; stop whenever you like.
+        Puzzles <b>broken in the pipeline</b> are with the maintainer and the agents, and <b>shipped</b> ones are done.`
+      + (mine ? ` <span class="mine">You've answered ${mine} · ${asked.length - mine} to go.</span>` : '');
     $('#legend').innerHTML = `On each page: <b style="color:#1f5fbf">blue</b>, the parts we read for this puzzle; <b style="color:#c46e00">orange</b>, its answer key; grey, other puzzles on the page.`;
   } else {
     $('#runsel').innerHTML = D.runs.map(r => `<option value="${esc(r)}"${r === D.run ? ' selected' : ''}>${esc(r)}${tag(r) ? ' (' + esc(tag(r)) + ')' : ''}</option>`).join('');
@@ -626,6 +693,7 @@ function draw() {
   $('#runnote').innerHTML = snap ? `<span title="${esc(D.run)}${note ? ': ' + esc(note.what) : ''}">As the pipeline left it on ${esc((snap.at || '').slice(0, 10))}.</span>`
     : (note ? `<b>${esc(D.run)}</b>: ${esc(note.what)}` : '')
     + (D.current && D.run !== D.current ? ` <span class="err">Not the current run (${esc(D.current)}): a trial, for comparing.</span>` : '');
+  if (DATA) return drawQueues();
   const count = k => D.puzzles.filter(p => kindOf(p) === k).length;
   $('#bar').innerHTML = ORDER.map(k => `<span style="width:${100 * count(k) / D.puzzles.length}%;background:${KIND[k][2]}" title="${KIND[k][0]}: ${count(k)}"></span>`).join('');
   const ready = D.puzzles.filter(p => p.choice === 'ship').length;
@@ -637,10 +705,6 @@ function draw() {
       + `<button class="chip held ${filter === 'held' ? 'on' : ''}" data-f="held" title="a reviewer said Not ready and you haven't decided">Held for you <b>${(D.chosen || {}).held_for_you || 0}</b></button>`
       + `<span class="meta">${ready} ship</span>`)
     + (walk.length ? `<a class="walk${SITE ? ' go' : ''}" href="${proofUrl(walk[0].pid, '', walk)}"${TAB}>${SITE ? `Start proofreading these ${walk.length} →` : `Walk these ${walk.length} on the proof page →`}</a>` : '');
-  const sc = (SHIP || {}).counts;
-  $('#shipchips').innerHTML = sc ? `<span class="meta" title="blitz ship, ${esc(SHIP.at || '')}: one person's Ready and no Not ready ships; the maintainer's decision overrides${SHIP.rule.ai_ready !== 'off' ? "; an AI's Ready counts (" + esc(SHIP.rule.ai_ready) + ")" : ''}">Shipping:</span>`
-    + ['shipped', 'shippable', 'held'].map(k => `<button class="chip ${filter === 'ship:' + k ? 'on' : ''}" data-f="ship:${k}">${SHIPNAME[k]} <b>${sc[k]}</b></button>`).join('')
-    + (filter.startsWith('ship:held') || sc.held ? `<span class="meta">held by:${Object.entries(sc.held_by).sort((a, b) => b[1] - a[1]).map(([r, n]) => ` <a href="#" data-f="ship:held:${esc(r)}" class="${filter === 'ship:held:' + r ? 'cur' : ''}">${esc(HELD[r] || r)} ${n}</a>`).join(' ·')}</span>` : '') : '';
   const cs = (D.causes || {}).causes || [];
   $('#causechips').innerHTML = cs.length ? `<span class="meta">By cause:</span>` + cs.map(c => `<button class="chip ${cause === c.id ? 'on' : ''}" data-c="${esc(c.id)}" title="${esc(c.recommend)}">${esc(c.title)} <b>${c.puzzles.length}</b></button>`).join('') : '';
   document.querySelectorAll('[data-f]').forEach(b => b.onclick = e => { e.preventDefault(); filter = b.dataset.f; setUrl(); draw(); });
@@ -658,16 +722,12 @@ function draw() {
     const verdict = (p.reasons.find(r => r.code === 'verdict') || {}).detail;
     // the puzzle's pages with what it took outlined (grid, clue lists, lines, key) and the other
     // puzzles' parts in grey: what was linked, and that nothing a neighbour needs went with it
-    const pic = p.maps.length
-      ? `<div class="maps"><a class="${p.maps.length > 1 ? 'stack' : ''}" data-more="${p.maps.length > 1 ? '+' + (p.maps.length - 1) : ''}" href="${esc(full(p.maps[0]))}" target="_blank" title="${esc(leafTitle(p.maps[0]))} (click for full size)"><div class="pgwrap"><img class="pg" loading="lazy" src="${esc(U(p.maps[0].image))}" alt="the puzzle's page"><svg></svg></div></a>`
-        // every page as a link that swaps the thumbnail in place; the thumbnail opens the full size
-        + (p.maps.length > 1 ? `<div class="meta leaves">${p.maps.map((m, i) => `<a href="#" class="${i ? '' : 'cur'}" data-i="${i}">${esc(m.page.replace(/^.*, /, ''))}</a>`).join(' · ')}</div>` : '') + `</div>`
-      : p.page ? `<a href="${esc(U(p.page))}" target="_blank"><img class="pg" loading="lazy" src="${esc(U(p.page))}" alt="the puzzle's page"></a>` : mini(p.grid);
+    const pic = picHtml(p);
     const head = checked(p) && (!i || checked(rows[i - 1]) !== checked(p)) ? `<div class="checked">${CHECKED[checked(p)]}</div>` : '';
     return `${head}<div class="row withpage" id="${esc(p.pid)}">${pic}
       <div>${p.feature ? `<div class="feat" title="the feature (a sub-series it runs in)${p.feature_line ? ', from printed line B' + p.feature_line : ''}: our own Feature header until the export maps it">${esc(p.feature)}</div>` : ''}<div class="t">${DATA && closed(p) ? '' : `<a class="tl" href="${proofUrl(p.pid, '', rows)}"${TAB}>`}${p.title ? esc(p.title) : '<span class="none">no title found</span>'}${DATA && closed(p) ? '' : '</a>'}</div>
         <div class="meta">${esc(p.date)} · ${p.grid.length}×${(p.grid[0] || '').length}${p.byline ? ' · ' + esc(p.byline) : ''}${p.cryptic ? ' · cryptic' : ''} · ${p.changes} changes, ${p.unsure_items.length} unsure, ${p.blanks} blanks</div>
-        ${shipHtml(p)}${asideHtml(p)}${sentBackHtml(p)}${remedyHtml(p)}${blockHtml(p)}${closed(p) ? '' : asksHtml(p)}
+        ${asideHtml(p)}${sentBackHtml(p)}${remedyHtml(p)}${blockHtml(p)}${closed(p) ? '' : asksHtml(p)}
         ${closed(p) ? moreHtml(p, why, verdict, c, rows) : `${checkHtml(p)}
         ${why ? `<div class="doubts">To check on the proof page:</div><ul class="why">${why}</ul>` : ''}
         ${verdict ? `<div class="verdict">${esc(verdict)}</div>` : ''}
@@ -684,9 +744,22 @@ function draw() {
               : ` <button class="btn" data-aside="${esc(p.pid)}" title="in scope, but not a priority now: out of Needs work and Ready for review, and out of Next (Restore undoes it)">Set aside…</button>`)
             + digitsBtn(p)}</div></div>`;
   }).join('') || '<p class="meta">None.</p>';
-  rows.forEach(p => { const row = document.getElementById(p.pid); if (row && p.maps.length) drawOverlay(row.querySelector('.maps svg'), p.pid, 0, 2); });
+  wirePics(rows);
   if (!DATA) wireRestart();
   if (location.hash && !draw.jumped) { draw.jumped = true; const el = document.getElementById(decodeURIComponent(location.hash.slice(1))); if (el) setTimeout(() => el.scrollIntoView({block: 'center'}), 300); }
+}
+
+// the puzzle's pages with what it took outlined (grid, clue lists, lines, key) and the other puzzles' parts in
+// grey: what was linked, and that nothing a neighbour needs went with it
+function picHtml(p) {
+  return p.maps.length
+      ? `<div class="maps"><a class="${p.maps.length > 1 ? 'stack' : ''}" data-more="${p.maps.length > 1 ? '+' + (p.maps.length - 1) : ''}" href="${esc(full(p.maps[0]))}" target="_blank" title="${esc(leafTitle(p.maps[0]))} (click for full size)"><div class="pgwrap"><img class="pg" loading="lazy" src="${esc(U(p.maps[0].image))}" alt="the puzzle's page"><svg></svg></div></a>`
+        // every page as a link that swaps the thumbnail in place; the thumbnail opens the full size
+        + (p.maps.length > 1 ? `<div class="meta leaves">${p.maps.map((m, i) => `<a href="#" class="${i ? '' : 'cur'}" data-i="${i}">${esc(m.page.replace(/^.*, /, ''))}</a>`).join(' · ')}</div>` : '') + `</div>`
+      : p.page ? `<a href="${esc(U(p.page))}" target="_blank"><img class="pg" loading="lazy" src="${esc(U(p.page))}" alt="the puzzle's page"></a>` : mini(p.grid);
+}
+function wirePics(rows) {
+  rows.forEach(p => { const row = document.getElementById(p.pid); if (row && p.maps.length) drawOverlay(row.querySelector('.maps svg'), p.pid, 0, 2); });
   document.querySelectorAll('.maps > a').forEach(a => a.onclick = e => {
     if (e.ctrlKey || e.metaKey || e.shiftKey) return;  // a new tab, as asked
     e.preventDefault();
@@ -697,6 +770,56 @@ function draw() {
     e.preventDefault();
     showLeaf(l.closest('.row'), +l.dataset.i);
   });
+}
+// ---- a snapshot (the review site): the queues blitz ship recorded, their counts adding up to the batch ----
+function drawQueues() {
+  const rec = recorded(), n = q => D.puzzles.filter(p => queueOf(p) === q).length, none = n('');
+  const rows = shown(), walk = WALKED.includes(filter) ? rows : [];
+  $('#bar').innerHTML = rec ? QORDER.map(q => `<span style="width:${100 * n(q) / D.puzzles.length}%;background:${QUEUE[q][2]}${q === 'shipped' ? ';opacity:.45' : ''}" title="${QUEUE[q][0]}: ${n(q)}"></span>`).join('') : '';
+  const chip = (f, label, count, title = '') => `<button class="chip ${filter === f ? 'on' : ''}" data-f="${f}" title="${esc(title)}">${label} <b>${count}</b></button>`;
+  const first = walk[0] && filter === 'question' ? ((shipOf(walk[0]).asks || [])[0] || {}).row : '';
+  $('#chips').innerHTML = (rec ? QORDER.map(q => chip(q, QUEUE[q][0], n(q), QUEUE[q][3])).join('')
+      + (none ? chip('none', 'Not recorded', none, "the ship record doesn't list them") : '') : `<span class="meta">Queues: <b>not recorded</b></span>`)
+    + chip('all', 'All', D.puzzles.length, rec ? 'the queues add up to this' : '')
+    + (walk.length ? `<a class="walk go" href="${proofUrl(walk[0].pid, first, walk)}"${TAB}>${filter === 'spot' ? `Spot-check these ${walk.length} →` : filter === 'question' ? `Start with these ${walk.length} →` : `Start proofreading these ${walk.length} →`}</a>` : '');
+  // within a queue: the shared questions (largest group first), the stages broken puzzles point to, the spot-check sample
+  const subs = (label, keys, name, of) => `<span class="meta">${label}</span>` + keys.map(k => `<button class="chip ${sub === k ? 'on' : ''}" data-s="${esc(k)}">${esc(name(k))} <b>${D.puzzles.filter(p => queueOf(p) === filter && of(p) === k).length}</b></button>`).join('');
+  const uniq = of => [...new Set(D.puzzles.filter(p => queueOf(p) === filter).map(of))];
+  const groups = [...((SHIP || {}).groups || []).map(g => g.key).filter(g => uniq(groupOf).includes(g)), ...(uniq(groupOf).includes('own') ? ['own'] : [])];
+  const count = k => D.puzzles.filter(p => queueOf(p) === 'broken' && stageOf(p) === k).length;
+  const sc = D.puzzles.filter(p => (shipOf(p) || {}).spot_check).length;
+  $('#causechips').className = 'chips subchips';
+  $('#causechips').innerHTML = !rec ? '' : filter === 'question' && groups.length ? subs('Shared questions first:', groups, groupName, groupOf)
+    : filter === 'broken' ? subs('Points to:', uniq(stageOf).sort((a, b) => count(b) - count(a)), k => STAGENAME[k] || k, stageOf)
+    : filter === 'shipped' || filter === 'spot' ? `<span class="meta">For the maintainer:</span>` + chip('spot', 'Spot-check', sc, `a fixed sample, about one in ${(SHIP.spot || {}).one_in || 10} of the ${(SHIP.spot || {}).of || 'shipped puzzles'}, chosen by ${(SHIP.spot || {}).by || 'the puzzle id'}`) : '';
+  $('#shipchips').innerHTML = rec ? `<span class="meta recnote">${D.puzzles.filter(p => (shipOf(p) || {}).reviewed).length} of ${D.puzzles.length} reviewed by a person (an AI's review alone never counts as that) · as blitz ship recorded it on ${esc((SHIP.at || '').slice(0, 10))}: `
+    + `one person's Ready and no Not ready ships; the maintainer's decision overrides${SHIP.rule.ai_ready !== 'off' ? `; the AI reviewer's Ready counts${SHIP.rule.ai_ready === 'both' ? ' with a passing ship check' : ''}` : ''}. Answers given since then show on the cards, and move a puzzle when the record is made again.</span>` : '';
+  document.querySelectorAll('[data-f]').forEach(b => b.onclick = e => { e.preventDefault(); filter = b.dataset.f; sub = ''; setUrl(); draw(); });
+  document.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { sub = sub === b.dataset.s ? '' : b.dataset.s; setUrl(); draw(); });
+  let lastG = null;
+  $('#list').innerHTML = rows.map((p, i) => {
+    const x = shipOf(p), q = queueOf(p), k = QUEUE[q] || ['Queue not recorded', 'p-none'];
+    const canOpen = !closed(p);  // on the site, a puzzle the pipeline left needing work or set aside has no open proof page
+    const done = WALKED.includes(filter) && checked(p) === 2;
+    let head = done && (!i || checked(rows[i - 1]) !== 2) ? `<div class="checked">Answered by you</div>` : '';
+    if (filter === 'question' && !sub && !done && groupOf(p) !== lastG) { lastG = groupOf(p); head += `<h2>${esc(groupName(lastG).replace(/^./, c => c.toUpperCase()))} <span class="meta">${D.puzzles.filter(y => queueOf(y) === 'question' && groupOf(y) === lastG).length} puzzles</span></h2>`; }
+    const rs = p.reasons.filter(r => r.code !== 'verdict' && r.class === 'defect' && r.code !== 'not-a-crossword' && r.detail && r.detail !== 'from the verdict');
+    const doubts = q === 'unchecked' && rs.length ? `<div class="doubts">To check on the proof page:</div><ul class="why">${rs.map(r => `<li class="g"><a href="${proofUrl(p.pid, r.row, rows)}"${TAB} title="${esc(r.code)}">${esc(r.detail.replace(/^\d+: /, ''))}</a></li>`).join('')}</ul>` : '';
+    const ask = q === 'question' ? ((x.asks || [])[0] || {}).row || '' : '';
+    const side = q === 'question' && canOpen ? `<a class="open go" href="${proofUrl(p.pid, ask, rows)}"${TAB}>Answer it →</a>`
+      : q === 'unchecked' && canOpen ? `<a class="open go" href="${proofUrl(p.pid, '', rows)}"${TAB}>Proofread →</a>`
+      : x && x.spot_check && canOpen ? `<a class="open${filter === 'spot' ? ' go' : ' plain'}" href="${proofUrl(p.pid, '', filter === 'spot' ? rows : [p])}"${TAB}>Spot-check →</a>`
+      : canOpen && q !== 'broken' && q !== 'not-a-crossword' ? `<a class="plain" href="${proofUrl(p.pid, '', [p])}"${TAB}>its proof page</a>` : '';
+    return `${head}<div class="row withpage" id="${esc(p.pid)}">${picHtml(p)}
+      <div>${p.feature ? `<div class="feat">${esc(p.feature)}</div>` : ''}<div class="t">${p.title ? esc(p.title) : '<span class="none">no title found</span>'}</div>
+        <div class="meta">${esc(p.date)} · ${p.grid.length}×${(p.grid[0] || '').length}${p.byline ? ' · ' + esc(p.byline) : ''}${p.cryptic ? ' · cryptic' : ''}${rec ? '' : ' · triage: ' + esc(p.choice === 'drop' ? 'not a crossword' : p.triage || 'not recorded')}</div>
+        ${q === 'question' && (x.asks || []).length ? asksHtmlQ(p, x, rows) : ''}${q === 'broken' ? brokenHtmlQ(x) : ''}${q === 'set-aside' ? asideHtml(p) : ''}
+        ${rec ? standsHtmlQ(p, x, q) : `<div class="shipline none"><b>Where it stands: not recorded</b></div>`}${doubts}</div>
+      <div class="side"><span class="pill ${k[1]}" title="${esc(k[3] || '')}">${k[0]}</span>${x && x.spot_check ? '<span class="pill p-spot" title="in the maintainer\'s spot-check sample">Spot-check</span>' : ''}
+        <span class="state">${tally(p) || (WALKED.includes(q) && started(p.pid) ? '<b class="started">you started this</b>' : '')}</span>${side}</div></div>`;
+  }).join('') || `<p class="meta">None.</p>`;
+  wirePics(rows);
+  if (location.hash && !draw.jumped) { draw.jumped = true; const el = document.getElementById(decodeURIComponent(location.hash.slice(1))); if (el) setTimeout(() => el.scrollIntoView({block: 'center'}), 300); }
 }
 
 // ---- batch tools: the agent's pass, spend, the Notes rule, the import ----

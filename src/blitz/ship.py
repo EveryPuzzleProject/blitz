@@ -156,6 +156,135 @@ def standing(batch: dict, proofs: list[dict], *, check_ok: bool = False, codes: 
     return res
 
 
+# ---- the queues: what the batch asks of people ---------------------------------------------
+
+QUEUES = ("question", "unchecked", "broken", "shippable", "shipped", "set-aside", "not-a-crossword")
+# a held puzzle's queue, by its reason; every reason not named here is the pipeline's (broken)
+QUEUE_OF = {"not-ready": "question", "owner-hold": "question", "edits-differ": "question",
+            "no-ready": "unchecked", "proof-stale": "unchecked"}
+# the stage a broken puzzle's reason points to, where triage recorded none (triage's blocking names its own)
+STAGE_OF = {"packet-stale": "proof packet", "no-packet": "proof packet", "edits-unapplied": "import", "xd-exists": "import",
+            "clue-typed": "text step"}
+# the ship check's findings that make a puzzle incomplete, and the stage each points to
+INCOMPLETE_STAGE = {"grid-unsolved": "key reading", "clue-empty": "parts", "clue-missing": "assembly", "clue-extra": "assembly",
+                    "second-set-missing": "assembly"}
+# a question about a header belongs to a group shared across puzzles (by the header it is about); one
+# about a clue, a square or a printed line is that puzzle's own
+GROUPS = {"title": "the title", "byline": "the byline", "notes": "the notes"}
+SPOT_ONE_IN = 10
+
+
+def group_of(row: str) -> str:
+    """The shared-question group of a proof-page row: the header field it is about (ev:title and
+    meta:title: title; author as byline; note as notes), "" for a clue, a square or a printed line."""
+    m = re.fullmatch(r"(?:ev|meta):(\w+)", row or "")
+    field = m[1] if m else "notes" if row == "notes" else ""
+    return {"author": "byline", "note": "notes"}.get(field, field)
+
+
+def _ask(text: str) -> dict:
+    """A reviewer's comment as a question: its text without the reviewer's own preamble, and what it suggests."""
+    text = re.sub(r"^Flag for the maintainer:\s*", "", (text or "").strip())
+    q, _, suggest = text.partition(" Suggest: ")
+    return {"text": q.strip(), **({"suggest": suggest.strip()} if suggest.strip() else {})}
+
+
+def asks_of(reason: str, why: str, batch: dict, proofs: list[dict], rule: Rule) -> list[dict]:
+    """The questions a held puzzle waits on, as recorded: each Not ready's comments (the row on the
+    proof page each is about: ?k=<row>), its note where it left no comments, the owner's Hold on the
+    batch page, or the edits two reviewers made two ways. [{who, kind, at, row, text, suggest, group}]."""
+    out = []
+    if reason == "edits-differ":
+        keys = [k.strip() for k in why.partition(": ")[2].split(",") if k.strip()]
+        return [{"who": "the import", "kind": "import", "at": "", "row": keys[0] if keys else "", "group": "",
+                 "text": "Two reviewers changed the same thing two ways (" + ", ".join(keys) + "): which one stands?"}]
+    for r in sorted(proofs, key=lambda r: r.get("at", "")):
+        if r.get("answer") != "notready" or _name(r) in rule.ignore:
+            continue
+        kind = kind_of(r, rule)
+        if reason == "owner-hold" and kind != "owner":
+            continue  # the owner's hold is the one that stands
+        base = {"who": r.get("by", ""), "kind": kind, "at": r.get("at", "")[:10]}
+        comments = [c for c in ((r.get("proof") or {}).get("review") or {}).get("comments") or [] if (c.get("text") or "").strip()]
+        for c in comments:
+            row = re.sub(r"^grid:(r\d+c\d+)$", r"cell:\1", c.get("key") or "")
+            out.append({**base, "row": row, "group": group_of(row), **_ask(c["text"])})
+        if not comments:
+            out.append({**base, "row": "", "group": "", "text": (r.get("note") or "").strip() or "said Not ready, with no note"})
+    if reason == "owner-hold" and not out:
+        out.append({"who": batch.get("by", ""), "kind": "owner", "at": batch.get("at", "")[:10], "row": "", "group": "",
+                    "text": (batch.get("note") or "").strip() or "held on the batch page, with no note"})
+    return out
+
+
+def broken_of(row: dict, blocking: list, incomplete: list) -> list[dict]:
+    """What is broken in a puzzle the pipeline holds, each with the stage it points to: triage's blocking
+    parts (their restart stage), the ship check's incompleteness, or the import's own reason.
+    [{what, stage, code, detail}]; stage "" is not recorded."""
+    out, seen = [], set()
+    if row["reason"] == "needs-work":
+        for b in blocking or []:
+            if isinstance(b, dict) and (b.get("restart"), b.get("part")) not in seen:
+                seen.add((b.get("restart"), b.get("part")))
+                detail = "" if b.get("detail") == "from the verdict" else (b.get("detail") or "")[:200]
+                out.append({"what": b.get("part") or b.get("code") or "", "stage": b.get("restart") or "", "code": b.get("code") or "", "detail": detail})
+    elif row["reason"] == "incomplete":
+        stages = [INCOMPLETE_STAGE[c] for c in row["check"]["findings"] if c in INCOMPLETE_STAGE]
+        out = [{"what": str(x), "stage": stages[i] if len(stages) == len(incomplete) else (stages[0] if len(set(stages)) == 1 else ""),
+                "code": "incomplete", "detail": ""} for i, x in enumerate(incomplete or [])]
+    return out or [{"what": row["why"], "stage": STAGE_OF.get(row["reason"], ""), "code": row["reason"], "detail": ""}]
+
+
+def spot(pid: str) -> bool:
+    """Whether a shipped puzzle is in the maintainer's spot-check sample: about one in SPOT_ONE_IN, fixed by
+    the puzzle's id alone, so a puzzle is in the sample or out of it for good."""
+    return int(hashlib.sha1(pid.encode("utf-8")).hexdigest()[:8], 16) % SPOT_ONE_IN == 0
+
+
+def queues(rows: list[dict]) -> list[dict]:
+    """Every row's queue and its place in it, set on the rows: what the batch page asks of people.
+
+    queue: shipped, shippable, question (held on a question a person can answer on the proof page),
+      unchecked (nobody's Ready counts yet: a whole proofread), broken (the pipeline's: for agents and the
+      maintainer, with the stage it points to), set-aside, not-a-crossword. One queue each.
+    group: the largest shared-question group among a question puzzle's asks ("" when all are its own).
+    order: its place in the batch's walk: questions first (shared groups, largest first; in a group the
+      puzzles with nothing but shared questions, then fewest questions), then the rest by queue and id.
+    reviewed: a person (the owner or a helper) has said Ready or Not ready: never an AI alone.
+    spot_check: shipped on someone else's word than the owner's, and in the fixed one-in-ten sample.
+    Returns the groups, largest first: [{key, label, puzzles, asks}]."""
+    for r in rows:
+        r["queue"] = (r["status"] if r["status"] in ("shipped", "shippable") else r["reason"] if r["status"] == "out"
+                      else QUEUE_OF.get(r["reason"], "broken"))
+        r["reviewed"] = any(s["kind"] in ("owner", "helper") for s in r.get("said") or [])
+        r["spot_check"] = r["queue"] == "shipped" and r.get("rule") != "owner" and spot(r["pid"])
+        if r["queue"] != "question":
+            r["asks"], r["also"] = [], []
+        if r["queue"] != "broken":
+            r["broken"] = []
+        elif not r.get("broken"):
+            r["broken"] = [{"what": r["why"], "stage": STAGE_OF.get(r["reason"], ""), "code": r["reason"], "detail": ""}]
+    size = {}
+    for r in rows:
+        for g in {a["group"] for a in r["asks"] if a["group"]}:
+            size[g] = size.get(g, 0) + 1
+    rank = sorted(size, key=lambda g: (-size[g], g))
+    for r in rows:
+        mine = [g for g in rank if any(a["group"] == g for a in r["asks"])]
+        r["group"] = mine[0] if mine else ""
+
+    def key(r):
+        q = QUEUES.index(r["queue"])
+        if r["queue"] != "question":
+            return (q, 0, 0, 0, r["pid"])
+        own = sum(not a["group"] for a in r["asks"])
+        return (q, rank.index(r["group"]) if r["group"] else len(rank), bool(own), len(r["asks"]), r["pid"])
+    for i, r in enumerate(sorted(rows, key=key)):
+        r["order"] = i
+    return [{"key": g, "label": GROUPS.get(g, g), "puzzles": sum(r["group"] == g for r in rows),
+             "asks": size[g]} for g in rank]
+
+
 # ---- reading the milestones ----------------------------------------------------------------
 
 def _load(path: Path, default=None):
@@ -377,7 +506,7 @@ def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict |
         if drop.get("answer") == "not-a-crossword" or aside.get("answer") == "set-aside":
             kind = "not-a-crossword" if drop.get("answer") else "set-aside"
             rec = drop if drop.get("answer") else aside
-            row.update(status="out", reason=kind, why=f"{kind.replace('-', ' ')}: {rec.get('note', '')} ({rec.get('by', '')})", said=[], rule="")
+            row.update(status="out", reason=kind, why=f"{kind.replace('-', ' ')}: {rec.get('note', '')} ({rec.get('by', '')})", said=[], rule="", asks=[], broken=[])
             continue
         review = pk["review"]
         current = tuple(x for x in (review.get("xd_fp"), *(review.get("xd_fp_same") or [])) if x)
@@ -386,13 +515,25 @@ def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict |
         # the smallest ai_ready setting under which the rule passes it: "" when it never does
         row["ships_with"] = next((opt for opt in AI_READY if standing(
             latest.get(f"batch:{pid}") or {}, list((proofs.get(pid) or {}).values()), rule=replace(rule, ai_ready=opt), **args)["status"] == "ship"), "")
-        row.update(status="held", reason=st["reason"], why=st["why"], rule=st["rule"], said=st["said"])
+        row.update(status="held", reason=st["reason"], why=st["why"], rule=st["rule"], said=st["said"], asks=[], broken=[])
         if st["status"] != "ship":
             if st["reason"] == "no-ready" and t.get("decision") != "ready":
                 row.update(reason="needs-work", why="needs work: " + ("; ".join(
                     sorted({b.get("code") or b.get("part") or "" for b in t.get("blocking") or [] if isinstance(b, dict)} - {""})) or "triage's defects") + "; " + st["why"])
+            if QUEUE_OF.get(row["reason"]) == "question":
+                row["asks"] = asks_of(row["reason"], row["why"], latest.get(f"batch:{pid}") or {}, list((proofs.get(pid) or {}).values()), rule)
+                # what an answer won't mend: said beside the question, so nobody is surprised when it still doesn't ship
+                row["also"] = [str(x) for x in ship.get("incomplete") or []]
+            elif row["reason"] not in QUEUE_OF:
+                row["broken"] = broken_of(row, t.get("blocking"), ship.get("incomplete"))
             continue
-        hold = lambda reason, why: row.update(reason=reason, why=why)
+
+        def hold(reason, why, row=row, t=t, ship=ship):
+            row.update(reason=reason, why=why)
+            if reason == "edits-differ":
+                row["asks"] = asks_of(reason, why, {}, [], rule)
+            else:
+                row["broken"] = broken_of(row, t.get("blocking"), ship.get("incomplete"))
         if not pk["xd"]:
             hold("no-packet", "no proof packet for it in this run")
             continue
@@ -436,15 +577,20 @@ def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict |
         p = prov.get(row["pid"])
         if row["status"] == "held" and p and (repo / "xd" / f"{p['xdid']}.xd").exists():
             row.update(xdid=p["xdid"], why=row["why"] + f" (already in xd/ as {p['xdid']})")
-    return {"pub": pub or re.match(r"[a-z]+", repo.name)[0], "batch": batch or run, "run": run, "packets": rel, "rule": {"ai_ready": rule.ai_ready, "hold_codes": list(rule.hold_codes),
+    groups = queues(rows)
+    return {"groups": groups, "pub": pub or re.match(r"[a-z]+", repo.name)[0], "batch": batch or run, "run": run, "packets": rel, "rule": {"ai_ready": rule.ai_ready, "hold_codes": list(rule.hold_codes),
             "ignore": list(rule.ignore), "owner": list(rule.owner)}, "rows": rows, "passing": passing, "pins": [p for p in pins if p["xdid"] in {x["xdid"] for x in passing.values()}],
             "site": new_site, "packs": packs}
 
 
 def counts(rows: list[dict]) -> dict:
-    out = {"puzzles": len(rows), "shipped": 0, "shippable": 0, "held": 0, "out": 0, "held_by": {}, "ships_with": {}}
+    out = {"puzzles": len(rows), "shipped": 0, "shippable": 0, "held": 0, "out": 0, "held_by": {}, "ships_with": {},
+           "queues": {q: 0 for q in QUEUES}, "reviewed": 0, "spot_check": 0}
     for r in rows:
         out[r["status"]] += 1
+        out["queues"][r["queue"]] += 1
+        out["reviewed"] += bool(r.get("reviewed"))
+        out["spot_check"] += bool(r.get("spot_check"))
         if r["status"] == "held":
             out["held_by"][r["reason"]] = out["held_by"].get(r["reason"], 0) + 1
         if r["status"] != "out" and r.get("ships_with"):
@@ -509,6 +655,7 @@ def write(repo: Path, p: dict, today: str = "") -> dict:
             if new:
                 fh.write("xdid\tidentifier\tleaf\tsize\tnth\n")
             fh.writelines("\t".join(r[k] for k in ("xdid", "identifier", "leaf", "size", "nth")) + "\n" for r in pins)
+    p["groups"] = queues(p["rows"])  # what was just written is shipped now
     write_exports(repo, p["pub"])
     write_record(repo, p)
     return {"written": written, "ledger": len(p["site"])}
@@ -556,12 +703,28 @@ def record(p: dict, public: bool = True) -> dict:
                 text = text.replace(s["who"], alias(s))
         return text
 
-    rows = [{**{k: r.get(k, "") for k in ("pid", "xdid", "title", "date", "status", "reason", "rule", "ships_with")},
-             "why": why(r), "said": said(r), "check": r["check"]} for r in p["rows"]]
+    def asks(row):
+        whose = {s["who"]: alias(s) for s in row.get("said") or [] if public and site(s)}
+        out = []
+        for a in row.get("asks") or []:
+            a = {**a, "text": why({**row, "why": a["text"]})}
+            if a["who"] in whose:
+                a = {**a, "who": whose[a["who"]]}
+            out.append(a)
+        return out
+
+    rows = [{**{k: r.get(k, "") for k in ("pid", "xdid", "title", "date", "status", "reason", "rule", "ships_with", "queue", "group", "order")},
+             "reviewed": bool(r.get("reviewed")), "spot_check": bool(r.get("spot_check")),
+             "why": why(r), "asks": asks(r), "also": r.get("also") or [], "broken": r.get("broken") or [],
+             "said": said(r), "check": r["check"]} for r in p["rows"]]
     return {"_about": "blitz ship: which puzzles of the batch are shipped (in the publication repo's xd/), shippable (pass the "
-                      "ship rule, not written yet) or held, with the reason. Format: blitz design/ship.md.",
+                      "ship rule, not written yet) or held, with the reason, and the queue each is in: what the batch page asks "
+                      "of people. Format: blitz design/ship.md.",
             "batch": p["batch"], "run": p["run"], "packets": p["packets"], "rule": p["rule"],
-            "at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "counts": counts(p["rows"]), "puzzles": rows}
+            "at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "counts": counts(p["rows"]),
+            "groups": p["groups"], "spot": {"one_in": SPOT_ONE_IN, "of": "puzzles shipped on someone else's word than the owner's",
+                                            "by": "sha1 of the puzzle's id"},
+            "puzzles": rows}
 
 
 def write_record(repo: Path, p: dict) -> Path:
