@@ -9,6 +9,7 @@ uv run blitz ship games --proof ../xword-ocr/harvests/games-7779/proof/run15-res
 uv run blitz ship games --proof ... --batch games-1977-79 --write                                                     # write it
 uv run blitz ship games --proof ... --batch games-1977-79 --publish                                                   # ship.json to the site
 uv run blitz ship-export games --dest ../blitz-work/gxd-export-games-1977-79 --pages                                   # the gxd export, as files
+uv run blitz ship collegian --proof <run's proof packets> --batch collegian-1976-81 --record                          # status only: the record, nothing shipped
 ```
 
 ## What it reads
@@ -79,18 +80,97 @@ triage's disposition isn't ready), and each hold code.
   `gxd_mr` and `exported` are filled by hand after a merge and kept.
 - `pipeline/ship/<batch>.json`, the batch's ship record:
   `{batch, run, packets, rule, at, counts: {puzzles, shipped, shippable, held, out, held_by,
-  ships_with}, puzzles: [{pid, xdid, title, date, status, reason, rule, ships_with, why, said,
-  check}]}`. `status` is shipped (in `xd/` as it stands), shippable (passes, not written),
-  held, or out (set aside, not a crossword). `ships_with` is the smallest `ai_ready` setting
-  under which the rule passes the puzzle. Helpers' names are left out.
+  ships_with, queues, reviewed, spot_check}, groups, spot, puzzles: [{pid, xdid, title, date,
+  status, reason, rule, ships_with, why, said, check, queue, group, order, reviewed, spot_check,
+  asks, also, broken}]}`. `status` is shipped (in `xd/` as it stands), shippable (passes, not
+  written), held, or out (set aside, not a crossword). `ships_with` is the smallest `ai_ready`
+  setting under which the rule passes the puzzle. Helpers' names are left out. The queue fields
+  are the next section.
+
+A dry run writes none of this. Three options write the record alone and ship nothing (status
+only, for a batch that isn't shipping yet): `--record` (the publication repo's
+`pipeline/ship/<batch>.json`), `--snapshot <folder>` (a `ship.json` there) and `--publish` (the
+site's copy). Without `--write` a passing puzzle shows as ready to ship, never as shipped.
+
+## The queues: what the batch asks of people
+
+Every puzzle of the batch is in exactly one queue, and the record says which. This lives in the
+ship record, not in the batch snapshot, because it is the ship rule's answer: the snapshot is
+the watch's picture of the pipeline (triage's disposition, the boxes, the thumbnails), and what a
+batch still needs from a person depends on the decisions in the ledger and on the site, the
+rule's options and the import's own holds, which only `blitz ship` puts together. The batch page
+draws these fields and works none of them out.
+
+| `queue` | from | who it is for |
+|---|---|---|
+| `question` | held as `not-ready`, `owner-hold` or `edits-differ` | a person: answer on the proof page, and it can ship. The page's default list and its walk. |
+| `unchecked` | held as `no-ready` or `proof-stale` | a person: nobody's Ready counts for it yet, so it wants a whole proofread. No question to lead with. |
+| `broken` | every other hold: `needs-work`, `incomplete`, `edits-unapplied`, `packet-stale`, `no-packet`, `xd-exists`, a hold code | agents (as kinds of failure) and the maintainer (a diagnosis of the stage). Shown with its reason; no proofreading ask. |
+| `shippable` | passes, not written | nobody: `--write` ships it |
+| `shipped` | in `xd/` | nobody; a sample goes to the maintainer (`spot_check`) |
+| `set-aside`, `not-a-crossword` | the ledger's `setaside:` / `drop:` | nobody |
+
+Per puzzle:
+
+- `asks` (a `question` puzzle): `[{who, kind, at, row, text, suggest, group}]`, one per comment of
+  each Not ready that stands (a Not ready with no comments gives one ask with its note). `who` is
+  the reviewer as the ledger names them (a helper: "a helper"), `kind` owner / helper / ai /
+  import, `row` the proof page's key for what the question is about, so the link is
+  `?p=<pid>&k=<row>` (`ev:title`, `clue:A12`, `cell:r3c4`, `line:B2`, `grid`; "" for the puzzle as
+  a whole). `text` is the comment without the reviewer's "Flag for the maintainer:", `suggest`
+  what follows its "Suggest:".
+- `group` on an ask: the shared question it belongs to, by the header it is about (`ev:title` and
+  `meta:title` are `title`; author is `byline`; note is `notes`); "" for a clue, a square or a
+  printed line, which is that puzzle's own question. `group` on the puzzle: the largest group
+  among its asks. The record's `groups` lists them largest first: `[{key, label, puzzles, asks}]`
+  (`puzzles` counts by the puzzle's own `group`, so the groups and the ungrouped add up to the
+  queue; `asks` counts every puzzle with a question in the group).
+- `also` (a `question` puzzle): what the ship check found incomplete. An answer doesn't mend it,
+  so the card says so beside the question.
+- `broken` (a `broken` puzzle): `[{what, stage, code, detail}]`. For `needs-work` these are
+  triage's blocking parts and the stage each restarts from. For `incomplete`, the ship check's
+  lines, with the stage its finding points to (`grid-unsolved`: key reading; `clue-empty`: parts;
+  `clue-missing`, `clue-extra`, `second-set-missing`: assembly). For the import's own holds:
+  `packet-stale` and `no-packet` point to the proof packet, `edits-unapplied` and `xd-exists` to
+  the import, `clue-typed` to the text step. A stage that nothing recorded is "".
+- `order`: the puzzle's place in the batch's walk, so the page never sorts by its own idea.
+  Questions first: the shared groups, largest first; inside a group the puzzles with nothing but
+  shared questions, then the fewest questions; then the puzzles with only their own questions.
+  After them the other queues in the table's order, by id.
+- `reviewed`: a person (the owner or a helper) has said Ready or Not ready on it. An AI's review
+  or the ship check never sets it. This is what "Reviewed" means on the page: a fact about a
+  puzzle, shown on its card and as one count, not a queue.
+- `spot_check`: in the maintainer's spot-check sample. The sample is fixed by the id alone
+  (`sha1(pid) mod 10 == 0`, about one in ten), taken from the puzzles shipped on someone else's
+  word than the owner's (`rule` is not `owner`). A puzzle is in it or out of it for good; the
+  record's `spot` says how it was drawn.
+
+`counts.queues` has every queue's count; they add up to `counts.puzzles`.
 
 ## Where a person sees it
 
 The batch page (`/review/batch/?b=<batch>`) reads `ship.json` beside the batch's `batch.json`
-(`blitz ship --publish` puts it there; `--snapshot <folder>` for a local copy). It shows a
-Shipping row (Shipped, Ready to ship, Held, and the holds by reason, each a filter) and a line on
-every card: shipped as which id, or held and why. The page draws the record; it never applies
-the rule.
+(`blitz ship --publish` puts it there; `--snapshot <folder>` for a local copy). The page is the
+record's queues:
+
+- One chip per queue, with counts that add up to the batch. It opens on **Held on a question**,
+  in the record's order, a heading per shared question; the main button walks that list on the
+  proof page, opening at the first question's row. Each card leads with its questions: who asked,
+  the row (a link to `?p=<pid>&k=<row>`), the text, what was suggested.
+- **Not checked yet** has a Proofread button and its own walk. **Broken in the pipeline** shows
+  what is broken and the stage it points to (a filter per stage), and asks nobody to proofread.
+- **Shipped** cards say the id and why it shipped. **Spot-check** is the recorded sample, for the
+  maintainer, with its own walk.
+- A puzzle the snapshot lists and the record doesn't (one triage dropped before the record's
+  list was made) shows under Not a crossword when the snapshot recorded the drop, and says the
+  snapshot is its source; any other shows as Not recorded.
+- A batch with no record, or one from before the queues, says "not recorded": every puzzle is
+  listed with triage's word, and no walk is offered.
+
+Answers given on the site after the record was made show on the cards (the live tally); a puzzle
+changes queue only when `blitz ship` makes the record again. The page draws the record; it never
+applies the rule. To work on the page, `tools/review_dev.py --data <folder>` serves it over a
+copy of the snapshots and reloads on every edit.
 
 ## Status and milestones on the EPP site
 

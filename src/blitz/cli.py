@@ -31,6 +31,8 @@ Shipping a batch (design/ship.md):
     blitz ship <pub> --proof <run's proof packets> [--batch NAME] [--write] [--ai-ready off|both|either]
                                          the batch's reviewed puzzles into ../<pub>/xd/ under the ship rule: which
                                          are shipped, shippable and held, and why (dry run without --write)
+                                         --record / --snapshot DIR / --publish: the batch's ship record alone (every
+                                         puzzle's queue: what the batch page asks of people), shipping nothing
     blitz ship-export <pub> --dest DIR   the gxd export of what's shipped, as files (nothing is sent anywhere)
 
 A <puzzle> is its id (judge1931-03-14), looked up in ../blitz-work, or a path
@@ -393,6 +395,13 @@ def cmd_ship(a) -> None:
     if p["site"]:
         print(f"{len(p['site'])} decision(s) from the review site {'added to' if a.write else 'not yet in'} the ledger")
     print(f"shipped {c['shipped']}, shippable {c['shippable']}, held {c['held']}, set aside or not a crossword {c['out']}")
+    q = c["queues"]
+    print(f"what it asks of people: held on a question {q['question']}, not checked yet {q['unchecked']}, broken in the pipeline "
+          f"{q['broken']}, ready to ship {q['shippable']}, shipped {q['shipped']} (spot-check {c['spot_check']}), set aside "
+          f"{q['set-aside']}, not a crossword {q['not-a-crossword']}; a person has reviewed {c['reviewed']}")
+    own = sum(1 for r in rec["puzzles"] if r["queue"] == "question" and not r["group"])
+    if q["question"]:
+        print("  questions: " + "; ".join([f"{g['label']} {g['puzzles']}" for g in rec["groups"] if g["puzzles"]] + [f"one puzzle's own {own}"]))
     w = c["ships_with"]
     print(f"the rule passes {w.get('off', 0)} as it stands; with --ai-ready both {w.get('off', 0) + w.get('both', 0)}; "
           f"with --ai-ready either {sum(w.values())} (before the import's own holds)")
@@ -408,8 +417,10 @@ def cmd_ship(a) -> None:
     if a.write:
         print(f"wrote {len(res['written'])} xd file(s) to {repo / 'xd'}, {res['ledger']} ledger record(s), provenance.jsonl, "
               f"gxd-exports.tsv and {repo / 'pipeline' / 'ship' / (p['batch'] + '.json')}")
+    elif a.record:
+        print(f"status only: wrote {ship.write_record(repo, p)}; nothing shipped")
     else:
-        print("dry run: --write writes the shippable puzzles and the batch's ship record")
+        print("dry run: --write writes the shippable puzzles and the batch's ship record; --record the record alone")
     for d in a.snapshot or []:
         Path(d).mkdir(parents=True, exist_ok=True)
         (Path(d) / "ship.json").write_text(json.dumps(ship.record(p), ensure_ascii=False, indent=1), encoding="utf-8")
@@ -573,6 +584,8 @@ def main(argv=None) -> None:
     q.add_argument("--ignore", action="append", help="a reviewer whose decisions don't count (repeatable; replaces "
                                                      "ship-rule.json's list)")
     q.add_argument("--write", action="store_true", help="write the xd files, ledger records, provenance and the ship record")
+    q.add_argument("--record", action="store_true", help="status only: write the batch's ship record (pipeline/ship/<batch>.json) "
+                                                         "and ship nothing")
     q.add_argument("--snapshot", action="append", help="also write ship.json into this batch snapshot folder (repeatable)")
     q.add_argument("--publish", action="store_true", help="put ship.json on the review site, beside the batch's batch.json")
     q.add_argument("--json", action="store_true")
