@@ -385,6 +385,8 @@ def test_a_persons_decision_releases_the_hold_and_the_import_applies_it(tmp_path
     assert {r["pid"][-2:]: r["edits"]["applied"] for r in prov} == {"31": ["candidate:D-alt1"], "32": ["candidate:D-alt1"]}
 
 
-def test_candidate_pages_go_up_with_the_packet():
-    from blitz.site import FILES
-    assert {"candidate_page.jpg", "_src/candidate_page.jpg"} <= set(FILES)
+def test_candidate_pages_go_up_with_the_packet(tmp_path):
+    from blitz.site import candidate_pages
+    (tmp_path / "ocr.json").write_text(json.dumps({"scales": {"page.jpg": 0.2, "candidate_page.jpg": 0.2, "candidate_page-2.jpg": 0.2}}))
+    assert sorted(candidate_pages(tmp_path)) == ["_src/candidate_page-2.jpg", "_src/candidate_page.jpg", "candidate_page-2.jpg", "candidate_page.jpg"]
+    assert candidate_pages(tmp_path / "none") == []

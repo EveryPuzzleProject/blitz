@@ -59,6 +59,8 @@ A puzzle the rule passes can still be held by the import, each with its own reas
 | `edits-differ` | two reviewers changed the same thing two ways |
 | `edits-unapplied` | a proof-page edit the import doesn't apply: a line's label or keep (`line:B3`), a header's evidence line (`ev:title`), a fill-in blank, a rebus square, anything in a linked-ends puzzle |
 | `xd-exists` | `xd/` already has another file under its id |
+| `candidate-undecided` | the packet records a candidate clue list and no reviewer who said Ready has decided it (next section but one). A question, not a breakage |
+| `candidate-partial` | a candidate was taken into the puzzle (as the clues, or as a second set) and doesn't cover its slots |
 
 The rule's own reasons: `owner-hold`, `not-ready`, `no-ready`, `needs-work` (no Ready, and
 triage's disposition isn't ready), and each hold code.
@@ -103,7 +105,7 @@ draws these fields and works none of them out.
 
 | `queue` | from | who it is for |
 |---|---|---|
-| `question` | held as `not-ready`, `owner-hold` or `edits-differ` | a person: answer on the proof page, and it can ship. The page's default list and its walk. |
+| `question` | held as `not-ready`, `owner-hold`, `edits-differ` or `candidate-undecided` | a person: answer on the proof page, and it can ship. The page's default list and its walk. |
 | `unchecked` | held as `no-ready` or `proof-stale` | a person: nobody's Ready counts for it yet, so it wants a whole proofread. No question to lead with. |
 | `broken` | every other hold: `needs-work`, `incomplete`, `sent-back`, `edits-unapplied`, `packet-stale`, `no-packet`, `xd-exists`, a hold code | agents (as kinds of failure) and the maintainer (a diagnosis of the stage). Shown with its reason; no proofreading ask. |
 | `shippable` | passes, not written | nobody: `--write` ships it |
@@ -159,6 +161,41 @@ person said and the stage it points to (a part's stage: the clue lists and the g
 and the title assembly; else the kind's: missing or misread is parts, mixed is assembly; "" for
 something else). The owner's later Ready still overrides, as it does any Not ready.
 
+## Candidate clue lists
+
+A clue list that fits the grid and is neither its clues nor a recognised second set is a
+*candidate* (xword-ocr docs/ship-gate.md, "Candidate clue lists"): assembly records it, the proof
+packet carries it (`ocr.json` `candidates`), and it is never in the xd until a person says what it
+is. Before 2026-11-10 it was a block of text in the xd's notes ("Another list that fits the
+grid"), which the ship check flagged and nobody could act on.
+
+On the proof page it is a panel at the top of its direction's clues: what it is and which
+milestone recorded it, how well it fits and why it wasn't taken as a second set, the block it was
+read from cut from its page (opens the page with the block outlined), and its clues one by one,
+each with the crop of the OCR lines it was read from, beside the puzzle's own clue at that number.
+A box the packet doesn't have shows as "not recorded". Four buttons decide it; each is the edit
+`candidate:<id>` in the reviewer's review, so it is saved, imported and credited like any edit
+(the `proofs` table, then `proof:<pid>` in the ledger):
+
+| button | edit value | what the import does |
+|---|---|---|
+| Not this puzzle's: remove it | `remove` | nothing to the xd (the list was never in it); the hold is released |
+| A second clue set for this grid… (asks the set's name in place) | `second:<Key>` | each of its clues becomes the `D1 ^Key:` line under its clue; a note in the xd says so. Held as `candidate-partial` unless the set covers every clue of the puzzle |
+| These are the real clues | `clues` | each of its clues replaces the clue at its number (as the OCR read it); a note says so. Held as `candidate-partial` if it lacks a number |
+| The printed answers, not clues | `answers` | nothing to the xd; recorded as answers. Filling the key from them isn't built |
+
+`ship.apply_candidates` does this before the other edits, so a reviewer's fix to one of the new
+lines (`clue:D1^Easy`) lands on it. The rule itself is unchanged: the puzzle ships when the rule
+passes it *and* every candidate is decided by an edit of a Ready that counts. While one is
+undecided the ship check fails (`candidate-undecided`), so an AI's Ready never ships it.
+
+In the record each such puzzle has `candidates: [{id, dir, clues, slots, reads_as, decision, kind,
+at}]` (`decision` "" while undecided; a person's latest edit otherwise, whoever said it and
+whatever else they said). Its question points at the panel: row `candidate:<id>`, group
+`candidate` ("a candidate clue list"). A reviewer's question about the notes' "another list"
+block (asked before candidates had a place) is pointed at the candidate's row instead; where
+nobody asked, the record asks for assembly ("What is it: ...?").
+
 ## The question on the proof page
 
 The batch page's "Answer it" opens `/review/?p=<pid>&k=<row>`. The proof page reads the puzzle's
@@ -182,7 +219,7 @@ the next puzzle at its own first question.
 The xd's notes: `blitz site-publish` now uploads the packet's `puzzle.xd`, and the proof page shows
 everything the xd carries after its clues, block by block as written, read-only, under "Notes in the
 xd file" (`meta:note` and `notes` land there; comments on the notes are made there). Each block's
-first line is its own heading and names what it is (Another list that fits the grid, Assembly flags,
+first line is its own heading and names what it is (Assembly flags,
 OCR review flags, Text step, Printed with puzzle). This is not the header table's Notes row that the
 2026-10-17 redesign left out: which printed lines go into the gxd export's notes is still the
 run-wide Notes rule. It shows what the xd holds now, so nothing in it is hidden. A packet published

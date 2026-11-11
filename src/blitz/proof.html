@@ -146,6 +146,32 @@ h2 .quick { margin-left: 8px; font-size: 12px; padding: 2px 10px; }
 .setsnote canvas { display: block; height: 80px !important; width: auto !important; border: 1px solid #eee; }
 .setthumb { display: inline-flex; flex-direction: column; align-items: center; gap: 2px; vertical-align: top; margin: 6px 10px 4px 0; padding: 3px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); cursor: zoom-in; font: 12px var(--sans); color: var(--muted); }
 .setthumb:hover { border-color: var(--ink); }
+/* a candidate clue list (assembly's record, ocr.candidates): beside the clues of its direction, never in the xd until decided */
+.cand { margin: 8px 14px 12px; border: 1px solid #c79a1e; border-left-width: 4px; border-radius: 6px; background: #fffaf0; font-size: 13px; }
+.cand.decided { border-color: var(--line); border-left-color: #7a8a99; background: #fafafa; }
+.cand .candh { padding: 8px 12px 4px; }
+.cand .candh b { font-size: 14px; }
+.cand .candfrom { color: var(--muted); margin-top: 2px; }
+.cand .candwhere { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start; padding: 4px 12px; }
+.cand .candthumb { display: inline-flex; flex-direction: column; align-items: center; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); cursor: zoom-in; font: 12px var(--sans); color: var(--muted); }
+.cand .candthumb canvas { display: block; max-height: 190px; max-width: 420px; width: auto; height: auto; }
+.cand .canddecide { padding: 6px 12px 8px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.cand .canddecide button { font: 13px var(--sans); padding: 5px 10px; border: 1px solid var(--line); border-radius: 6px; background: #fff; cursor: pointer; }
+.cand .canddecide button:hover { border-color: var(--ink); }
+.cand .canddecide .said { font-weight: 600; }
+.cand .canddecide input { font: 13px var(--sans); padding: 4px 6px; width: 9em; }
+.cand .candeffect { padding: 0 12px 8px; color: var(--muted); }
+.cand details { border-top: 1px solid #ecdcae; }
+.cand.decided details { border-top-color: var(--line); }
+.cand summary { padding: 6px 12px; cursor: pointer; color: var(--muted); }
+.cand table { border-collapse: collapse; width: 100%; }
+.cand td, .cand th { padding: 4px 8px; border-top: 1px solid #f0e6c8; vertical-align: top; text-align: left; font-weight: normal; }
+.cand th { color: var(--muted); font-size: 12px; }
+.cand td.cl { font-weight: 600; white-space: nowrap; }
+.cand td.own { color: var(--muted); }
+.cand td.own q { quotes: none; color: var(--ink); }
+.cand td canvas.strip { display: block; margin-bottom: 2px; max-width: 100%; }
+.cand .nr { font-size: 12px; color: #8a5a00; border: 1px dashed #d9b866; border-radius: 4px; padding: 1px 6px; display: inline-block; }
 #rail { position: fixed; right: 3px; width: 12px; z-index: 6; border-left: 1px solid var(--line); }
 #rail .tick { position: absolute; left: 1px; width: 10px; height: 4px; border: 0; padding: 0; border-radius: 2px; cursor: pointer; background: #9a958d; }
 #rail .tick.unsure { background: #d08a00; height: 5px; }
@@ -683,7 +709,8 @@ async function load() {
   store.xd = fp;
   // every page a crop is cut from: the clues' and the printed lines' (a title on the grid's page when most clues are on another)
   const names = new Set([MAIN(), ...Object.values(ocr.clues).map(c => c.image), ...(ocr.lines || []).map(l => l.image),
-    ...(ocr.clue_sets || []).map(c => c.image), ...Object.values(rev.supplied || {}).map(c => c.box && c.image)].filter(Boolean));
+    ...(ocr.clue_sets || []).map(c => c.image), ...Object.values(rev.supplied || {}).map(c => c.box && c.image),
+    ...(ocr.candidates || []).flatMap(c => [...(c.parts || []).map(p => p.image), ...Object.values(c.clues || {}).map(x => x.image)])].filter(Boolean));
   images = {};
   await Promise.all([...names].map(n => new Promise((ok, bad) => {
     const im = new Image(); im.onload = () => { images[n] = im; ok(); }; im.onerror = bad; im.src = dir + '_src/' + n;
@@ -889,6 +916,108 @@ function setsNote() {
   return n;
 }
 
+// ---- a candidate clue list ----
+// A list that fits the grid and is neither its clues nor a recognised second set, as assembly recorded it and the
+// proof packet carries it (ocr.candidates: {id, dir, share, numbers_off, why, reads_as, slots, from, parts: [{scan,
+// leaf, image, box, rects}], clues: {D1: {text, flags, image, box}}, line_boxes}). It is not in the xd. The page draws
+// the record: where the list is on its page (the part's box), each of its clues with the OCR lines it was read from
+// (its own box) beside the puzzle's clue at that number, and "not recorded" where the packet has no box. Nothing is
+// matched or placed here. A person decides what it is with a button; the decision is the edit candidate:<id>
+// (remove | answers | clues | second:<Key>) in their review, saved with who and when like any edit, and applied by
+// the import (blitz ship). Until a reviewer who says Ready has decided it, the puzzle is held.
+const CAND_SAYS = {remove: "Not this puzzle's: removed", answers: 'The printed answers, not clues: removed from the clues',
+  clues: 'These are the real clues', second: 'A second clue set for this grid'};
+const candKey = c => 'candidate:' + c.id;
+const candName = c => c.dir === 'A' ? 'Across' : 'Down';
+const candUndecided = () => (ocr.candidates || []).filter(c => !final(candKey(c)));
+function candidatePanel(c) {
+  const key = candKey(c), name = candName(c), v = final(key), kind = v.split(':')[0], setKey = v.split(':')[1] || '';
+  const el = document.createElement('div');
+  el.className = 'cand' + (v ? ' decided' : '');
+  el.id = 'cand-' + c.id;
+  el.dataset.key = key;
+  const labels = Object.keys(c.clues || {}).sort((a, b) => +a.slice(1) - +b.slice(1)), n = labels.length;
+  const built = (rev.built_from || {})['xword-ocr'];
+  const off = c.numbers_off ? `; ${Math.round(c.numbers_off * 100)}% of its clue numbers are numbers this grid has no ${name} slot for` : '';
+  el.innerHTML = `<div class="candh"><b>A possible alternative or second ${esc(name)} clue list</b>
+      ${c.reads_as === 'answers' ? ' <span class="nr" title="Most of its entries begin with a word of the slot\'s length (assembly\'s test)">reads as the printed answers</span>' : ''}
+      <div class="candfrom">Recorded by <b>${esc(c.from || 'not recorded')}</b> (xword-ocr ${esc(built || 'version not recorded')}): by its clue numbers it fills ${Math.round((c.share || 0) * 100)}% of this grid's ${c.slots} ${esc(name)} slots (assembly's fit)${off}.
+      It was not taken as a second clue set because: ${esc(c.why || 'not recorded')}. <b>It is not in the xd</b>; say what it is.</div></div>
+    <div class="candwhere"></div><div class="canddecide"></div><div class="candeffect"></div>
+    <details${v && kind !== 'second' && kind !== 'clues' ? '' : ' open'}><summary>Its ${n} clue${n === 1 ? '' : 's'}, each beside this puzzle's ${esc(name)} clue at the same number
+      (${c.line_boxes ?? 0} of ${n} with the box of the OCR lines it was read from)</summary>
+      <table><tr><th></th><th>the candidate list: the scan, and what the OCR read</th><th>${kind === 'second' ? `becomes the xd's ^${esc(setKey)} line under` : kind === 'clues' ? 'replaces' : "this puzzle's clue at that number"}</th></tr></table></details>`;
+  // where the list is on its page: each part's recorded box, cut from that page; the thumbnail opens the page with the box outlined
+  const wh = el.querySelector('.candwhere');
+  for (const p of c.parts || []) {
+    if (p.box && p.image && images[p.image]) {
+      const t = document.createElement('button');
+      t.className = 'candthumb'; t.title = 'The block this list was read from, as assembly recorded it (click: its page, the block outlined)';
+      const s = scaleOf(p.image), [x0, y0, x1, y1] = p.box.map(q => q * s), cv = document.createElement('canvas');
+      cv.width = Math.round(x1 - x0); cv.height = Math.round(y1 - y0);
+      cv.getContext('2d').drawImage(images[p.image], x0, y0, x1 - x0, y1 - y0, 0, 0, cv.width, cv.height);
+      t.append(cv);
+      t.insertAdjacentHTML('beforeend', `<span>the whole list, on ${esc(pageLabel(p.image))} ⤢</span>`);
+      t.onclick = () => scanViewer(p.image, p.box);
+      wh.append(t, scanLink(p.image, p.box), stageLink(p.image));
+    } else wh.insertAdjacentHTML('beforeend', `<span class="nr">Where it is on the page (leaf ${esc(p.leaf ?? '?')}): not recorded</span>`);
+  }
+  if (!(c.parts || []).length) wh.innerHTML = '<span class="nr">Where it is on the page: not recorded</span>';
+  // clue by clue: the candidate's own crop (its recorded line box) and text, beside the puzzle's clue at that number
+  const tb = el.querySelector('table');
+  for (const k of labels) {
+    const x = c.clues[k], tr = document.createElement('tr'), own = ocr.clues[k];
+    tr.innerHTML = `<td class="cl">${esc(k)}</td><td class="theirs"></td><td class="own">${own ? `<q>${esc(final('clue:' + k)) || '(no text)'}</q>${hasKey() && NUM[k] ? ` <span class="hint">~ ${esc(answerFor(k))}</span>` : ''}` : `<span class="nr">no ${esc(k)} among this puzzle's clues</span>`}</td>`;
+    const td = tr.querySelector('.theirs');
+    if (x.box && x.image && images[x.image]) { const cv = strip(x.box, x.image); cv.title = 'Click: its page, this line outlined'; cv.style.cursor = 'zoom-in'; cv.onclick = () => scanViewer(x.image, x.box); td.append(cv); }
+    else td.insertAdjacentHTML('beforeend', '<span class="nr">line box: not recorded</span> ');
+    td.insertAdjacentHTML('beforeend', `<span>${esc(x.text)}</span>` + (x.flags || []).map(f => ` <b class="m-flag" title="${esc(f)}">${esc(f.split(':')[0])}</b>`).join(''));
+    tb.append(tr);
+  }
+  // the decision: four buttons, or what was said and by whom, with Change
+  const dc = el.querySelector('.canddecide'), ef = el.querySelector('.candeffect');
+  const decide = val => { setEdit(key, val, true); };
+  const buttons = () => {
+    dc.innerHTML = `<span class="hint">What is it?</span>
+      <button data-v="remove" title="A neighbouring puzzle's clues, a quiz's list: nothing of this puzzle's. The xd stays as it is.">Not this puzzle's: remove it</button>
+      <button data-v="second" title="A second set of clues for the same answers (GAMES's Easy clues): each becomes the ^Name line under its clue">A second clue set for this grid…</button>
+      <button data-v="clues" title="This list, not the one linked, is the puzzle's ${esc(name)} clues: it takes their place">These are the real clues</button>
+      <button data-v="answers" title="The answers printed as text (a cryptic's explanations), not clues. Removed from the clues; recorded as answers.">The printed answers, not clues</button>`;
+    dc.querySelectorAll('button').forEach(b => b.onclick = () => b.dataset.v === 'second' ? askName() : decide(b.dataset.v));
+    if (v) { ef.textContent = `It stands as “${CAND_SAYS[kind] || v}” until you choose again.`; dc.insertAdjacentHTML('beforeend', '<button class="keepit">Leave it as it is</button>'); dc.querySelector('.keepit').onclick = () => paint(); }
+  };
+  const askName = () => {
+    dc.innerHTML = `<span>The set's name, as printed (no printed heading names it): </span><input placeholder="e.g. Easy" maxlength="24" value="${esc(setKey)}">
+      <button class="ok">Save: a second clue set</button><button class="no">Cancel</button> <span class="hint">it is the key of its lines in the xd: D1 ^Easy: …</span>`;
+    const inp = dc.querySelector('input');
+    const go = () => {
+      const nm = inp.value.trim();
+      if (!/^[A-Za-z][\w-]*$/.test(nm)) { inp.setCustomValidity('one word, starting with a letter (Easy, Hard, Alt)'); inp.reportValidity(); return; }
+      decide('second:' + nm[0].toUpperCase() + nm.slice(1));
+    };
+    inp.oninput = () => inp.setCustomValidity('');
+    inp.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); go(); } if (e.key === 'Escape') { e.preventDefault(); paint(); } };
+    dc.querySelector('.ok').onclick = go;
+    dc.querySelector('.no').onclick = () => paint();
+    inp.focus();
+  };
+  const paint = () => {
+    if (!v) { buttons(); ef.textContent = 'Until someone who says Ready has decided it, the puzzle is held (the ship record: a candidate list undecided).'; return; }
+    const h = history(key), last = h[h.length - 1], mine = key in cur.edits;
+    dc.innerHTML = `<span class="said" style="color:${esc(last.color || 'inherit')}">✓ ${esc(mine ? 'You' : last.who)} said: ${esc(CAND_SAYS[kind] || v)}${kind === 'second' ? ` (^${esc(setKey)})` : ''}</span>
+      <button class="chg">Change</button>${mine ? '<button class="undo">Take it back</button>' : ''}`;
+    dc.querySelector('.chg').onclick = buttons;
+    const u = dc.querySelector('.undo');
+    if (u) u.onclick = () => { delete cur.edits[key]; closeWhy(key); save(); refresh(key); };
+    ef.textContent = kind === 'remove' ? "It was never in the xd, so the xd stays as it is; the import ships the puzzle without this list once you (or another reviewer who decided it) say Ready."
+      : kind === 'answers' ? "Recorded as the answers printed as text. It stays out of the clues and the xd is unchanged; filling the answer key from it is not built yet."
+      : kind === 'clues' ? `The import puts each of these in place of this puzzle's ${name} clue at its number, as the OCR read it (the text step has not read this list), and says so in the xd's notes. It has ${n} of the ${c.slots} ${name} clues: a number it lacks holds the puzzle as incomplete.`
+      : `The import writes each of these as the "${name[0]}1 ^${setKey}: …" line under its clue, as the OCR read it, and says so in the xd's notes. A second set that doesn't cover every clue of the puzzle, Across and Down, holds it as incomplete.`;
+  };
+  paint();
+  return el;
+}
+
 function render() {
   document.getElementById('title').textContent = `${ocr.title} · ${ID}`;
   document.title = 'Proof ' + ID;
@@ -947,6 +1076,8 @@ function render() {
     const s = sec(d, name + ' clues' + (only ? ` · ${only}` : ''), `the ${name} clues`, 'printed line above, our text below; the label says where the clue sits in our grid');
     const keys = Object.keys(ocr.clues).filter(k => k[0] === d).sort(clueOrder);
     if (ocr.clue_sets && d === 'A') s.append(setsNote());
+    // assembly's candidate lists for this direction: beside its clues, each for a person to decide
+    for (const c of (ocr.candidates || []).filter(c => c.dir === d)) s.append(candidatePanel(c));
     for (const k of keys.filter(showClue)) {
       // Text the text step supplied with no OCR reading of its own (review.json's supplied, the proof packet's
       // record): the row shows the crop the packet recorded as its source, never one matched here; with no
@@ -979,16 +1110,19 @@ function rowTarget(key) {
   if (hk) return document.getElementById('hdr-' + (hk[1] === 'puzzle_number' ? 'number' : hk[1])) || rows.find(r => r.dataset.key === 'meta:' + hk[1]) || null;
   const lk = /^(?:line|keep|label):(B\d+)$/.exec(key);
   if (lk) return document.getElementById(lk[1]) || rows.find(r => r.dataset.key === key) || null;
+  if (key.startsWith('candidate:')) return document.getElementById('cand-' + key.slice(10));  // a candidate clue list's panel
   if (key.startsWith('clue:') && ocr.clues[key.slice(5)] && !showClue(key.slice(5))) return document.querySelector(`section[data-sec=${key[5]}]`);  // a row of the set not shown: goTo shows it
   return rows.find(r => r.dataset.key === key) || null;
 }
 const rowWords = k => !k ? 'the puzzle as a whole' : /^(ev|meta):/.test(k) ? ({note: 'the notes', puzzle_number: 'the number'}[k.split(':')[1]] || 'the ' + k.split(':')[1])
   : k === 'notes' ? 'the notes' : k === 'grid' ? 'the answer key' : /^cell:/.test(k) ? 'square ' + k.slice(5) + ' of the answer key' : /^line:/.test(k) ? 'printed line ' + k.slice(5)
-  : /^clue:/.test(k) ? 'clue ' + k.slice(5).replace(/\^(.*)$/, ' ($1)') : k;
+  : /^clue:/.test(k) ? 'clue ' + k.slice(5).replace(/\^(.*)$/, ' ($1)')
+  : /^candidate:/.test(k) ? `the candidate ${k[10] === 'A' ? 'Across' : 'Down'} clue list` : k;
 function whyNoRow(key) {
   if (key === 'notes' || /^(ev|meta):note$/.test(key)) return xdText == null
     ? "this packet was published without its xd file, so the notes the xd carries can't be shown here. The question is about text you can't see on this page: say so with Not ready, or send it back."
     : 'the xd has no notes.';
+  if (key.startsWith('candidate:')) return "this packet records no such candidate list (a packet made before candidates keeps it in the xd's notes, below).";
   if (key === 'grid' || key.startsWith('cell:')) return 'this packet shows no answer key.';
   return 'this packet has no such row.';
 }
@@ -1064,8 +1198,8 @@ const PART = {
   page: {name: 'whole page', has: () => false},
   blank: {name: 'blank grid', has: k => k.startsWith('grid:') || (k.startsWith('special:') && !hasKey())},
   grid: {name: 'answer key', has: k => k.startsWith('cell:') || (k.startsWith('special:') && hasKey())},
-  A: {name: 'Across clues', plural: true, has: k => k.startsWith('clue:A')},
-  D: {name: 'Down clues', plural: true, has: k => k.startsWith('clue:D')},
+  A: {name: 'Across clues', plural: true, has: k => k.startsWith('clue:A') || k.startsWith('candidate:A')},
+  D: {name: 'Down clues', plural: true, has: k => k.startsWith('clue:D') || k.startsWith('candidate:D')},
 };
 const myEdits = id => Object.keys(cur.edits).filter(PART[id].has).length;
 const myComments = id => cur.comments.filter(c => PART[id].has(c.key)).length;
@@ -1250,9 +1384,19 @@ function readyClicked() {
     for (const id of bad) cur.status[id] = {v: 'ok', was: 'bad', note: cur.status[id].note || ''};
     cur.decision = 'ready'; delete cur.sendback; askDone(); save(); progress();
   };
-  if (!open.length && !bad.length) return ready();
+  const cands = candUndecided();  // a candidate clue list nobody has decided: Ready is allowed, and the puzzle stays held
+  if (!open.length && !bad.length && !cands.length) return ready();
   const name = id => `<b>${esc(nameOf(id))}</b>`, list = xs => xs.map(name).join(xs.length > 2 ? ', ' : ' and ');
   let html = '';
+  if (cands.length) {
+    html += `<p>${cands.length === 1 ? `The candidate <b>${esc(candName(cands[0]))} clue list</b> is` : `${cands.length} candidate clue lists are`} still undecided. You can say Ready, but the puzzle stays held until someone who says Ready has decided ${cands.length === 1 ? 'it' : 'them'}.</p>`;
+    if (!open.length && !bad.length) {
+      box.innerHTML = `<div class="ask">${html}<div class="acts"><button class="plain" data-a="cand">Go to ${cands.length === 1 ? 'it' : 'the first'}</button><button class="good" data-a="yes">Choose Ready anyway</button></div></div>`;
+      box.querySelector('[data-a=yes]').onclick = ready;
+      box.querySelector('[data-a=cand]').onclick = () => { askDone(); goTo(candKey(cands[0])); };
+      return;
+    }
+  }
   if (bad.length) html += `<p>You said there's a problem in the ${bad.map(id => name(id) + (cur.status[id].note ? ` ("${esc(cur.status[id].note)}")` : '')).join(' and ')}. Is the puzzle ready anyway?</p>`;
   const openParts = open.filter(id => PART[id]), openKnown = open.filter(id => !PART[id]);
   const ackText = openKnown.length ? `acknowledge the known issue${openKnown.length > 1 ? 's' : ''} (${openKnown.map(id => esc(nameOf(id))).join(', ')})` : '';
@@ -1645,6 +1789,11 @@ function goTo(key) {
     n?.scrollIntoView({block: 'start'});
     return flash([n]);
   }
+  if (key.startsWith('candidate:')) {  // a candidate clue list's panel, at the top of its direction's clues
+    const el = document.getElementById('cand-' + key.slice(10));
+    el?.scrollIntoView({block: 'start'}); scrollBy(0, -110);
+    return flash([el]);
+  }
   jumpTo(key);
   const hk = /^(?:ev|meta):(\w+)$/.exec(key);
   if (hk) {
@@ -1677,10 +1826,14 @@ function closeLightbox() { document.querySelector('.lightbox')?.remove(); }
 // key's whole page when the packet records it (ocr.answer_page, with the key's outline as assembly matched
 // it). An older packet without it says so rather than guessing at one.
 const PAGE_LABEL = {'page.jpg': "the grid's page", 'clue_page.jpg': 'the clue page', 'continued_page.jpg': 'more clues'};
+// a page only a candidate clue list is on (candidate_page.jpg, candidate_page-2.jpg, ...): named by its leaf, as the packet records it
+const pageLabel = n => PAGE_LABEL[n] || (n.startsWith('candidate_page') ? `a candidate list's page${ocr.stages?.pages?.[n] ? ' (leaf ' + ocr.stages.pages[n][1] + ')' : ''}` : n);
 function scanPages() {
-  const out = Object.keys(ocr.scales || {}).map(n => ({name: n, src: dir + '_src/' + n, label: PAGE_LABEL[n] || n,
+  const out = Object.keys(ocr.scales || {}).map(n => ({name: n, src: dir + '_src/' + n, label: pageLabel(n),
     what: n === 'page.jpg' ? `The page the grid is printed on${MAIN() === n ? ', with its clues' : ''}.`
-      : n === MAIN() ? 'The page with most of the clues.' : 'A page more of the clues are printed on.'}));
+      : n === MAIN() ? 'The page with most of the clues.'
+      : n.startsWith('candidate_page') ? "A page only a candidate clue list was read from: not one of the puzzle's own pages unless a reviewer decides the list is its clues."
+      : 'A page more of the clues are printed on.'}));
   const ap = ocr.answer_page;
   if (ansImg) out.push({name: 'answers.png', src: dir + 'answers.png', label: 'the answer key', key: true,
     what: "The answer key's grid, as cut from its page.", ...(ap ? {} : {nr: "The key's whole page: not recorded in this packet."})});
@@ -2528,7 +2681,7 @@ function historyButtons() {
 function refresh(key) {
   if (key.startsWith('grid:') || key.startsWith('num:')) { const y = scrollY; render(); scrollTo(0, y); progress(); historyButtons(); return; }
   // the title section's choices (where a header comes from, keep or discard, a line's label, a header's value): it's redrawn
-  if (/^(ev|keep|label|meta):/.test(key)) { const y = scrollY; render(); scrollTo(0, y); progress(); historyButtons(); return; }
+  if (/^(ev|keep|label|meta|candidate):/.test(key)) { const y = scrollY; render(); scrollTo(0, y); progress(); historyButtons(); return; }
   if (key.startsWith('cell:') || key.startsWith('special:')) {
     regrid(); rows.forEach(r => r.paint());
     const b = document.getElementById('blankpanel'); if (key.startsWith('special:') && b) drawBlank(b);
