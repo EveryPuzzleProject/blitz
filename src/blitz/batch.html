@@ -207,7 +207,8 @@ const HELD = {'no-ready': "waiting for a person's Ready", 'not-ready': 'a review
               'needs-work': 'needs work', 'incomplete': 'incomplete', 'proof-stale': 'its Ready was on an earlier version',
               'packet-stale': 'its proof packet is out of date', 'edits-differ': "reviewers' edits differ",
               'edits-unapplied': "an edit the import can't apply yet", 'xd-exists': 'another file has its id', 'no-packet': 'no proof packet',
-              'clue-typed': 'a clue typed with no OCR reading', 'sent-back': 'a reviewer sent it back to the pipeline'};
+              'clue-typed': 'a clue typed with no OCR reading', 'sent-back': 'a reviewer sent it back to the pipeline',
+              'candidate-undecided': 'a candidate clue list is undecided', 'candidate-partial': "a candidate list taken into the puzzle isn't whole"};
 // ---- what the batch asks of people: each puzzle's queue, as blitz ship recorded it (ship.json: queue, asks, broken,
 // group, order, spot_check). On a snapshot the page draws these and nothing else: it never sorts a puzzle into a
 // queue itself. No record (or one from before the queues): "not recorded".
@@ -232,7 +233,19 @@ const groupName = g => g === 'own' ? "one puzzle's own" : 'about ' + ((((SHIP ||
 // a proof-page row as a person reads it
 const rowName = k => !k ? 'the puzzle' : /^(ev|meta):/.test(k) ? ({note: 'Notes', puzzle_number: 'Number'}[k.split(':')[1]] || k.split(':')[1].replace(/^./, c => c.toUpperCase()))
   : k === 'notes' ? 'Notes' : k === 'grid' ? 'the grid' : /^cell:/.test(k) ? 'square ' + k.slice(5) : /^line:/.test(k) ? 'printed line ' + k.slice(5)
-  : /^clue:/.test(k) ? k.slice(5).replace(/\^(.*)$/, ' ($1)') : k;
+  : /^clue:/.test(k) ? k.slice(5).replace(/\^(.*)$/, ' ($1)')
+  : /^candidate:/.test(k) ? `the candidate ${k[10] === 'A' ? 'Across' : 'Down'} clue list` : k;
+// its candidate clue lists and what a person decided for each, as the ship record has them (candidates: [{id, dir,
+// clues, slots, reads_as, decision, kind, at}]): drawn, never worked out
+const CAND_SAID = {remove: "not this puzzle's, removed", answers: 'the printed answers, not clues', clues: 'the real clues', second: 'a second clue set'};
+function candHtmlQ(p, x) {
+  const cs = (x && x.candidates) || [];
+  if (!cs.length) return '';
+  const one = c => `<a href="${proofUrl(p.pid, 'candidate:' + c.id, [x])}"${TAB} title="opens the proof page at this candidate list">${c.dir === 'A' ? 'Across' : 'Down'} (${c.clues} of ${c.slots} slots)</a>: `
+    + (c.decision ? `<b>${esc(CAND_SAID[c.decision.split(':')[0]] || c.decision)}${c.decision.startsWith('second:') ? ' (^' + esc(c.decision.slice(7)) + ')' : ''}</b>, decided by ${c.kind === 'owner' ? 'the owner' : 'a helper'} ${esc(c.at || '')}`
+      : '<b>undecided</b>' + (c.pending ? ` (${c.pending.kind === 'owner' ? 'the owner' : 'a helper'} chose “${esc(CAND_SAID[c.pending.decision.split(':')[0]] || c.pending.decision)}” ${esc(c.pending.why)}: it doesn't count yet)` : ''));
+  return `<div class="shipline cands" title="candidate clue lists (assembly's record) and each one's decision: blitz ship, ${esc((SHIP.at || '').slice(0, 10))}"><b>Candidate clue list${cs.length > 1 ? 's' : ''}</b> <span class="meta">not in the xd until decided</span><br><span class="meta">${cs.map(one).join(' · ')}</span></div>`;
+}
 const saidQ = (x, only = () => true) => (x.said || []).filter(only).map(s => `${s.answer === 'ready' ? 'Ready' : 'Not ready'}${s.stale ? ' (an earlier version)' : ''}: ${esc(s.who || 'a helper')} ${esc(s.at || '')}`).join(' · ');
 function asksHtmlQ(p, x, rows) {
   const one = a => `<div class="qa"><a class="rowk" href="${proofUrl(p.pid, a.row, rows)}"${TAB} title="opens the proof page at this row">${esc(rowName(a.row))} →</a> ${esc(a.text)}`
@@ -814,7 +827,7 @@ function drawQueues() {
       <div>${p.feature ? `<div class="feat">${esc(p.feature)}</div>` : ''}<div class="t">${p.title ? esc(p.title) : '<span class="none">no title found</span>'}</div>
         <div class="meta">${esc(p.date)} · ${p.grid.length}×${(p.grid[0] || '').length}${p.byline ? ' · ' + esc(p.byline) : ''}${p.cryptic ? ' · cryptic' : ''}${rec ? '' : ' · triage: ' + esc(p.choice === 'drop' ? 'not a crossword' : p.triage || 'not recorded')}</div>
         ${q === 'question' && (x.asks || []).length ? asksHtmlQ(p, x, rows) : ''}${q === 'broken' ? brokenHtmlQ(x) : ''}${q === 'set-aside' ? asideHtml(p) : ''}
-        ${rec ? standsHtmlQ(p, x, q) : `<div class="shipline none"><b>Where it stands: not recorded</b></div>`}${doubts}</div>
+        ${rec ? standsHtmlQ(p, x, q) + candHtmlQ(p, x) : `<div class="shipline none"><b>Where it stands: not recorded</b></div>`}${doubts}</div>
       <div class="side"><span class="pill ${k[1]}" title="${esc(k[3] || '')}">${k[0]}</span>${x && x.spot_check ? '<span class="pill p-spot" title="in the maintainer\'s spot-check sample">Spot-check</span>' : ''}
         <span class="state">${tally(p) || (WALKED.includes(q) && started(p.pid) ? '<b class="started">you started this</b>' : '')}</span>${side}</div></div>`;
   }).join('') || `<p class="meta">None.</p>`;

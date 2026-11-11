@@ -23,6 +23,7 @@ R2_SECRET_ACCESS_KEY, R2_BUCKET, R2_PUBLIC_URL (publish).
 from __future__ import annotations
 
 import json
+import re
 import os
 import shutil
 import urllib.error
@@ -38,6 +39,18 @@ from .work import Stop
 # puzzle.xd: the xd itself, so the proof page can show the notes it carries after its clues (nothing else records them).
 FILES = ("ocr.json", "review.json", "checks.json", "ai_review.json", "puzzle.xd", "sheets/shown.json", "page.jpg", "clue_page.jpg", "continued_page.jpg", "grid.png",
          "answers.png", "answer_page.jpg", "cover.jpg", "_src/page.jpg", "_src/clue_page.jpg", "_src/continued_page.jpg")
+
+
+def candidate_pages(packet: Path) -> list[str]:
+    """The pages only a candidate clue list is on, as the packet's ocr.json lists them among its scales
+    (xword-ocr proofpacket.CANDIDATE_PAGE: candidate_page.jpg, candidate_page-2.jpg, ...), each with its
+    full-size copy: the proof page crops the candidate's clues from them, so they go up with the packet."""
+    try:
+        scales = json.loads((packet / "ocr.json").read_text(encoding="utf-8")).get("scales") or {}
+    except (OSError, ValueError):
+        return []
+    names = sorted(n for n in scales if re.fullmatch(r"candidate_page(-\d+)?\.jpg", n))
+    return [f for n in names for f in (n, f"_src/{n}")]
 SUPABASE_JS = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"
 
 
@@ -290,7 +303,7 @@ def publish(folder: Path, batch: str = "", dry_run: bool = False, skip: tuple[st
     for d in packets:
         pub = _pub(d.name)
         files = {}
-        for f in FILES:
+        for f in (*FILES, *candidate_pages(d)):
             src = d / f
             if src.exists():
                 puts.append(r2.Put(f"{pub}/{d.name}/{f}", src=src,
