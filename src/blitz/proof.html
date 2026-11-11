@@ -159,6 +159,7 @@ h2 .quick { margin-left: 8px; font-size: 12px; padding: 2px 10px; }
 .cand .canddecide button { font: 13px var(--sans); padding: 5px 10px; border: 1px solid var(--line); border-radius: 6px; background: #fff; cursor: pointer; }
 .cand .canddecide button:hover { border-color: var(--ink); }
 .cand .canddecide .said { font-weight: 600; }
+.cand .canddecide .pending { padding: 6px 8px; border: 1px dashed #c79a1e; border-radius: 6px; background: #fff; }
 .cand .canddecide input { font: 13px var(--sans); padding: 4px 6px; width: 9em; }
 .cand .candeffect { padding: 0 12px 8px; color: var(--muted); }
 .cand details { border-top: 1px solid #ecdcae; }
@@ -669,7 +670,7 @@ async function loadProofs() {
       continue;
     }
     const bad = Object.entries(r.status || {}).filter(([, x]) => x.v === 'bad').map(([id, x]) => `Problem in the ${PART[id]?.name || id}: ${x.note || ''}`);
-    remote.push({who: p.who || 'A helper', edits: r.edits || {}, comments: r.comments || [],
+    remote.push({who: p.who || 'A helper', person: true, decision: p.decision, xd: r.xd || '', edits: r.edits || {}, comments: r.comments || [],
       summary: [p.decision === 'ready' ? 'Said ready.' : 'Said not ready.', ...bad, r.note].filter(Boolean).join(' ')});
   }
 }
@@ -929,11 +930,44 @@ const CAND_SAYS = {remove: "Not this puzzle's: removed", answers: 'The printed a
   clues: 'These are the real clues', second: 'A second clue set for this grid'};
 const candKey = c => 'candidate:' + c.id;
 const candName = c => c.dir === 'A' ? 'Across' : 'Down';
-const candUndecided = () => (ocr.candidates || []).filter(c => !final(candKey(c)));
+// <candidate-rules> (pure; tests/test_candidate_panel.py runs this block under node)
+// Whether a candidate is decided, by the import's own test (blitz ship.candidate_decisions): a choice is a
+// candidate:<id> edit with one of the four values, made by a person (an AI's round never decides), and it counts
+// when its review said Ready on this version of the puzzle. rounds: every reviewer's round ({who, person, ai,
+// decision, xd, edits}); cur: yours, not submitted or as you last submitted it; fp, same: the packet's xd_fp and
+// xd_fp_same. Returns {value, who, mine, counts, why}: your own choice first (it counts once you say Ready), else
+// another person's that counts, else the latest that doesn't with why; value '' when nobody has chosen.
+const CAND_VALUE = /^(remove|answers|clues|second:[A-Za-z][\w-]*)$/;
+function candidateStanding(key, rounds, cur, fp, same) {
+  let counted = null, pending = null;
+  for (const r of rounds) {
+    const v = (r.edits || {})[key];
+    if (r === cur || r.ai || !r.person || !v || !CAND_VALUE.test(v)) continue;
+    const stale = !!(fp && r.xd && r.xd !== fp && !(same || []).includes(r.xd));
+    const why = r.decision !== 'ready' ? 'in a review that said Not ready' : stale ? 'in a Ready on an earlier version of the puzzle' : '';
+    if (!why) counted = {value: v, who: r.who}; else pending = {value: v, who: r.who, why};
+  }
+  const mine = cur && CAND_VALUE.test((cur.edits || {})[key] || '') ? cur.edits[key] : '';
+  if (mine) return {value: mine, who: 'You', mine: true, counts: cur.decision !== 'notready', why: cur.decision === 'notready' ? 'you said Not ready' : ''};
+  if (counted) return {...counted, mine: false, counts: true, why: ''};
+  if (pending) return {...pending, mine: false, counts: false};
+  return {value: '', who: '', mine: false, counts: false, why: ''};
+}
+// What a Ready given now would leave undecided: the candidates with no choice of yours and none that counts.
+// Each with the choice the page shows for it that doesn't count (pending), if any.
+function candidatesOpen(ids, rounds, cur, fp, same) {
+  return ids.map(id => ({id, st: candidateStanding('candidate:' + id, rounds, cur, fp, same)})).filter(x => !x.st.mine && !x.st.counts)
+    .map(x => ({id: x.id, pending: x.st.value ? x.st : null}));
+}
+// </candidate-rules>
+const candStanding = c => candidateStanding(candKey(c), rounds, cur, rev?.xd_fp || '', rev?.xd_fp_same || []);
+const candUndecided = () => candidatesOpen((ocr.candidates || []).map(c => c.id), rounds, cur, rev?.xd_fp || '', rev?.xd_fp_same || [])
+  .map(x => ({...ocr.candidates.find(c => c.id === x.id), pending: x.pending}));
 function candidatePanel(c) {
-  const key = candKey(c), name = candName(c), v = final(key), kind = v.split(':')[0], setKey = v.split(':')[1] || '';
+  const key = candKey(c), name = candName(c), st = candStanding(c), v = st.value, kind = v.split(':')[0], setKey = v.split(':')[1] || '';
+  const stands = st.mine || st.counts;  // a choice the import would take (yours, once you say Ready; or another person's Ready)
   const el = document.createElement('div');
-  el.className = 'cand' + (v ? ' decided' : '');
+  el.className = 'cand' + (stands ? ' decided' : '');
   el.id = 'cand-' + c.id;
   el.dataset.key = key;
   const labels = Object.keys(c.clues || {}).sort((a, b) => +a.slice(1) - +b.slice(1)), n = labels.length;
@@ -944,9 +978,9 @@ function candidatePanel(c) {
       <div class="candfrom">Recorded by <b>${esc(c.from || 'not recorded')}</b> (xword-ocr ${esc(built || 'version not recorded')}): by its clue numbers it fills ${Math.round((c.share || 0) * 100)}% of this grid's ${c.slots} ${esc(name)} slots (assembly's fit)${off}.
       It was not taken as a second clue set because: ${esc(c.why || 'not recorded')}. <b>It is not in the xd</b>; say what it is.</div></div>
     <div class="candwhere"></div><div class="canddecide"></div><div class="candeffect"></div>
-    <details${v && kind !== 'second' && kind !== 'clues' ? '' : ' open'}><summary>Its ${n} clue${n === 1 ? '' : 's'}, each beside this puzzle's ${esc(name)} clue at the same number
+    <details${stands && kind !== 'second' && kind !== 'clues' ? '' : ' open'}><summary>Its ${n} clue${n === 1 ? '' : 's'}, each beside this puzzle's ${esc(name)} clue at the same number
       (${c.line_boxes ?? 0} of ${n} with the box of the OCR lines it was read from)</summary>
-      <table><tr><th></th><th>the candidate list: the scan, and what the OCR read</th><th>${kind === 'second' ? `becomes the xd's ^${esc(setKey)} line under` : kind === 'clues' ? 'replaces' : "this puzzle's clue at that number"}</th></tr></table></details>`;
+      <table><tr><th></th><th>the candidate list: the scan, and what the OCR read</th><th>${!stands ? "this puzzle's clue at that number" : kind === 'second' ? `becomes the xd's ^${esc(setKey)} line under` : kind === 'clues' ? 'replaces' : "this puzzle's clue at that number"}</th></tr></table></details>`;
   // where the list is on its page: each part's recorded box, cut from that page; the thumbnail opens the page with the box outlined
   const wh = el.querySelector('.candwhere');
   for (const p of c.parts || []) {
@@ -976,7 +1010,12 @@ function candidatePanel(c) {
   }
   // the decision: four buttons, or what was said and by whom, with Change
   const dc = el.querySelector('.canddecide'), ef = el.querySelector('.candeffect');
-  const decide = val => { setEdit(key, val, true); };
+  const decide = val => {
+    const prev = cur.edits[key];
+    if (prev === val) return paint();
+    cur.edits[key] = val; undoStack.push({key, from: prev, to: val}); redoStack.length = 0;
+    save(); refresh(key);
+  };
   const buttons = () => {
     dc.innerHTML = `<span class="hint">What is it?</span>
       <button data-v="remove" title="A neighbouring puzzle's clues, a quiz's list: nothing of this puzzle's. The xd stays as it is.">Not this puzzle's: remove it</button>
@@ -984,7 +1023,7 @@ function candidatePanel(c) {
       <button data-v="clues" title="This list, not the one linked, is the puzzle's ${esc(name)} clues: it takes their place">These are the real clues</button>
       <button data-v="answers" title="The answers printed as text (a cryptic's explanations), not clues. Removed from the clues; recorded as answers.">The printed answers, not clues</button>`;
     dc.querySelectorAll('button').forEach(b => b.onclick = () => b.dataset.v === 'second' ? askName() : decide(b.dataset.v));
-    if (v) { ef.textContent = `It stands as “${CAND_SAYS[kind] || v}” until you choose again.`; dc.insertAdjacentHTML('beforeend', '<button class="keepit">Leave it as it is</button>'); dc.querySelector('.keepit').onclick = () => paint(); }
+    if (stands) { ef.textContent = `It stands as “${CAND_SAYS[kind] || v}” until you choose again.`; dc.insertAdjacentHTML('beforeend', '<button class="keepit">Leave it as it is</button>'); dc.querySelector('.keepit').onclick = () => paint(); }
   };
   const askName = () => {
     dc.innerHTML = `<span>The set's name, as printed (no printed heading names it): </span><input placeholder="e.g. Easy" maxlength="24" value="${esc(setKey)}">
@@ -1002,10 +1041,23 @@ function candidatePanel(c) {
     inp.focus();
   };
   const paint = () => {
-    if (!v) { buttons(); ef.textContent = 'Until someone who says Ready has decided it, the puzzle is held (the ship record: a candidate list undecided).'; return; }
-    const h = history(key), last = h[h.length - 1], mine = key in cur.edits;
-    dc.innerHTML = `<span class="said" style="color:${esc(last.color || 'inherit')}">✓ ${esc(mine ? 'You' : last.who)} said: ${esc(CAND_SAYS[kind] || v)}${kind === 'second' ? ` (^${esc(setKey)})` : ''}</span>
-      <button class="chg">Change</button>${mine ? '<button class="undo">Take it back</button>' : ''}`;
+    const held = 'Until a person who says Ready on this version has chosen, the puzzle is held (the ship record: a candidate list undecided).';
+    if (!v) { buttons(); ef.textContent = held; return; }
+    const said = `${CAND_SAYS[kind] || v}${kind === 'second' ? ` (^${setKey})` : ''}`;
+    if (!stands) {
+      // someone chose, and it doesn't count for the import: said so, with whose it is, and offered as your own choice
+      buttons();
+      dc.insertAdjacentHTML('afterbegin', `<div class="pending" style="flex-basis:100%"><b>Not decided yet.</b> ${esc(st.who)} chose “${esc(said)}” ${esc(st.why)}, so the import doesn't take it.
+        <button class="same">Make it my choice too: ${esc(said)}</button></div>`);
+      dc.querySelector('.same').onclick = () => decide(v);
+      ef.textContent = held + ' Your Ready carries the choice only if you make it here.';
+      return;
+    }
+    const whose = st.mine ? `You chose: ${said}` : `${st.who} said, in a Ready that counts: ${said}`;
+    const when = !st.mine ? '' : st.counts ? (cur.submitted && cur.decision === 'ready' ? ' · in your Ready' : ' · it counts when you say Ready and submit')
+      : " · you said Not ready, so it doesn't count: the puzzle stays held on it";
+    dc.innerHTML = `<span class="said">✓ ${esc(whose)}</span><span class="hint">${esc(when)}</span>
+      <button class="chg">Change</button>${st.mine ? '<button class="undo">Take it back</button>' : ''}`;
     dc.querySelector('.chg').onclick = buttons;
     const u = dc.querySelector('.undo');
     if (u) u.onclick = () => { delete cur.edits[key]; closeWhy(key); save(); refresh(key); };
@@ -1389,11 +1441,18 @@ function readyClicked() {
   const name = id => `<b>${esc(nameOf(id))}</b>`, list = xs => xs.map(name).join(xs.length > 2 ? ', ' : ' and ');
   let html = '';
   if (cands.length) {
-    html += `<p>${cands.length === 1 ? `The candidate <b>${esc(candName(cands[0]))} clue list</b> is` : `${cands.length} candidate clue lists are`} still undecided. You can say Ready, but the puzzle stays held until someone who says Ready has decided ${cands.length === 1 ? 'it' : 'them'}.</p>`;
+    // a choice the page shows that the import won't take (made in a Not ready, or on an earlier version): said, by name
+    const pend = cands.filter(c => c.pending), words = c => `${CAND_SAYS[c.pending.value.split(':')[0]] || c.pending.value}`;
+    html += `<p>${cands.length === 1 ? `The candidate <b>${esc(candName(cands[0]))} clue list</b> is` : `${cands.length} candidate clue lists are`} not decided in your review. You can say Ready, but your Ready won't carry a choice for ${cands.length === 1 ? 'it' : 'them'}, and the puzzle stays held until a person who says Ready has chosen.</p>`
+      + pend.map(c => `<p>The page shows ${esc(c.pending.who)}'s choice for the ${esc(candName(c))} list (“${esc(words(c))}”), made ${esc(c.pending.why)}: it doesn't count.</p>`).join('');
     if (!open.length && !bad.length) {
-      box.innerHTML = `<div class="ask">${html}<div class="acts"><button class="plain" data-a="cand">Go to ${cands.length === 1 ? 'it' : 'the first'}</button><button class="good" data-a="yes">Choose Ready anyway</button></div></div>`;
+      box.innerHTML = `<div class="ask">${html}<div class="acts"><button class="plain" data-a="cand">Go to ${cands.length === 1 ? 'it' : 'the first'}</button>`
+        + (pend.length === cands.length ? `<button class="good" data-a="take">Make ${pend.length === 1 ? 'that choice' : 'those choices'} mine and choose Ready</button>` : '')
+        + `<button class="${pend.length === cands.length ? 'plain' : 'good'}" data-a="yes">Choose Ready without ${cands.length === 1 ? 'it' : 'them'}</button></div></div>`;
       box.querySelector('[data-a=yes]').onclick = ready;
       box.querySelector('[data-a=cand]').onclick = () => { askDone(); goTo(candKey(cands[0])); };
+      const take = box.querySelector('[data-a=take]');
+      if (take) take.onclick = () => { for (const c of pend) cur.edits[candKey(c)] = c.pending.value; save(); ready(); render(); };
       return;
     }
   }
@@ -1472,7 +1531,15 @@ function paintDrop(s) {
   };
 }
 function askDone() { const b = document.getElementById('askready'); if (b) b.innerHTML = ''; }
+// the candidate panels say whether a choice counts, which turns on your Ready / Not ready: redrawn when that changes
+let candSaid;
+function repaintCands() {
+  if (candSaid === cur.decision) return;
+  candSaid = cur.decision;
+  document.querySelectorAll('.cand').forEach(el => { const c = (ocr.candidates || []).find(x => 'cand-' + x.id === el.id); if (c) el.replaceWith(candidatePanel(c)); });
+}
 function paintSummary() {
+  repaintCands();
   const s = document.getElementById('summary'); if (!s) return;
   const parts = [...document.querySelectorAll('section[data-sec]')];
   s.querySelector('table').innerHTML = parts.map(p => {
@@ -3033,7 +3100,7 @@ document.getElementById('who').onchange = e => {
 // prototype only: freeze this review as a finished round, so the page shows it the way the next reviewer will
 function handOn() {
   const {status, ...round} = cur;
-  store.past.push(round); store.cur = null; save();
+  store.past.push({...round, person: true}); store.cur = null; save();
   undoStack.length = redoStack.length = 0;
   load().then(() => { scrollTo(0, 0); say(`You're now ${store.cur.who}; ${round.who}'s edits and comments show as theirs.`); });
 }

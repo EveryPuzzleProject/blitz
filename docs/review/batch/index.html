@@ -257,7 +257,7 @@ function candHtmlQ(p, x) {
   if (!cs.length) return '';
   const one = c => `<a href="${proofUrl(p.pid, 'candidate:' + c.id, [x])}"${TAB} title="opens the proof page at this candidate list">${c.dir === 'A' ? 'Across' : 'Down'} (${c.clues} of ${c.slots} slots)</a>: `
     + (c.decision ? `<b>${esc(CAND_SAID[c.decision.split(':')[0]] || c.decision)}${c.decision.startsWith('second:') ? ' (^' + esc(c.decision.slice(7)) + ')' : ''}</b>, decided by ${c.kind === 'owner' ? 'the owner' : 'a helper'} ${esc(c.at || '')}`
-      : '<b>undecided</b>');
+      : '<b>undecided</b>' + (c.pending ? ` (${c.pending.kind === 'owner' ? 'the owner' : 'a helper'} chose “${esc(CAND_SAID[c.pending.decision.split(':')[0]] || c.pending.decision)}” ${esc(c.pending.why)}: it doesn't count yet)` : ''));
   return `<div class="shipline cands" title="candidate clue lists (assembly's record) and each one's decision: blitz ship, ${esc((SHIP.at || '').slice(0, 10))}"><b>Candidate clue list${cs.length > 1 ? 's' : ''}</b> <span class="meta">not in the xd until decided</span><br><span class="meta">${cs.map(one).join(' · ')}</span></div>`;
 }
 const saidQ = (x, only = () => true) => (x.said || []).filter(only).map(s => `${s.answer === 'ready' ? 'Ready' : 'Not ready'}${s.stale ? ' (an earlier version)' : ''}: ${esc(s.who || 'a helper')} ${esc(s.at || '')}`).join(' · ');

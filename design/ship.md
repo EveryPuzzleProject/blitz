@@ -185,16 +185,40 @@ A box the packet doesn't have shows as "not recorded". Four buttons decide it; e
 | The printed answers, not clues | `answers` | nothing to the xd; recorded as answers. Filling the key from them isn't built |
 
 `ship.apply_candidates` does this before the other edits, so a reviewer's fix to one of the new
-lines (`clue:D1^Easy`) lands on it. The rule itself is unchanged: the puzzle ships when the rule
-passes it *and* every candidate is decided by an edit of a Ready that counts. While one is
-undecided the ship check fails (`candidate-undecided`), so an AI's Ready never ships it.
+lines (`clue:D1^Easy`) lands on it.
+
+**When a candidate is decided.** One function answers it, `ship.candidate_decisions`, for the
+import, the record, the batch card and (by the same rule, in its own code) the proof page:
+
+- a choice is a `candidate:<id>` edit with one of the four values, made by a person: the owner or
+  a helper, not an account in the rule's `ignore` list. An AI reviewer's or the ship check's record
+  never decides, under any `ai_ready` setting and with the owner's Ship on the batch page: an AI
+  asks, a person decides;
+- a choice **counts** when its review said Ready on the puzzle's current version. That is exactly
+  when the import takes that review's edits. A choice made in a Not ready, or in a Ready on an
+  earlier version, doesn't count.
+
+The ship rule itself is unchanged: the puzzle ships when the rule passes it *and* every candidate
+has a choice that counts. Otherwise it is held `candidate-undecided`, a question. While one is
+undecided the ship check fails too, so an AI's Ready never ships it.
+
+The proof page says which it is. A choice that counts shows as decided, with whose it is. A choice
+that doesn't shows as "Not decided yet", with whose it is and why, and a button to make it your
+own. Picking a value always writes it into your own review, even when it repeats someone else's,
+so a Ready given on a page that shows your choice carries it. Saying Ready with a candidate you
+haven't chosen for, and nobody's choice counting, asks first: it names any choice the page shows
+that doesn't count, and offers to make it yours. (`tests/test_candidate_panel.py` runs the page's
+rule under node against `candidate_decisions` on the same reviews.) xword-ocr's
+`triage.candidate_decisions` is the same test less the `ignore` list.
 
 In the record each such puzzle has `candidates: [{id, dir, clues, slots, reads_as, decision, kind,
-at}]` (`decision` "" while undecided; a person's latest edit otherwise, whoever said it and
-whatever else they said). Its question points at the panel: row `candidate:<id>`, group
-`candidate` ("a candidate clue list"). A reviewer's question about the notes' "another list"
-block (asked before candidates had a place) is pointed at the candidate's row instead; where
-nobody asked, the record asks for assembly ("What is it: ...?").
+at}]`: `decision` is the choice that counts, "" while there is none; then `pending: {decision,
+kind, at, why}` is the latest choice that doesn't count, if any, which the card shows as such. Each
+undecided candidate gets the pipeline's own question at its row (`candidate:<id>`, group
+`candidate`, asked by "assembly"), saying so when a choice is pending. A reviewer's question stays
+on the row the reviewer gave it: one about the notes' "another list" block (asked before candidates
+had a place) stays on the notes, beside the pipeline's question. Nothing is re-pointed by its
+wording.
 
 ## The question on the proof page
 

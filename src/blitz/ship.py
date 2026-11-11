@@ -359,7 +359,6 @@ APPLIED = re.compile(r"clue:[AD]\d+(?:\^[A-Za-z][\w-]*)?|cell:r\d+c\d+|meta:(tit
 # remove (not this puzzle's), answers (the printed answers, not clues), clues (these are the real clues: they
 # replace the list in the xd), second:<Key> (a second clue set: its clues become the "A1 ^Key:" lines).
 CANDIDATE_VALUE = re.compile(r"remove|answers|clues|second:[A-Za-z][\w-]*")
-_NOTES_ASK = re.compile(r"another list|other list|list that fits|list block", re.I)  # a question about one, asked of the notes
 HEADER ={"title": "Title", "author": "Author", "byline": "Byline", "puzzle_number": "Number", "editor": "Editor", "feature": "Feature"}
 META_RE = re.compile(r"^([AD]\d+) \^([A-Za-z][\w-]*): ?(.*)$")
 
@@ -441,6 +440,38 @@ def apply_edits(text: str, edits: dict) -> tuple[str, list[str]]:
     if rest[1:]:
         out += "\n\n" + "\n\n\n".join(rest[1:]) + "\n"
     return out, done
+
+
+def candidate_decisions(records: list[dict], rule: "Rule" = None, current: tuple = ()) -> dict[str, dict]:
+    """THE test of whether a candidate clue list is decided, for the record, the batch card, the proof page's
+    wording and the import alike. records: each reviewer's latest proof:<pid> record; current: the fingerprints
+    of the puzzle's current version.
+
+    A choice is a candidate:<id> edit with a CANDIDATE_VALUE, made by a person (the owner or a helper, not one of
+    rule.ignore): an AI reviewer or the ship check asks, it never decides, whatever ai_ready says. A choice
+    *counts* when its review said Ready on the current version, which is exactly when the import takes that
+    review's edits (standing()'s apply). Returns {id: {decision, kind, at}} for a choice that counts (the latest),
+    else {decision: "", pending: {decision, kind, at, why}} for the latest choice that doesn't, with why
+    ("in a review that said Not ready", "in a Ready on an earlier version of the puzzle").
+    xword-ocr's triage.candidate_decisions mirrors this, less rule.ignore, which it doesn't know."""
+    rule = rule or Rule()
+    out: dict[str, dict] = {}
+    for r in sorted(records, key=lambda r: r.get("at", "")):
+        kind = kind_of(r, rule)
+        if kind not in ("owner", "helper") or r.get("answer") not in ("ready", "notready") or _name(r) in rule.ignore:
+            continue
+        review = (r.get("proof") or {}).get("review") or {}
+        stale = bool(current and review.get("xd") and review["xd"] not in current)
+        why = "in a review that said Not ready" if r["answer"] != "ready" else "in a Ready on an earlier version of the puzzle" if stale else ""
+        for k, v in (review.get("edits") or {}).items():
+            if not (k.startswith("candidate:") and CANDIDATE_VALUE.fullmatch(v or "")):
+                continue
+            said = {"decision": v, "kind": kind, "at": r.get("at", "")[:10]}
+            if not why:
+                out[k[10:]] = said
+            elif not (out.get(k[10:]) or {}).get("decision"):
+                out[k[10:]] = {"decision": "", "pending": {**said, "why": why}}
+    return out
 
 
 def apply_candidates(text: str, candidates: list[dict], edits: dict) -> tuple[str, list[str], list[str]]:
@@ -611,37 +642,26 @@ def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict |
         row["ships_with"] = next((opt for opt in AI_READY if standing(
             latest.get(f"batch:{pid}") or {}, list((proofs.get(pid) or {}).values()), rule=replace(rule, ai_ready=opt), **args)["status"] == "ship"), "")
         row.update(status="held", reason=st["reason"], why=st["why"], rule=st["rule"], said=st["said"], asks=[], broken=[])
-        # The packet's candidate clue lists (assembly's record), each with the decision a person has made on the
-        # proof page, if any: the latest candidate:<id> edit of a person's Ready or Not ready (an AI asks, it
-        # doesn't decide). The page and the batch card draw this; the import applies the Ready reviewers' edits.
+        # The packet's candidate clue lists (assembly's record), each with what people have chosen for it on the
+        # proof page (candidate_decisions: THE test of "is it decided", the same one the import applies below).
         cands = pk["ocr"].get("candidates") or []
         if cands:
-            said_c = {}
-            for r in sorted((proofs.get(pid) or {}).values(), key=lambda r: r.get("at", "")):
-                if kind_of(r, rule) in ("owner", "helper") and r.get("answer") in ("ready", "notready") and _name(r) not in rule.ignore:
-                    for k, v in (((r.get("proof") or {}).get("review") or {}).get("edits") or {}).items():
-                        if k.startswith("candidate:") and CANDIDATE_VALUE.fullmatch(v or ""):
-                            said_c[k[10:]] = {"decision": v, "kind": kind_of(r, rule), "at": r.get("at", "")[:10]}
+            said_c = candidate_decisions(list((proofs.get(pid) or {}).values()), rule, current)
             row["candidates"] = [{"id": c["id"], "dir": c["dir"], "clues": len(c.get("clues") or {}), "slots": c.get("slots", 0),
                                   "reads_as": c.get("reads_as", ""), **(said_c.get(c["id"]) or {"decision": ""})} for c in cands]
         open_c = [c for c in row.get("candidates") or [] if not c["decision"]]
 
         def candidate_asks(row=row, open_c=open_c):
-            """The questions about its undecided candidate lists: a reviewer's question about the notes' "another
-            list" block (what a candidate was before it had a place of its own) points at the candidate's row; a
-            candidate nobody asked about gets the pipeline's own question."""
-            if not open_c:
-                return
-            for a in row["asks"]:
-                if a["row"] in ("notes", "meta:note", "ev:note") and _NOTES_ASK.search(a["text"]):
-                    a.update(row=f"candidate:{open_c[0]['id']}", group="candidate")
-            asked = {a["row"] for a in row["asks"]}
-            for c in open_c if not any(r.startswith("candidate:") for r in asked) else []:
-                name = "Across" if c["dir"] == "A" else "Down"
+            """The pipeline's own question for each candidate list no counting decision settles. A reviewer's
+            question stays on the row the reviewer gave it: nothing here guesses that a question about the notes
+            was about a candidate."""
+            for c in open_c:
+                name, p = ("Across" if c["dir"] == "A" else "Down"), c.get("pending")
                 row["asks"].append({"who": "assembly", "kind": "pipeline", "at": "", "row": f"candidate:{c['id']}", "group": "candidate",
                                     "text": f"Another {name} list fits this grid ({c['clues']} of {c['slots']} slots) and isn't its clues or a "
                                             "recognised second set. What is it: not this puzzle's, a second clue set, the real clues, or the "
-                                            "printed answers?"})
+                                            "printed answers?" + (f" ({'The owner' if p['kind'] == 'owner' else 'A helper'} chose "
+                                            f"\"{p['decision']}\" {p['why']}, so it doesn't count yet: it counts in a Ready on this version.)" if p else "")})
         if st["status"] != "ship":
             if st["reason"] == "no-ready" and t.get("decision") != "ready":
                 row.update(reason="needs-work", why="needs work: " + ("; ".join(
@@ -677,6 +697,8 @@ def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict |
         edits, differ, sources = {}, set(), []
         for r in st["apply"]:
             mine = ((r.get("proof") or {}).get("review") or {}).get("edits") or {}
+            if kind_of(r, rule) not in ("owner", "helper"):  # an AI asks, a person decides: its candidate edits are never the decision
+                mine = {k: v for k, v in mine.items() if not k.startswith("candidate:")}
             differ |= {k for k, v in mine.items() if k in edits and edits[k] != v}
             edits.update({k: v for k, v in mine.items() if k not in edits})
             if mine:
@@ -692,7 +714,7 @@ def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict |
         undecided = [c["id"] for c in cands if f"candidate:{c['id']}" not in edits]
         if undecided:
             row.update(reason="candidate-undecided", why=f"{st['why']}; but {len(undecided)} candidate clue list(s) "
-                       f"({', '.join(undecided)}) not decided by a reviewer who said Ready")
+                       f"({', '.join(undecided)}) not decided by a person who said Ready on this version")
             candidate_asks(open_c=[c for c in row["candidates"] if c["id"] in undecided])
             row["also"] = [str(x) for x in ship.get("incomplete") or []]
             continue

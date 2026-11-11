@@ -345,20 +345,20 @@ def _decides(by, value, answer="ready", at="2026-11-11T00:00:00Z", via=SITE):
 
 def test_an_undecided_candidate_holds_the_puzzle_on_a_question_at_its_row(tmp_path):
     ask = ("meta:note", "The notes hold an 'another list' block of a neighbour's clues. Drop the block?", "drop it")
-    said = {P + "31": [_ai_no(P + "31", ask)],            # the AI asked about the notes' block: the question is the candidate's
+    said = {P + "31": [_ai_no(P + "31", ask)],            # the AI asked about the notes: its question stays where it put it
             P + "32": [HELPER],                           # a person's Ready that decided nothing
             P + "33": [AI, CHECK]}                        # nobody asked: the pipeline's own question
     repo, proofs = _candidates(tmp_path, said)
     p = plan(repo, proofs, Rule(ai_ready="both"), "b")
     by = {r["pid"][-2:]: r for r in p["rows"]}
     assert [(r["queue"], r["reason"]) for r in (by["31"], by["32"])] == [("question", "not-ready"), ("question", "candidate-undecided")]
-    assert [(a["row"], a["group"]) for a in by["31"]["asks"]] == [("candidate:D-alt1", "candidate")]
-    assert by["31"]["asks"][0]["kind"] == "ai" and by["31"]["asks"][0]["text"].startswith("The notes hold")
+    # no guessing from a question's wording: the AI's stays on the notes, and the candidate gets the pipeline's own
+    assert [(a["row"], a["group"], a["kind"]) for a in by["31"]["asks"]] == [("meta:note", "notes", "ai"), ("candidate:D-alt1", "candidate", "pipeline")]
     (a,) = by["32"]["asks"]
     assert (a["who"], a["row"], a["group"]) == ("assembly", "candidate:D-alt1", "candidate") and "3 of 3 slots" in a["text"]
     assert by["33"]["queue"] == "unchecked"               # the check doesn't pass while a candidate is undecided
     assert by["32"]["candidates"] == [{"id": "D-alt1", "dir": "D", "clues": 3, "slots": 3, "reads_as": "clues", "decision": ""}]
-    assert p["groups"][0] == {"key": "candidate", "label": "a candidate clue list", "puzzles": 2, "asks": 2}
+    assert {"key": "candidate", "label": "a candidate clue list", "puzzles": 2, "asks": 2} in p["groups"]
     assert not p["passing"]
     assert record(p)["puzzles"][0]["candidates"][0]["decision"] == ""
 
@@ -378,8 +378,12 @@ def test_a_persons_decision_releases_the_hold_and_the_import_applies_it(tmp_path
     assert (by["33"]["reason"], by["33"]["queue"]) == ("candidate-partial", "broken") and "^Easy set has 4 of 6" in by["33"]["why"]
     assert (by["34"]["reason"], by["34"]["queue"]) == ("not-ready", "question")
     assert by["31"]["candidates"][0]["decision"] == "remove" and by["31"]["candidates"][0]["kind"] == "owner"
-    assert by["34"]["candidates"][0]["decision"] == "remove"                              # shown as decided, though it doesn't ship
-    assert not by["34"]["asks"][0]["row"].startswith("candidate:")                        # nothing left to ask about the candidate
+    # chosen in a Not ready: it doesn't count, the record says so, and the question is still asked
+    c34 = by["34"]["candidates"][0]
+    assert c34["decision"] == "" and c34["pending"] == {"decision": "remove", "kind": "helper", "at": "2026-11-11",
+                                                         "why": "in a review that said Not ready"}
+    assert [a["row"] for a in by["34"]["asks"] if a["kind"] == "pipeline"] == ["candidate:D-alt1"]
+    assert "doesn't count yet" in by["34"]["asks"][-1]["text"]
     write(repo, p, "2026-11-11")
     prov = [json.loads(x) for x in (repo / "provenance.jsonl").read_text(encoding="utf-8").splitlines()]
     assert {r["pid"][-2:]: r["edits"]["applied"] for r in prov} == {"31": ["candidate:D-alt1"], "32": ["candidate:D-alt1"]}
@@ -390,3 +394,48 @@ def test_candidate_pages_go_up_with_the_packet(tmp_path):
     (tmp_path / "ocr.json").write_text(json.dumps({"scales": {"page.jpg": 0.2, "candidate_page.jpg": 0.2, "candidate_page-2.jpg": 0.2}}))
     assert sorted(candidate_pages(tmp_path)) == ["_src/candidate_page-2.jpg", "_src/candidate_page.jpg", "candidate_page-2.jpg", "candidate_page.jpg"]
     assert candidate_pages(tmp_path / "none") == []
+
+
+def test_the_record_and_the_import_agree_on_whether_a_candidate_is_decided(tmp_path):
+    """The cold review's case: a helper picks "remove" and says Not ready, then the owner says Ready without
+    choosing. The choice doesn't count, the puzzle is held on the candidate, and the record says whose choice
+    is pending and why. When the owner's Ready carries the choice, it ships."""
+    from blitz.ship import candidate_decisions
+
+    helper_no = _decides(f"pat ({SITE})", "remove", answer="notready", at="2026-11-11T00:00:00Z")
+    owner = proof("Reviewer 2", "ready", "2026-11-12T00:00:00Z", xd="fp")
+    repo, proofs = _candidates(tmp_path, {P + "31": [helper_no, owner],
+                                          P + "32": [helper_no, _decides("Reviewer 2", "remove", at="2026-11-12T00:00:00Z", via="watch")]})
+    p = plan(repo, proofs, Rule(ai_ready="both"), "b")
+    by = {r["pid"][-2:]: r for r in p["rows"]}
+    assert (by["31"]["reason"], by["31"]["queue"]) == ("candidate-undecided", "question")
+    assert by["31"]["candidates"][0]["decision"] == "" and by["31"]["candidates"][0]["pending"]["kind"] == "helper"
+    assert "A helper chose" in by["31"]["asks"][-1]["text"] and "pat" not in json.dumps(record(p))
+    assert by["32"]["status"] == "shippable" and by["32"]["candidates"][0] == {
+        "id": "D-alt1", "dir": "D", "clues": 3, "slots": 3, "reads_as": "clues", "decision": "remove", "kind": "owner", "at": "2026-11-12"}
+    # a Ready on an earlier version doesn't count either
+    old = _decides(f"pat ({SITE})", "remove")
+    old["proof"]["review"]["xd"] = "an earlier version"
+    assert candidate_decisions([old], Rule(), ("fp",))["D-alt1"]["pending"]["why"] == "in a Ready on an earlier version of the puzzle"
+    assert candidate_decisions([old], Rule(), ())["D-alt1"]["decision"] == "remove"       # no version known: as standing() has it
+    # an ignored account's choice, and a value that isn't one of the four
+    assert candidate_decisions([_decides(f"pat ({SITE})", "remove")], Rule(ignore=("pat",)), ("fp",)) == {}
+    assert candidate_decisions([_decides(f"pat ({SITE})", "second")], Rule(), ("fp",)) == {}
+
+
+def test_an_ai_never_decides_a_candidate(tmp_path):
+    """An AI reviewer's Ready that carries a candidate:<id> edit is not the decision: not under ai_ready either
+    (where its Ready alone ships a puzzle), not with the owner's Ship on the batch page."""
+    ai = _decides("Claude (AI proof reviewer, m)", "clues", at="2026-10-22T00:00:00Z", via=AGENT)
+    ship_it = {"id": "batch:p", "answer": "ship", "by": "person", "at": "2026-11-12T00:00:00Z", "note": ""}
+    said = {P + "31": [ai], P + "32": [ai, {**ship_it, "id": f"batch:{P}32"}]}
+    repo, proofs = _candidates(tmp_path, said)
+    for opt in ("either", "both"):
+        p = plan(repo, proofs, Rule(ai_ready=opt), "b")
+        by = {r["pid"][-2:]: r for r in p["rows"]}
+        assert not p["passing"]
+        assert (by["32"]["reason"], by["32"]["queue"]) == ("candidate-undecided", "question")
+        assert all(c["decision"] == "" and "pending" not in c for r in by.values() for c in r["candidates"])
+    assert (by["31"]["reason"]) == "no-ready"                                             # both: the check doesn't pass
+    p = plan(repo, proofs, Rule(ai_ready="either"), "b")
+    assert {r["pid"][-2:]: r["reason"] for r in p["rows"]} == {"31": "candidate-undecided", "32": "candidate-undecided"}
