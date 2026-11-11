@@ -390,8 +390,10 @@ def cmd_ship(a) -> None:
             return
         for r in rows:
             e = r["edits"]
-            print(f"  {r['xdid']} ({r['pid']}): {len(e['records'])} edit(s) by reviewers, {len(e['misprints'])} misprint(s), "
-                  f"{len(e['packet'])} change(s) by the text review")
+            n = {c: sum(x["class"] == c for x in e["records"]) for c in dict.fromkeys(x["class"] for x in e["records"])}
+            print(f"  {r['xdid']} ({r['pid']}): {len(e['records'])} edit(s) by reviewers"
+                  + (" (" + ", ".join(f"{c} {k}" for c, k in n.items()) + ")" if n else "")
+                  + f", {len(r['corrections'])} correction(s) of the print proposed, {len(e['packet'])} change(s) by the text review")
         stuck = [r for r in ship.provenance(repo) if r.get("batch") == p["batch"] and "records" not in (r.get("edits") or {})
                  and r["xdid"] not in {x["xdid"] for x in rows}]
         print(f"{len(rows)} shipped puzzle(s) with no edit records: " + (f"added to {repo / 'provenance.jsonl'}" if a.write else
@@ -424,10 +426,18 @@ def cmd_ship(a) -> None:
     print(f"the rule passes {w.get('off', 0)} as it stands; with --ai-ready both {w.get('off', 0) + w.get('both', 0)}; "
           f"with --ai-ready either {sum(w.values())} (before the import's own holds)")
     recs = [e for x in p["passing"].values() for e in x.get("edit_records", [])]
-    kinds = {w: sum(e["what"] == w for e in recs) for w in dict.fromkeys(e["what"] for e in recs)}
+    kinds = {w: sum(e["class"] == w for e in recs) for w in dict.fromkeys(e["class"] for e in recs)}
+    fixes = [c for x in p["passing"].values() for c in x.get("corrections", [])]
     print(f"edits in what ships: {len(recs)} in {sum(bool(x.get('edit_records')) for x in p['passing'].values())} puzzle(s)"
           + (" (" + ", ".join(f"{w} {n}" for w, n in kinds.items()) + ")" if kinds else "") + ", each with its record in provenance.jsonl; "
-          f"{sum(len(x.get('notes', [])) for x in p['passing'].values())} misprint note(s) in the xd")
+          f"{sum(len(x.get('notes', [])) for x in p['passing'].values())} corrected key letter(s) noted in the xd; "
+          f"{len(fixes)} correction(s) of the print proposed for the gxd export, not applied here"
+          + (f" ({sum(c['fits'] != 'printed' for c in fixes)} the export can't place or finds already made)" if fixes else ""))
+    for pid, x in sorted(p["passing"].items()):  # nothing says whether these fix a reading or correct the print: said, not guessed
+        for e in x.get("edit_records", []):
+            if e["class"] == "unclassed":
+                print(f"  unclassed {pid} {e['key']} by {e['by']}: no comment on the row and no typos entry"
+                      + (" (the rest of an edit whose misprint correction was taken back out)" if e.get("beside") else ""))
     old = ship.unrecorded(repo, p)
     if old:
         print(f"shipped earlier with no edit records: {len(old)} (--backfill-records lists them)")

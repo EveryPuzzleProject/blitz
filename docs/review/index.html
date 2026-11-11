@@ -1061,11 +1061,13 @@ function xdNotesSection() {
   const cs = ['meta:note', 'notes', 'ev:note'].flatMap(commentsFor);
   // what ship adds to the notes of the xd that ships (the ship record's notes for this puzzle): drawn as recorded, never worked out here
   const added = ((SHIPBY || {})[ID] || {}).notes || [];
+  const fixes = ((SHIPBY || {})[ID] || {}).corrections || [];
   s.innerHTML = `<h2>Notes in the xd file <span class="hint">read-only: what the xd carries after its clues, as written in this packet's puzzle.xd${rev?.xd_fp ? ' (xd ' + esc(rev.xd_fp) + ')' : ''}</span></h2><div class="xdbody">`
     + (xdText == null ? `<div class="xdnone"><b>Not recorded here.</b> This packet was published without its xd file (puzzle.xd), so whatever notes the xd carries can't be shown on this page. Publishing the packet again adds it.</div>`
       : !blocks.length ? `<div class="hint">The xd has no notes.</div>`
       : blocks.map((b, i) => { const [h, ...rest] = b.split('\n'); return `<div class="xdn" id="xdnote-${i + 1}"><div class="xdh">${esc(h)}</div>${rest.length ? `<pre>${esc(rest.join('\n'))}</pre>` : ''}</div>`; }).join(''))
-    + (added.length ? `<div class="xdn" id="xdnote-ship"><div class="xdh">Misprints corrected: <span class="hint">not in this packet's puzzle.xd: blitz ship adds these lines to the notes of the xd that ships, one for each misprint a reviewer corrected (from the batch's ship record${SHIP?.at ? ', ' + esc(SHIP.at.slice(0, 10)) : ''})</span></div><pre>${esc(added.join('\n'))}</pre></div>` : '')
+    + (added.length ? `<div class="xdn" id="xdnote-ship"><div class="xdh">Answer key corrected: <span class="hint">not in this packet's puzzle.xd: blitz ship adds these lines to the notes of the xd that ships, one for each misprinted key letter a reviewer corrected (from the batch's ship record${SHIP?.at ? ', ' + esc(SHIP.at.slice(0, 10)) : ''})</span></div><pre>${esc(added.join('\n'))}</pre></div>` : '')
+    + (fixes.length ? `<div class="xdn" id="xdnote-corrections"><div class="xdh">Corrections of the print, proposed: <span class="hint">not applied to the xd blitz ships, which keeps these as printed: the gxd export makes each correction and writes its note (from the batch's ship record${SHIP?.at ? ', ' + esc(SHIP.at.slice(0, 10)) : ''})</span></div><pre>${esc(fixes.map(c => c.says + (c.fits === 'already' ? '  [the text already has the word meant: the export writes the note only]' : c.fits === 'unplaced' ? '  [not placed in the text: the export leaves it alone]' : '')).join('\n'))}</pre></div>` : '')
     + `<div class="margin">${cs.map(([r, c]) => noteHtml(r, c.text, c.why, c)).join('')}<button class="t" id="xdcomment">＋ Comment on the notes</button></div></div>`;
   s.querySelector('#xdcomment').onclick = () => compose(s.querySelector('.margin'), 'meta:note');
   return s;
