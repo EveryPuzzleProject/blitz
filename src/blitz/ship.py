@@ -652,7 +652,29 @@ NOTES_HEAD = "Answer key corrected:"  # the xd notes block ship writes: one line
 EDIT_STAGE = "proof review"
 READING, UNCLASSED, DECISION, KEY_FIX = "reading", "unclassed", "decision", "key correction"  # an applied edit's class
 _DIR = {"A": "Across", "D": "Down"}
-_TYPO_KEY = re.compile(r"clue:[AD]\d+(?:\^[\w-]+)?|cell:r\d+c\d+|meta:(?:title|author|byline|puzzle_number|editor|feature)")
+# a misprint's key: a clue, a key square, or a header under either name a reviewer uses for it (the proof
+# page's evidence row ev:title / ev:byline / ev:number, or the edit's meta:title)
+_TYPO_KEY = re.compile(r"clue:[AD]\d+(?:\^[\w-]+)?|cell:r\d+c\d+|(?:meta|ev):(?:title|author|byline|puzzle_number|number|editor|feature)")
+
+
+def _field(key: str) -> str:
+    """The HEADER field a header's key names (ev:number and meta:puzzle_number are both puzzle_number); "" for others."""
+    m = re.fullmatch(r"(?:meta|ev):(\w+)", key or "")
+    name = {"number": "puzzle_number"}.get(m[1], m[1]) if m else ""
+    return name if name in HEADER else ""
+
+
+def _word(word: str) -> re.Pattern:
+    """`word` as a whole word or phrase: not inside a longer word ("Tow" is not in "Towel")."""
+    return re.compile(r"(?<!\w)" + re.escape(word) + r"(?!\w)")
+
+
+def _count(text: str, word: str) -> int:
+    return len(_word(word).findall(text or "")) if word else 0
+
+
+def _swap(text: str, word: str, to: str) -> str:
+    return _word(word).sub(lambda m: to, text, count=1)
 
 
 def _read(text: str) -> tuple[dict, list[list[str]], dict]:
@@ -702,7 +724,7 @@ def _key_note(cells: list[list[str]], at: tuple[int, int], printed: str) -> str:
 
 def _label(key: str) -> str:
     """How a note names a clue or a header: A71, A71^Easy, the title."""
-    return key[5:] if key.startswith("clue:") else "The " + HEADER.get(key[5:], key[5:]).lower()
+    return key[5:] if key.startswith("clue:") else "The " + HEADER.get(_field(key), key.split(":")[-1]).lower()
 
 
 def edit_records(packet_xd: str, applied: str, apply: list[dict], rule: Rule = Rule(), pid: str = "", ocr: dict | None = None) -> dict:
@@ -711,13 +733,14 @@ def edit_records(packet_xd: str, applied: str, apply: list[dict], rule: Rule = R
 
     applied: the packet's xd with the Ready reviewers' edits applied (apply_edits). apply: those Ready records
     (standing()'s), first reviewer first. A reviewer names a misprint in their review's typos {key, printed,
-    meant} (key a clue's or a header's, meta:title) and a misprinted key letter in key_corrections {key:
+    meant} (key a clue's or a header's: ev:title, ev:byline, ev:number as the reviewer writes them, or meta:title) and a misprinted key letter in key_corrections {key:
     cell:r3c4, printed, corrected, edited, crop, text} (a typos entry with a cell: key is taken the same way).
     Returns {text, records,
     corrections, notes, missing}:
-    - text: the xd that ships. A clue's or a header's misprint is as printed in it: where the reviewer also
-      edited that clue, their edit is kept except for the misprint (the word meant goes back to the word
-      printed). A misprinted key letter is corrected in it (by the reviewer's own cell edit, or from their
+    - text: the xd that ships. A clue's or a header's misprint is as printed in it. A reviewer's edit to that
+      clue stands when it has the printed word (a reading fix: the reviewer put the text back as printed, or
+      fixed something else in the clue); an old-style edit toward the word meant is kept except for the
+      misprint (the word meant goes back to the word printed). A misprinted key letter is corrected in it (by the reviewer's own cell edit, or from their
       typos entry when they made none), and said in its notes (the NOTES_HEAD block).
     - records: one per value that ships changed: {key, what (clue, second clue set, key square, header,
       decision), class, before (the packet's xd), after, by, kind (owner, helper, ai, check), via, at, stage, why
@@ -736,9 +759,10 @@ def edit_records(packet_xd: str, applied: str, apply: list[dict], rule: Rule = R
     - notes: the editorial lines for the xd's notes, one per corrected key letter (also when the packet's key
       already had the letter meant: the correction was made before review, and is said all the same).
     - missing: what has no whole record, each in words. Any of it holds the puzzle: an edit to a clue or a
-      square the packet's xd doesn't have (nothing to say what it replaced), a value that changed with no edit
-      behind it, an edit that corrects a misprint whose printed text can't be put back, or a key correction
-      that doesn't say what the key printed, or doesn't match the square."""
+      square the packet's xd doesn't have (nothing to say what it replaced; a line a candidate decision wrote
+      is not that: its before is the candidate's text), a value that changed with no edit behind it, an edit
+      beside a misprint entry that doesn't say what was printed, or a key correction that doesn't say what
+      the key printed, or doesn't match the square. Words are matched whole ("Tow" is not in "Towel")."""
     ocr = ocr or {}
     was_h, was_c, was_q = _read(packet_xd)
     owner, value, typos, seen, of_key, key_said = {}, {}, [], set(), set(), {}
@@ -765,6 +789,10 @@ def edit_records(packet_xd: str, applied: str, apply: list[dict], rule: Rule = R
     who = lambda r: {"by": r.get("by", ""), "kind": kind_of(r, rule), "via": r.get("via", ""), "at": r.get("at", "")}
     whole = lambda key, printed, meant: bool(printed and meant and printed != meant and _TYPO_KEY.fullmatch(key))
     records, missing, have, more_edits, back, key_fix, said = [], [], {}, {}, set(), {}, {}
+    edit_key = lambda key: f"meta:{_field(key)}" if _field(key) else key  # the edit a misprint's key sits beside
+    # the candidate lists a reviewer took in (as the clues, or as a second set): their decision wrote those lines
+    lists = [k for k in owner if k.startswith("candidate:") and (value[k] == "clues" or str(value[k]).startswith("second:"))]
+    cands = {f"candidate:{c.get('id')}": c for c in ocr.get("candidates") or [] if isinstance(c, dict)}
 
     for key, printed, meant, r in typos:
         if key.startswith("cell:") or (key, printed, meant) in of_key:  # case 3: the key's letter is corrected here, and only with its whole record
@@ -780,15 +808,17 @@ def edit_records(packet_xd: str, applied: str, apply: list[dict], rule: Rule = R
                 key_fix[key], said[key] = (printed.upper(), meant.upper()), r
             else:
                 missing.append(f"{key}: a key correction to {meant.upper()} that doesn't match the square ({cur})")
-        elif key in owner:  # case 2 made as an edit: the printed word goes back, the rest of the edit stands
-            v = more_edits.get(key, value[key]) or ""
+        elif edit_key(key) in owner:  # case 2 on a clue or header the reviewer also edited
+            ek = edit_key(key)
+            v = more_edits.get(ek, value[ek]) or ""
             if not whole(key, printed, meant):
-                missing.append(f"{key}: an edit said to correct a misprint, with no record of what was printed and what was meant")
-            elif v.count(meant) == 1:
-                more_edits[key] = v.replace(meant, printed)
-                back.add(key)
-            else:
-                missing.append(f"{key}: the edit doesn't have '{meant}' exactly once, so the printed text can't be put back")
+                missing.append(f"{key}: an edit beside a misprint entry that doesn't say what was printed and what was meant")
+            elif _count(v, printed):
+                pass  # the edit puts the text as printed (a reading fix, here or elsewhere in the clue): it stands as it is
+            elif _count(v, meant) == 1:  # an old-style edit toward the word meant: the printed word goes back, the rest stands
+                more_edits[ek] = _swap(v, meant, printed)
+                back.add(ek)
+            # an edit with neither word is a reading fix like any other; the proposal then comes out unplaced, and says so
     text = apply_edits(applied, more_edits)[0] if more_edits else applied
     value.update(more_edits)
     now_h, now_c, now_q = _read(text)
@@ -796,7 +826,7 @@ def edit_records(packet_xd: str, applied: str, apply: list[dict], rule: Rule = R
     def evidence(k):
         crop = (ocr.get("clues") or {}).get(k[5:]) if k.startswith("clue:") else None
         page = ((key_said.get(k) or {}).get("crop") or (ocr.get("answer_page") or {}).get("image")) if k.startswith("cell:") else None
-        return {"proof": f"{PROOF_PAGE}{pid}&k={k}", **({"image": ocr.get("clue_image", ""), "box": crop["box"]} if crop and crop.get("box") else {}),
+        return {"proof": f"{PROOF_PAGE}{pid}&k={k}", **({"image": crop.get("image") or ocr.get("clue_image", ""), "box": crop["box"]} if crop and crop.get("box") else {}),
                 **({"image": page} if page else {})}
 
     def add(k, what, before, after, r, **more):
@@ -813,7 +843,12 @@ def edit_records(packet_xd: str, applied: str, apply: list[dict], rule: Rule = R
     for k, r in owner.items():
         v = value[k]
         if k.startswith("clue:"):
-            if k[5:] not in was_q:
+            wrote = next((c for c in lists if "^" in k and c[len("candidate:"):][:1] == k[5:6]
+                          and _meta_key(str(value[c]).partition(":")[2]) == k.partition("^")[2]), None) if k[5:] not in was_q else None
+            if wrote:  # a line a second-set decision wrote, then fixed by a reviewer: before is the candidate's own text
+                was = (((cands.get(wrote) or {}).get("clues") or {}).get(k[5:].partition("^")[0]) or {}).get("text")
+                add(k, "second clue set", (was or "").strip(), v, r, written_by=wrote, **({} if was is not None else {"read": False}))
+            elif k[5:] not in was_q:
                 missing.append(f"{k}: the packet's xd has no such clue, so nothing says what the edit replaced")
             else:
                 add(k, "second clue set" if "^" in k else "clue", was_q[k[5:]], v, r)
@@ -833,7 +868,6 @@ def edit_records(packet_xd: str, applied: str, apply: list[dict], rule: Rule = R
             add(k, "decision", "", v if isinstance(v, str) else json.dumps(v, ensure_ascii=False), r)
 
     # the net under it: whatever differs between the two xds has a record that says so, or the puzzle is held
-    lists = [k for k in owner if k.startswith("candidate:") and (value[k] == "clues" or str(value[k]).startswith("second:"))]
     names = {v: k for k, v in HEADER.items()}
     diffs = [(f"clue:{k}", "second clue set" if "^" in k else "clue", was_q.get(k), now_q.get(k)) for k in {**was_q, **now_q}]
     diffs += [(f"meta:{names[n]}" if n in names else f"header:{n}", "header", was_h.get(n, ""), now_h.get(n, "")) for n in {**was_h, **now_h}]
@@ -865,10 +899,11 @@ def edit_records(packet_xd: str, applied: str, apply: list[dict], rule: Rule = R
             continue
         fits, says = "unplaced", f"{key or 'a misprint'}: printed '{printed}', meant '{meant}'."
         if whole(key, printed, meant):
-            cur = now_q.get(key[5:]) if key.startswith("clue:") else now_h.get(HEADER[key[5:]], "")
-            fits = "unplaced" if cur is None else "printed" if cur.count(printed) == 1 else "already" if printed not in cur and meant in cur else "unplaced"
+            cur = now_q.get(key[5:]) if key.startswith("clue:") else now_h.get(HEADER[_field(key)], "")
+            fits = ("unplaced" if cur is None else "printed" if _count(cur, printed) == 1
+                    else "already" if not _count(cur, printed) and _count(cur, meant) else "unplaced")
             says = f"{_label(key)} is printed '{printed}'; meant '{meant}'."
-        mine = ((r.get("proof") or {}).get("review") or {}).get("edits", {}).get(key)
+        mine = ((r.get("proof") or {}).get("review") or {}).get("edits", {}).get(edit_key(key))
         corrections.append({"key": key, "printed": printed, "meant": meant, **who(r), "fits": fits, "says": says, "evidence": evidence(key),
                             **({"edit": mine} if mine is not None else {})})
     return {"text": with_notes(text, notes), "records": records, "corrections": corrections, "notes": notes, "missing": missing}
@@ -886,10 +921,10 @@ def corrected(text: str, corrections: list[dict]) -> tuple[str, list[str], list[
         heads, _, clues = _read(text)
         done, note = "not applied", ""
         if printed and meant and printed != meant and _TYPO_KEY.fullmatch(key) and not key.startswith("cell:"):
-            cur = clues.get(key[5:]) if key.startswith("clue:") else heads.get(HEADER[key[5:]])
-            if cur is not None and cur.count(printed) == 1:
-                text, done = apply_edits(text, {key: cur.replace(printed, meant)})[0], "applied"
-            elif cur is not None and printed not in cur and meant in cur:
+            cur = clues.get(key[5:]) if key.startswith("clue:") else heads.get(HEADER[_field(key)])
+            if cur is not None and _count(cur, printed) == 1:  # the printed word, whole, once: the word meant takes its place
+                text, done = apply_edits(text, {key if key.startswith("clue:") else f"meta:{_field(key)}": _swap(cur, printed, meant)})[0], "applied"
+            elif cur is not None and not _count(cur, printed) and _count(cur, meant):
                 done = "noted"
             note = f"{_label(key)} is printed '{printed}'; corrected to '{meant}'." if done != "not applied" else ""
         if note:

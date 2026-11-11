@@ -118,14 +118,88 @@ def test_a_misprint_corrected_as_an_edit_is_taken_back_out_and_the_rest_of_the_e
     _, _, p = shipped(tmp_path / "b", said(AI_BY, AGENT, {"clue:A3": "Two"}, typos=typos), CHECK, xd=XD.replace("A3. Two ~", "A3. Tow ~"))
     x = p["passing"][P]
     assert "A3. Tow ~ CDE" in x["text"] and x["edit_records"] == [] and x["corrections"][0]["fits"] == "printed"
-    # an edit that doesn't have the word meant: the printed text can't be put back, so it doesn't ship
+    # an edit with neither word is a reading fix like any other: it ships, and the proposal says it can't be placed
     _, _, p = shipped(tmp_path / "c", said(AI_BY, AGENT, {"clue:A3": "Deux"}, typos=typos), CHECK)
-    assert p["rows"][0]["reason"] == "edit-unrecorded" and "can't be put back" in p["rows"][0]["why"]
+    x = p["passing"][P]
+    assert "A3. Deux ~ CDE" in x["text"] and x["corrections"][0]["fits"] == "unplaced" and "beside" not in x["edit_records"][0]
+
+
+def test_an_edit_that_puts_the_clue_back_as_printed_ships_with_the_correction_proposed(tmp_path):
+    """The reviewer's shape (xword-ocr proofreview): a reading fix puts our text back to the print, the misprint is
+    proposed in typos, and the record's comment on the row says so. An earlier step had 'improved' the print."""
+    typos = [{"key": "clue:A3", "printed": "Tow", "meant": "Two", "stands": "Tow", "text": "A3 is printed 'Tow'; 'Two' was meant."}]
+    why = [("clue:A3", "A mistake in the print, left as printed: A3 is printed 'Tow'; 'Two' was meant.")]
+    repo, _, p = shipped(tmp_path, said(AI_BY, AGENT, {"clue:A3": "Tow"}, why, typos), CHECK)        # the packet's xd has "Two"
+    assert p["rows"][0]["status"] == "shippable"
+    write(repo, p, "2026-11-11")
+    row = row_of(repo)
+    assert "A3. Tow ~ CDE" in xd_of(repo)
+    (r,) = row["edits"]["records"]
+    assert (r["before"], r["after"], r["class"]) == ("Two", "Tow", "reading") and "beside" not in r
+    (c,) = row["corrections"]
+    assert (c["fits"], c["edit"], c["says"]) == ("printed", "Tow", "A3 is printed 'Tow'; meant 'Two'.")
+    export(repo, tmp_path / "out", "games")
+    out = (tmp_path / "out" / "games" / "1978" / "games1978-03-01.xd").read_text(encoding="utf-8")
+    assert "A3. Two ~ CDE" in out and out.endswith("A3 is printed 'Tow'; corrected to 'Two'.\n")
+    # a reading fix elsewhere in a clue that also has a proposed typo
+    _, _, p = shipped(tmp_path / "b", said(AI_BY, AGENT, {"clue:A3": "Tow of them"}, typos=typos), CHECK, xd=XD.replace("A3. Two ~", "A3. Tow of thern ~"))
+    x = p["passing"][P]
+    assert "A3. Tow of them ~ CDE" in x["text"] and x["edit_records"][0]["after"] == "Tow of them" and x["corrections"][0]["fits"] == "printed"
+
+
+def test_a_header_misprint_under_the_reviewers_ev_key_is_corrected_at_the_export(tmp_path):
+    typos = [{"key": "ev:title", "printed": "Wether", "meant": "Weather"}, {"key": "ev:byline", "printed": "Smiht", "meant": "Smith"},
+             {"key": "ev:number", "printed": "No. 71", "meant": "No. 17"}]
+    xd = XD.replace("Title: T\n", "Title: Wether Report\nByline: by Al Smiht\nNumber: No. 71\n")
+    repo, _, p = shipped(tmp_path, said(AI_BY, AGENT, {}, typos=typos), CHECK, xd=xd)
+    cs = p["passing"][P]["corrections"]
+    assert [(c["key"], c["fits"]) for c in cs] == [("ev:title", "printed"), ("ev:byline", "printed"), ("ev:number", "printed")]
+    assert cs[0]["says"] == "The title is printed 'Wether'; meant 'Weather'." and cs[0]["evidence"]["proof"].endswith("&k=ev:title")
+    write(repo, p, "2026-11-11")
+    assert xd_of(repo).startswith("Title: Wether Report\n")                                           # as printed
+    res = export(repo, tmp_path / "out", "games")
+    out = (tmp_path / "out" / "games" / "1978" / "games1978-03-01.xd").read_text(encoding="utf-8")
+    assert "Title: Weather Report\n" in out and "Byline: by Al Smith\n" in out and "Number: No. 17\n" in out
+    assert "The title is printed 'Wether'; corrected to 'Weather'." in out and "The number is printed 'No. 71'; corrected to 'No. 17'." in out
+    assert res["corrections"] == {"applied": 3, "noted": 0, "not applied": 0}
 
 
 def test_the_export_leaves_alone_a_correction_it_cannot_place():
     text, notes, rows = corrected(XD, [{"key": "clue:A3", "printed": "Tow", "meant": "Deux", "by": "x"}, {"key": "clue:A9", "printed": "a", "meant": "b"}])
     assert text == XD and notes == [] and [r["done"] for r in rows] == ["not applied", "not applied"]
+
+
+def test_the_printed_word_is_replaced_as_a_whole_word():
+    fix = [{"key": "clue:A3", "printed": "Tow", "meant": "Two"}]
+    text, _, rows = corrected(XD.replace("A3. Two ~", "A3. Towel for Tow ~"), fix)
+    assert "A3. Towel for Two ~ CDE" in text and rows[0]["done"] == "applied"
+    text, _, rows = corrected(XD.replace("A3. Two ~", "A3. Towel ~"), fix)                           # "Tow" is not in "Towel"
+    assert "A3. Towel ~ CDE" in text and rows[0]["done"] == "not applied"
+    e = edit_records(XD.replace("A3. Two ~", "A3. Towel for Tow ~"), XD.replace("A3. Two ~", "A3. Towel for Tow ~"), [said(AI_BY, AGENT, {}, typos=fix)])
+    assert e["corrections"][0]["fits"] == "printed"
+
+
+def test_a_clue_edits_evidence_is_the_clues_own_image():
+    ocr = {"clue_image": "page.jpg", "clues": {"A3": {"box": [1, 2, 3, 4], "image": "page-2.jpg"}, "A5": {"box": [5, 6, 7, 8]}}}
+    edits = {"clue:A3": "Deux", "clue:A5": "Trois"}
+    e = edit_records(XD, apply_edits(XD, edits)[0], [said(PERSON, SITE, edits)], ocr=ocr)
+    by = {r["key"]: r["evidence"] for r in e["records"]}
+    assert (by["clue:A3"]["image"], by["clue:A3"]["box"]) == ("page-2.jpg", [1, 2, 3, 4])            # a clue on another page of the packet
+    assert by["clue:A5"]["image"] == "page.jpg"                                                       # none of its own: the packet's clue image
+
+
+def test_a_reviewers_fix_to_a_line_a_candidate_decision_wrote_lands():
+    ocr = {"candidates": [{"id": "D-alt1", "dir": "D", "clues": {"D1": {"text": "Quatre"}, "D2": {"text": "Cinc"}}}]}
+    edits = {"candidate:D-alt1": "second:Easy", "clue:D2^Easy": "Cinq"}
+    applied = XD.replace("D1. Four ~ AC\n", "D1. Four ~ AC\nD1 ^Easy: Quatre\n").replace("D2. Five ~ BDF\n", "D2. Five ~ BDF\nD2 ^Easy: Cinq\n")
+    e = edit_records(XD, applied, [said(PERSON, SITE, edits, [("clue:D2^Easy", "The crop reads Cinq.")])], ocr=ocr)
+    by = {r["key"]: r for r in e["records"]}
+    assert not e["missing"]
+    d2 = by["clue:D2^Easy"]
+    assert (d2["before"], d2["after"], d2["written_by"], d2["class"]) == ("Cinc", "Cinq", "candidate:D-alt1", "reading")
+    assert (by["clue:D1^Easy"]["before"], by["clue:D1^Easy"]["after"], by["clue:D1^Easy"]["decided_by"]) == ("", "Quatre", "candidate:D-alt1")
+    # with no such decision, an edit to a line the xd doesn't have still holds the puzzle
+    assert edit_records(XD, XD, [said(PERSON, SITE, {"clue:D2^Easy": "Cinq"})])["missing"]
 
 
 # ---- case 3: a misprinted key letter is corrected at ship, and said in the xd ----

@@ -110,7 +110,8 @@ so the publication's xd keeps what was printed and the correction is made where 
 leaves for gxd.
 
 A reviewer says a thing is a misprint in their review: a clue's or a header's in `typos`, `[{key,
-printed, meant}]` (`clue:A71`, `meta:title`); a key letter's in `key_corrections`, `[{key:
+printed, meant}]` (`clue:A71`; a header under the key the reviewer uses for its row, `ev:title`,
+`ev:byline`, `ev:number`, or `meta:title`); a key letter's in `key_corrections`, `[{key:
 "cell:r3c6", printed, corrected, edited, crop, text}]`, as xword-ocr's proof reviewer writes them
 (xword-ocr docs/ship-gate.md). `edited: false` means the packet's grid already had the corrected
 letter and the reviewer only records that the key prints otherwise. A `typos` entry with a
@@ -124,8 +125,8 @@ via, at, stage: "proof review", why, evidence: {proof, image, box}}`.
 
 | edit | key | `before` | also recorded |
 |---|---|---|---|
-| a clue's text | `clue:A12` | the clue in the packet's xd | the clue's crop in the packet (`evidence.image`, `box`) |
-| a second-set clue | `clue:A12^Easy` | that line in the packet's xd | |
+| a clue's text | `clue:A12` | the clue in the packet's xd | the clue's crop in the packet (`evidence.image`: the clue's own page image, `ocr.clues[..].image`, else the packet's `clue_image`; `box`) |
+| a second-set clue | `clue:A12^Easy` | that line in the packet's xd; for a line a candidate's `second:<Key>` decision wrote, the candidate's own text (`written_by`) | |
 | a key square | `cell:r3c4` | the letter in the packet's grid | `words`: each answer through it, before and after; `evidence.image`: the key's page |
 | a header | `meta:title` (author, byline, puzzle_number, editor, feature) | the header in the packet's xd, "" when it had none | `header`: its name in the xd |
 | a decision that isn't a value of the xd (a candidate clue list's) | `candidate:<id>` | "" | the clues it wrote, each as its own record with `decided_by` |
@@ -154,17 +155,25 @@ only), `unplaced` (neither, more than once, or the entry is incomplete: the expo
 alone and says so). `says` is the line the proof page draws ("A71 is printed 'cockail'; meant
 'cocktail'.").
 
-A reviewer can name a misprint with no edit (what xword-ocr's reviewer is moving to), and that is
-all the above. When ship meets both, a `clue:` edit and a `typos` entry for the same clue, the
-entry wins: the edit is kept except for the misprint. The word meant goes back to the word
-printed (the edit must have it exactly once), what is left of the edit is applied (a reading the
-same edit fixed stays fixed; its record is `unclassed`, with `beside`), and the reviewer's own
-text is kept on the correction as `edit`. An edit that was the correction and nothing else leaves
-the clue untouched. If the printed text can't be put back, the puzzle is held.
+A reviewer names a misprint with no edit, and that is all the above. When ship meets both, an edit
+and a `typos` entry for the same clue or header, what the edit says decides (words are matched
+whole: "Tow" is not in "Towel"):
+
+- the edit has the printed word: it is a reading fix and stands as it is. This is the reviewer's
+  shape (xword-ocr proofreview): an earlier step had put the word right, so the reviewer puts the
+  text back as printed and proposes the correction; or they fixed a reading elsewhere in a clue
+  that also has a typo. The correction fits `printed`.
+- the edit has the word meant, once, and not the printed word (an old-style edit toward the
+  correction): the word meant goes back to the word printed, what is left of the edit is applied
+  (its record is `unclassed`, with `beside`), and an edit that was the correction and nothing else
+  leaves the clue untouched.
+- the edit has neither: it is a reading fix like any other, and the correction comes out
+  `unplaced`.
+
+The reviewer's own text is kept on the correction as `edit`.
 
 `blitz ship-export` applies them (`ship.corrected()`): each correction that fits becomes the word
-meant in the exported xd, with the note in the form publications/REVIEW.md gives, `A71 is printed
-'cockail'; corrected to 'cocktail'.` (a header: `The title is printed ...`), after the printed
+meant in the exported xd, with the note `A71 is printed 'cockail'; corrected to 'cocktail'.` (a header: `The title is printed ...`), after the printed
 lines the Notes rule takes. The export's `corrections.tsv` lists every correction and what was
 done with it (`applied`, `noted`, `not applied`). The publication's xd is not touched.
 
@@ -199,7 +208,7 @@ say so: "Answer key corrected" (added when it ships) and "Corrections of the pri
   replaced (before 2026-11-11 such an edit was dropped without a word);
 - anything in the headers, the grid or the clues differs from the packet's xd with no edit
   behind it, or ships as something other than its edit;
-- an edit corrects a misprint and the printed text can't be put back;
+- an edit sits beside a misprint entry that doesn't say what was printed and what was meant;
 - a key correction has no whole record.
 
 Puzzles shipped before this have rows with `edits: {applied, from}` alone. `blitz ship <pub>
