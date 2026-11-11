@@ -22,21 +22,26 @@ break is joined as it's normally written; the magazine's recurring notices
 (e.g. "Judge will run a Crossword Puzzle every week and will pay $25...") are
 not part of the puzzle: remove them from captions.
 
-The text is the puzzle as the publisher meant it, not a facsimile of the page
-(the corpus's rule, EDITORIAL.md: obvious mistakes are corrected to what was
-meant; nothing the publisher did on purpose is changed).
+Here the text is faithful to the page: you make it match what was printed.
+Three cases, and only the first is a change to a clue's text:
 
-A correction is for an OCR misreading (the scan shows something different
-from the text) and for damaged type: letters the press printed broken, faint
-or partly missing ("quarre!" for quarrel, "shel!", "wal's" for walls; an e
-whose bar didn't print looks like an o or c, as in "highor"), a stray space
-or a missing one ("fan ier", "highor der"), and ink specks read as accents
-or punctuation ("aré"). A plain printer's typo is corrected too: a wrong,
-extra or missing letter set cleanly in type ("cockail" for cocktail,
-"Tumeric", "tresspassing", "Tbis") becomes the word that was meant. When the
-scan shows the misspelling cleanly, say so in `note` ("D1 is printed
-'cockail'; corrected to cocktail"), so the record shows the slip was the
-printer's, not the OCR's.
+1. **A reading fix.** A correction is for an OCR misreading (the scan shows
+   something different from the text) and for damaged type: letters the press
+   printed broken, faint or partly missing ("quarre!" for quarrel, "shel!",
+   "wal's" for walls; an e whose bar didn't print looks like an o or c, as in
+   "highor"), a stray space or a missing one ("fan ier", "highor der"), and
+   ink specks read as accents or punctuation ("aré"). Say what the scan shows.
+2. **A printer's typo in a clue or a header is not corrected here.** A wrong,
+   extra or missing letter set cleanly in type ("cockail" for cocktail,
+   "Tumeric", "tresspassing", "Tbis") stays as printed. Say so in `note`
+   ("D1 is printed 'cockail'; 'cocktail' was meant"): that is a proposal. The
+   corpus's text is the puzzle as the publisher meant it (its rule,
+   EDITORIAL.md: obvious mistakes are corrected to what was meant), so the
+   correction is made when the puzzle is exported to the corpus, with a note
+   saying what was printed. If the text already has the word meant and the
+   scan shows the typo, put the text back as printed and say the same.
+3. **A misprinted letter in the answer key is corrected here, and noted**
+   (the paragraph on the answer key, below).
 
 What the publisher did on purpose stays. Puzzles have gimmicks (missing or
 extra letters, pun spellings, several letters in one square, dialect), so an
@@ -161,7 +166,8 @@ clue's own text too: it has usually been read separately, with its own slips.
 
 Most odd-looking words are OCR misreads, not misprints: if the text says "bundred" and the crop
 shows "hundred", correct the clue. Damaged type is corrected too ("quarre!", "shel!", "fan ier":
-broken, faint or spaced-out letters), and so is a printer's typo set cleanly in type (say so in
-`note`). What's printed that way on purpose goes under "as_printed".
+broken, faint or spaced-out letters). A printer's typo set cleanly in type stays as printed: say
+what was printed and what was meant in `note`, and it is corrected at the export. What's printed
+that way on purpose goes under "as_printed".
 Never put an answer word in a clue; answer fixes go in "answers". Captions that belong to the
 magazine, an ad or another puzzle are removed with "other:N": "".

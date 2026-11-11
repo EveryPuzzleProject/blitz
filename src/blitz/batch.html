@@ -203,7 +203,7 @@ let DATA = params.get('data') || '', BATCHES = [];
 // blitz ship's record for the batch (design/ship.md): every puzzle shipped, shippable or held, with the reason.
 // The page draws it as recorded; the rule is blitz ship's (src/blitz/ship.py standing()), never worked out here.
 let SHIP = null, SHIPBY = {};
-const HELD = {'no-ready': "waiting for a person's Ready", 'not-ready': 'a reviewer said Not ready', 'owner-hold': 'held by the maintainer',
+const HELD = {'edit-unrecorded': 'an edit with no record of what it changed', 'no-ready': "waiting for a person's Ready", 'not-ready': 'a reviewer said Not ready', 'owner-hold': 'held by the maintainer',
               'needs-work': 'needs work', 'incomplete': 'incomplete', 'proof-stale': 'its Ready was on an earlier version',
               'packet-stale': 'its proof packet is out of date', 'edits-differ': "reviewers' edits differ",
               'edits-unapplied': "an edit the import can't apply yet", 'xd-exists': 'another file has its id', 'no-packet': 'no proof packet',

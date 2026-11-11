@@ -64,6 +64,7 @@ A puzzle the rule passes can still be held by the import, each with its own reas
 
 | reason | meaning |
 |---|---|
+| `edit-unrecorded` | an edit with no whole record of what it changed (The record of every edit, below) |
 | `incomplete` | the ship check found missing or empty clues, an unsolved grid, a partial second clue set: no Ready makes it whole |
 | `packet-stale` | the proof packet doesn't show its xd: rebuild the packet |
 | `proof-stale` | all that was said (a Ready, or an AI's Not ready) was on an earlier version of the puzzle |
@@ -80,14 +81,16 @@ triage's disposition isn't ready), and each hold code.
 
 - `xd/<xdid>.xd`: the packet's `puzzle.xd` with the Ready reviewers' edits applied (clue text,
   key squares with the answers worked out again, the header fields). Its headers are the
-  packet's; nothing about shipping is added to the file.
+  packet's. A misprint in a clue or a header stays as printed; a misprinted key letter is
+  corrected, with a line under `Answer key corrected:` in its notes (the next section).
 - `fixes/xdids.tsv`: ids pinned for puzzles that had none. A puzzle keeps the id
   `pipeline/ids.tsv` or `fixes/xdids.tsv` already gives its place on the page.
 - `provenance.jsonl`, append-only, the last row for an xdid stands:
   `{xdid, pid, batch, run, packet, packet_xd, xd, shipped: {at, rule, ai_ready, by, why}, said:
-  [{who, kind, answer, at, stale}], edits: {applied, from}, check, codes, sources: {grid, clues,
-  key}, printed: [{label, text}]}`. `kind` is owner, helper, ai or check; `printed` is the kept
-  printed lines with the text step's labels, which the export's Notes rule picks from.
+  [{who, kind, answer, at, stale}], edits: {applied, from, records, packet}, corrections, notes,
+  check, codes, sources: {grid, clues, key}, printed: [{label, text}]}`. `kind` is owner, helper,
+  ai or check; `printed` is the kept printed lines with the text step's labels, which the
+  export's Notes rule picks from; `edits`, `corrections` and `notes` are the next section.
 - `gxd-exports.tsv`: judge's columns (`gxd_id xdid date number gxd_mr exported proof_url
   package_url scan_url ai_reviewed person_reviewed credit`), rebuilt from provenance.jsonl;
   `gxd_mr` and `exported` are filled by hand after a merge and kept.
@@ -99,6 +102,138 @@ triage's disposition isn't ready), and each hold code.
   written), held, or out (set aside, not a crossword). `ships_with` is the smallest `ai_ready`
   setting under which the rule passes the puzzle. Helpers' names are left out. The queue fields
   are the next section.
+
+## The record of every edit
+
+The owner's rule (2026-11-11): blitz is faithful to the original. Suggesting or making an edit is
+fine; an edit with no record is not. Every change has a record of what it was, what it became,
+who or what changed it and where to see it, and the record travels with the shipped xd (the
+puzzle's `provenance.jsonl` row), not only in the ledger or on the proof page. There are three
+cases, and where each is applied differs:
+
+| case | what it is | the xd `blitz ship` writes | where it is recorded |
+|---|---|---|---|
+| 1. a reading fix | the scan or the OCR was bad: the reviewer makes our text match what was printed (a clue, a header, a key square) | applied | `edits.records`, class `reading` |
+| 2. a misprint in a clue or a header | the scan is good and the original has a mistake | **as printed**: not applied | `corrections`, a proposal; `blitz ship-export` applies it and writes the editorial note into the exported xd |
+| 3. a misprinted answer-key letter | the printed key has a wrong letter (the clue and the crossings call for another) | corrected, with an editorial note in the xd's notes | `edits.records`, class `key correction`, with the note; the row's `notes` |
+
+The key is evidence for the answers rather than part of the puzzle, so its misprint is corrected
+early and said (the project's standing rule for keys); a clue or a header is the puzzle itself,
+so the publication's xd keeps what was printed and the correction is made where the puzzle
+leaves for gxd.
+
+A reviewer says a thing is a misprint in their review: a clue's or a header's in `typos`, `[{key,
+printed, meant}]` (`clue:A71`; a header under the key the reviewer uses for its row, `ev:title`,
+`ev:byline`, `ev:number`, or `meta:title`); a key letter's in `key_corrections`, `[{key:
+"cell:r3c6", printed, corrected, edited, crop, text}]`, as xword-ocr's proof reviewer writes them
+(xword-ocr docs/ship-gate.md). `edited: false` means the packet's grid already had the corrected
+letter and the reviewer only records that the key prints otherwise. A `typos` entry with a
+`cell:` key is taken as a key correction too. A `cell:` edit with neither is a reading fix.
+
+`ship.edit_records()` makes the records, from the packet's `puzzle.xd`, that xd with the Ready
+reviewers' edits applied, and those Ready records.
+
+**`edits.records`**, one per value that ships changed: `{key, what, class, before, after, by, kind,
+via, at, stage: "proof review", why, evidence: {proof, image, box}}`.
+
+| edit | key | `before` | also recorded |
+|---|---|---|---|
+| a clue's text | `clue:A12` | the clue in the packet's xd | the clue's crop in the packet (`evidence.image`: the clue's own page image, `ocr.clues[..].image`, else the packet's `clue_image`; `box`) |
+| a second-set clue | `clue:A12^Easy` | that line in the packet's xd; for a line a candidate's `second:<Key>` decision wrote, the candidate's own text (`written_by`) | |
+| a key square | `cell:r3c4` | the letter in the packet's grid | `words`: each answer through it, before and after; `evidence.image`: the key's page |
+| a header | `meta:title` (author, byline, puzzle_number, editor, feature) | the header in the packet's xd, "" when it had none | `header`: its name in the xd |
+| a decision that isn't a value of the xd (a candidate clue list's) | `candidate:<id>` | "" | the clues it wrote, each as its own record with `decided_by` |
+
+`by` is the reviewer as the ledger names them, `kind` owner / helper / ai / check, `why` their
+comment on the row, `evidence.proof` the row on the proof page (`?p=<pid>&k=<key>`). An edit that
+leaves the value as it was makes no record.
+
+**Every applied edit has a class, and none is guessed:**
+
+- `reading`: the reviewer commented on the row. The comment is the evidence that the page shows
+  the new text; it is quoted in `why`, not parsed.
+- `key correction`: a `typos` entry names the square (case 3).
+- `decision`: not a value of the xd (a candidate list's decision, and the clues it wrote).
+- `unclassed`: no comment on the row and no `typos` entry, so nothing says whether the reviewer
+  fixed a reading or corrected the print. It is applied, and reported: `blitz ship` lists each one
+  ("unclassed <pid> <key> by <reviewer>"), and the record says `unclassed`. Holding these instead
+  would be one line; it is the owner's call.
+
+**Case 2: `corrections`**, one per `typos` entry for a clue or a header: `{key, printed, meant, by,
+kind, via, at, fits, says, evidence, edit}`. Nothing is applied. `fits` says what the export will
+find: `printed` (the xd that ships has the printed word once: the export puts the word meant in
+its place), `already` (it has the word meant and not the printed one: the text review had put it
+right before any reviewer saw it, so the xd is not as printed there; the export writes the note
+only), `unplaced` (neither, more than once, or the entry is incomplete: the export leaves it
+alone and says so). `says` is the line the proof page draws ("A71 is printed 'cockail'; meant
+'cocktail'.").
+
+A reviewer names a misprint with no edit, and that is all the above. When ship meets both, an edit
+and a `typos` entry for the same clue or header, what the edit says decides (words are matched
+whole: "Tow" is not in "Towel"):
+
+- the edit has the printed word: it is a reading fix and stands as it is. This is the reviewer's
+  shape (xword-ocr proofreview): an earlier step had put the word right, so the reviewer puts the
+  text back as printed and proposes the correction; or they fixed a reading elsewhere in a clue
+  that also has a typo. The correction fits `printed`.
+- the edit has the word meant, once, and not the printed word (an old-style edit toward the
+  correction): the word meant goes back to the word printed, what is left of the edit is applied
+  (its record is `unclassed`, with `beside`), and an edit that was the correction and nothing else
+  leaves the clue untouched.
+- the edit has neither: it is a reading fix like any other, and the correction comes out
+  `unplaced`.
+
+The reviewer's own text is kept on the correction as `edit`.
+
+`blitz ship-export` applies them (`ship.corrected()`): each correction that fits becomes the word
+meant in the exported xd, with the note `A71 is printed 'cockail'; corrected to 'cocktail'.` (a header: `The title is printed ...`), after the printed
+lines the Notes rule takes. The export's `corrections.tsv` lists every correction and what was
+done with it (`applied`, `noted`, `not applied`). The publication's xd is not touched.
+
+**Case 3: a key correction.** The letter is corrected in the shipped xd: by the reviewer's own
+`cell:` edit, or from their entry when they made none. The xd's notes get a block,
+`Answer key corrected:`, one line each, naming the square, what the key printed and what it was
+corrected to: the entry's own `text` ("The answer key printed 'C' at r3c6; corrected to 'D', which
+the crossing clues require."), or, where it gives none, `The printed answer key gave 17 Across as RE (and so 2 Down as EMEERS), presumably
+in error (E at row 3, column 4). It has been corrected to RB and EMBERS (B).`, the form of Judge's
+notes. The record carries `misprint: {printed, meant}`, `note` and the entry's `crop` as
+`evidence.image`; the lines are the row's `notes`,
+which the gxd export adds to the puzzle's notes. When the packet's key already had the letter
+meant (corrected before review), nothing changes and it is noted all the same (`stage: "before
+review"`). A key correction that doesn't say what the key printed and what was meant, names no
+square, or doesn't match the square doesn't ship. A `cell:` edit with a comment and no `typos`
+entry is a reading fix; with neither it is `unclassed`, and listed.
+
+**`edits.packet`** is what the packet had already changed before any reviewer saw it (the text
+review's `corrections` in `review.json`): `{key, what, before, after, by, stage: "text review",
+why}`, `before` being the reading the packet's `ocr.json` holds for that clue, printed line, key
+square or header (`read: false` when it holds none). The xd's `Text-Review:` header says how many
+there were; this is the list. These are not classed.
+
+**On the proof page.** The packet's `puzzle.xd` shows neither the key notes ship adds nor the
+corrections it holds back, so the ship record carries both per puzzle (`notes`, `corrections:
+[{key, printed, meant, fits, says}]`) and "Notes in the xd file" draws them as two blocks that
+say so: "Answer key corrected" (added when it ships) and "Corrections of the print, proposed"
+(not applied here; the gxd export makes them).
+
+**No record, no ship.** A puzzle is held as `edit-unrecorded` (the import's: broken) when
+- an edit is to a clue or a square the packet's xd doesn't have, so nothing says what it
+  replaced (before 2026-11-11 such an edit was dropped without a word);
+- anything in the headers, the grid or the clues differs from the packet's xd with no edit
+  behind it, or ships as something other than its edit;
+- an edit sits beside a misprint entry that doesn't say what was printed and what was meant;
+- a key correction has no whole record.
+
+Puzzles shipped before this have rows with `edits: {applied, from}` alone. `blitz ship <pub>
+--proof ... --backfill-records` lists the rows that would give them their records (the standing
+row, its `edits` made again from the ledger and the packet, `backfilled: <date>`); with `--write`
+it appends them and touches no xd. It can only do this for a puzzle whose xd in `xd/` is still
+exactly what the ledger and the packet make.
+
+Not recorded yet: a hand fix made upstream of the packet (the publication's `fixes.toml`, a typed
+grid) reaches the xd inside the packet and is named in the xd's own headers and on the proof
+page, not in `edits`. A person on the proof page has no way to say an edit corrects a misprint
+(no `typos` from the page), so theirs is a reading fix if they commented and unclassed if not.
 
 A dry run writes none of this. Three options write the record alone and ship nothing (status
 only, for a batch that isn't shipping yet): `--record` (the publication repo's
@@ -319,7 +454,9 @@ go-ahead.
 
 An exported file is the puzzle only: Title, Author (tidied), Editor, Date, Number, Byline,
 Rebus, Special; the grid; the clues with their `^Easy` lines; and the printed lines the Notes
-rule takes (the ledger's `notes-rule:<pubid>`, else intro and instructions). Sources, OCR flags
+rule takes (the ledger's `notes-rule:<pubid>`, else intro and instructions), then the row's
+`notes` (key letters corrected) and a note for each correction of the print the export makes
+(`corrections.tsv` lists them). Sources, OCR flags
 and everything else stay in provenance.jsonl. `Feature` is left out until `--feature-as` says
 which gxd header it becomes. A puzzle carrying `cryptic-no-key` stays in `xd/` and isn't
 exported.

@@ -161,6 +161,29 @@ xd files, `provenance.jsonl`, `gxd-exports.tsv` and `pipeline/ship/<batch>.json`
 ship and Held with the reason on every card. `blitz ship-export games --dest <folder>` writes the
 gxd export as files, with the commands for a merge request; it sends nothing.
 
+Every edit ships with its record (design/ship.md, "The record of every edit"). A reviewer's reading
+fix is applied and recorded in `provenance.jsonl`. A misprint in a clue or a header stays as
+printed in `xd/`; the correction is a proposal in the puzzle's provenance row, and `ship-export`
+makes it, writes the note, and lists it in the export's `corrections.tsv`. A misprinted key letter
+is corrected in `xd/` with a line under `Answer key corrected:`. The dry run lists every edit
+nothing classes ("unclassed <pid> <key> by <reviewer>": no comment on the row, no misprint entry).
+
+- **Held as `edit-unrecorded`** (Broken in the pipeline, stage import): an edit has no whole record
+  of what it changed. The card's reason names the key. Usual causes: an edit to a clue or a square
+  the packet's xd doesn't have (the packet was rebuilt after the review: review it again on the
+  current packet), or a key correction that doesn't say what the key printed (the reviewer's
+  record is incomplete: a new review of that puzzle replaces it). Nothing is fixed by hand in `xd/`.
+- **Puzzles shipped before the records were kept** have provenance rows without them. To see the
+  rows that would add them, then to append them (no xd is touched):
+
+  ```
+  uv run --extra site blitz ship games --proof <run's proof packets> --batch <batch> --no-site --backfill-records
+  uv run --extra site blitz ship games --proof <run's proof packets> --batch <batch> --no-site --backfill-records --write
+  ```
+
+  It can only rebuild a puzzle whose xd in `xd/` is still exactly what the ledger and the packet
+  make, and says which it can't.
+
 ### Working on the site's pages
 
 To change the proof page or the batch page (`src/blitz/proof.html`, `batch.html`) and see each edit

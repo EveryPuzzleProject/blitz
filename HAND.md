@@ -50,9 +50,10 @@ square to see it there.
   square and type the right letter (`#` makes it black, `.` marks it
   unreadable).
 - **Clues:** each clue's text sits under its scan crop. Fix what the OCR
-  misread, and fix a plain printer's typo too: the text is the puzzle as the
-  publisher meant it, so "cockail" becomes cocktail (say what was printed in
-  your finishing note). Keep what the puzzle does on purpose: a pun, a gimmick
+  misread, so the text matches the print. Leave a plain printer's typo as
+  printed ("cockail" stays), and say in your finishing note what was printed
+  and what was meant: the correction is made later, when the puzzle goes to
+  the corpus. Keep what the puzzle does on purpose: a pun, a gimmick
   spelling, dialect. Mark anything you can't read with **Unsure**.
 - **Finish:** say whether it's ready to publish, and anything left over.
 
