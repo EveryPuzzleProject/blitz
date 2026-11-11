@@ -275,6 +275,24 @@ def test_an_ai_review_alone_is_not_reviewed(tmp_path):
     assert counts(p["rows"])["reviewed"] == 1
 
 
+def test_a_stale_ai_not_ready_leaves_the_question_queue_and_its_asks_are_not_asked(tmp_path):
+    def earlier(r):  # the record as an earlier run's packet would have left it
+        r = json.loads(json.dumps(r))
+        r["proof"]["review"]["xd"] = "run1"
+        return r
+    person = {**HELPER_NO, "id": f"proof:{P}42", "proof": {"review": {"xd": "run1", "edits": {}, "comments": [{"key": "clue:D4", "text": "D4 is wrong"}]}}}
+    said = {P + "40": [earlier(_ai_no(P + "40", ("ev:title", "Is it untitled?", "confirm")))],          # only the earlier run's AI question
+            P + "41": [_ai_no(P + "41", ("ev:title", "Is it untitled?", "confirm"))],                   # asked on this version
+            P + "42": [earlier(_ai_no(P + "42", ("ev:title", "Is it untitled?", "confirm"))), person],  # and a person's, on the earlier one
+            P + "43": [earlier(_ai_no(P + "43", ("ev:title", "Is it untitled?", "confirm"))), AI, CHECK]}
+    repo, proofs = _batch(tmp_path, said, {P + "40": OK, P + "41": OK, P + "42": OK, P + "43": OK})
+    rows = {r["pid"][-2:]: r for r in plan(repo, proofs, Rule(ai_ready="both"), "b")["rows"]}
+    assert [(k, r["queue"], r["reason"]) for k, r in sorted(rows.items())] == [
+        ("40", "unchecked", "proof-stale"), ("41", "question", "not-ready"), ("42", "question", "not-ready"), ("43", "shippable", "")]
+    assert rows["40"]["asks"] == [] and [a["row"] for a in rows["41"]["asks"]] == ["ev:title"]
+    assert [(a["kind"], a["row"]) for a in rows["42"]["asks"]] == [("helper", "clue:D4")]  # the person's question only
+
+
 def test_shipped_puzzles_are_never_in_the_walk(tmp_path, monkeypatch):
     repo, p = _fixture(tmp_path)
     monkeypatch.setattr(shipmod, "spot", lambda pid: pid[-2:] in ("30", "36", "31"))
@@ -321,21 +339,3 @@ def test_a_send_back_from_the_proof_page_moves_a_question_to_broken(tmp_path):
 def test_the_xd_goes_up_with_the_packet():
     from blitz.site import FILES
     assert "puzzle.xd" in FILES                                                        # the proof page draws the xd's notes from it
-
-
-def test_a_stale_ai_not_ready_leaves_the_question_queue_and_its_asks_are_not_asked(tmp_path):
-    def earlier(r):  # the record as an earlier run's packet would have left it
-        r = json.loads(json.dumps(r))
-        r["proof"]["review"]["xd"] = "run1"
-        return r
-    person = {**HELPER_NO, "id": f"proof:{P}42", "proof": {"review": {"xd": "run1", "edits": {}, "comments": [{"key": "clue:D4", "text": "D4 is wrong"}]}}}
-    said = {P + "40": [earlier(_ai_no(P + "40", ("ev:title", "Is it untitled?", "confirm")))],          # only the earlier run's AI question
-            P + "41": [_ai_no(P + "41", ("ev:title", "Is it untitled?", "confirm"))],                   # asked on this version
-            P + "42": [earlier(_ai_no(P + "42", ("ev:title", "Is it untitled?", "confirm"))), person],  # and a person's, on the earlier one
-            P + "43": [earlier(_ai_no(P + "43", ("ev:title", "Is it untitled?", "confirm"))), AI, CHECK]}
-    repo, proofs = _batch(tmp_path, said, {P + "40": OK, P + "41": OK, P + "42": OK, P + "43": OK})
-    rows = {r["pid"][-2:]: r for r in plan(repo, proofs, Rule(ai_ready="both"), "b")["rows"]}
-    assert [(k, r["queue"], r["reason"]) for k, r in sorted(rows.items())] == [
-        ("40", "unchecked", "proof-stale"), ("41", "question", "not-ready"), ("42", "question", "not-ready"), ("43", "shippable", "")]
-    assert rows["40"]["asks"] == [] and [a["row"] for a in rows["41"]["asks"]] == ["ev:title"]
-    assert [(a["kind"], a["row"]) for a in rows["42"]["asks"]] == [("helper", "clue:D4")]  # the person's question only
