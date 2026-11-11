@@ -31,6 +31,7 @@ Shipping a batch (design/ship.md):
     blitz ship <pub> --proof <run's proof packets> [--batch NAME] [--write] [--ai-ready off|both|either]
                                          the batch's reviewed puzzles into ../<pub>/xd/ under the ship rule: which
                                          are shipped, shippable and held, and why (dry run without --write)
+                                         --backfill-records: edit records for puzzles shipped before ship kept them
                                          --record / --snapshot DIR / --publish: the batch's ship record alone (every
                                          puzzle's queue: what the batch page asks of people), shipping nothing
     blitz ship-export <pub> --dest DIR   the gxd export of what's shipped, as files (nothing is sent anywhere)
@@ -382,6 +383,23 @@ def cmd_ship(a) -> None:
         site = fetch_decisions(False)
     rule = ship.rule_of(repo, ai_ready=a.ai_ready, ignore=a.ignore or None)
     p = ship.plan(repo, Path(a.proof), rule, a.batch or "", site, a.pub)
+    if a.backfill_records:  # the edit records of puzzles shipped before ship kept them: provenance rows only, no xd touched
+        rows = ship.backfill(repo, p) if a.write else ship.unrecorded(repo, p)
+        if a.json:
+            print(json.dumps(rows, ensure_ascii=False, indent=1))
+            return
+        for r in rows:
+            e = r["edits"]
+            print(f"  {r['xdid']} ({r['pid']}): {len(e['records'])} edit(s) by reviewers, {len(e['misprints'])} misprint(s), "
+                  f"{len(e['packet'])} change(s) by the text review")
+        stuck = [r for r in ship.provenance(repo) if r.get("batch") == p["batch"] and "records" not in (r.get("edits") or {})
+                 and r["xdid"] not in {x["xdid"] for x in rows}]
+        print(f"{len(rows)} shipped puzzle(s) with no edit records: " + (f"added to {repo / 'provenance.jsonl'}" if a.write else
+              "a dry run; --backfill-records --write appends these rows to provenance.jsonl (no xd is touched)"))
+        if stuck and not a.write:
+            print(f"{len(stuck)} more can't be made again (the xd in xd/ is no longer what the ledger and the packet make): "
+                  + ", ".join(r["xdid"] for r in stuck))
+        return
     res = ship.write(repo, p) if a.write else {"written": [], "ledger": 0}
     rec = ship.record(p, public=False)
     if a.json:
@@ -405,6 +423,14 @@ def cmd_ship(a) -> None:
     w = c["ships_with"]
     print(f"the rule passes {w.get('off', 0)} as it stands; with --ai-ready both {w.get('off', 0) + w.get('both', 0)}; "
           f"with --ai-ready either {sum(w.values())} (before the import's own holds)")
+    recs = [e for x in p["passing"].values() for e in x.get("edit_records", [])]
+    kinds = {w: sum(e["what"] == w for e in recs) for w in dict.fromkeys(e["what"] for e in recs)}
+    print(f"edits in what ships: {len(recs)} in {sum(bool(x.get('edit_records')) for x in p['passing'].values())} puzzle(s)"
+          + (" (" + ", ".join(f"{w} {n}" for w, n in kinds.items()) + ")" if kinds else "") + ", each with its record in provenance.jsonl; "
+          f"{sum(len(x.get('notes', [])) for x in p['passing'].values())} misprint note(s) in the xd")
+    old = ship.unrecorded(repo, p)
+    if old:
+        print(f"shipped earlier with no edit records: {len(old)} (--backfill-records lists them)")
     for status in ("shipped", "shippable"):
         for r in rec["puzzles"]:
             if r["status"] == status:
@@ -584,6 +610,9 @@ def main(argv=None) -> None:
     q.add_argument("--ignore", action="append", help="a reviewer whose decisions don't count (repeatable; replaces "
                                                      "ship-rule.json's list)")
     q.add_argument("--write", action="store_true", help="write the xd files, ledger records, provenance and the ship record")
+    q.add_argument("--backfill-records", action="store_true",
+                   help="list the provenance rows that give edit records to puzzles shipped before ship kept them; with "
+                        "--write, append them (nothing else is written, no xd is touched)")
     q.add_argument("--record", action="store_true", help="status only: write the batch's ship record (pipeline/ship/<batch>.json) "
                                                          "and ship nothing")
     q.add_argument("--snapshot", action="append", help="also write ship.json into this batch snapshot folder (repeatable)")

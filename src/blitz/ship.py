@@ -10,9 +10,11 @@ works nothing out about a puzzle itself:
 
 and writes, in the publication's repo:
 
-    xd/<xdid>.xd              the puzzle as its proof packet shows it, with the reviewers' edits
+    xd/<xdid>.xd              the puzzle as its proof packet shows it, with the reviewers' edits, and a
+                              line in its notes for each misprint they corrected
     fixes/xdids.tsv           the ids it pinned
-    provenance.jsonl          per xdid: the packet, who said what, which rule shipped it, the edits
+    provenance.jsonl          per xdid: the packet, who said what, which rule shipped it, and the record of
+                              every edit (what it was, what it became, who made it, where to see it)
     gxd-exports.tsv           per xdid: its gxd id and the links crossref credits (as judge's)
     pipeline/ship/<batch>.json  every puzzle of the batch: shipped, shippable or held, with the reason
                               (the batch page draws this file; it computes nothing)
@@ -589,6 +591,7 @@ def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict |
         text, done = apply_edits(pk["xd"], edits)
         passing[pid] = {"text": text, "edits": done, "edit_sources": sources, "standing": st, "row": row,
                         "packet": f"{rel}/{pid}", "xd_fp": review.get("xd_fp", "")}
+    _record_edits(passing, packs, rule)  # each one's record of every edit, its misprint notes; none without (edit-unrecorded)
     ids, pins = assign_ids(list(passing), places, repo)
     for pid, x in sorted(passing.items()):
         row, xdid = x["row"], ids[pid]
@@ -625,6 +628,234 @@ def counts(rows: list[dict]) -> dict:
         if r["status"] != "out" and r.get("ships_with"):
             out["ships_with"][r["ships_with"]] = out["ships_with"].get(r["ships_with"], 0) + 1
     return out
+
+
+# ---- the record of every edit ----------------------------------------------------------------
+# The owner's rule (2026-11-11): blitz is faithful to the original. An edit is fine; an edit with no record is
+# not. Every change between the packet's xd and the xd that ships has a record (what it was, what it became,
+# who or what changed it, where to see it) in the puzzle's provenance row, and a corrected misprint is also
+# said in the xd's own notes. A change with no whole record holds the puzzle (edit-unrecorded).
+
+NOTES_HEAD = "Misprints corrected:"  # the xd notes block ship writes: one line per corrected misprint
+EDIT_STAGE = "proof review"
+_DIR = {"A": "Across", "D": "Down"}
+
+
+def _read(text: str) -> tuple[dict, list[list[str]], dict]:
+    """An xd's headers {name: value}, its grid's squares, and its clue texts {A1: ..., A1^Easy: ...}."""
+    head, grid, *rest = text.replace("\r\n", "\n").rstrip("\n").split("\n\n\n")
+    heads = {k: v.strip() for k, sep, v in (h.partition(":") for h in head.split("\n")) if sep}
+    clues = {}
+    for line in (rest[0].split("\n") if rest else []):
+        m = re.match(r"([AD]\d+)\. (.*) ~ (.*)$", line)
+        if m:
+            clues[m[1]] = m[2]
+        elif m := META_RE.match(line):
+            clues[f"{m[1]}^{_meta_key(m[2])}"] = m[3]
+    return heads, [list(r) for r in grid.split("\n")], clues
+
+
+def _why(rec: dict, key: str) -> str:
+    """What the reviewer said about their edit: their comment on its row (the one marked as the reason first)."""
+    keys = {key, re.sub(r"^cell:", "grid:", key)}
+    cs = [c for c in ((rec.get("proof") or {}).get("review") or {}).get("comments") or []
+          if c.get("key") in keys and (c.get("text") or "").strip()]
+    return sorted(cs, key=lambda c: not c.get("why"))[0]["text"].strip() if cs else ""
+
+
+def edit_records(packet_xd: str, shipped: str, apply: list[dict], rule: Rule = Rule(), pid: str = "", ocr: dict | None = None) -> dict:
+    """The record of every edit between a packet's xd and the xd that ships.
+
+    apply: the Ready records whose edits were applied (standing()'s), first reviewer first. Returns
+    {records, misprints, notes, missing}:
+    - records: one per changed value: {key, what (clue, second clue set, key square, header, decision), before
+      (the packet's xd), after, by, kind (owner, helper, ai, check), via, at, stage, why (the reviewer's
+      comment on the row), evidence {proof: the row on the proof page, image, box: the clue's crop in the
+      packet}, words (a key square: the answers through it, before and after), misprint {printed, meant}}.
+    - misprints: the reviewers' corrections of what was printed wrongly (review.typos {key, printed, meant}; key
+      a clue's or a key square's), each with the note that goes in the xd; notes: those lines.
+    - missing: what has no whole record, each in words. Any of it holds the puzzle: an edit to a clue or a
+      square the packet's xd doesn't have (nothing to say what it replaced), a value that changed with no edit
+      behind it, a misprint correction that doesn't say what was printed, or one the shipped text doesn't carry."""
+    ocr = ocr or {}
+    was_h, was_c, was_q = _read(packet_xd)
+    now_h, now_c, now_q = _read(shipped)
+    owner, value, typos = {}, {}, []
+    for r in apply:
+        review = (r.get("proof") or {}).get("review") or {}
+        for k, v in (review.get("edits") or {}).items():
+            if k not in owner:
+                owner[k], value[k] = r, v
+        typos += [(t, r) for t in review.get("typos") or [] if isinstance(t, dict)]
+    who = lambda r: {"by": r.get("by", ""), "kind": kind_of(r, rule), "via": r.get("via", ""), "at": r.get("at", "")}
+    records, missing, have = [], [], {}
+
+    def add(k, what, before, after, r, **more):
+        if before == after:
+            return  # an edit that changes nothing is no edit
+        crop = (ocr.get("clues") or {}).get(k[5:]) if k.startswith("clue:") else None
+        ev = {"proof": f"{PROOF_PAGE}{pid}&k={k}", **({"image": ocr.get("clue_image", ""), "box": crop["box"]} if crop and crop.get("box") else {})}
+        why = _why(r, more.get("decided_by") or k)
+        have[k] = {"key": k, "what": what, "before": before, "after": after, **who(r), "stage": EDIT_STAGE,
+                   **({"why": why} if why else {}), "evidence": ev, **more}
+        records.append(have[k])
+
+    def square(k):
+        m = re.fullmatch(r"cell:r(\d+)c(\d+)", k)
+        i, j = int(m[1]) - 1, int(m[2]) - 1
+        return (i, j) if 0 <= i < len(was_c) and 0 <= j < len(was_c[i]) else None
+
+    for k, r in owner.items():
+        v = value[k]
+        if k.startswith("clue:"):
+            if k[5:] not in was_q:
+                missing.append(f"{k}: the packet's xd has no such clue, so nothing says what the edit replaced")
+            else:
+                add(k, "second clue set" if "^" in k else "clue", was_q[k[5:]], v, r)
+        elif k.startswith("cell:"):
+            at = square(k) if re.fullmatch(r"cell:r\d+c\d+", k) else None
+            if not at:
+                missing.append(f"{k}: the packet's grid has no such square")
+                continue
+            one = [row[:] for row in was_c]
+            one[at[0]][at[1]] = (v or "").upper()
+            a0, a1 = answers(was_c), answers(one)
+            add(k, "key square", was_c[at[0]][at[1]], (v or "").upper(), r,
+                words={lab: [a0.get(lab, ""), w] for lab, w in a1.items() if a0.get(lab) != w})
+        elif k.startswith("meta:") and k[5:] in HEADER:
+            add(k, "header", was_h.get(HEADER[k[5:]], ""), v or "", r, header=HEADER[k[5:]])
+        else:  # a decision that isn't a value of the xd (a candidate clue list's): nothing stood there before it
+            add(k, "decision", "", v if isinstance(v, str) else json.dumps(v, ensure_ascii=False), r)
+
+    # the net under it: whatever differs between the two xds has a record that says so, or the puzzle is held
+    lists = [k for k in owner if k.startswith("candidate:") and (value[k] == "clues" or str(value[k]).startswith("second:"))]
+    back = {v: k for k, v in HEADER.items()}
+    diffs = [(f"clue:{k}", "second clue set" if "^" in k else "clue", was_q.get(k), now_q.get(k)) for k in {**was_q, **now_q}]
+    diffs += [(f"meta:{back[n]}" if n in back else f"header:{n}", "header", was_h.get(n, ""), now_h.get(n, "")) for n in {**was_h, **now_h}]
+    if [len(r) for r in was_c] != [len(r) for r in now_c]:
+        missing.append("the grid's size changed from the packet's xd with no edit recorded")
+    else:
+        diffs += [(f"cell:r{i + 1}c{j + 1}", "key square", c, now_c[i][j]) for i, row in enumerate(was_c) for j, c in enumerate(row)]
+    for k, what, before, after in diffs:
+        if before == after or (k in have and have[k]["after"] == (after or "")):
+            continue
+        by_list = next((c for c in lists if what != "header" and k[5:6] == c[len("candidate:"):][:1]), None) if k not in have else None
+        if by_list:  # a candidate list a reviewer took in as the clues, or as a second set: their decision wrote it
+            add(k, what, before or "", after or "", owner[by_list], decided_by=by_list)
+        else:
+            missing.append(f"{k}: changed from the packet's xd with no edit recorded" if k not in have
+                           else f"{k}: ships as something other than the edit recorded for it")
+
+    misprints, seen = [], set()
+    for t, r in typos:
+        key, printed, meant = str(t.get("key") or ""), str(t.get("printed") or "").strip(), str(t.get("meant") or "").strip()
+        if (key, printed, meant) in seen:
+            continue
+        seen.add((key, printed, meant))
+        if not printed or not meant or printed == meant or not re.fullmatch(r"clue:[AD]\d+(?:\^[\w-]+)?|cell:r\d+c\d+", key):
+            missing.append(f"{key or 'a misprint correction'}: doesn't say what was printed and what was meant")
+            continue
+        if key.startswith("clue:"):
+            if meant not in (now_q.get(key[5:]) or ""):
+                missing.append(f"{key}: said to be corrected to '{meant}', which the clue that ships doesn't have")
+                continue
+            note = f"{key[5:]} is printed '{printed}'; corrected to '{meant}'."
+        else:
+            at = square(key)
+            if not at or now_c[at[0]][at[1]] != meant.upper():
+                missing.append(f"{key}: said to be corrected to {meant}, which the square that ships doesn't have")
+                continue
+            was = [row[:] for row in now_c]
+            was[at[0]][at[1]] = printed.upper()
+            a_now, a_was = answers(now_c), answers(was)
+            through = [lab for lab in a_now if a_now[lab] != a_was.get(lab)]
+            name = lambda lab: f"{lab[1:]} {_DIR[lab[0]]}"
+            gave = (f"{name(through[0])} as {a_was[through[0]]}" + (" (and so " + " and ".join(f"{name(o)} as {a_was[o]}" for o in through[1:]) + ")"
+                                                                   if through[1:] else "")) if through else f"the square at row {at[0] + 1}, column {at[1] + 1} as {printed.upper()}"
+            note = (f"The printed answer key gave {gave}, presumably in error. It has been corrected to "
+                    + (" and ".join(a_now[lab] for lab in through) if through else meant.upper()) + ".")
+        if key in have:
+            have[key]["misprint"] = {"printed": printed, "meant": meant}
+        misprints.append({"key": key, "printed": printed, "meant": meant, **who(r), "note": note})
+    return {"records": records, "misprints": misprints, "notes": [m["note"] for m in misprints], "missing": missing}
+
+
+def with_notes(text: str, lines: list[str]) -> str:
+    """The xd with the corrected misprints said in its notes: a block of its own, after the notes it has."""
+    if not lines:
+        return text
+    body = text.replace("\r\n", "\n").rstrip("\n")
+    return body + ("\n\n" if len(body.split("\n\n\n")) > 3 else "\n\n\n") + NOTES_HEAD + "\n" + "\n".join(lines) + "\n"
+
+
+def packet_edits(ocr: dict, review: dict) -> list[dict]:
+    """The changes the packet itself recorded before any reviewer saw it (review.json's corrections: the text
+    review's), as edit records: before is the reading the packet's ocr.json holds for the clue, the printed
+    line, the key square (its answers rows) or the header ("" with read: false when it holds none), after the
+    corrected value, why the review's own note."""
+    notes = {t.get("target"): t.get("note", "") for t in review.get("tool_notes") or [] if isinstance(t, dict)}
+    lines = {f"line:B{ln.get('n')}": ln.get("text") for ln in ocr.get("lines") or []}
+    by = review.get("reviewer_line") or review.get("reviewer") or "the text review"
+    out = []
+    for k, after in (review.get("corrections") or {}).items():
+        cell = re.fullmatch(r"cell:r(\d+)c(\d+)", k)
+        if k.startswith("clue:"):
+            what, read = "clue", ((ocr.get("clues") or {}).get(k[5:]) or {}).get("text")
+        elif cell:
+            rows, i, j = ocr.get("answers") or [], int(cell[1]) - 1, int(cell[2]) - 1
+            what, read = "key square", rows[i][j] if i < len(rows) and j < len(rows[i]) else None
+        elif k.startswith("meta:"):
+            what, read = "header", ocr.get(k[5:])
+        else:
+            what, read = "printed line" if k.startswith("line:") else "value", lines.get(k)
+        if read == after:
+            continue
+        out.append({"key": k, "what": what,
+                    "before": read or "", **({} if read is not None else {"read": False}), "after": after, "by": by,
+                    "stage": "text review", **({"why": notes[k]} if notes.get(k) else {})})
+    return out
+
+
+def _record_edits(passing: dict, packs: dict, rule: Rule) -> None:
+    """Every passing puzzle's edit records, and its xd with the misprint notes; a puzzle with an edit that has
+    no whole record leaves `passing`, held as edit-unrecorded (the import's: broken)."""
+    for pid, x in list(passing.items()):
+        e = edit_records(packs[pid]["xd"], x["text"], x["standing"]["apply"], rule, pid, packs[pid]["ocr"])
+        if e["missing"]:
+            why = "an edit with no whole record of what it changed: " + "; ".join(e["missing"][:4]) + (
+                f" (+{len(e['missing']) - 4})" if len(e["missing"]) > 4 else "")
+            x["row"].update(reason="edit-unrecorded", why=why, broken=[{"what": why, "stage": "import", "code": "edit-unrecorded", "detail": ""}])
+            del passing[pid]
+            continue
+        x.update(edit_records=e["records"], misprints=e["misprints"], notes=e["notes"], text=with_notes(x["text"], e["notes"]))
+        if e["notes"]:
+            x["row"]["notes"] = e["notes"]  # what ship adds to the xd's notes: the ship record carries it, the proof page draws it
+
+
+def _edits_of(x: dict, pk: dict) -> dict:
+    """A provenance row's edits: the keys applied and whose, each one's record, the misprints, the packet's own."""
+    return {"applied": x["edits"], "from": x["edit_sources"], "records": x.get("edit_records", []),
+            "misprints": x.get("misprints", []), "packet": packet_edits(pk["ocr"], pk["review"])}
+
+
+def unrecorded(repo: Path, p: dict, today: str = "") -> list[dict]:
+    """The provenance rows that would give the edit records to puzzles shipped before ship kept them (their
+    standing row has no edits.records): the standing row with its edits made again from the ledger and the
+    packet. Only a puzzle whose xd in xd/ is still exactly what the plan makes can be rebuilt this way."""
+    prov = {r["pid"]: r for r in provenance(repo)}
+    return [{**prov[pid], "edits": _edits_of(x, p["packs"][pid]), "notes": x.get("notes", []),
+             "backfilled": today or date.today().isoformat()}
+            for pid, x in sorted(p["passing"].items())
+            if x["row"]["status"] == "shipped" and "records" not in (prov[pid].get("edits") or {})]
+
+
+def backfill(repo: Path, p: dict, today: str = "") -> list[dict]:
+    """unrecorded()'s rows appended to provenance.jsonl (the last row for an xdid stands). No xd is touched."""
+    rows = unrecorded(repo, p, today)
+    if rows:
+        with (Path(repo) / "provenance.jsonl").open("a", encoding="utf-8", newline="\n") as fh:
+            fh.writelines(json.dumps(r, ensure_ascii=False) + "\n" for r in rows)
+    return rows
 
 
 # ---- writing -------------------------------------------------------------------------------
@@ -667,7 +898,7 @@ def write(repo: Path, p: dict, today: str = "") -> dict:
         row = {"xdid": x["xdid"], "pid": pid, "batch": p["batch"], "run": p["run"], "packet": x["packet"], "packet_xd": x["xd_fp"],
                "xd": fingerprint(x["text"]),
                "shipped": {"at": today, "rule": st["rule"], "ai_ready": p["rule"]["ai_ready"], "by": st["by"], "why": st["why"]},
-               "said": st["said"], "edits": {"applied": x["edits"], "from": x["edit_sources"]},
+               "said": st["said"], "edits": _edits_of(x, pk), "notes": x.get("notes", []),
                "check": x["row"]["check"], "codes": x["row"]["codes"],
                "sources": {k: _header(x["text"], h) for k, h in (("grid", "Source"), ("clues", "Clue-Source"), ("key", "Solution-Source"))
                            if _header(x["text"], h)},
@@ -753,7 +984,7 @@ def record(p: dict, public: bool = True) -> dict:
             "at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "counts": counts(p["rows"]),
             "groups": p["groups"], "spot": {"one_in": SPOT_ONE_IN, "of": "puzzles shipped on someone else's word than the owner's",
                                             "by": "sha1 of the puzzle's id"},
-            "puzzles": rows}
+            "puzzles": [{**row, **({"notes": r["notes"]} if r.get("notes") else {})} for row, r in zip(rows, p["rows"])]}
 
 
 def write_record(repo: Path, p: dict) -> Path:
@@ -895,7 +1126,7 @@ def export(repo: Path, dest: Path, pub: str, scans: Path | None = None, shelf: s
             held.append((r["xdid"], NOT_EXPORTED[out_code]))
             continue
         gid = next((o["gxd_id"] for o in _tsv(repo / "gxd-exports.tsv") if o["xdid"] == r["xdid"] and o.get("gxd_id")), r["xdid"])
-        xd = to_gxd(text, [p["text"] for p in r.get("printed") or [] if p["label"] in labels], feature_as)
+        xd = to_gxd(text, [p["text"] for p in r.get("printed") or [] if p["label"] in labels] + list(r.get("notes") or []), feature_as)
         day = _header(xd, "Date") or r["xdid"][len(pub):len(pub) + 10]
         used = []
         for role, urls in (r.get("sources") or {}).items():
