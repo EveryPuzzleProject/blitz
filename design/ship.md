@@ -34,13 +34,24 @@ One function, `ship.standing()`. Its options are `ship.Rule`, read from the publ
    `review site` nor `agent review` (their own tools), or when it was made on the review site
    under one of the names in the rule's `owner` list. It overrides a Not ready by anyone else,
    earlier or later; the reason then says so ("over a Not ready by ..., given after it").
-2. Otherwise any Not ready, a person's or the AI proof reviewer's, holds the puzzle for the
-   owner.
+2. Otherwise any Not ready that stands holds the puzzle for the owner: a person's, whatever
+   version it was given on, or the AI proof reviewer's on the current version.
 3. Otherwise one person's Ready ships it.
 4. Otherwise it waits for a Ready.
 
 A Ready counts only for the version of the puzzle it was given on (the packet's `xd_fp`, or one
-of `xd_fp_same`).
+of `xd_fp_same`). An AI reviewer's Not ready goes stale the same way (since 2026-11-11): once a
+run has changed the puzzle's xd, what the AI asked about the earlier version no longer holds it,
+its questions aren't asked, and the puzzle is held as `proof-stale` (not checked yet) until
+someone reviews the new version. A person's Not ready does not go stale: it is a diagnosis, and
+it stands across versions until the owner decides. One test decides both, `ship._stale()`, and
+whose record it is comes from `ship.kind_of()` (the ledger's `via` and `by`). A stale decision
+stays in `said`, marked `stale`, so the batch page shows it as given on an earlier version.
+
+The version is the xd's fingerprint, nothing else. An AI Not ready on an xd the run left
+unchanged still stands, even when a publication rule has since answered what it asked; the
+reviewer's next round on that puzzle replaces it (each reviewer's latest record is the one
+counted).
 
 | option | default | what it does |
 |---|---|---|
@@ -55,7 +66,7 @@ A puzzle the rule passes can still be held by the import, each with its own reas
 |---|---|
 | `incomplete` | the ship check found missing or empty clues, an unsolved grid, a partial second clue set: no Ready makes it whole |
 | `packet-stale` | the proof packet doesn't show its xd: rebuild the packet |
-| `proof-stale` | the only Ready was on an earlier version of the puzzle |
+| `proof-stale` | all that was said (a Ready, or an AI's Not ready) was on an earlier version of the puzzle |
 | `edits-differ` | two reviewers changed the same thing two ways |
 | `edits-unapplied` | a proof-page edit the import doesn't apply: a line's label or keep (`line:B3`), a header's evidence line (`ev:title`), a fill-in blank, a rebus square, anything in a linked-ends puzzle |
 | `xd-exists` | `xd/` already has another file under its id |
