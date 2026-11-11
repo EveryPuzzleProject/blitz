@@ -53,13 +53,13 @@ A puzzle the rule passes can still be held by the import, each with its own reas
 
 | reason | meaning |
 |---|---|
+| `edit-unrecorded` | an edit with no whole record of what it changed (The record of every edit, below) |
 | `incomplete` | the ship check found missing or empty clues, an unsolved grid, a partial second clue set: no Ready makes it whole |
 | `packet-stale` | the proof packet doesn't show its xd: rebuild the packet |
 | `proof-stale` | the only Ready was on an earlier version of the puzzle |
 | `edits-differ` | two reviewers changed the same thing two ways |
 | `edits-unapplied` | a proof-page edit the import doesn't apply: a line's label or keep (`line:B3`), a header's evidence line (`ev:title`), a fill-in blank, a rebus square, anything in a linked-ends puzzle |
 | `xd-exists` | `xd/` already has another file under its id |
-| `edit-unrecorded` | an edit with no whole record of what it changed (The record of every edit, below) |
 
 The rule's own reasons: `owner-hold`, `not-ready`, `no-ready`, `needs-work` (no Ready, and
 triage's disposition isn't ready), and each hold code.
