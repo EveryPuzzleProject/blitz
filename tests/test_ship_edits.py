@@ -167,6 +167,33 @@ def test_a_key_correction_with_no_whole_record_does_not_ship(tmp_path):
         assert (row["status"], row["reason"], row["queue"]) == ("held", "edit-unrecorded", "broken") and word in row["why"] and not p["passing"]
 
 
+def test_the_reviewers_key_corrections_are_read_as_xword_ocr_writes_them(tmp_path):
+    text = "The answer key printed 'D' at r2c2; corrected to 'X', which the crossing clues require."
+    kc = {"key": "cell:r2c2", "printed": "D", "corrected": "X", "edited": True, "crop": "answers.png", "text": text}
+    rec = said(AI_BY, AGENT, {"cell:r2c2": "X"})
+    rec["proof"]["review"]["key_corrections"] = [kc]
+    repo, _, p = shipped(tmp_path, rec, CHECK)
+    write(repo, p, "2026-11-11")
+    row = row_of(repo)
+    assert "A3. Two ~ CXE" in xd_of(repo) and xd_of(repo).endswith("\n\n" + NOTES_HEAD + "\n" + text + "\n") and row["notes"] == [text]
+    (r,) = row["edits"]["records"]
+    assert (r["class"], r["before"], r["after"], r["misprint"], r["note"]) == ("key correction", "D", "X", {"printed": "D", "meant": "X"}, text)
+    assert r["evidence"]["image"] == "answers.png" and row["corrections"] == []
+    # edited false: the packet's grid already had the corrected letter; the reviewer records that the key prints otherwise
+    rec = said(AI_BY, AGENT, {})
+    rec["proof"]["review"]["key_corrections"] = [{"key": "cell:r2c2", "printed": "Q", "corrected": "D", "edited": False, "text": "The answer key printed 'Q' at r2c2."}]
+    _, _, p = shipped(tmp_path / "b", rec, CHECK)
+    x = p["passing"][P]
+    assert "A3. Two ~ CDE" in x["text"] and x["notes"] == ["The answer key printed 'Q' at r2c2."] and x["edit_records"][0]["stage"] == "before review"
+    # a cell: edit alone is a reading fix; a key correction whose record is incomplete doesn't ship
+    for i, bad in enumerate(({"key": "cell:r2c2", "corrected": "X", "edited": True}, {"key": "cell:r2c2", "printed": "D", "edited": True},
+                             {"printed": "D", "corrected": "X"}, {"key": "cell:r2c2", "printed": "D", "corrected": "Y", "edited": True})):
+        rec = said(AI_BY, AGENT, {"cell:r2c2": "X"})
+        rec["proof"]["review"]["key_corrections"] = [bad]
+        _, _, p = shipped(tmp_path / f"c{i}", rec, CHECK)
+        assert p["rows"][0]["reason"] == "edit-unrecorded" and not p["passing"]
+
+
 # ---- no record, no ship ----
 
 def test_an_edit_with_nothing_to_say_what_it_replaced_holds_the_puzzle(tmp_path):

@@ -109,9 +109,12 @@ early and said (the project's standing rule for keys); a clue or a header is the
 so the publication's xd keeps what was printed and the correction is made where the puzzle
 leaves for gxd.
 
-A reviewer says a thing is a misprint in their review's `typos`: `[{key, printed, meant}]`, `key`
-a clue's (`clue:A71`), a header's (`meta:title`) or a key square's (`cell:r3c4`, `printed` and
-`meant` the letters). xword-ocr's proof reviewer writes it for a plain printer's typo in a clue.
+A reviewer says a thing is a misprint in their review: a clue's or a header's in `typos`, `[{key,
+printed, meant}]` (`clue:A71`, `meta:title`); a key letter's in `key_corrections`, `[{key:
+"cell:r3c6", printed, corrected, edited, crop, text}]`, as xword-ocr's proof reviewer writes them
+(xword-ocr docs/ship-gate.md). `edited: false` means the packet's grid already had the corrected
+letter and the reviewer only records that the key prints otherwise. A `typos` entry with a
+`cell:` key is taken as a key correction too. A `cell:` edit with neither is a reading fix.
 
 `ship.edit_records()` makes the records, from the packet's `puzzle.xd`, that xd with the Ready
 reviewers' edits applied, and those Ready records.
@@ -166,11 +169,13 @@ lines the Notes rule takes. The export's `corrections.tsv` lists every correctio
 done with it (`applied`, `noted`, `not applied`). The publication's xd is not touched.
 
 **Case 3: a key correction.** The letter is corrected in the shipped xd: by the reviewer's own
-`cell:` edit, or from their `typos` entry when they made none. The xd's notes get a block,
+`cell:` edit, or from their entry when they made none. The xd's notes get a block,
 `Answer key corrected:`, one line each, naming the square, what the key printed and what it was
-corrected to: `The printed answer key gave 17 Across as RE (and so 2 Down as EMEERS), presumably
+corrected to: the entry's own `text` ("The answer key printed 'C' at r3c6; corrected to 'D', which
+the crossing clues require."), or, where it gives none, `The printed answer key gave 17 Across as RE (and so 2 Down as EMEERS), presumably
 in error (E at row 3, column 4). It has been corrected to RB and EMBERS (B).`, the form of Judge's
-notes. The record carries `misprint: {printed, meant}` and `note`; the lines are the row's `notes`,
+notes. The record carries `misprint: {printed, meant}`, `note` and the entry's `crop` as
+`evidence.image`; the lines are the row's `notes`,
 which the gxd export adds to the puzzle's notes. When the packet's key already had the letter
 meant (corrected before review), nothing changes and it is noted all the same (`stage: "before
 review"`). A key correction that doesn't say what the key printed and what was meant, names no

@@ -711,7 +711,9 @@ def edit_records(packet_xd: str, applied: str, apply: list[dict], rule: Rule = R
 
     applied: the packet's xd with the Ready reviewers' edits applied (apply_edits). apply: those Ready records
     (standing()'s), first reviewer first. A reviewer names a misprint in their review's typos {key, printed,
-    meant}: key a clue's, a header's (meta:title) or a key square's (cell:r3c4). Returns {text, records,
+    meant} (key a clue's or a header's, meta:title) and a misprinted key letter in key_corrections {key:
+    cell:r3c4, printed, corrected, edited, crop, text} (a typos entry with a cell: key is taken the same way).
+    Returns {text, records,
     corrections, notes, missing}:
     - text: the xd that ships. A clue's or a header's misprint is as printed in it: where the reviewer also
       edited that clue, their edit is kept except for the misprint (the word meant goes back to the word
@@ -739,7 +741,7 @@ def edit_records(packet_xd: str, applied: str, apply: list[dict], rule: Rule = R
       that doesn't say what the key printed, or doesn't match the square."""
     ocr = ocr or {}
     was_h, was_c, was_q = _read(packet_xd)
-    owner, value, typos, seen = {}, {}, [], set()
+    owner, value, typos, seen, of_key, key_said = {}, {}, [], set(), set(), {}
     for r in apply:
         review = (r.get("proof") or {}).get("review") or {}
         for k, v in (review.get("edits") or {}).items():
@@ -750,12 +752,22 @@ def edit_records(packet_xd: str, applied: str, apply: list[dict], rule: Rule = R
             if t3 and t3 not in seen:
                 seen.add(t3)
                 typos.append((*t3, r))
+        # xword-ocr's reviewer names a misprinted key letter in key_corrections {key: cell:r3c6, printed, corrected,
+        # edited, crop, text}: edited false = the packet's grid already had the corrected letter. Its text is the note.
+        for t in review.get("key_corrections") or []:
+            t = t if isinstance(t, dict) else {}
+            t3 = (str(t.get("key") or ""), str(t.get("printed") or "").strip(), str(t.get("corrected") or "").strip())
+            of_key.add(t3)
+            if t3 not in seen:
+                seen.add(t3)
+                typos.append((*t3, r))
+                key_said.setdefault(t3[0], {"text": str(t.get("text") or "").strip(), "crop": t.get("crop") or ""})
     who = lambda r: {"by": r.get("by", ""), "kind": kind_of(r, rule), "via": r.get("via", ""), "at": r.get("at", "")}
     whole = lambda key, printed, meant: bool(printed and meant and printed != meant and _TYPO_KEY.fullmatch(key))
     records, missing, have, more_edits, back, key_fix, said = [], [], {}, {}, set(), {}, {}
 
     for key, printed, meant, r in typos:
-        if key.startswith("cell:"):  # case 3: the key's letter is corrected here, and only with its whole record
+        if key.startswith("cell:") or (key, printed, meant) in of_key:  # case 3: the key's letter is corrected here, and only with its whole record
             at = _square(was_c, key)
             if not whole(key, printed, meant) or len(printed) != 1 or len(meant) != 1 or not at:
                 missing.append(f"{key}: a key correction that doesn't say what the key printed and what was meant, or names no square of the grid")
@@ -783,7 +795,7 @@ def edit_records(packet_xd: str, applied: str, apply: list[dict], rule: Rule = R
 
     def evidence(k):
         crop = (ocr.get("clues") or {}).get(k[5:]) if k.startswith("clue:") else None
-        page = (ocr.get("answer_page") or {}).get("image") if k.startswith("cell:") else None
+        page = ((key_said.get(k) or {}).get("crop") or (ocr.get("answer_page") or {}).get("image")) if k.startswith("cell:") else None
         return {"proof": f"{PROOF_PAGE}{pid}&k={k}", **({"image": ocr.get("clue_image", ""), "box": crop["box"]} if crop and crop.get("box") else {}),
                 **({"image": page} if page else {})}
 
@@ -841,7 +853,7 @@ def edit_records(packet_xd: str, applied: str, apply: list[dict], rule: Rule = R
 
     notes, corrections = [], []
     for key, (printed, meant) in key_fix.items():  # case 3's record: the note, on the edit's record or on its own
-        note = _key_note(now_c, _square(now_c, key), printed)
+        note = (key_said.get(key) or {}).get("text") or _key_note(now_c, _square(now_c, key), printed)  # the reviewer's own words first
         notes.append(note)
         if key in have:
             have[key].update(misprint={"printed": printed, "meant": meant}, note=note)
@@ -849,7 +861,7 @@ def edit_records(packet_xd: str, applied: str, apply: list[dict], rule: Rule = R
             records.append({"key": key, "what": "key square", "class": KEY_FIX, "before": meant, "after": meant, **who(said[key]),
                             "stage": "before review", "misprint": {"printed": printed, "meant": meant}, "note": note, "evidence": evidence(key)})
     for key, printed, meant, r in typos:
-        if key.startswith("cell:"):
+        if key.startswith("cell:") or (key, printed, meant) in of_key:
             continue
         fits, says = "unplaced", f"{key or 'a misprint'}: printed '{printed}', meant '{meant}'."
         if whole(key, printed, meant):
