@@ -86,6 +86,15 @@ def _name(rec: dict) -> str:
     return re.sub(rf" \({SITE}\)$", "", rec.get("by", ""))
 
 
+def _stale(rec: dict, current: tuple, rule: Rule) -> bool:
+    """Whether a Ready / Not ready was given on an earlier version of the puzzle than `current` (the packet's
+    fingerprints), and so no longer counts. A Ready goes stale whoever gave it. A Not ready goes stale only
+    when an AI gave it: a person's Not ready is a diagnosis, and stands until the owner decides."""
+    xd = ((rec.get("proof") or {}).get("review") or {}).get("xd")
+    return bool(current and xd and xd not in current
+                and (rec.get("answer") == "ready" or kind_of(rec, rule) in ("ai", "check")))
+
+
 def standing(batch: dict, proofs: list[dict], *, check_ok: bool = False, codes: frozenset | set = frozenset(),
              current: tuple = (), rule: Rule = Rule()) -> dict:
     """Whether one puzzle ships: THE ship rule. Nothing else decides it.
@@ -93,23 +102,25 @@ def standing(batch: dict, proofs: list[dict], *, check_ok: bool = False, codes: 
     batch: the ledger's latest batch:<pid> (the owner's Ship / Hold on the batch page), or {}.
     proofs: each reviewer's latest proof:<pid> record (Ready / Not ready).
     check_ok: triage's ship check passes. codes: triage's reason codes for the puzzle.
-    current: the fingerprints of the puzzle's current version (a Ready on another version doesn't count).
+    current: the fingerprints of the puzzle's current version. A Ready on another version doesn't count,
+      and neither does an AI's Not ready on another version; a person's Not ready stands across versions.
 
     Returns {status: ship | hold, reason, why, rule: owner | people | ai | "", by, said, apply}:
     - the owner's own latest decision wins (reason owner-hold when it is Hold or Not ready);
-    - otherwise any Not ready, a person's or the AI reviewer's, holds it for the owner (not-ready);
+    - otherwise any Not ready that stands holds it for the owner (not-ready): a person's on any version, the
+      AI reviewer's on the current one;
     - otherwise one person's Ready ships it (rule "people");
     - otherwise, with rule.ai_ready on, the AI's Ready ships it (rule "ai");
-    - otherwise it waits (no-ready; proof-stale when the only Ready was on an earlier version);
+    - otherwise it waits (no-ready; proof-stale when all that was said, a Ready or an AI's Not ready, was on
+      an earlier version);
     - and a puzzle that would ship is held when it carries one of rule.hold_codes (the code is the reason).
     said: every decision counted, oldest first; apply: the Ready records whose edits the import applies."""
     said = []
     for r in sorted(proofs, key=lambda r: r.get("at", "")):
         if r.get("answer") not in ("ready", "notready") or _name(r) in rule.ignore:
             continue
-        xd = ((r.get("proof") or {}).get("review") or {}).get("xd")
         said.append({"who": r.get("by", ""), "kind": kind_of(r, rule), "answer": r["answer"], "note": r.get("note", ""),
-                     "at": r.get("at", ""), "stale": bool(r["answer"] == "ready" and current and xd and xd not in current), "rec": r})
+                     "at": r.get("at", ""), "stale": _stale(r, current, rule), "rec": r})
     ready = [s for s in said if s["answer"] == "ready" and not s["stale"]]
     who = lambda ss: ", ".join(s["who"] for s in ss)
 
@@ -126,7 +137,7 @@ def standing(batch: dict, proofs: list[dict], *, check_ok: bool = False, codes: 
         elif mine["stale"]:
             res = out("hold", "proof-stale", f"{mine['who']}'s Ready was on an earlier version of the puzzle: look again")
         else:
-            over = [s for s in said if s["answer"] == "notready"]  # said so: the owner may not have seen a later one
+            over = [s for s in said if s["answer"] == "notready" and not s["stale"]]  # said so: the owner may not have seen a later one
             res = out("ship", "", f"Ready by {mine['who']}" + (f", over a Not ready by {who(over)}"
                       + (" given after it" if any(s["at"] > mine["at"] for s in over) else "") if over else ""), mine["who"], "owner")
     elif batch.get("answer") == "hold":
@@ -134,7 +145,7 @@ def standing(batch: dict, proofs: list[dict], *, check_ok: bool = False, codes: 
     elif batch.get("answer") == "ship":
         res = out("ship", "", f"Ship on the batch page by {batch.get('by', '')}", batch.get("by", ""), "owner")
     if res is None:
-        no = [s for s in said if s["answer"] == "notready"]
+        no = [s for s in said if s["answer"] == "notready" and not s["stale"]]
         people = [s for s in ready if s["kind"] == "helper"]
         ai = any(s["kind"] == "ai" for s in ready)
         ai_ok = {"off": False, "both": ai and check_ok, "either": ai or check_ok}[rule.ai_ready]
@@ -146,7 +157,8 @@ def standing(batch: dict, proofs: list[dict], *, check_ok: bool = False, codes: 
             by = " and ".join(x for x in ("the AI proof reviewer's Ready" if ai else "", "the ship check passes" if check_ok else "") if x)
             res = out("ship", "", f"{by} (ai_ready: {rule.ai_ready}), no Not ready", by, "ai")
         elif any(s["stale"] for s in said):
-            res = out("hold", "proof-stale", f"{who([s for s in said if s['stale']])}'s Ready was on an earlier version of the puzzle")
+            res = out("hold", "proof-stale", "; ".join(f"{s['who']}'s {'Ready' if s['answer'] == 'ready' else 'Not ready'}" for s in said if s["stale"])
+                      + " was on an earlier version of the puzzle")
         else:
             has = [x for x in ("the AI proof reviewer said Ready" if ai else "", "the ship check passes" if check_ok else "") if x]
             res = out("hold", "no-ready", "no person has said Ready" + (f" ({'; '.join(has)})" if has else ""))
@@ -196,7 +208,7 @@ def _ask(text: str) -> dict:
     return {"text": q.strip(), **({"suggest": suggest.strip()} if suggest.strip() else {})}
 
 
-def asks_of(reason: str, why: str, batch: dict, proofs: list[dict], rule: Rule) -> list[dict]:
+def asks_of(reason: str, why: str, batch: dict, proofs: list[dict], rule: Rule, current: tuple = ()) -> list[dict]:
     """The questions a held puzzle waits on, as recorded: each Not ready's comments (the row on the
     proof page each is about: ?k=<row>), its note where it left no comments, the owner's Hold on the
     batch page, or the edits two reviewers made two ways. [{who, kind, at, row, text, suggest, group}]."""
@@ -206,8 +218,8 @@ def asks_of(reason: str, why: str, batch: dict, proofs: list[dict], rule: Rule) 
         return [{"who": "the import", "kind": "import", "at": "", "row": keys[0] if keys else "", "group": "",
                  "text": "Two reviewers changed the same thing two ways (" + ", ".join(keys) + "): which one stands?"}]
     for r in sorted(proofs, key=lambda r: r.get("at", "")):
-        if r.get("answer") != "notready" or _name(r) in rule.ignore:
-            continue
+        if r.get("answer") != "notready" or _name(r) in rule.ignore or _stale(r, current, rule):
+            continue  # an AI's Not ready on an earlier version doesn't stand: its questions aren't asked
         kind = kind_of(r, rule)
         if reason == "owner-hold" and kind != "owner":
             continue  # the owner's hold is the one that stands
@@ -224,13 +236,13 @@ def asks_of(reason: str, why: str, batch: dict, proofs: list[dict], rule: Rule) 
     return out
 
 
-def sent_back(proofs: list[dict], rule: Rule) -> dict | None:
+def sent_back(proofs: list[dict], rule: Rule, current: tuple = ()) -> dict | None:
     """The latest standing Not ready that sends the puzzle back to the pipeline (its review carries a
     sendback): {who, at, kind, part, note}, or None. The person is saying the question isn't one to
     answer on the proof page, so the puzzle is the pipeline's (broken), not held on a question."""
     for r in sorted(proofs, key=lambda r: r.get("at", ""), reverse=True):
         sb = ((r.get("proof") or {}).get("review") or {}).get("sendback")
-        if r.get("answer") == "notready" and sb and _name(r) not in rule.ignore:
+        if r.get("answer") == "notready" and sb and _name(r) not in rule.ignore and not _stale(r, current, rule):
             return {"who": r.get("by", ""), "at": r.get("at", ""), "kind": sb.get("kind") or "other", "part": sb.get("part") or "",
                     "note": (sb.get("note") or "").strip()}
     return None
@@ -545,12 +557,12 @@ def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict |
             if st["reason"] == "no-ready" and t.get("decision") != "ready":
                 row.update(reason="needs-work", why="needs work: " + ("; ".join(
                     sorted({b.get("code") or b.get("part") or "" for b in t.get("blocking") or [] if isinstance(b, dict)} - {""})) or "triage's defects") + "; " + st["why"])
-            sb = sent_back(list((proofs.get(pid) or {}).values()), rule) if row["reason"] == "not-ready" else None
+            sb = sent_back(list((proofs.get(pid) or {}).values()), rule, current) if row["reason"] == "not-ready" else None
             if sb:  # a reviewer said it is the pipeline's to mend, not a question for the proof page
                 row.update(reason="sent-back", sent_back=sb, why=f"sent back from the proof page by {sb['who']}: "
                            + SENT_BACK.get(sb["kind"], (sb["kind"], ""))[0] + (f": {sb['note']}" if sb["note"] else ""))
             if QUEUE_OF.get(row["reason"]) == "question":
-                row["asks"] = asks_of(row["reason"], row["why"], latest.get(f"batch:{pid}") or {}, list((proofs.get(pid) or {}).values()), rule)
+                row["asks"] = asks_of(row["reason"], row["why"], latest.get(f"batch:{pid}") or {}, list((proofs.get(pid) or {}).values()), rule, current)
                 # what an answer won't mend: said beside the question, so nobody is surprised when it still doesn't ship
                 row["also"] = [str(x) for x in ship.get("incomplete") or []]
             elif row["reason"] not in QUEUE_OF:

@@ -63,6 +63,40 @@ def test_a_ready_on_an_earlier_version_does_not_count():
     assert standing({}, [OWNER], current=("bbb",))["reason"] == "proof-stale"
 
 
+def test_an_ai_not_ready_on_the_current_version_holds():
+    r = standing({}, [AI_NO, HELPER], current=("aaa",))
+    assert (r["status"], r["reason"]) == ("hold", "not-ready")
+    assert not any(x["stale"] for x in r["said"])
+    assert standing({}, [AI_NO], current=())["reason"] == "not-ready"  # no version recorded for the packet: it stands
+
+
+def test_an_ai_not_ready_on_an_earlier_version_goes_stale_as_a_ready_does():
+    r = standing({}, [AI_NO], current=("bbb",))
+    assert (r["status"], r["reason"]) == ("hold", "proof-stale")
+    assert "Not ready was on an earlier version" in r["why"]
+    assert [(x["answer"], x["stale"]) for x in r["said"]] == [("notready", True)]  # still shown, as stale
+
+
+def test_a_persons_not_ready_on_an_earlier_version_still_holds():
+    for no in (HELPER_NO, proof("Reviewer 2", "notready", "2026-10-23T00:00:00Z", note="the key is wrong")):
+        r = standing({}, [no, proof(f"pat ({SITE})", "ready", "2026-10-20T00:00:00Z", SITE, xd="bbb")], current=("bbb",))
+        assert r["status"] == "hold" and r["reason"] in ("not-ready", "owner-hold")
+        assert not any(x["stale"] for x in r["said"])
+
+
+def test_a_stale_ai_not_ready_and_a_current_ready_ships():
+    ready = proof(f"pat ({SITE})", "ready", "2026-10-25T00:00:00Z", SITE, xd="bbb")
+    r = standing({}, [AI_NO, ready], current=("bbb",))
+    assert (r["status"], r["rule"], r["apply"]) == ("ship", "people", [ready])
+    ai, check = ({**x, "proof": {"review": {"xd": "bbb", "edits": {}}}} for x in (AI, CHECK))
+    r = standing({}, [AI_NO, {**ai, "by": "Claude (AI proof reviewer, m2)"}, check], check_ok=True, current=("bbb",), rule=Rule(ai_ready="both"))
+    assert (r["status"], r["rule"]) == ("ship", "ai")
+    # the owner's Ready no longer says it is over a Not ready that doesn't stand
+    mine = proof("Reviewer 2", "ready", "2026-10-26T00:00:00Z", xd="bbb")
+    assert "over a Not ready" not in standing({}, [AI_NO, mine], current=("bbb",))["why"]
+    assert "over a Not ready" in standing({}, [AI_NO, mine], current=("aaa", "bbb"))["why"]
+
+
 def test_hold_codes_hold_whoever_said_ready():
     r = standing({}, [OWNER, HELPER], codes={"clue-typed", "unsure"})
     assert (r["status"], r["reason"]) == ("hold", "clue-typed")
@@ -287,3 +321,21 @@ def test_a_send_back_from_the_proof_page_moves_a_question_to_broken(tmp_path):
 def test_the_xd_goes_up_with_the_packet():
     from blitz.site import FILES
     assert "puzzle.xd" in FILES                                                        # the proof page draws the xd's notes from it
+
+
+def test_a_stale_ai_not_ready_leaves_the_question_queue_and_its_asks_are_not_asked(tmp_path):
+    def earlier(r):  # the record as an earlier run's packet would have left it
+        r = json.loads(json.dumps(r))
+        r["proof"]["review"]["xd"] = "run1"
+        return r
+    person = {**HELPER_NO, "id": f"proof:{P}42", "proof": {"review": {"xd": "run1", "edits": {}, "comments": [{"key": "clue:D4", "text": "D4 is wrong"}]}}}
+    said = {P + "40": [earlier(_ai_no(P + "40", ("ev:title", "Is it untitled?", "confirm")))],          # only the earlier run's AI question
+            P + "41": [_ai_no(P + "41", ("ev:title", "Is it untitled?", "confirm"))],                   # asked on this version
+            P + "42": [earlier(_ai_no(P + "42", ("ev:title", "Is it untitled?", "confirm"))), person],  # and a person's, on the earlier one
+            P + "43": [earlier(_ai_no(P + "43", ("ev:title", "Is it untitled?", "confirm"))), AI, CHECK]}
+    repo, proofs = _batch(tmp_path, said, {P + "40": OK, P + "41": OK, P + "42": OK, P + "43": OK})
+    rows = {r["pid"][-2:]: r for r in plan(repo, proofs, Rule(ai_ready="both"), "b")["rows"]}
+    assert [(k, r["queue"], r["reason"]) for k, r in sorted(rows.items())] == [
+        ("40", "unchecked", "proof-stale"), ("41", "question", "not-ready"), ("42", "question", "not-ready"), ("43", "shippable", "")]
+    assert rows["40"]["asks"] == [] and [a["row"] for a in rows["41"]["asks"]] == ["ev:title"]
+    assert [(a["kind"], a["row"]) for a in rows["42"]["asks"]] == [("helper", "clue:D4")]  # the person's question only
