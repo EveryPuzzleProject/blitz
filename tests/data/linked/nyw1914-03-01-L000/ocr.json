@@ -17,6 +17,136 @@
    ]
   }
  },
+ "clues": {
+  "A2": {
+   "text": "To unite in matrimony.",
+   "printed": "1-2"
+  },
+  "A4": {
+   "text": "A woman's costume for horseback riding.",
+   "printed": "3-4"
+  },
+  "A6": {
+   "text": "One month.",
+   "printed": "5-6"
+  },
+  "A8": {
+   "text": "Lacking in color.",
+   "printed": "7-8"
+  },
+  "A9": {
+   "text": "Behold.",
+   "printed": "9-10"
+  },
+  "A11": {
+   "text": "A bird.",
+   "printed": "11-12"
+  },
+  "A12": {
+   "text": "",
+   "printed": "13-14"
+  },
+  "A14": {
+   "text": "A cross bar attachment for driving oxen.",
+   "printed": "15-16"
+  },
+  "A15": {
+   "text": "A brief letter.",
+   "printed": "17-18"
+  },
+  "A16": {
+   "text": "To declare in card-playing.",
+   "printed": "19-20"
+  },
+  "A18": {
+   "text": "",
+   "printed": "21-22"
+  },
+  "A19": {
+   "text": "",
+   "printed": "23-24"
+  },
+  "A21": {
+   "text": "",
+   "printed": "25-26"
+  },
+  "A22": {
+   "text": "More than noiny.",
+   "printed": "27-28"
+  },
+  "A24": {
+   "text": "",
+   "printed": "29-30"
+  },
+  "A25": {
+   "text": "An abbreviation of stster.",
+   "printed": "31-32"
+  },
+  "D1": {
+   "text": "A Brahmin ox.",
+   "printed": "33-34"
+  },
+  "D2": {
+   "text": "What the moon does.",
+   "printed": "1-8"
+  },
+  "D3": {
+   "text": "The face of a watch.",
+   "printed": "2-9"
+  },
+  "D4": {
+   "text": "Of vigorous health.",
+   "printed": "3-12"
+  },
+  "D5": {
+   "text": "A pace.",
+   "printed": "4-13"
+  },
+  "D6": {
+   "text": "A short, light spear.",
+   "printed": "5-27"
+  },
+  "D7": {
+   "text": "Not older.",
+   "printed": "6-28"
+  },
+  "D8": {
+   "text": "A card game.",
+   "printed": "7-23"
+  },
+  "D10": {
+   "text": "Used in Russian prisons. mischief.",
+   "printed": "10-26"
+  },
+  "D11": {
+   "text": "A don.",
+   "printed": "11-19"
+  },
+  "D13": {
+   "text": "",
+   "printed": "14-22"
+  },
+  "D17": {
+   "text": "Condemnatory fudgment.",
+   "printed": "20-29"
+  },
+  "D18": {
+   "text": "Space.",
+   "printed": "21-30"
+  },
+  "D20": {
+   "text": "",
+   "printed": "24-31"
+  },
+  "D21": {
+   "text": "Humòrous prevarications.",
+   "printed": "25-32"
+  },
+  "D23": {
+   "text": "A sudden alide.",
+   "printed": "35-36"
+  }
+ },
  "lines": [
   {
    "n": 1,

@@ -363,3 +363,70 @@ def test_a_puzzle_triage_says_needs_work_is_broken_whoever_reviewed_an_earlier_v
     # No. 11: all that was said is stale too, but triage says it is ready for review: that one is a proofread to ask for
     r = row(p, NO11)
     assert (r["reason"], r["queue"]) == ("proof-stale", "unchecked")
+
+
+# ---- after the cold review of 2026-11-12 (blitz-work/reviews/2026-11-12-linked-ends-review.md) ----
+
+NO9 = "nyw1914-02-15-L001"
+AI_BY = "Claude (AI proof reviewer, m)"
+
+
+def test_a_correction_the_import_cannot_make_holds_the_puzzle_and_nothing_says_it_was_made(tmp_path):
+    # a key correction with no cell: edit (the entry alone is the correction), on an xd whose clue lines are out of
+    # order: apply_linked refuses any square edit there, so the letter can't be corrected
+    swapped = SMALL.replace("1-2. An insect ~ BEE\n3-4. What we get ~ PAIDX\n", "3-4. What we get ~ PAIDX\n1-2. An insect ~ BEE\n")
+    rec = said(AI_BY, AGENT, {}, typos=[{"key": "cell:r2c3", "printed": "E", "meant": "O"}])
+    e, by = records(swapped, swapped, rec)
+    assert e["text"] == swapped and by == {} and e["notes"] == [] and e["corrections"] == []    # no note, no record: nothing changed
+    assert len(e["cant"]) == 1 and "cell:r2c3" in e["cant"][0] and "labelled 3-4 is listed where A2's belongs" in e["cant"][0]
+    # through the ship path, on No. 11's packet with two of its lines changed over: held for the import, in words
+    repo, proofs = batch(tmp_path, {NO11: [said(PERSON, SITE, {}, typos=[{"key": "cell:r2c7", "printed": "E", "meant": "X"}])]})
+    xd = packet(NO11)[0]
+    a, b = "1-2. To unite in matrimony. ~ WED\n", "3-4. A woman's costume for horseback riding. ~ HABIT\n"
+    (proofs / NO11 / "puzzle.xd").write_text(xd.replace(a + b, b + a), encoding="utf-8")
+    p = plan(repo, proofs, RULE, "b")
+    r = row(p, NO11)
+    assert (r["status"], r["reason"], r["queue"]) == ("held", "edits-unapplied", "broken") and NO11 not in p["passing"]
+    assert "cell:r2c7" in r["why"] and "can't be made" in r["why"] and r["broken"][0]["stage"] == "import" and "notes" not in r
+    # the same entry on the packet as it is: corrected, with its note
+    repo, proofs = batch(tmp_path / "2", {NO11: [said(PERSON, SITE, {}, typos=[{"key": "cell:r2c7", "printed": "E", "meant": "X"}])]})
+    p = plan(repo, proofs, RULE, "b")
+    assert row(p, NO11)["status"] == "shippable" and "_____WXD_____\n" in p["passing"][NO11]["text"] and len(row(p, NO11)["notes"]) == 1
+    # and the export says "applied" only for a correction of the print it did apply
+    typo = [{"key": "clue:A2", "printed": "insect", "meant": "inspect"}]
+    assert corrected(swapped, typo)[2][0]["done"] == "not applied" and corrected(swapped, typo)[:2] == (swapped, [])
+
+
+def test_a_clue_edit_lands_only_on_the_line_the_proof_pages_row_is(tmp_path):
+    # No. 9 (1914-02-15): the page's row A12 is the clue read with the pair 12-14 ("A small particle"); the xd's line
+    # for the word A12 is "7-8. Belonging to me." An edit made looking at the one must not land on the other
+    xd, ocr, review = packet(NO9)
+    assert review["matches_xd"] is False and ocr["clues"]["A12"]["printed"] == "12-14" and read_linked(xd)["label"]["A12"] == "7-8"
+    text, done, cant = apply_linked(xd, {"clue:A12": "A small particle."}, ocr, review)
+    assert (text, done) == (xd, []) and len(cant) == 1
+    assert "row A12 is the clue printed 12-14" in cant[0] and "line for that word is 7-8" in cant[0]
+    assert apply_linked(xd, {"clue:A12": "x"}, {**ocr, "clues": {}}, review)[2][0].startswith("clue:A12: the packet records no such clue row")
+    # on a packet whose rows are its xd's lines, the same check passes (No. 11's D23 is 35-36 on both)
+    xd11, ocr11, review11 = packet(NO11)
+    assert apply_linked(xd11, {"clue:D23": "A sudden slide."}, ocr11, review11)[2] == []
+    assert apply_linked(xd11, {"clue:D23": "x"}, {**ocr11, "clues": list(ocr11["clues"].items())}, review11)[2] == []   # older packets: a list
+    # a linked-ends packet that doesn't say its page shows its xd is not taken as agreeing: held, the packet's to rebuild
+    repo, proofs = batch(tmp_path, {NO9: [said(PERSON, SITE, {"clue:A12": "A small particle."})], NO11: [said(PERSON, SITE, {})]}, pids=(NO9, NO11))
+    for pid in (NO9, NO11):
+        (proofs / pid / "review.json").write_text(json.dumps({"xd_fp": json.loads((DATA / pid / "review.json").read_text(encoding="utf-8"))["xd_fp"]}), encoding="utf-8")
+    p = plan(repo, proofs, RULE, "b")
+    assert [(row(p, pid)["reason"], row(p, pid)["queue"]) for pid in (NO9, NO11)] == [("packet-stale", "broken")] * 2
+
+
+def test_an_ais_ready_never_fills_an_unread_square_for_itself(tmp_path):
+    # No. 12 under ai_ready: either: the AI's Ready counts as the one Ready, and its own cell:r4c8 would fill the square
+    either = Rule(ai_ready="either", owner=("oops6498",))
+    repo, proofs = batch(tmp_path, {NO12: [LEDGER[NO12]]})
+    r = row(plan(repo, proofs, either, "b"), NO12)
+    assert (r["status"], r["reason"], r["queue"], r["rule"]) == ("held", "incomplete", "broken", "ai")
+    assert r["why"] == "Ready, but incomplete: 1 square(s) unsolved"
+    # with a helper's Ready beside it (rule: people), or the owner's (rule: owner), the same edit fills it
+    for i, who in enumerate((PERSON, f"oops6498 ({SITE})")):
+        repo, proofs = batch(tmp_path / str(i), {NO12: [LEDGER[NO12], said(who, SITE, {})]})
+        r = row(plan(repo, proofs, either, "b"), NO12)
+        assert (r["status"], r["rule"]) == ("shippable", ("people", "owner")[i]) and "filled by the edits applied" in r["why"]

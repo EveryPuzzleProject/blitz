@@ -17,6 +17,136 @@
    ]
   }
  },
+ "clues": {
+  "A2": {
+   "text": "An insect.",
+   "printed": "1-2"
+  },
+  "A4": {
+   "text": "What we get in restaurants.",
+   "printed": "3-4"
+  },
+  "A6": {
+   "text": "One who inhabits a new country.",
+   "printed": "5-6"
+  },
+  "A8": {
+   "text": "Traps for catching game.",
+   "printed": "7-8"
+  },
+  "A9": {
+   "text": "Spoken.",
+   "printed": "9-10"
+  },
+  "A11": {
+   "text": "Hair on the neck of an animal.",
+   "printed": "11-12"
+  },
+  "A12": {
+   "text": "A reptile.",
+   "printed": "13-14"
+  },
+  "A14": {
+   "text": "Mother.",
+   "printed": "15-16"
+  },
+  "A15": {
+   "text": "Made fast.",
+   "printed": "17-18"
+  },
+  "A16": {
+   "text": "Dogs, birds and oats.",
+   "printed": "19-20"
+  },
+  "A18": {
+   "text": "An oven.",
+   "printed": "21-22"
+  },
+  "A19": {
+   "text": "Words and music.",
+   "printed": "23-24"
+  },
+  "A21": {
+   "text": "Very small.",
+   "printed": "25-26"
+  },
+  "A22": {
+   "text": "Tolling.",
+   "printed": "27-28"
+  },
+  "A24": {
+   "text": "Trimmed.",
+   "printed": "29-30"
+  },
+  "A25": {
+   "text": "A sailor.",
+   "printed": "31-32"
+  },
+  "D1": {
+   "text": "Flesh for food,",
+   "printed": "33-34"
+  },
+  "D2": {
+   "text": "Wagers.",
+   "printed": "1-8"
+  },
+  "D3": {
+   "text": "Monsures.",
+   "printed": "2-9"
+  },
+  "D4": {
+   "text": "To measure.",
+   "printed": "3-12"
+  },
+  "D5": {
+   "text": "A chair. ___",
+   "printed": "4-13"
+  },
+  "D6": {
+   "text": "A member of the Sem ato.",
+   "printed": "5-27"
+  },
+  "D7": {
+   "text": "Raising an uproar.",
+   "printed": "6-28"
+  },
+  "D8": {
+   "text": "Titles.",
+   "printed": "7-23"
+  },
+  "D10": {
+   "text": "Every day.",
+   "printed": "10-26"
+  },
+  "D11": {
+   "text": "A chart.",
+   "printed": "11-19"
+  },
+  "D13": {
+   "text": "His own room.",
+   "printed": "14-22"
+  },
+  "D17": {
+   "text": "",
+   "printed": "20-29"
+  },
+  "D18": {
+   "text": "",
+   "printed": "21-30"
+  },
+  "D20": {
+   "text": "A small insect.",
+   "printed": "24-31"
+  },
+  "D21": {
+   "text": "",
+   "printed": "25-32"
+  },
+  "D23": {
+   "text": "A. color.",
+   "printed": "35-36"
+  }
+ },
  "lines": [
   {
    "n": 1,

@@ -17,6 +17,136 @@
    ]
   }
  },
+ "clues": {
+  "A2": {
+   "text": "A lamb's Ty. 4A 6wom.",
+   "printed": "1-2"
+  },
+  "A4": {
+   "text": "",
+   "printed": "3-4"
+  },
+  "A7": {
+   "text": "An artist.",
+   "printed": "5-6"
+  },
+  "A8": {
+   "text": "Determination.",
+   "printed": "7-8"
+  },
+  "A9": {
+   "text": "An obstacle.",
+   "printed": "9-10"
+  },
+  "A11": {
+   "text": "A mouptain range betveen Europe and Asia.",
+   "printed": "11-12"
+  },
+  "A12": {
+   "text": "It falls in Gakes.",
+   "printed": "13-14"
+  },
+  "A14": {
+   "text": "The outer coat of wbeat.",
+   "printed": "15-16"
+  },
+  "A15": {
+   "text": "The harvest.",
+   "printed": "17-18"
+  },
+  "A16": {
+   "text": "Agreeable. 21.22 An adyerb, ogog Mpig shapad Dieces.",
+   "printed": "19-20"
+  },
+  "A18": {
+   "text": "",
+   "printed": "21-22"
+  },
+  "A19": {
+   "text": "A wicked romad Emperet.",
+   "printed": "23-24"
+  },
+  "A21": {
+   "text": "Goes.",
+   "printed": "25-26"
+  },
+  "A22": {
+   "text": "Wanderers.",
+   "printed": "27-28"
+  },
+  "A24": {
+   "text": "",
+   "printed": "29-30"
+  },
+  "A25": {
+   "text": "A legal process.",
+   "printed": "31-32"
+  },
+  "D1": {
+   "text": "",
+   "printed": "33-35"
+  },
+  "D2": {
+   "text": "",
+   "printed": "1-8"
+  },
+  "D3": {
+   "text": "",
+   "printed": "2-9"
+  },
+  "D4": {
+   "text": "",
+   "printed": "3-12"
+  },
+  "D5": {
+   "text": "",
+   "printed": "34-13"
+  },
+  "D6": {
+   "text": "",
+   "printed": "4-28"
+  },
+  "D7": {
+   "text": "",
+   "printed": "5-27"
+  },
+  "D8": {
+   "text": "",
+   "printed": "7-23"
+  },
+  "D10": {
+   "text": "",
+   "printed": "10-26"
+  },
+  "D11": {
+   "text": "",
+   "printed": "11-19"
+  },
+  "D13": {
+   "text": "",
+   "printed": "14-22"
+  },
+  "D17": {
+   "text": "",
+   "printed": "20-29"
+  },
+  "D18": {
+   "text": "",
+   "printed": "21-30"
+  },
+  "D20": {
+   "text": "",
+   "printed": "24-31"
+  },
+  "D21": {
+   "text": "",
+   "printed": "25-32"
+  },
+  "D23": {
+   "text": "",
+   "printed": "36-37"
+  }
+ },
  "lines": [
   {
    "n": 1,

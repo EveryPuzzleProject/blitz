@@ -729,10 +729,20 @@ def apply_linked(text: str, edits: dict, ocr: dict | None = None, review: dict |
     touched = [k for k in edits if k.startswith(("clue:", "num:", "grid:", "cell:"))]  # each reaches a clue line: its text, pair or answer
     if m["error"] and touched:
         cant.append(f"{', '.join(touched[:4])}: {m['error']}")
+    # the packet's own record of each clue row (ocr.json clues: {A12: {printed: "13-14"}}; older packets a list of
+    # pairs): what the reviewer was looking at when they edited clue:A12
+    rows = (ocr or {}).get("clues")
+    rows = dict(rows) if isinstance(rows, list) else rows
     for k, v in edits.items():
         if k.startswith("clue:") and not m["error"]:
-            if k[5:] not in m["line"]:
-                cant.append(f"{k}: the grid has no such word with a clue" + (" (it is printed in the grid)" if k[5:] in m["given"] else ""))
+            lab = k[5:]
+            if lab not in m["line"]:
+                cant.append(f"{k}: the grid has no such word with a clue" + (" (it is printed in the grid)" if lab in m["given"] else ""))
+            elif ocr is not None and (not isinstance(rows, dict) or lab not in rows):
+                cant.append(f"{k}: the packet records no such clue row, so nothing says the edit is for the line it would land on")
+            elif ocr is not None and ((rows[lab] or {}).get("printed") or lab) != m["label"][lab]:
+                cant.append(f"{k}: the proof page's row {lab} is the clue printed {(rows[lab] or {}).get('printed') or 'with no pair'}, and the xd's "
+                            f"line for that word is {m['label'][lab]}: the page and the xd disagree (rebuild the packet)")
             else:
                 done.append(k)
     if not cant and not m["error"]:
@@ -1049,7 +1059,9 @@ def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict |
         if not pk["xd"]:
             hold("no-packet", "no proof packet for it in this run")
             continue
-        if not review.get("matches_xd", True):
+        # a linked-ends packet must say its page shows its xd: its clue rows are keyed by word, its xd lines by pair,
+        # and nothing else says the two agree (a packet that doesn't record it is not taken as agreeing)
+        if not review.get("matches_xd", not linked(pk["xd"])):
             hold("packet-stale", "its proof packet doesn't show its xd: rebuild the packet")
             continue
         edits, differ, sources = {}, set(), []
@@ -1063,7 +1075,9 @@ def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict |
                 sources.append(r.get("by", ""))
         # incomplete: what the ship check found that no Ready makes whole. The one thing a Ready reviewer's edits do
         # make whole is a key square the packet left unread, when each such square has its letter among them
-        filled = filled_by(ship, edits)
+        # ...and only when a person's decision ships it (the owner's, or a helper's Ready): an AI reviewer's Ready never
+        # lifts it with its own letter, whatever ai_ready says
+        filled = filled_by(ship, edits) if st["rule"] in ("owner", "people") else []
         if [x for x in ship.get("incomplete") or [] if x not in filled]:
             hold("incomplete", "Ready, but incomplete: " + "; ".join(map(str, ship["incomplete"])))
             continue
@@ -1352,7 +1366,16 @@ def edit_records(packet_xd: str, applied: str, apply: list[dict], rule: Rule = R
                 more_edits[ek] = _swap(v, meant, printed)
                 back.add(ek)
             # an edit with neither word is a reading fix like any other; the proposal then comes out unplaced, and says so
-    text = apply_edits(applied, more_edits)[0] if more_edits else applied
+    # the follow-on edits (a key letter corrected from its entry alone, a misprint taken back out of an edit) are
+    # applied here, and one that isn't applied is never recorded or noted as if it were: the puzzle is held for it
+    if more_edits:
+        text, did, cant = apply_linked(applied, more_edits) if is_linked else (*apply_edits(applied, more_edits), [])
+        cant = cant or [f"{k}: the xd has no such clue, square or header to change" for k in more_edits if k not in did]
+        if cant:
+            return {"text": applied, "records": [], "corrections": [], "notes": [], "missing": [],
+                    "cant": [f"a correction named in the review ({', '.join(more_edits)}) can't be made: " + "; ".join(cant[:3])]}
+    else:
+        text = applied
     value.update(more_edits)
     now_h, now_c, now_q = _read(text)
 
@@ -1498,7 +1521,10 @@ def corrected(text: str, corrections: list[dict]) -> tuple[str, list[str], list[
         if printed and meant and printed != meant and _TYPO_KEY.fullmatch(key) and not key.startswith("cell:"):
             cur = clues.get(key[5:]) if key.startswith("clue:") else heads.get(HEADER[_field(key)])
             if cur is not None and _count(cur, printed) == 1:  # the printed word, whole, once: the word meant takes its place
-                text, done = apply_edits(text, {key if key.startswith("clue:") else f"meta:{_field(key)}": _swap(cur, printed, meant)})[0], "applied"
+                ek = key if key.startswith("clue:") else f"meta:{_field(key)}"
+                new, did = apply_edits(text, {ek: _swap(cur, printed, meant)})
+                if ek in did:  # said to be applied only when it was (a linked-ends xd can refuse an edit)
+                    text, done = new, "applied"
             elif cur is not None and not _count(cur, printed) and _count(cur, meant):
                 done = "noted"
             note = f"{_label(key, _pairs(text))} is printed '{printed}'; corrected to '{meant}'." if done != "not applied" else ""
@@ -1550,6 +1576,11 @@ def _record_edits(passing: dict, packs: dict, rule: Rule) -> None:
     leaves `passing`, held as edit-unrecorded (the import's: broken)."""
     for pid, x in list(passing.items()):
         e = edit_records(packs[pid]["xd"], x["text"], x["standing"]["apply"], rule, pid, packs[pid]["ocr"], packs[pid]["review"])
+        if e.get("cant"):  # a correction the review names that the import can't make: held, and nothing says it was made
+            why = "proof-page edits the import can't apply: " + "; ".join(e["cant"])
+            x["row"].update(reason="edits-unapplied", why=why, broken=[{"what": why, "stage": "import", "code": "edits-unapplied", "detail": ""}])
+            del passing[pid]
+            continue
         if e["missing"]:
             why = "an edit with no whole record of what it changed: " + "; ".join(e["missing"][:4]) + (
                 f" (+{len(e['missing']) - 4})" if len(e["missing"]) > 4 else "")

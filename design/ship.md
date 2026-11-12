@@ -65,7 +65,7 @@ A puzzle the rule passes can still be held by the import, each with its own reas
 | reason | meaning |
 |---|---|
 | `edit-unrecorded` | an edit with no whole record of what it changed (The record of every edit, below) |
-| `incomplete` | the ship check found missing or empty clues, an unsolved grid, a partial second clue set: no Ready makes it whole. One exception since 2026-11-12 (`ship.filled_by`): an unsolved grid, when the edits that ship with the Ready give every square the check named its letter (a key square the packet left unread, read by a reviewer: a reading fix with its record). The reason it shipped says so. An empty or missing clue is never made whole by an edit |
+| `incomplete` | the ship check found missing or empty clues, an unsolved grid, a partial second clue set: no Ready makes it whole. One exception since 2026-11-12 (`ship.filled_by`): an unsolved grid, when the edits that ship with the Ready give every square the check named its letter (a key square the packet left unread, read by a reviewer: a reading fix with its record), and only when a person's decision ships the puzzle (rule `owner` or `people`): an AI's Ready never lifts it with its own letter, under any `ai_ready`. The reason it shipped says so. An empty or missing clue is never made whole by an edit. It needs the finding's `cells`, which records made before xword-ocr named them don't have (GAMES run15-restart), so it takes effect for a batch at its next triage run |
 | `packet-stale` | the proof packet doesn't show its xd: rebuild the packet |
 | `proof-stale` | all that was said (a Ready, or an AI's Not ready) was on an earlier version of the puzzle |
 | `edits-differ` | two reviewers changed the same thing two ways |
@@ -281,11 +281,24 @@ assembly's.
   past 61, which the Numbering section has no symbol for.
 - A clue, square or number edit when the xd's clue lines can't be put on its grid's words (not as
   many lines as words, or a line whose label names another word than its place in the list).
+- A `clue:` edit whose row on the proof page isn't the line it would land on. The page keys a row
+  by its word (`ocr.json` `clues`: `A12`, with the pair it was read with in `printed`); the import
+  puts the edit on that word's line in the xd. When the row's pair (its own label when it has none)
+  isn't that line's label, or the packet records no such row, the edit is refused: the page and the
+  xd disagree, and the packet has to be rebuilt (No. 9 of c14: the page's A12 is the clue read as
+  12-14, the xd's line for A12 is `7-8.`). For the same reason a linked-ends packet whose
+  `review.json` has no `matches_xd` is held `packet-stale`, not taken as agreeing.
+- A follow-on edit the import makes from a review's `typos` / `key_corrections` (a key letter
+  corrected from its entry alone, a misprint taken back out of an edit) that can't be applied: held
+  `edits-unapplied`, with no note and no record of a change that wasn't made. The export likewise
+  says `applied` in `corrections.tsv` only for a correction it did apply.
 - A new square with no letter; a letter for a square outside the puzzle; a rebus square.
 - `line:` or `keep:` when the xd's block isn't the packet's kept lines (`ocr.json` `lines`, as the
   text review corrected them); `keep:` on a line a header was read from (`ocr.json` `evidence`);
   `line:` on such a line unless its new text still shows the xd's header (its Number, say): the
   page derives a header from its line, the import doesn't, so the header is given with it (`meta:`).
+  Such a line isn't a kept line, so it isn't in the xd: the edit changes nothing that ships, and is
+  still listed as applied with its `printed line` record (`kept: false`).
 - `label:`, `ev:`, `candidate:`, a fill-in blank: as for any puzzle.
 
 `line:` and `keep:` are applied to linked-ends puzzles only. Any other puzzle is still held on

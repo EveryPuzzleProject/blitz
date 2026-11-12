@@ -17,6 +17,136 @@
    ]
   }
  },
+ "clues": {
+  "A2": {
+   "text": "et fall.",
+   "printed": "1-2"
+  },
+  "A4": {
+   "text": "",
+   "printed": "3-4"
+  },
+  "A6": {
+   "text": "",
+   "printed": "5-6"
+  },
+  "A8": {
+   "text": "To separate.",
+   "printed": "7-8"
+  },
+  "A9": {
+   "text": "",
+   "printed": "9-10"
+  },
+  "A11": {
+   "text": "A cavern.",
+   "printed": "11-12"
+  },
+  "A12": {
+   "text": "Very black.",
+   "printed": "13-14"
+  },
+  "A14": {
+   "text": "Another name for father.",
+   "printed": "15-16"
+  },
+  "A15": {
+   "text": "7b0 88130 85 0n.",
+   "printed": "17-18"
+  },
+  "A16": {
+   "text": "An eminence. 21.22 What the wind did.",
+   "printed": "19-20"
+  },
+  "A18": {
+   "text": "",
+   "printed": "21-22"
+  },
+  "A19": {
+   "text": "",
+   "printed": "23-24"
+  },
+  "A21": {
+   "text": "",
+   "printed": "25-26"
+  },
+  "A22": {
+   "text": "",
+   "printed": "27-28"
+  },
+  "A24": {
+   "text": "",
+   "printed": "29-30"
+  },
+  "A25": {
+   "text": "",
+   "printed": "31-32"
+  },
+  "D1": {
+   "text": "Not Bctitlous.",
+   "printed": "33-34"
+  },
+  "D2": {
+   "text": "",
+   "printed": "1-8"
+  },
+  "D3": {
+   "text": "",
+   "printed": "2-9"
+  },
+  "D4": {
+   "text": "",
+   "printed": "3-12"
+  },
+  "D5": {
+   "text": "The bottem of a shoe.",
+   "printed": "4-13"
+  },
+  "D6": {
+   "text": "Part of the German empire",
+   "printed": "5-27"
+  },
+  "D7": {
+   "text": "Resembling a nebula.",
+   "printed": "6-28"
+  },
+  "D8": {
+   "text": "Whet FUN ts printed on.",
+   "printed": "7-23"
+  },
+  "D10": {
+   "text": "A habitual drunkard. 14-22",
+   "printed": "10-26"
+  },
+  "D11": {
+   "text": "A vebicle. 20.29 To bestow. 24-81",
+   "printed": "11-19"
+  },
+  "D13": {
+   "text": "",
+   "printed": "14-22"
+  },
+  "D17": {
+   "text": "",
+   "printed": "20-29"
+  },
+  "D18": {
+   "text": "A covering for the foot and leg 26-82",
+   "printed": "21-30"
+  },
+  "D20": {
+   "text": "",
+   "printed": "24-31"
+  },
+  "D21": {
+   "text": "",
+   "printed": "25-32"
+  },
+  "D23": {
+   "text": "Bpace.",
+   "printed": "35-36"
+  }
+ },
  "lines": [
   {
    "n": 1,
