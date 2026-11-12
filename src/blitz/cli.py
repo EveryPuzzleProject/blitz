@@ -504,6 +504,13 @@ def _utf8_output() -> None:
             pass
 
 
+def cmd_records(a) -> None:
+    from .records import build
+    pages = build(Path(a.pub_repo).resolve(), Path(a.out), Path(a.cache), only=a.only or None, pub=a.pub,
+                  images_base=a.images_base, copy_images=a.copy_images)
+    print(f"{len(pages)} record pages in {a.out}")
+
+
 def main(argv=None) -> None:
     _utf8_output()
     p = argparse.ArgumentParser(prog="blitz", description=__doc__.split("\n\n")[0],
@@ -641,6 +648,15 @@ def main(argv=None) -> None:
     q.add_argument("--pages", action="store_true", help="also copy the source pages into <dest>/source/")
     q.add_argument("--name", help="the publication's name for gxd's publications.tsv (default: the pubid in capitals)")
     q.set_defaults(fn=cmd_ship_export)
+    q = sub.add_parser("records", help="the public record page of each transcribed puzzle (everypuzzleproject.org/<pub>/<date>/)")
+    q.add_argument("pub_repo", help="the publication's repo, e.g. ../judge")
+    q.add_argument("--pub", help="the publication (default: the repo folder's name)")
+    q.add_argument("--out", required=True, help="folder for the pages: <out>/<date>/index.html")
+    q.add_argument("--cache", default=".records-cache", help="where the review packages are downloaded to")
+    q.add_argument("--only", nargs="*", help="just these xdids")
+    q.add_argument("--images-base", help="serve images from here instead of the R2 package (e.g. a custom domain)")
+    q.add_argument("--copy-images", action="store_true", help="copy the images beside each page (a local preview)")
+    q.set_defaults(fn=cmd_records)
     q = sub.add_parser("site-close", help="take puzzles off the public review site")
     q.add_argument("puzzles", nargs="+")
     q.set_defaults(fn=cmd_site_close)

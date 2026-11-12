@@ -1228,10 +1228,11 @@ def write(repo: Path, p: dict, today: str = "") -> dict:
 
 
 EXPORT_COLS = ("gxd_id", "xdid", "date", "number", "gxd_mr", "exported", "proof_url", "package_url", "scan_url",
-               "ai_reviewed", "person_reviewed", "credit")
+               "ai_reviewed", "person_reviewed", "credit", "record_url")  # record_url: the puzzle's public record page (records.py)
 
 
 def write_exports(repo: Path, pub: str) -> None:
+    from .records import record_url
     """gxd-exports.tsv from provenance.jsonl: one row per puzzle shipped this way (judge's columns; gxd_mr and
     exported stay empty until an MR carries the puzzle, and a row's values for them are kept)."""
     repo = Path(repo)
@@ -1246,7 +1247,8 @@ def write_exports(repo: Path, pub: str) -> None:
         o = old.get(r["xdid"]) or {}
         out.append("\t".join([o.get("gxd_id") or r["xdid"], r["xdid"], _header(xd, "Date"), _header(xd, "Number"), o.get("gxd_mr", ""),
                               o.get("exported", ""), PROOF_PAGE + r["pid"], f"{PUBLIC}/{pub}/{r['pid']}/", _header(xd, "Source"),
-                              "y" if kinds & {"ai", "check"} or "Text-Review: " in xd else "", "y" if kinds & {"owner", "helper"} else "", CREDIT]))
+                              "y" if kinds & {"ai", "check"} or "Text-Review: " in xd else "", "y" if kinds & {"owner", "helper"} else "", CREDIT,
+                              record_url(pub, r["xdid"])]))
     (repo / "gxd-exports.tsv").write_text("\n".join(out) + "\n", encoding="utf-8", newline="\n")
 
 
