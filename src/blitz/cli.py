@@ -506,7 +506,7 @@ def _utf8_output() -> None:
 
 def cmd_records(a) -> None:
     from .records import build
-    pages = build(Path(a.pub_repo).resolve(), Path(a.out), Path(a.cache), only=a.only or None,
+    pages = build(Path(a.pub_repo).resolve(), Path(a.out), Path(a.cache), only=a.only or None, pub=a.pub,
                   images_base=a.images_base, copy_images=a.copy_images)
     print(f"{len(pages)} record pages in {a.out}")
 
@@ -650,6 +650,7 @@ def main(argv=None) -> None:
     q.set_defaults(fn=cmd_ship_export)
     q = sub.add_parser("records", help="the public record page of each transcribed puzzle (everypuzzleproject.org/<pub>/<date>/)")
     q.add_argument("pub_repo", help="the publication's repo, e.g. ../judge")
+    q.add_argument("--pub", help="the publication (default: the repo folder's name)")
     q.add_argument("--out", required=True, help="folder for the pages: <out>/<date>/index.html")
     q.add_argument("--cache", default=".records-cache", help="where the review packages are downloaded to")
     q.add_argument("--only", nargs="*", help="just these xdids")

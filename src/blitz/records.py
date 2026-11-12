@@ -117,22 +117,59 @@ def build_grid(rows: list[list[str]], clues: dict) -> dict:
     return {"R": R, "C": C, "nums": nums, "words": words}
 
 
-def fetch_package(url: str, cache: Path) -> Path:
-    """The puzzle's review package, downloaded once into cache/<xdid>/."""
-    cache.mkdir(parents=True, exist_ok=True)
-    for name in PACKAGE_FILES:
-        dest, missing = cache / name, cache / (name + ".missing")
-        if dest.exists() or missing.exists():
-            continue
-        req = urllib.request.Request(url + name, headers={"User-Agent": "EveryPuzzleProject-records/1"})  # R2 refuses urllib's default
+SCANS = ("page.jpg", "clue_page.jpg", "answers.png")  # shown from where they're hosted; only their size is needed here
+
+
+def _get(url: str, head_only: bool = False) -> bytes | None:
+    """A file's bytes (or, head_only, its first 64 KB: enough for an image's size), None if it isn't there."""
+    headers = {"User-Agent": "EveryPuzzleProject-records/1"}  # R2 refuses urllib's default
+    if head_only:
+        headers["Range"] = "bytes=0-65535"
+    for attempt in range(4):
         try:
-            with urllib.request.urlopen(req, timeout=60) as r:
-                dest.write_bytes(r.read())
+            with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=60) as r:
+                return r.read()
         except urllib.error.HTTPError as e:
             if e.code == 404:  # the package has no such file (e.g. no separate clue page)
-                missing.write_text("")
-            else:
+                return None
+            if e.code not in (429, 500, 502, 503) or attempt == 3:
                 raise
+        except (urllib.error.URLError, TimeoutError):
+            if attempt == 3:
+                raise
+        import time
+        time.sleep(2 ** attempt)
+
+
+def _size_of(data: bytes):
+    from PIL import ImageFile
+    p = ImageFile.Parser()
+    try:
+        p.feed(data)
+        return list(p.image.size) if p.image else None
+    except Exception:
+        return None
+
+
+def fetch_package(url: str, cache: Path, full_images: bool = False) -> Path:
+    """The puzzle's review package, fetched once into cache/<xdid>/: its JSON, the grid crop
+    (for the share picture), and the scans' sizes in sizes.json (or, full_images, the scans)."""
+    cache.mkdir(parents=True, exist_ok=True)
+    sizes_path = cache / "sizes.json"
+    sizes = load_json(sizes_path)
+    for name in PACKAGE_FILES:
+        dest, missing = cache / name, cache / (name + ".missing")
+        if missing.exists() or dest.exists() or (name in SCANS and name in sizes and not full_images):
+            continue
+        data = _get(url + name, head_only=name in SCANS and not full_images)
+        if data is None:
+            missing.write_text("")
+            continue
+        if name in SCANS:
+            sizes[name] = _size_of(data)
+        if name not in SCANS or full_images:
+            dest.write_bytes(data)
+    sizes_path.write_text(json.dumps(sizes))
     return cache
 
 
@@ -141,15 +178,6 @@ def load_json(path: Path) -> dict:
         return json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         return {}
-
-
-def image_size(path: Path):
-    try:
-        from PIL import Image
-        with Image.open(path) as im:
-            return im.size
-    except Exception:
-        return None
 
 
 # ---------------------------------------------------------------- the review history
@@ -537,12 +565,12 @@ def og_image(grid_png: Path, dest: Path) -> bool:
 # ---------------------------------------------------------------- driver
 
 def build(pub_repo: Path, out: Path, cache: Path, only: list[str] | None = None, images_base: str | None = None,
-          copy_images: bool = False) -> list[Path]:
+          copy_images: bool = False, pub: str | None = None) -> list[Path]:
     """Write <out>/<stem>/index.html for each of the publication's puzzles.
 
     images_base: where the page's images are served from (default: the R2 package
     itself). copy_images: copy the cached images next to each page (for a local preview)."""
-    pub = pub_repo.name
+    pub = pub or pub_repo.name
     exports = {r["xdid"]: r for r in read_tsv(pub_repo / "gxd-exports.tsv")}
     status = {r["xdid"]: r for r in read_tsv(pub_repo / "status.tsv")}
     corr = defaultdict(list)
@@ -557,22 +585,28 @@ def build(pub_repo: Path, out: Path, cache: Path, only: list[str] | None = None,
     for x in xdids:
         h = parse_xd((pub_repo / "xd" / f"{x}.xd").read_text(encoding="utf-8"))["head"]
         meta[x] = f"No. {h['Number']}" if h.get("Number") else long_date(h.get("Date", ""))
+    # Fetch the packages first, several at a time (each is a handful of small requests).
+    from concurrent.futures import ThreadPoolExecutor
+    todo = [x for x in xdids if (not only or x in only) and exports.get(x, {}).get("package_url")]
+    with ThreadPoolExecutor(8) as pool:
+        list(pool.map(lambda x: fetch_package(exports[x]["package_url"], cache / x, full_images=copy_images), todo))
     written = []
     for i, x in enumerate(xdids):
         if only and x not in only:
             continue
         xd = parse_xd((pub_repo / "xd" / f"{x}.xd").read_text(encoding="utf-8"))
         exp = exports.get(x, {})
-        pkg = fetch_package(exp["package_url"], cache / x) if exp.get("package_url") else None
+        pkg = fetch_package(exp["package_url"], cache / x, full_images=copy_images) if exp.get("package_url") else None
         ocr = load_json(pkg / "ocr.json") if pkg else {}
         review = load_json(pkg / "review.json") if pkg else {}
         page_dir = out / record_path(pub, x).strip("/").split("/", 1)[1]
         page_dir.mkdir(parents=True, exist_ok=True)
         img, sizes = {}, {}
         if pkg:
-            for name in ("page.jpg", "clue_page.jpg", "answers.png"):
-                if (pkg / name).exists():
-                    sizes[name] = image_size(pkg / name)
+            known = load_json(pkg / "sizes.json")
+            for name in SCANS:
+                if name in known:
+                    sizes[name] = tuple(known[name]) if known[name] else None
                     if copy_images:
                         shutil.copy(pkg / name, page_dir / name)
                         img[name] = name
