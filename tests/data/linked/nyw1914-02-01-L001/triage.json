@@ -1,0 +1,93 @@
+{
+ "decision": "not ready",
+ "blocking": [
+  {
+   "code": "clues-unread",
+   "part": "a block of clues",
+   "restart": "parts",
+   "view": "boxes",
+   "detail": "A19 A21 A22 A24 A25",
+   "kind": "missing-part",
+   "part_id": ""
+  }
+ ],
+ "reasons": [
+  {
+   "code": "key-next-issue",
+   "class": "info"
+  },
+  {
+   "code": "key-digit-reads",
+   "class": "defect"
+  },
+  {
+   "code": "clues-unread",
+   "class": "defect"
+  },
+  {
+   "code": "clues-fixed",
+   "class": "tool"
+  },
+  {
+   "code": "unsure-unseen",
+   "class": "defect"
+  },
+  {
+   "code": "unsure",
+   "class": "defect"
+  },
+  {
+   "code": "verdict",
+   "class": "info"
+  },
+  {
+   "code": "number-reassigned",
+   "class": "tool"
+  },
+  {
+   "code": "title-none",
+   "class": "defect"
+  },
+  {
+   "code": "byline-none",
+   "class": "defect"
+  },
+  {
+   "code": "ship-held",
+   "class": "info"
+  }
+ ],
+ "ship": {
+  "ok": false,
+  "findings": [
+   {
+    "code": "no-title",
+    "detail": "no Title header, and none confirmed not printed"
+   },
+   {
+    "code": "no-author",
+    "detail": "no Author or Byline header, and none confirmed not printed"
+   },
+   {
+    "code": "clue-empty",
+    "detail": "clues with no text: A2 A19 A21 A22 A24 A25",
+    "items": [
+     "A2",
+     "A19",
+     "A21",
+     "A22",
+     "A24",
+     "A25"
+    ]
+   },
+   {
+    "code": "triage-doubt",
+    "detail": "byline-none clues-unread title-none"
+   }
+  ],
+  "incomplete": [
+   "clues with no text: A2 A19 A21 A22 A24 A25"
+  ],
+  "xd_fp": "c07639829f31"
+ }
+}

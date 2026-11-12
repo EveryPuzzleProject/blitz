@@ -156,7 +156,10 @@ def test_apply_edits_round_trip_and_answers():
 
 def test_refused_edits():
     assert refused({"clue:A1": "x", "line:B3": "y", "ev:title": "2", "cell:r1c1": "AB"}, XD) == ["cell:r1c1", "ev:title", "line:B3"]
-    assert refused({"clue:A1": "x"}, XD.replace("Date:", "Clues: linked ends\nDate:")) == ["clue:A1"]
+    # a linked-ends puzzle takes its own kinds (tests/test_ship_linked.py); a line's label or a header's evidence line still holds it
+    linked = XD.replace("Date:", "Clues: linked ends\nDate:")
+    assert refused({"clue:A1": "x", "line:B3": "y", "keep:B3": False, "num:r1c1": "3", "grid:r1c1": "_"}, linked) == []
+    assert refused({"clue:A1": "x", "label:B3": "intro", "ev:title": "2"}, linked) == ["ev:title", "label:B3"]
 
 
 def test_to_gxd_is_the_puzzle_only():

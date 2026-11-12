@@ -1,0 +1,53 @@
+{
+ "decision": "ready",
+ "blocking": [],
+ "reasons": [
+  {
+   "code": "key-next-issue",
+   "class": "info"
+  },
+  {
+   "code": "clues-fixed",
+   "class": "tool"
+  },
+  {
+   "code": "unsure",
+   "class": "defect"
+  },
+  {
+   "code": "number-reassigned",
+   "class": "tool"
+  },
+  {
+   "code": "title-none",
+   "class": "defect"
+  },
+  {
+   "code": "byline-none",
+   "class": "defect"
+  },
+  {
+   "code": "ship-held",
+   "class": "info"
+  }
+ ],
+ "ship": {
+  "ok": false,
+  "findings": [
+   {
+    "code": "no-title",
+    "detail": "no Title header, and none confirmed not printed"
+   },
+   {
+    "code": "no-author",
+    "detail": "no Author or Byline header, and none confirmed not printed"
+   },
+   {
+    "code": "triage-doubt",
+    "detail": "byline-none title-none"
+   }
+  ],
+  "incomplete": [],
+  "xd_fp": "0e63e4ec84a4"
+ }
+}

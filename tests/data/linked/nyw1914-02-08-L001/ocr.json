@@ -1,0 +1,40 @@
+{
+ "evidence": {
+  "title": null,
+  "number": 1,
+  "date": null,
+  "byline": null,
+  "author": null,
+  "editor": null,
+  "feature": null
+ },
+ "puzzle_number": "8",
+ "stages": {
+  "pages": {
+   "page.jpg": [
+    "minneapolis-journal-1914-02-08",
+    1
+   ]
+  }
+ },
+ "lines": [
+  {
+   "n": 1,
+   "text": "No. ? (the label in the grid's centre block: unread)"
+  },
+  {
+   "n": 2,
+   "text": "corresponding to the cluer and definitions given belon",
+   "label": "instructions",
+   "keep": true,
+   "by": "llm"
+  },
+  {
+   "n": 3,
+   "text": ".3 24 Adam's eldest con, 55 36 To pall roughly 18 Important in ushing 3 12 To miss. 5 27 A llvely horee 72. A grent weslern prm 11 19 Imed for bot wale 20.29 Lane. 21i1 Fond for hermes 29 Indumitious Inserts 4-13 A denomination in contng 625 Weotero farins. 14.22 Gained. 21u A comnon word for telegan 53 Al thim place.",
+   "label": "other",
+   "keep": true,
+   "by": "llm"
+  }
+ ]
+}

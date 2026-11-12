@@ -69,7 +69,7 @@ A puzzle the rule passes can still be held by the import, each with its own reas
 | `packet-stale` | the proof packet doesn't show its xd: rebuild the packet |
 | `proof-stale` | all that was said (a Ready, or an AI's Not ready) was on an earlier version of the puzzle |
 | `edits-differ` | two reviewers changed the same thing two ways |
-| `edits-unapplied` | a proof-page edit the import doesn't apply: a line's label or keep (`line:B3`), a header's evidence line (`ev:title`), a fill-in blank, a rebus square, anything in a linked-ends puzzle |
+| `edits-unapplied` | a proof-page edit the import doesn't apply: a line's label or keep (`line:B3`), a header's evidence line (`ev:title`), a fill-in blank, a rebus square; in a linked-ends puzzle, an edit that can't be applied safely (Linked ends, below) |
 | `xd-exists` | `xd/` already has another file under its id |
 | `candidate-undecided` | the packet records a candidate clue list and no reviewer who said Ready has decided it (next section but one). A question, not a breakage |
 | `candidate-partial` | a candidate was taken into the puzzle (as the clues, or as a second set) and doesn't cover its slots |
@@ -239,6 +239,60 @@ A dry run writes none of this. Three options write the record alone and ship not
 only, for a batch that isn't shipping yet): `--record` (the publication repo's
 `pipeline/ship/<batch>.json`), `--snapshot <folder>` (a `ship.json` there) and `--publish` (the
 site's copy). Without `--write` a passing puzzle shows as ready to ship, never as shipped.
+
+## Linked ends (the New York World's FUN, 1913-14)
+
+Their xd is a different shape (xword-ocr `linkedends.py`): the header says `Clues: linked ends`,
+each clue line is labelled by the numbers printed in its word's two end squares (`1-2. An insect.
+~ BEE`; the slot's own label, `A4.`, where a number wasn't read), the across words' lines come
+first and then the down words', a word printed in the grid has no line, the notes' `Numbering:`
+section says which square has which number, and `_` is the template outside the puzzle. Since
+2026-11-12 `blitz ship` applies a reviewer's edits to such an xd (`ship.apply_linked`), each with
+its record under the same three cases. The proof page keys a clue by its word's standard label,
+and so do the records (`clue:A6`, with the printed pair in `pair`).
+
+| edit | what the import does | record (`what`) |
+|---|---|---|
+| `clue:A6` | the text of that word's line; the line keeps its pair | `clue`, with `pair` |
+| `cell:r4c8` = a letter | the key's square; the answers of the words through it follow | `key square`, with `words` |
+| `grid:r3c10` (`.`, `_`, `#`; the page writes `cell:r3c10` beside it) | the square's kind: `_` takes it out of the puzzle, `.` with a letter puts it in | `grid square`, under the `grid:` key, the `cell:` edit named in `with` |
+| `num:r3c5` (a number, a letter, or empty) | the Numbering section is written again; a line whose word's end it touches takes the pair the ends then give, or its slot's own label when an end has no number | `square number`, with `pairs` (the lines relabelled) |
+| `line:B4` | the line's text in the xd's `Printed with puzzle:` block, and in the row's `printed` (which the export's Notes rule reads) | `printed line` |
+| `keep:B3` | the line joins or leaves that block and `printed` | `printed line kept`, class `decision`, with the line's text |
+| `meta:title` and the other headers | as in any xd | `header` |
+
+A key correction's note names the words by their pairs ("The printed answer key gave 5-6 as ...");
+a proposed correction of a clue's print says "The clue for 5-6 is printed ...".
+
+**What isn't applied holds the puzzle** (`edits-unapplied`, broken, stage import), with the reason
+in words; nothing is applied in part. The import places no clue and decides no number: those are
+assembly's.
+
+- A shape fix (`grid:`) is applied only when the grid keeps the same words: every word of the
+  packet's grid still there under its label, longer or shorter. One that makes or removes a word,
+  or shifts the words' numbering, means the clues have to be placed again.
+- A shape fix or a number that leaves a printed number on a square outside the puzzle (the end of
+  a word moved): the reviewer says where the number is printed (`num:`), or assembly runs again.
+- A `num:` edit that changes which words are printed in the grid (and so have no clue); a number
+  past 61, which the Numbering section has no symbol for.
+- A clue, square or number edit when the xd's clue lines can't be put on its grid's words (not as
+  many lines as words, or a line whose label names another word than its place in the list).
+- A new square with no letter; a letter for a square outside the puzzle; a rebus square.
+- `line:` or `keep:` when the xd's block isn't the packet's kept lines (`ocr.json` `lines`, as the
+  text review corrected them); `keep:` on a line a header was read from (`ocr.json` `evidence`);
+  `line:` on such a line unless its new text still shows the xd's header (its Number, say): the
+  page derives a header from its line, the import doesn't, so the header is given with it (`meta:`).
+- `label:`, `ev:`, `candidate:`, a fill-in blank: as for any puzzle.
+
+`line:` and `keep:` are applied to linked-ends puzzles only. Any other puzzle is still held on
+them (GAMES 1977-79 has three such), though nothing in how they are applied is particular to
+linked ends: lifting that is a change to `refused()` and a look at those three.
+
+blitz doesn't depend on xword-ocr, so the Numbering section's reader and writer are in `ship.py`
+as well as in xword-ocr `numbering.py`, whose format it is; `tests/test_ship_linked.py` reads
+four real packets of batch `nyw-1914-c1` through both the reader and the writer. Not done:
+`blitz ship-export` for a linked-ends xd (`to_gxd` keeps neither the `Clues` header nor the
+Numbering section), and what gxd's Title and Author say for these puzzles, which is the owner's.
 
 ## The queues: what the batch asks of people
 

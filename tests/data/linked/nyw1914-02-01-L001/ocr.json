@@ -1,0 +1,54 @@
+{
+ "evidence": {
+  "title": null,
+  "number": 2,
+  "date": null,
+  "byline": null,
+  "author": null,
+  "editor": null,
+  "feature": null
+ },
+ "puzzle_number": "7",
+ "stages": {
+  "pages": {
+   "page.jpg": [
+    "minneapolis-journal-1914-02-01",
+    1
+   ]
+  }
+ },
+ "lines": [
+  {
+   "n": 1,
+   "text": "CROSS-WORD PUZZLE NO. 5",
+   "label": "section",
+   "keep": false,
+   "by": "llm"
+  },
+  {
+   "n": 2,
+   "text": "No. ? (the label in the grid's centre block: unread)"
+  },
+  {
+   "n": 3,
+   "text": "The cross-word puzzles apparent many interesting new eross-word",
+   "label": "intro",
+   "keep": true,
+   "by": "llm"
+  },
+  {
+   "n": 4,
+   "text": "parently are getting more popu. editor has received from readers word puzzles, which he will he glad to use from time to time. It ne. It is more difficult to make It is to solve one. If you doubi up a eross-word puzzle than it is to this, try to make one yourself. the small squares in the above diamonds with words corre. aponding to the clues and defimitions given below. The solu- given next week.",
+   "label": "instructions",
+   "keep": true,
+   "by": "llm"
+  },
+  {
+   "n": 5,
+   "text": "the series is presented. Fill in Today the fifth puzzle in the se",
+   "label": "intro",
+   "keep": true,
+   "by": "llm"
+  }
+ ]
+}
