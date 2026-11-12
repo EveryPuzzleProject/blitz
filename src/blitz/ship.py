@@ -718,7 +718,7 @@ def apply_linked(text: str, edits: dict, ocr: dict | None = None, review: dict |
                         + "; ".join(x for x in (f"no longer the same word: {' '.join(gone[:6])}" if gone else "",
                                                  f"new: {' '.join(new[:6])}" if new else "") if x)
                         + "): the clues have to be placed again (assembly), not edited at import")
-        lost = sorted(sq for sq in nums if cells[sq[0]][sq[1]] in OUTSIDE)
+        lost = sorted(sq for sq in nums if sq[0] < len(cells) and sq[1] < len(cells[sq[0]]) and cells[sq[0]][sq[1]] in OUTSIDE)
         if lost:
             cant.append(f"{said}: leaves a printed number on a square outside the puzzle ("
                         + ", ".join(f"{nums[sq]} at r{sq[0] + 1}c{sq[1] + 1}" for sq in lost[:6])
