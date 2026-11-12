@@ -314,6 +314,25 @@ async function load() {
   $('#tools').hidden = !!DATA;
   if (!DATA) { drawTools(); drawRerun(); }
 }
+// <site-rows> (run under node by tests/test_site_rows.py; the same allRows as proof.html)
+// Every row of a read of the site's database. The database gives at most 1,000 rows to one request
+// (Supabase's max-rows) and says nothing when it stops there, so ask again from where the last page ended
+// until a page comes short. q needs an order that puts every row in one place (its key columns).
+// get1(query) gives a page's rows, or null when the request failed: then this throws, so a caller
+// never takes part of a list for all of it.
+const SITE_ROWS = 1000;
+async function allRows(get1, q) {
+  const out = [];
+  for (;;) {
+    const rows = await get1(`${q}&limit=${SITE_ROWS}&offset=${out.length}`);
+    if (!rows) throw new Error('the site did not answer: ' + q.split('?')[0]);
+    out.push(...rows);
+    if (rows.length < SITE_ROWS) return out;
+  }
+}
+// </site-rows>
+const siteRows = (q, opt = {}) => allRows(x => fetch(`${SITE.supabaseUrl}/rest/v1/${x}`,
+  {headers: {apikey: SITE.supabaseAnonKey, Authorization: 'Bearer ' + SITE.supabaseAnonKey}, ...opt}).then(r => r.ok ? r.json() : null).catch(() => null), q);
 // the site's way in (/review/ opens it): every batch on the site, with what the pipeline found in it.
 // A batch with a page (site-publish-batch) opens it; the others (no snapshot yet) open their proof pages.
 async function landing() {
@@ -330,11 +349,8 @@ async function landing() {
     .then(r => r.json()).catch(() => null)));
   const ships = await Promise.all(BATCHES.map(b => fetch(`${FILES()}/batch/${b.name}/ship.json`, {cache: 'no-cache'})
     .then(r => r.ok ? r.json() : null).catch(() => null)));
-  const h = {apikey: SITE.supabaseAnonKey, Authorization: 'Bearer ' + SITE.supabaseAnonKey};
-  let rows = await fetch(`${SITE.supabaseUrl}/rest/v1/puzzles?select=xdid,batch,dropped&open=eq.true&order=xdid`, {headers: h})
-    .then(r => r.ok ? r.json() : []).catch(() => []);
-  if (!rows.length) rows = await fetch(`${SITE.supabaseUrl}/rest/v1/puzzles?select=xdid,batch&open=eq.true&order=xdid`, {headers: h})
-    .then(r => r.ok ? r.json() : []).catch(() => []);  // no dropped column
+  let rows = await siteRows('puzzles?select=xdid,batch,dropped&open=eq.true&order=xdid').catch(() => []);
+  if (!rows.length) rows = await siteRows('puzzles?select=xdid,batch&open=eq.true&order=xdid').catch(() => []);  // no dropped column
   const other = {};
   for (const r of rows) if (!BATCHES.some(b => b.name === r.batch)) (other[r.batch || ''] ||= []).push(r);
   const card = (b, d, ship) => {
@@ -391,9 +407,7 @@ function myId() {
 }
 async function liveVotes() {
   if (!SITE || !DATA) return;
-  const h = {apikey: SITE.supabaseAnonKey, Authorization: 'Bearer ' + SITE.supabaseAnonKey};
-  const rows = await fetch(`${SITE.supabaseUrl}/rest/v1/proofs?select=xdid,decision,user_id`, {headers: h, cache: 'no-cache'})
-    .then(r => r.ok ? r.json() : null).catch(() => null);
+  const rows = await siteRows('proofs?select=xdid,decision,user_id&order=xdid,user_id', {cache: 'no-cache'}).catch(() => null);
   if (!rows) return;
   const me = myId();
   LIVE = {};

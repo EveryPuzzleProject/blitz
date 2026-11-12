@@ -16,6 +16,11 @@ A file missing from files/ (a snapshot's full-size page, say) is fetched once fr
 A puzzle's batch is the snapshot in files/batch/ that lists it, so the proof page finds that batch's ship
 record (files/batch/<name>/ship.json: the questions puzzles are held on).
 
+    --site-list     the puzzles table as the live site has it now (read with the site's public key; nothing
+                    is written there), instead of <folder>/packets. Each packet's files are copied from the
+                    site's bucket into <folder>/files/ when first asked for. For checking the pages against
+                    the whole site's list (more than 1,000 puzzles: the database's rows-per-request cap,
+                    which this server keeps too).
     --without puzzle.xd,ai_review.json[:<pid prefix>]   serve the packets as if they were published without these
                                                         files (as the site has an older batch's), for the pids
                                                         starting with the prefix (default: all); repeatable
@@ -38,6 +43,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src" / "blitz"
 WATCH = [SRC / "proof.html", SRC / "batch.html", Path(__file__)]
 BUCKET = "https://pub-52ac4a15c4ba43fe8e4af5a496733fb5.r2.dev"
+MAX_ROWS = 1000  # as the site's database: no more rows than this to one request, and no word that it stopped
 KEYS = {"proofs": ("xdid", "user_id"), "verdicts": ("xdid", "user_id"), "restores": ("xdid", "user_id")}
 
 # supabase-js, as much of it as the pages use: a session in localStorage, and table reads and upserts
@@ -125,10 +131,30 @@ def puzzles(data: Path, without=lambda pid, f: False) -> list[dict]:
     return rows
 
 
+def site_puzzles() -> list[dict]:
+    """The live site's open puzzles, every row (a page at a time), their packets pointed at this
+    server's /files/<pub>/<pid> (the bucket's own paths, copied here on first use)."""
+    cfg = (ROOT / "docs" / "review" / "config.js").read_text(encoding="utf-8")
+    url, key = (re.search(rf'{k}:\s*"([^"]+)"', cfg)[1] for k in ("supabaseUrl", "supabaseAnonKey"))
+    rows = []
+    while True:
+        req = urllib.request.Request(f"{url}/rest/v1/puzzles?select=*&open=eq.true&order=xdid&limit={MAX_ROWS}&offset={len(rows)}",
+                                     headers={"apikey": key, "Authorization": f"Bearer {key}"})
+        page = json.loads(urllib.request.urlopen(req, timeout=60).read())
+        rows += page
+        if len(page) < MAX_ROWS:
+            break
+    for r in rows:
+        if r["base_url"].startswith(BUCKET):
+            r["base_url"] = "/files" + r["base_url"][len(BUCKET):]
+    return rows
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--data", required=True, type=Path)
     ap.add_argument("--port", type=int, default=8795)
+    ap.add_argument("--site-list", action="store_true", help="the puzzles table as the live site has it now (read-only)")
     ap.add_argument("--without", action="append", default=[], help="files[:pid prefix]: packets served as if published without these files (repeatable)")
     a = ap.parse_args()
     data = a.data.resolve()
@@ -137,7 +163,7 @@ def main():
     lock = threading.Lock()
     gone = [({x for x in w.partition(":")[0].split(",") if x}, w.partition(":")[2]) for w in a.without]
     without = lambda pid, f: any(f in names and pid.startswith(prefix) for names, prefix in gone)
-    tables = {"puzzles": puzzles(data, without)}
+    tables = {"puzzles": site_puzzles() if a.site_list else puzzles(data, without)}
     for t in KEYS:
         f = db / f"{t}.json"
         tables[t] = json.loads(f.read_text(encoding="utf-8")) if f.exists() else []
@@ -243,6 +269,8 @@ def main():
                 if sel != "*":
                     cols = sel.split(",")
                     rows = [{c: r.get(c) for c in cols} for r in rows]
+                start = int(q.get("offset", ["0"])[0])
+                rows = rows[start:start + min(int(q.get("limit", [MAX_ROWS])[0]), MAX_ROWS)]
                 return self.out(json.dumps(rows).encode(), "application/json")
             if path.startswith("/packets/"):
                 pid, _, name = path[len("/packets/"):].partition("/")
@@ -278,7 +306,7 @@ def main():
             print(f"  saved to {t}: {body.get('xdid') if isinstance(body, dict) else len(body)}")
             self.out(b"", "application/json", 201)
 
-    print(f"The review site, from {SRC}, data from {data}")
+    print(f"The review site, from {SRC}, data from {data}: {len(tables['puzzles'])} puzzles")
     print(f"  http://localhost:{a.port}/review/batch/   (the way in)")
     print(f"  http://localhost:{a.port}/review/?p=games1978-05-01-L040")
     ThreadingHTTPServer(("127.0.0.1", a.port), H).serve_forever()
