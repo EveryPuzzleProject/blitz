@@ -1,0 +1,359 @@
+{
+ "evidence": {
+  "title": null,
+  "number": 25,
+  "date": null,
+  "byline": null,
+  "author": null,
+  "editor": null,
+  "feature": null
+ },
+ "puzzle_number": "12",
+ "stages": {
+  "pages": {
+   "page.jpg": [
+    "minneapolis-journal-1914-03-08",
+    0
+   ]
+  }
+ },
+ "clues": {
+  "A2": {
+   "text": "An insect.",
+   "printed": "1-2"
+  },
+  "A4": {
+   "text": "What we get in restaurants.",
+   "printed": "3-4"
+  },
+  "A6": {
+   "text": "One who inhabits a new country.",
+   "printed": "5-6"
+  },
+  "A8": {
+   "text": "Traps for catching game.",
+   "printed": "7-8"
+  },
+  "A9": {
+   "text": "Spoken.",
+   "printed": "9-10"
+  },
+  "A11": {
+   "text": "Hair on the neck of an animal.",
+   "printed": "11-12"
+  },
+  "A12": {
+   "text": "A reptile.",
+   "printed": "13-14"
+  },
+  "A14": {
+   "text": "Mother.",
+   "printed": "15-16"
+  },
+  "A15": {
+   "text": "Made fast.",
+   "printed": "17-18"
+  },
+  "A16": {
+   "text": "Dogs, birds and oats.",
+   "printed": "19-20"
+  },
+  "A18": {
+   "text": "An oven.",
+   "printed": "21-22"
+  },
+  "A19": {
+   "text": "Words and music.",
+   "printed": "23-24"
+  },
+  "A21": {
+   "text": "Very small.",
+   "printed": "25-26"
+  },
+  "A22": {
+   "text": "Tolling.",
+   "printed": "27-28"
+  },
+  "A24": {
+   "text": "Trimmed.",
+   "printed": "29-30"
+  },
+  "A25": {
+   "text": "A sailor.",
+   "printed": "31-32"
+  },
+  "D1": {
+   "text": "Flesh for food,",
+   "printed": "33-34"
+  },
+  "D2": {
+   "text": "Wagers.",
+   "printed": "1-8"
+  },
+  "D3": {
+   "text": "Monsures.",
+   "printed": "2-9"
+  },
+  "D4": {
+   "text": "To measure.",
+   "printed": "3-12"
+  },
+  "D5": {
+   "text": "A chair. ___",
+   "printed": "4-13"
+  },
+  "D6": {
+   "text": "A member of the Sem ato.",
+   "printed": "5-27"
+  },
+  "D7": {
+   "text": "Raising an uproar.",
+   "printed": "6-28"
+  },
+  "D8": {
+   "text": "Titles.",
+   "printed": "7-23"
+  },
+  "D10": {
+   "text": "Every day.",
+   "printed": "10-26"
+  },
+  "D11": {
+   "text": "A chart.",
+   "printed": "11-19"
+  },
+  "D13": {
+   "text": "His own room.",
+   "printed": "14-22"
+  },
+  "D17": {
+   "text": "",
+   "printed": "20-29"
+  },
+  "D18": {
+   "text": "",
+   "printed": "21-30"
+  },
+  "D20": {
+   "text": "A small insect.",
+   "printed": "24-31"
+  },
+  "D21": {
+   "text": "",
+   "printed": "25-32"
+  },
+  "D23": {
+   "text": "A. color.",
+   "printed": "35-36"
+  }
+ },
+ "lines": [
+  {
+   "n": 1,
+   "text": "Sunday, March 8, 1914. CUT-OUTS &CATEHES GAMES",
+   "label": "other",
+   "keep": true,
+   "by": "default"
+  },
+  {
+   "n": 2,
+   "text": "PAGE SIX",
+   "label": "furniture",
+   "keep": false,
+   "by": "llm"
+  },
+  {
+   "n": 3,
+   "text": "Foreign and Feature Section",
+   "label": "section",
+   "keep": false,
+   "by": "llm"
+  },
+  {
+   "n": 4,
+   "text": "PUZZLES",
+   "label": "section",
+   "keep": false,
+   "by": "llm"
+  },
+  {
+   "n": 5,
+   "text": "(Copyright, 1914, by the Du Pay Syndicate.)",
+   "label": "credit",
+   "keep": true,
+   "by": "llm"
+  },
+  {
+   "n": 6,
+   "text": "QUEER THINGS DO HAPPEN IN BUGVILLE",
+   "label": "other",
+   "keep": true,
+   "by": "default"
+  },
+  {
+   "n": 7,
+   "text": "ALL FOR MR. COMMUTER'S GARDEN.",
+   "label": "other",
+   "keep": true,
+   "by": "default"
+  },
+  {
+   "n": 8,
+   "text": "SEE SAW PET RUBE'S SHOES",
+   "label": "other",
+   "keep": true,
+   "by": "default"
+  },
+  {
+   "n": 9,
+   "text": "SOFT TOM GREEN TRUST US MINA LAID ASH RAW ELM WON NICE DISC SITE SHOE DANGER THE VIOL FELL EASILY SUGAR MINE NEW LEADS A BIG NOSE",
+   "label": "other",
+   "keep": true,
+   "by": "default"
+  },
+  {
+   "n": 10,
+   "text": "How Many Peanuts Did Jumbo",
+   "label": "other",
+   "keep": true,
+   "by": "default"
+  },
+  {
+   "n": 11,
+   "text": "SPILL RANK WREN",
+   "label": "other",
+   "keep": true,
+   "by": "default"
+  },
+  {
+   "n": 12,
+   "text": "THESMAIL- Imagine bemg shut up like that fora lifetime",
+   "label": "other",
+   "keep": true,
+   "by": "default"
+  },
+  {
+   "n": 13,
+   "text": "Get?",
+   "label": "other",
+   "keep": true,
+   "by": "default"
+  },
+  {
+   "n": 14,
+   "text": "R. COMMUTER wants to buy some flowers, plants and other things for his garden, and here we see him at the seed store puzzling out what to buy. Can you hep him? The list of articles on sale is in anagram form; that is, the letters spelling the name of each article have been rearranged to spell something else. For instance, SEE SAW PET can be recast to spell SWEET PEAS. Can you figure out the names of the other twelve articles in the list?",
+   "label": "other",
+   "keep": true,
+   "by": "default"
+  },
+  {
+   "n": 15,
+   "text": "\"SayMeWorm,why don't you geta bigger house\"",
+   "label": "other",
+   "keep": true,
+   "by": "default"
+  },
+  {
+   "n": 16,
+   "text": "\"Now,all together fellers, pull. He wants to talk to his girl",
+   "label": "other",
+   "keep": true,
+   "by": "default"
+  },
+  {
+   "n": 17,
+   "text": "How Father Spent Sunday. THE new parson was making pastoral calls in his parish and stopped to converse with a small boy at the garden sate. \"And where does your father go on Sundays, my little man?\" \"Well, on fine Sundays he goes golfing and on wet Sundays he turns us all out to church so he can have a bit of peace in the house.\" A MYSTERY SOLVED WITH E'S.",
+   "label": "other",
+   "keep": true,
+   "by": "default"
+  },
+  {
+   "n": 18,
+   "text": "ARDINES",
+   "label": "other",
+   "keep": true,
+   "by": "default"
+  },
+  {
+   "n": 19,
+   "text": "There's plenty of fish in here but theyam't biting to-day",
+   "label": "other",
+   "keep": true,
+   "by": "default"
+  },
+  {
+   "n": 20,
+   "text": "How Mr. Spider fooled Miss Bug's Pa",
+   "label": "other",
+   "keep": true,
+   "by": "default"
+  },
+  {
+   "n": 21,
+   "text": "PASVRYPRFCTMN RKPTHSPRCPTSTN",
+   "label": "other",
+   "keep": true,
+   "by": "default"
+  },
+  {
+   "n": 22,
+   "text": "sharp, long tin-tacks, what do you want them for? CAN YOU CHANGE A DOLLAR?-Place 4 upon 1, 7 upon 3, Ten cents. oe   t n  e     t When the clock strikes thirteen, #0 cents in ehch. THE DANCING PICTURE PUZZLE-No. 1, Tango: No. 2, Tur- what time is it? key Trot; No. 8, Boston Glide; No. 4, Hesttation; No. 5, The Dip; Time for the clock to be fixed. No. 6. One Step: No. 7. Maxixe. What became of the man who stole EATING BY ALPHABET-A past  (A pasty.) TREE PLANTING PUZZLE-The two diagrams glven here- the calendar? te e e e   e e e e ere He got twelve monthe. wo ways in which Mr. Commuter could plant the/ nineteen What did Lot's wife turn to? eae e         e  ve Rubber. in each row. Why didn't the dog want to go into the ark? Because he had a bark of his own. In a race with time why would a singing master win? Because time fies and the singing master beats time. Why is coal the most contradictory article in commerce? Because when purchased instead of WEEKLY RID- DLE-What is the differ- going to the buyer it goes to the cel- snce between a champion lar. fat woman discharged for Where were the first doughnuts losing welght and a drawn tooth? One is too thin frled? and the other is tooth In Greece. out. In what place did the cock erow Herewith is shown the when all the world did hear him? jeross-word puzzle, show- In Noah's ark. ing how the letters should in what key should a declaration ef love be made? Be mine ah! (B minor). given. Why is a dead hen better than à live one? Say It Quickly. Because she will lay wherever you put her. N Huron, a hewer, Hugh Hughes, Hewed yew trees of unuswal hues, Getting Results. Hugh Hughes used blue yews A colored woman was arguing and To build sheds for his ewes; arguing with her husband, and whea So his ewves a blue-hued yew-shed use. she had finished he said, \"Dinah, yo' talk don' affeot me no mo' than a US., NNZZ PES. flea bite,\" \"Well,\" she answered, \"I'se gawna 2 keep yo' seratchin',\" DROBABLY every puzzle solver is fa- lem of arranging the What Am 1? numbers from 1 to 9 in LOSE my head when I am here, add up to 15 in each Transpose me I am three; vertical and horizontal Look in a book, you find me eo o   two there, And with me her and he- which this is done is shown in, the aecom- Read Backward. panying diagram. Didn't you if girl a be wouldn't Butn rn n Gnge eu     new Killing the Goose Hy y   e away on a much-needed vaca- the numbers from 1 to tion, his practice was entrusted te 25 in a similar fashion his son, a recent medical graduate. so that they will add to When the old man returned the 6  ee  e and horizontal column and youngster told him, among other also the two diagonals? things, that he had cured Miss Fer- In order to give you guson, an aged and wealthy patient, a good start the correct of her chronic indigestion. positions of the odd \"My boy,\" sald the old doctor, \"I'm numbers are given here- with. Now, all that re- proud of you; but Miss Ferguson's to insert the even num- bers in their proper po- collg itions and the puzzle is solved. Can you solve itt RS. HARLEM and her three pretty daughters went to the Bronx Zoo to feed their favorite elephant. They bought a very large bag of peanuts, which Mrs. Harlem divided into Ve   e  e a four equal shares. onet t t t  t  t t ed necessitated another division of the remaining peanuts into four equal portions. Again there was one over for the elephant. Then the greedy animal stôle all of Miss Helen's peanuts and B rnd      e re Percy Crosby again divided into four equal shares, and again there was one oyoe e e  t  ee   or Miss Mildred's peanuts. Tnee e e  e n a   but Mrs. Harlem divided them into four equal shares, again find- Ine    nr  e       ten It's been a fierce storm loek at allthe wreckage\" he got all the other peanuts one by one. Howe r a r e e ee e ee  r Har  e     et CAN YOU MAKE A FIGUREHEAD? Mrs. Jones's Husband. R. JONES was an excellent man, ple \"figureheads.\" prosperous in his business and You will observe that modest in his ways, but not distin- each one of them is guished for anything particular. His wife, however, Mrs. Smith-Jones, was a woman of rare accomplishments. She was an artist of more than ordi- nary abfiity, a briliant pianist and possessed a voice of remarkable sweetness and power. At a large party one evening at which she and her husband were made of the same ten figures, 1, 2, 8, 4, 5, 6, present her singing captivated a 7, 8, 9 and 0. stranger who was one of the guests, Take a pencil and and he asked to be introduced to her. paper and see what His request was granted. After a few kind of a \"figurehead\" minutes' conversation the hostess you can make. Don't eame anj took him away. copy any of these. \"You mustn't monopolize her, Mr. Make a few of your Bimmons,\" she said, \"I want you to meet Mr. Jones.\" own. Be sure in each case \"Who is Mr. Jones?\" to use the entire ten \"He is her husband.\" figures; that is, the \"What is he noted for?\" nine digits and the \"Noted for!\" echoed the hostess. cipher, \"Why, for-for his wife!\" Cutting. Said she \"'Tis very plain That you've mistaken this for an Aocommodation train.\" ODAY'S cross-word puzzle is the twelfth in the series. A Passive Quantity. See if you can solve it. Fill in tho small squares in the WHAT NAM IS HIDDEN HERE? above diagram with words correspording to the clues and defini- \"What is your boy Jack studying tions given below. On another page you will find the solution of for?\" to last week's puzzle. The solution to today's puzzle will be building blocks \"Well,\" rephed the farmer, \"the contains all the letters boy is kind of held up as to his necessary to spell out future. His mother wants him to be the name of a famous a minister, I want him to be a American resort, Can lawyer, his rich uncle wants him to teen blocka in such a turedly hangin' around an' lettin' us wa te t tde fight it out among ourselves.\" A Reminder. important as the lettered blocks in working out the pussla, HEN the landlady bringe my And Nobody Knew Him, chicken Then Shakespeare I recall; For waan't Bill the guy who sald \"Th' unkindest cut of allf' nelghberheod knows him,\" \"Oh, mebody'li know him to-day, beeause I'we just washed How She Got Him, hím!\" COULDNT get out of marrying A Sympathetic Drammer. her,\" Henpeck explained. \"You don't make very good music with that instrument,\". \"When she proposed she said, will Of course if you are said a bystander to the man with the bass drum, as the band you marry me? Have you any ob- a chess player you ceased to play. jection?\" You see, no matter whether \"No,\" admitted the pounder of the drum, \"I know I don'ty I said \"Yes' or No,' she had ma,\" but I drown a heap of bad musia.\" tour is. Each move is one equare to the right, then?\" inquired his friend, The Mistake He Made. or left, and two \"That's what I did, and she said, squares efther up or Bllenee gives cansent,' and that onded down; or you can make I was tempted to commit suicide.\" it two squares to right or left and one square oa     e e   e Unintentional, up or down. Starting at a certain letter on That's What He Meant. the accompanying rest looking plensnntly at her mistress, r  r r r     r - of squaros, see if you \"Graciouel\" emciaimed the lady, claimed a man who had been unfortunate in his play. can perform a knight'a giancing up frem her movel, \"Run tour therefrom, stop- wife's sarcastic reply. will anell aut she title ef a mallknowa eon",
+   "label": "other",
+   "keep": true,
+   "by": "llm"
+  },
+  {
+   "n": 23,
+   "text": "\"Wonder what time the balleen goes up?\" RIDDLES and ANSWERS HERE are a few sam-",
+   "label": "other",
+   "keep": true,
+   "by": "default"
+  },
+  {
+   "n": 24,
+   "text": "CROSS-WORD PUZZLES",
+   "label": "section",
+   "keep": false,
+   "by": "llm"
+  },
+  {
+   "n": 25,
+   "text": "No. ? (the label in the grid's centre block: unread)"
+  },
+  {
+   "n": 26,
+   "text": "KT you vearrange the üf. be a dootor, an' Josh is good-na- RA na   on",
+   "label": "other",
+   "keep": true,
+   "by": "default"
+  },
+  {
+   "n": 27,
+   "text": "a square so that they will 3",
+   "label": "other",
+   "keep": true,
+   "by": "default"
+  },
+  {
+   "n": 28,
+   "text": "THE \"KNIGHT'S TOUR\" SONG.",
+   "label": "other",
+   "keep": true,
+   "by": "default"
+  },
+  {
+   "n": 29,
+   "text": "\"I ma'am,\" said the nurse girl,",
+   "label": "other",
+   "keep": true,
+   "by": "default"
+  },
+  {
+   "n": 30,
+   "text": "indigestion is what put you through ping at each letter once only. It you do this coyazsou inte the nupsery and take it away",
+   "label": "other",
+   "keep": true,
+   "by": "default"
+  }
+ ]
+}

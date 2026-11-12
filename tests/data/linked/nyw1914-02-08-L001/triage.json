@@ -1,0 +1,97 @@
+{
+ "decision": "not ready",
+ "blocking": [
+  {
+   "code": "key-blacks-differ",
+   "part": "the answer key (its black squares differ from the grid's)",
+   "restart": "assembly",
+   "view": "assembled",
+   "detail": "1 square(s): R5C7 R6C6 R6C8 R7C5 R7C9 R8C6 R8C8 R9C7",
+   "kind": "ocr-broken",
+   "part_id": "key"
+  }
+ ],
+ "reasons": [
+  {
+   "code": "key-blacks-differ",
+   "class": "defect"
+  },
+  {
+   "code": "key-unread",
+   "class": "defect"
+  },
+  {
+   "code": "key-next-issue",
+   "class": "info"
+  },
+  {
+   "code": "key-digit-reads",
+   "class": "defect"
+  },
+  {
+   "code": "clues-fixed",
+   "class": "tool"
+  },
+  {
+   "code": "unsure-unseen",
+   "class": "defect"
+  },
+  {
+   "code": "unsure",
+   "class": "defect"
+  },
+  {
+   "code": "key-misread",
+   "class": "defect"
+  },
+  {
+   "code": "finding",
+   "class": "defect"
+  },
+  {
+   "code": "number-reassigned",
+   "class": "tool"
+  },
+  {
+   "code": "title-none",
+   "class": "defect"
+  },
+  {
+   "code": "byline-none",
+   "class": "defect"
+  },
+  {
+   "code": "ship-held",
+   "class": "info"
+  }
+ ],
+ "ship": {
+  "ok": false,
+  "findings": [
+   {
+    "code": "no-title",
+    "detail": "no Title header, and none confirmed not printed"
+   },
+   {
+    "code": "no-author",
+    "detail": "no Author or Byline header, and none confirmed not printed"
+   },
+   {
+    "code": "grid-unsolved",
+    "detail": "2 square(s) unsolved",
+    "cells": [
+     "r3c10",
+     "r9c11"
+    ]
+   },
+   {
+    "code": "triage-doubt",
+    "detail": "byline-none key-blacks-differ key-misread key-unread title-none"
+   }
+  ],
+  "incomplete": [
+   "2 square(s) unsolved"
+  ],
+  "xd_fp": "54f038a0ffb2"
+ }
+}

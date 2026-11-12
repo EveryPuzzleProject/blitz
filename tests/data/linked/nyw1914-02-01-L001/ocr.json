@@ -1,0 +1,184 @@
+{
+ "evidence": {
+  "title": null,
+  "number": 2,
+  "date": null,
+  "byline": null,
+  "author": null,
+  "editor": null,
+  "feature": null
+ },
+ "puzzle_number": "7",
+ "stages": {
+  "pages": {
+   "page.jpg": [
+    "minneapolis-journal-1914-02-01",
+    1
+   ]
+  }
+ },
+ "clues": {
+  "A2": {
+   "text": "et fall.",
+   "printed": "1-2"
+  },
+  "A4": {
+   "text": "",
+   "printed": "3-4"
+  },
+  "A6": {
+   "text": "",
+   "printed": "5-6"
+  },
+  "A8": {
+   "text": "To separate.",
+   "printed": "7-8"
+  },
+  "A9": {
+   "text": "",
+   "printed": "9-10"
+  },
+  "A11": {
+   "text": "A cavern.",
+   "printed": "11-12"
+  },
+  "A12": {
+   "text": "Very black.",
+   "printed": "13-14"
+  },
+  "A14": {
+   "text": "Another name for father.",
+   "printed": "15-16"
+  },
+  "A15": {
+   "text": "7b0 88130 85 0n.",
+   "printed": "17-18"
+  },
+  "A16": {
+   "text": "An eminence. 21.22 What the wind did.",
+   "printed": "19-20"
+  },
+  "A18": {
+   "text": "",
+   "printed": "21-22"
+  },
+  "A19": {
+   "text": "",
+   "printed": "23-24"
+  },
+  "A21": {
+   "text": "",
+   "printed": "25-26"
+  },
+  "A22": {
+   "text": "",
+   "printed": "27-28"
+  },
+  "A24": {
+   "text": "",
+   "printed": "29-30"
+  },
+  "A25": {
+   "text": "",
+   "printed": "31-32"
+  },
+  "D1": {
+   "text": "Not Bctitlous.",
+   "printed": "33-34"
+  },
+  "D2": {
+   "text": "",
+   "printed": "1-8"
+  },
+  "D3": {
+   "text": "",
+   "printed": "2-9"
+  },
+  "D4": {
+   "text": "",
+   "printed": "3-12"
+  },
+  "D5": {
+   "text": "The bottem of a shoe.",
+   "printed": "4-13"
+  },
+  "D6": {
+   "text": "Part of the German empire",
+   "printed": "5-27"
+  },
+  "D7": {
+   "text": "Resembling a nebula.",
+   "printed": "6-28"
+  },
+  "D8": {
+   "text": "Whet FUN ts printed on.",
+   "printed": "7-23"
+  },
+  "D10": {
+   "text": "A habitual drunkard. 14-22",
+   "printed": "10-26"
+  },
+  "D11": {
+   "text": "A vebicle. 20.29 To bestow. 24-81",
+   "printed": "11-19"
+  },
+  "D13": {
+   "text": "",
+   "printed": "14-22"
+  },
+  "D17": {
+   "text": "",
+   "printed": "20-29"
+  },
+  "D18": {
+   "text": "A covering for the foot and leg 26-82",
+   "printed": "21-30"
+  },
+  "D20": {
+   "text": "",
+   "printed": "24-31"
+  },
+  "D21": {
+   "text": "",
+   "printed": "25-32"
+  },
+  "D23": {
+   "text": "Bpace.",
+   "printed": "35-36"
+  }
+ },
+ "lines": [
+  {
+   "n": 1,
+   "text": "CROSS-WORD PUZZLE NO. 5",
+   "label": "section",
+   "keep": false,
+   "by": "llm"
+  },
+  {
+   "n": 2,
+   "text": "No. ? (the label in the grid's centre block: unread)"
+  },
+  {
+   "n": 3,
+   "text": "The cross-word puzzles apparent many interesting new eross-word",
+   "label": "intro",
+   "keep": true,
+   "by": "llm"
+  },
+  {
+   "n": 4,
+   "text": "parently are getting more popu. editor has received from readers word puzzles, which he will he glad to use from time to time. It ne. It is more difficult to make It is to solve one. If you doubi up a eross-word puzzle than it is to this, try to make one yourself. the small squares in the above diamonds with words corre. aponding to the clues and defimitions given below. The solu- given next week.",
+   "label": "instructions",
+   "keep": true,
+   "by": "llm"
+  },
+  {
+   "n": 5,
+   "text": "the series is presented. Fill in Today the fifth puzzle in the se",
+   "label": "intro",
+   "keep": true,
+   "by": "llm"
+  }
+ ]
+}

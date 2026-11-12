@@ -1,0 +1,126 @@
+{
+ "decision": "not ready",
+ "blocking": [
+  {
+   "code": "key-blacks-differ",
+   "part": "the answer key (its black squares differ from the grid's)",
+   "restart": "assembly",
+   "view": "assembled",
+   "detail": "2 square(s): R2C8 R5C7 R6C6 R6C8 R7C5 R7C9 R8C6 R8C8 R9C7 R12C8",
+   "kind": "ocr-broken",
+   "part_id": "key"
+  },
+  {
+   "code": "clues-unread",
+   "part": "a block of clues",
+   "restart": "parts",
+   "view": "boxes",
+   "detail": "A2 A6 D19 D22",
+   "kind": "missing-part",
+   "part_id": ""
+  },
+  {
+   "code": "proof-mismatch",
+   "part": "the proof packet",
+   "restart": "proof packet",
+   "view": "proof",
+   "detail": "",
+   "kind": "other",
+   "part_id": ""
+  }
+ ],
+ "reasons": [
+  {
+   "code": "key-blacks-differ",
+   "class": "defect"
+  },
+  {
+   "code": "key-unread",
+   "class": "defect"
+  },
+  {
+   "code": "key-next-issue",
+   "class": "info"
+  },
+  {
+   "code": "clues-unread",
+   "class": "defect"
+  },
+  {
+   "code": "clues-fixed",
+   "class": "tool"
+  },
+  {
+   "code": "unsure-unseen",
+   "class": "defect"
+  },
+  {
+   "code": "unsure",
+   "class": "defect"
+  },
+  {
+   "code": "key-misread",
+   "class": "defect"
+  },
+  {
+   "code": "number-reassigned",
+   "class": "tool"
+  },
+  {
+   "code": "title-none",
+   "class": "defect"
+  },
+  {
+   "code": "byline-none",
+   "class": "defect"
+  },
+  {
+   "code": "proof-mismatch",
+   "class": "defect"
+  },
+  {
+   "code": "ship-held",
+   "class": "info"
+  }
+ ],
+ "ship": {
+  "ok": false,
+  "findings": [
+   {
+    "code": "no-title",
+    "detail": "no Title header, and none confirmed not printed"
+   },
+   {
+    "code": "no-author",
+    "detail": "no Author or Byline header, and none confirmed not printed"
+   },
+   {
+    "code": "clue-empty",
+    "detail": "clues with no text: A2 A6 D19 D22",
+    "items": [
+     "A2",
+     "A6",
+     "D19",
+     "D22"
+    ]
+   },
+   {
+    "code": "grid-unsolved",
+    "detail": "2 square(s) unsolved",
+    "cells": [
+     "r2c8",
+     "r4c3"
+    ]
+   },
+   {
+    "code": "triage-doubt",
+    "detail": "byline-none clues-unread key-blacks-differ key-misread key-unread title-none"
+   }
+  ],
+  "incomplete": [
+   "clues with no text: A2 A6 D19 D22",
+   "2 square(s) unsolved"
+  ],
+  "xd_fp": "e46b7bbbe167"
+ }
+}

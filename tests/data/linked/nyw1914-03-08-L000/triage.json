@@ -1,0 +1,70 @@
+{
+ "decision": "ready",
+ "blocking": [],
+ "reasons": [
+  {
+   "code": "key-unread",
+   "class": "defect"
+  },
+  {
+   "code": "key-next-issue",
+   "class": "info"
+  },
+  {
+   "code": "clues-fixed",
+   "class": "tool"
+  },
+  {
+   "code": "unsure",
+   "class": "defect"
+  },
+  {
+   "code": "key-misread",
+   "class": "defect"
+  },
+  {
+   "code": "number-reassigned",
+   "class": "tool"
+  },
+  {
+   "code": "title-none",
+   "class": "defect"
+  },
+  {
+   "code": "byline-none",
+   "class": "defect"
+  },
+  {
+   "code": "ship-held",
+   "class": "info"
+  }
+ ],
+ "ship": {
+  "ok": false,
+  "findings": [
+   {
+    "code": "no-title",
+    "detail": "no Title header, and none confirmed not printed"
+   },
+   {
+    "code": "no-author",
+    "detail": "no Author or Byline header, and none confirmed not printed"
+   },
+   {
+    "code": "grid-unsolved",
+    "detail": "1 square(s) unsolved",
+    "cells": [
+     "r4c8"
+    ]
+   },
+   {
+    "code": "triage-doubt",
+    "detail": "byline-none key-misread key-unread title-none"
+   }
+  ],
+  "incomplete": [
+   "1 square(s) unsolved"
+  ],
+  "xd_fp": "05fe20336365"
+ }
+}

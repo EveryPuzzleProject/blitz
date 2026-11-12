@@ -1,0 +1,485 @@
+{
+ "evidence": {
+  "title": null,
+  "number": 15,
+  "date": null,
+  "byline": null,
+  "author": null,
+  "editor": null,
+  "feature": null
+ },
+ "puzzle_number": "11",
+ "stages": {
+  "pages": {
+   "page.jpg": [
+    "minneapolis-journal-1914-03-01",
+    0
+   ]
+  }
+ },
+ "clues": {
+  "A2": {
+   "text": "To unite in matrimony.",
+   "printed": "1-2"
+  },
+  "A4": {
+   "text": "A woman's costume for horseback riding.",
+   "printed": "3-4"
+  },
+  "A6": {
+   "text": "One month.",
+   "printed": "5-6"
+  },
+  "A8": {
+   "text": "Lacking in color.",
+   "printed": "7-8"
+  },
+  "A9": {
+   "text": "Behold.",
+   "printed": "9-10"
+  },
+  "A11": {
+   "text": "A bird.",
+   "printed": "11-12"
+  },
+  "A12": {
+   "text": "",
+   "printed": "13-14"
+  },
+  "A14": {
+   "text": "A cross bar attachment for driving oxen.",
+   "printed": "15-16"
+  },
+  "A15": {
+   "text": "A brief letter.",
+   "printed": "17-18"
+  },
+  "A16": {
+   "text": "To declare in card-playing.",
+   "printed": "19-20"
+  },
+  "A18": {
+   "text": "",
+   "printed": "21-22"
+  },
+  "A19": {
+   "text": "",
+   "printed": "23-24"
+  },
+  "A21": {
+   "text": "",
+   "printed": "25-26"
+  },
+  "A22": {
+   "text": "More than noiny.",
+   "printed": "27-28"
+  },
+  "A24": {
+   "text": "",
+   "printed": "29-30"
+  },
+  "A25": {
+   "text": "An abbreviation of stster.",
+   "printed": "31-32"
+  },
+  "D1": {
+   "text": "A Brahmin ox.",
+   "printed": "33-34"
+  },
+  "D2": {
+   "text": "What the moon does.",
+   "printed": "1-8"
+  },
+  "D3": {
+   "text": "The face of a watch.",
+   "printed": "2-9"
+  },
+  "D4": {
+   "text": "Of vigorous health.",
+   "printed": "3-12"
+  },
+  "D5": {
+   "text": "A pace.",
+   "printed": "4-13"
+  },
+  "D6": {
+   "text": "A short, light spear.",
+   "printed": "5-27"
+  },
+  "D7": {
+   "text": "Not older.",
+   "printed": "6-28"
+  },
+  "D8": {
+   "text": "A card game.",
+   "printed": "7-23"
+  },
+  "D10": {
+   "text": "Used in Russian prisons. mischief.",
+   "printed": "10-26"
+  },
+  "D11": {
+   "text": "A don.",
+   "printed": "11-19"
+  },
+  "D13": {
+   "text": "",
+   "printed": "14-22"
+  },
+  "D17": {
+   "text": "Condemnatory fudgment.",
+   "printed": "20-29"
+  },
+  "D18": {
+   "text": "Space.",
+   "printed": "21-30"
+  },
+  "D20": {
+   "text": "",
+   "printed": "24-31"
+  },
+  "D21": {
+   "text": "Humòrous prevarications.",
+   "printed": "25-32"
+  },
+  "D23": {
+   "text": "A sudden alide.",
+   "printed": "35-36"
+  }
+ },
+ "lines": [
+  {
+   "n": 1,
+   "text": "FAGE SIX",
+   "label": "furniture",
+   "keep": false,
+   "by": "llm"
+  },
+  {
+   "n": 2,
+   "text": "THE MINNEAPOLIS JOURNAL.",
+   "label": "furniture",
+   "keep": false,
+   "by": "llm"
+  },
+  {
+   "n": 3,
+   "text": "Foreign and Feature Section",
+   "label": "furniture",
+   "keep": false,
+   "by": "llm"
+  },
+  {
+   "n": 4,
+   "text": "Sunday, March 1, 1914.",
+   "label": "furniture",
+   "keep": false,
+   "by": "llm"
+  },
+  {
+   "n": 5,
+   "text": "GAMES",
+   "label": "section",
+   "keep": false,
+   "by": "llm"
+  },
+  {
+   "n": 6,
+   "text": "PUZZLES",
+   "label": "section",
+   "keep": false,
+   "by": "llm"
+  },
+  {
+   "n": 7,
+   "text": "TRICKS, RIDDLES CUT-OUTS &CATGHES THE NEWEST DANCES IN PICTURE PUZZLES",
+   "label": "section",
+   "keep": false,
+   "by": "llm"
+  },
+  {
+   "n": 8,
+   "text": "CROSWORD PUZZLES",
+   "label": "section",
+   "keep": false,
+   "by": "llm"
+  },
+  {
+   "n": 9,
+   "text": "PICTURE RIDOLE WHAT IS THE DIFFERENCE BETWEEN",
+   "label": "other-puzzle",
+   "keep": false,
+   "by": "llm"
+  },
+  {
+   "n": 10,
+   "text": "WATCH ME REMOVE THIS SUNBURN",
+   "label": "other-puzzle",
+   "keep": false,
+   "by": "llm"
+  },
+  {
+   "n": 11,
+   "text": "MERCY, THE BEANS ARE SLIPPING",
+   "label": "other-puzzle",
+   "keep": false,
+   "by": "llm"
+  },
+  {
+   "n": 12,
+   "text": "GIDDAP",
+   "label": "other-puzzle",
+   "keep": false,
+   "by": "llm"
+  },
+  {
+   "n": 13,
+   "text": "DENTIST",
+   "label": "other-puzzle",
+   "keep": false,
+   "by": "llm"
+  },
+  {
+   "n": 14,
+   "text": "AND",
+   "label": "other-puzzle",
+   "keep": false,
+   "by": "llm"
+  },
+  {
+   "n": 15,
+   "text": "No. ? (the label in the grid's centre block: unread)"
+  },
+  {
+   "n": 16,
+   "text": "600 Pounds",
+   "label": "other-puzzle",
+   "keep": false,
+   "by": "llm"
+  },
+  {
+   "n": 17,
+   "text": "SOLUTION NEXT WEEK.",
+   "label": "instructions",
+   "keep": true,
+   "by": "llm"
+  },
+  {
+   "n": 18,
+   "text": "Solutions to Last Week's Puszles To solve the pumle of the thtrty-atx atrdles and the atz oenta, place the first cent on the third cirole in the top row; the second cent on the sixth eircle, second row; third, seeond circle, third row; fourth, fifth cirole, fourth row: fifth, first olrole, fifth row, and sixth, fourth circle, bottom row. WHAT AM 11-Thera. A CHARADE-Nameless. AN ENIGMA-U, Yeu, Hugh, Yew, Hew. FUN'S WEEKLY RID- DLE-When did George Washington shoot 120 hares at one shot? When he shot at a wig. Herewith is shown the Bo  e ore Washington cross - word puzsle. An easter and l eas complicated cross- day    te",
+   "label": "other",
+   "keep": true,
+   "by": "llm"
+  },
+  {
+   "n": 19,
+   "text": "She Wanted to Know.",
+   "label": "other-puzzle",
+   "keep": false,
+   "by": "llm"
+  },
+  {
+   "n": 20,
+   "text": "ITTLE Elizabeth and her mother were having luncheon te- gether, and the mother, who always tried to impress facts upon her young daughter, said: \"Those little sardines, Elisabeth, are-sometimes eatem b the larger fish.\" Elizabeth gazed at the sardine in wonder and then asked: \"But, mother, how do the large fish get the cans open? Right for Once.",
+   "label": "other-puzzle",
+   "keep": false,
+   "by": "llm"
+  },
+  {
+   "n": 21,
+   "text": "G-R-R-R",
+   "label": "other-puzzle",
+   "keep": false,
+   "by": "llm"
+  },
+  {
+   "n": 22,
+   "text": "Her Idea of Enjoyment. T was a sweet, sad play, and there was hardly a dry hand- Kere      o    ony irritated his neighbors excessively by refusing to take the per- formance in the proper spirit. Instead of weeping, he laughed. While others were mopping their eyes and endeavoring to stifie their sobs his own brimmed with merriment and he burst into inappropriate guffaws. At last a lady by his side turned upon him indignantly. \"I d-don't know what brought y-you here,\" she sobbed, with streaming eyes, and pressing her hand against her aching heart; \"but if y-you don't like the p-play you might l-let other D-people enjoy it!\"",
+   "label": "other-puzzle",
+   "keep": false,
+   "by": "llm"
+  },
+  {
+   "n": 23,
+   "text": "THEy had been having a lttie tiff",
+   "label": "other-puzzle",
+   "keep": false,
+   "by": "llm"
+  },
+  {
+   "n": 24,
+   "text": "the wrong.\" that you were in the wrong \"Wel, what's that gotto do with itt\" he demanded. \"Nothing, except that you were perfeotly right when you",
+   "label": "other-puzzle",
+   "keep": false,
+   "by": "llm"
+  },
+  {
+   "n": 25,
+   "text": "VEN though you may not have learned to danoe aH the latest danoes, you surely know most of them by mame. The names of seven of them are showmn on this page in ploture puzzle form. Can you identify them?",
+   "label": "other-puzzle",
+   "keep": false,
+   "by": "llm"
+  },
+  {
+   "n": 26,
+   "text": "HERE IS THE NEW TANGO MAZE; SEE IF YOU CAN DANCE IT.",
+   "label": "other-puzzle",
+   "keep": false,
+   "by": "llm"
+  },
+  {
+   "n": 27,
+   "text": "THE LANDLORD PAID THE BILL. But  d      H Hne",
+   "label": "other-puzzle",
+   "keep": false,
+   "by": "llm"
+  },
+  {
+   "n": 28,
+   "text": "A Tree Planting Puzzle",
+   "label": "other-puzzle",
+   "keep": false,
+   "by": "llm"
+  },
+  {
+   "n": 29,
+   "text": "REVERSE WHIRL",
+   "label": "other-puzzle",
+   "keep": false,
+   "by": "llm"
+  },
+  {
+   "n": 30,
+   "text": "Doing It? WENTY-ONE men sat down to dinner in a Broadway, New York, chop house and they invited the landlord to join them and take a seat at the head of the table. He consented ad            o served that when the bill for the feast was presented it looked enormous. Eaa",
+   "label": "other-puzzle",
+   "keep": false,
+   "by": "llm"
+  },
+  {
+   "n": 31,
+   "text": "This is not a puzzle. It is the tango in dia- -a    re pared by a dancíng ex- per   at this    and ourr r o low, from A to B, if you want to dance it correctly. So the next time you tango take this copy with you. Use it as a Bu t te tne and see if you and your partner can dance your way from A in the top left hard corner.",
+   "label": "other-puzzle",
+   "keep": false,
+   "by": "llm"
+  },
+  {
+   "n": 32,
+   "text": "STEP",
+   "label": "other-puzzle",
+   "keep": false,
+   "by": "llm"
+  },
+  {
+   "n": 33,
+   "text": "FSS",
+   "label": "other-puzzle",
+   "keep": false,
+   "by": "llm"
+  },
+  {
+   "n": 34,
+   "text": "Can You Show Mr. Com muter Howto Lay Out His Garden?",
+   "label": "other-puzzle",
+   "keep": false,
+   "by": "llm"
+  },
+  {
+   "n": 35,
+   "text": "ONE STEP",
+   "label": "other-puzzle",
+   "keep": false,
+   "by": "llm"
+  },
+  {
+   "n": 36,
+   "text": "BROKEN WHIRL SLOW ONE STEP TROT STEP",
+   "label": "other-puzzle",
+   "keep": false,
+   "by": "llm"
+  },
+  {
+   "n": 37,
+   "text": "REVERSE WHIRL",
+   "label": "other-puzzle",
+   "keep": false,
+   "by": "llm"
+  },
+  {
+   "n": 38,
+   "text": "HIS is the time of the year when the commuter begins to plant his garden. This particular Mr. Commuter in to- day's puzzle-pícture prides himself on his skill as a tree plae  e       Land planted them in such a way that he could count ten rows with three trees in each row. The small diagram shows how he did it. Trh a          e wants to arrange them in nine rows with five trees in each row. Now there are two ways in which this may be done. Can you draw two different diagrams showing the nineteen trees in nine rows with five trees in each row? A Chilly Jest clung to you last summer?\" said the thin undershirt, seproachfully. discharged for gause!\" Different Viewe Mve in the future,\" said the grain gambles. Caesar's Condition MPERIOUS Caesar, dead and turn'd to cly, Might stop a hole to keep the wind away.\" Thus Shakespeare spake of him of Roman blood. So in the fimy days now long since worn, A trite expression to the world was born v  a    e . an Winifred.\" \"Did #?\" Eating Alphabet. \"Yes, it sent har tnto a de It's final letter out este.\" Then set the first where was the laat CAN YOU CHANGE A DOLLAR? And thia gou bring about: without a cook, without a fre, A dainty dieh which men deaa. dn          n Riddles and Answers Very Final. zle. If the ten dimes are not on hand you can use pennies or \"What's the matter? nen  ee   e  e e ese \"She has rejected me let each of them represent a ten-cent piece. again. She says this is Place the dimes in a row as shown in the diagram. Then French brandy? final.\" invite one of your friends to change the positions of the dimes Because it is very dear to the American people. fnal?\" inqutred the old- vbe o e  e  rth ee e e r to man? enced man. His neck-tie. What kind ef hatr did Moses's dog He Hadn't. have? ruled a   e       e t \"What a debt we owe Dog's hair. to medical science!\" he Why shouldn't a young man kiss to       e     to gar     te his sweetheart whlle in a hammock? paper. They would be apt to fall out. than 20 oents. \"Good heavemsl\" she The puszle can be solved in five straight moves, Can you exclaimed. Haven't-you teeth inserted free of charge? paid the doctor's bill Go  e e e rd dimes and try it yourself. yet?\" where they have a big dog and kick She Won. him. \"Niss Passoe was st- Why is a bashful young man like s The Magic Toothpicks. ting on Mr. Spoonleigh's muff? knee last night. Is she ERE is an interesting Mttle trick you can perform with s He holds a young lady's hand with- stiN in the race for a bowl of water, ten toothpicks, a lump of sugar and a piece out squeezing it. husband?\" of soap. You can make the toothpicks, after they have been What gives more milk than a cow? \"Yes, but I guess this placed in the water, alt rush to a common centre and recede A milk wagon. will be her last lap.\" again at your command without touching them. VWe    ke Arte  e    e  e e te Defined. \"America?\" 1 \"What are your sons take a lump of sugar and let it just touch the surface of the doing at present?\" (hymn). water in the middle. The toothpicks will immediately be at What did Jack Frost say when he \"One of 'em's up to tracted to it, the water rising in the sugar and creating s proposed to the violet? New York practisin\" minute current. If a pointed plece of soap be allowed to touch Wilt thou? And it wilted. law and the other's the water in the middle of the bowl after the sugar has beew When is a clock cruel? re ee removed the toothpicks will recede from It to the sides of the When it strikes its little one, askin' a livin'.\" bowl,",
+   "label": "other-puzzle",
+   "keep": false,
+   "by": "llm"
+  },
+  {
+   "n": 39,
+   "text": "GRAPE VINE",
+   "label": "other-puzzle",
+   "keep": false,
+   "by": "llm"
+  },
+  {
+   "n": 40,
+   "text": "WHIRL",
+   "label": "other-puzzle",
+   "keep": false,
+   "by": "llm"
+  },
+  {
+   "n": 41,
+   "text": "ONLLAAAN-",
+   "label": "other-puzzle",
+   "keep": false,
+   "by": "llm"
+  },
+  {
+   "n": 42,
+   "text": "LONG DOUBLE DIPS",
+   "label": "other-puzzle",
+   "keep": false,
+   "by": "llm"
+  },
+  {
+   "n": 43,
+   "text": "looked on in silence. Finally it was agreed by the entire com-",
+   "label": "other-puzzle",
+   "keep": false,
+   "by": "llm"
+  },
+  {
+   "n": 44,
+   "text": "Perr e e   e  r e  e e be selected in the following manner: A waiter waa-to be called in to commence counting the com- Ho   t        nae last man was to bo IT. He was to pay the whole bill. Bve    ee   er  er called in and told to count off the company. \"Where shall I begin?\" sald he. \"Over there at that gentleman,\" chorused the diners, indi eating one of their party. So the waiter began to count, and every time he got te \"seven\" somebody arose and departed. Finally the twenty-one diners had been counted out, leaving the unfortunate landlord to settle the bill himself. At which guest did the waiter begin his count? ACK had just been stung by a nettie. \"Mother,\" he asked, thoughtfully, \"if a bee settled on a nettle, would the bee sting the nettle or would the nettle esi e bber, MONK TAILOR",
+   "label": "other-puzzle",
+   "keep": false,
+   "by": "llm"
+  },
+  {
+   "n": 45,
+   "text": "Stinging the Stinger.",
+   "label": "other-puzzle",
+   "keep": false,
+   "by": "llm"
+  },
+  {
+   "n": 46,
+   "text": "show row this is donet Take ten buttons, pennies, nickuis or",
+   "label": "other-puzzle",
+   "keep": false,
+   "by": "llm"
+  },
+  {
+   "n": 47,
+   "text": "bun maser",
+   "label": "other-puzzle",
+   "keep": false,
+   "by": "llm"
+  },
+  {
+   "n": 48,
+   "text": "THANKS FOR THE LOBSTER. MONK, THE TAILOR-I don't know whdt Fa do for sclssera soithout thie lobatere.",
+   "label": "other-puzzle",
+   "keep": false,
+   "by": "llm"
+  }
+ ]
+}
