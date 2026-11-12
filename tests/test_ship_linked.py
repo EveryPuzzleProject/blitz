@@ -312,3 +312,37 @@ def test_an_edit_the_import_cannot_apply_holds_a_linked_ends_puzzle_as_broken(tm
     r = row(plan(repo, proofs, RULE, "b"), NO11)
     assert (r["reason"], r["why"]) == ("edits-unapplied", "proof-page edits the import can't apply yet: label:B17")
     assert record(plan(repo, proofs, RULE, "b"))["counts"]["queues"]["broken"] >= 1
+
+
+def test_no_12_ships_when_a_ready_fills_the_one_unread_key_square(tmp_path):
+    # the packet's key has one square unread (r4c8): the ship check calls the grid unsolved, which no Ready lifts...
+    repo, proofs = batch(tmp_path, {NO12: [said(PERSON, SITE, {})]})
+    r = row(plan(repo, proofs, RULE, "b"), NO12)
+    assert (r["status"], r["reason"], r["why"]) == ("held", "incomplete", "Ready, but incomplete: 1 square(s) unsolved")
+    # ...unless the edits that ship with the Ready give that square its letter: the AI's Ready has it (cell:r4c8 = L)
+    repo, proofs = batch(tmp_path / "2", {NO12: [LEDGER[NO12], said(PERSON, SITE, {})]})
+    p = plan(repo, proofs, RULE, "b")
+    r = row(p, NO12)
+    assert (r["status"], r["rule"], r["xdid"]) == ("shippable", "people", "nyw1914-03-08")
+    assert r["why"].endswith('the ship check\'s "1 square(s) unsolved" is filled by the edits applied')
+    write(repo, p, "2026-11-12")
+    text = (repo / "xd" / "nyw1914-03-08.xd").read_text(encoding="utf-8")
+    assert "___SETTLER___\n" in text and "." not in text.split("\n\n\n")[1]
+    (prov,) = provenance(repo)
+    (rec,) = prov["edits"]["records"]
+    assert (rec["key"], rec["before"], rec["after"], rec["class"], rec["kind"]) == ("cell:r4c8", ".", "L", "reading", "ai")
+    assert "filled by the edits applied" in prov["shipped"]["why"] and prov["check"]["findings"].count("grid-unsolved") == 1
+    # the AI's Ready alone doesn't ship it: the check doesn't pass, so nothing counts as the one Ready
+    repo, proofs = batch(tmp_path / "3", {NO12: [LEDGER[NO12]]})
+    assert row(plan(repo, proofs, RULE, "b"), NO12)["reason"] == "no-ready"
+
+
+def test_only_an_unread_square_with_its_letter_is_made_whole_by_an_edit():
+    from blitz.ship import filled_by
+
+    ship = {"findings": [{"code": "grid-unsolved", "detail": "2 square(s) unsolved", "cells": ["r1c1", "r2c2"]},
+                         {"code": "clue-empty", "detail": "clues with no text: A5", "items": ["A5"]}],
+            "incomplete": ["2 square(s) unsolved", "clues with no text: A5"]}
+    assert filled_by(ship, {"cell:r1c1": "A", "cell:r2c2": "b", "clue:A5": "Typed"}) == ["2 square(s) unsolved"]  # never the clue
+    assert filled_by(ship, {"cell:r1c1": "A"}) == [] and filled_by(ship, {"cell:r1c1": "A", "cell:r2c2": "_"}) == []
+    assert filled_by({"findings": [{"code": "grid-unsolved"}], "incomplete": ["2 square(s) unsolved"]}, {"cell:r1c1": "A"}) == []  # squares not named

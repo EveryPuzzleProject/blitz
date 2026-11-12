@@ -65,7 +65,7 @@ A puzzle the rule passes can still be held by the import, each with its own reas
 | reason | meaning |
 |---|---|
 | `edit-unrecorded` | an edit with no whole record of what it changed (The record of every edit, below) |
-| `incomplete` | the ship check found missing or empty clues, an unsolved grid, a partial second clue set: no Ready makes it whole |
+| `incomplete` | the ship check found missing or empty clues, an unsolved grid, a partial second clue set: no Ready makes it whole. One exception since 2026-11-12 (`ship.filled_by`): an unsolved grid, when the edits that ship with the Ready give every square the check named its letter (a key square the packet left unread, read by a reviewer: a reading fix with its record). The reason it shipped says so. An empty or missing clue is never made whole by an edit |
 | `packet-stale` | the proof packet doesn't show its xd: rebuild the packet |
 | `proof-stale` | all that was said (a Ready, or an AI's Not ready) was on an earlier version of the puzzle |
 | `edits-differ` | two reviewers changed the same thing two ways |

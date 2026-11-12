@@ -275,6 +275,19 @@ def broken_of(row: dict, blocking: list, incomplete: list) -> list[dict]:
     return out or [{"what": row["why"], "stage": STAGE_OF.get(row["reason"], ""), "code": row["reason"], "detail": ""}]
 
 
+def filled_by(ship: dict, edits: dict) -> list[str]:
+    """The ship check's incompleteness that the edits about to be applied make whole (its lines of
+    ship.incomplete): an unsolved grid (grid-unsolved, which names its squares) when every one of those squares
+    has its letter among the edits. Nothing else: an empty or missing clue, or a second set, isn't made whole by
+    an edit here (a clue typed where the packet has none is not a reading fix)."""
+    out = []
+    for f in ship.get("findings") or []:
+        if (isinstance(f, dict) and f.get("code") == "grid-unsolved" and f.get("cells") and f.get("detail") in (ship.get("incomplete") or [])
+                and all(isinstance(edits.get(f"cell:{c}"), str) and len(edits[f"cell:{c}"]) == 1 and edits[f"cell:{c}"].isalpha() for c in f["cells"])):
+            out.append(f["detail"])
+    return out
+
+
 def spot(pid: str) -> bool:
     """Whether a shipped puzzle is in the maintainer's spot-check sample: about one in SPOT_ONE_IN, fixed by
     the puzzle's id alone, so a puzzle is in the sample or out of it for good."""
@@ -1037,9 +1050,6 @@ def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict |
         if not review.get("matches_xd", True):
             hold("packet-stale", "its proof packet doesn't show its xd: rebuild the packet")
             continue
-        if ship.get("incomplete"):
-            hold("incomplete", "Ready, but incomplete: " + "; ".join(map(str, ship["incomplete"])))
-            continue
         edits, differ, sources = {}, set(), []
         for r in st["apply"]:
             mine = ((r.get("proof") or {}).get("review") or {}).get("edits") or {}
@@ -1049,6 +1059,14 @@ def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict |
             edits.update({k: v for k, v in mine.items() if k not in edits})
             if mine:
                 sources.append(r.get("by", ""))
+        # incomplete: what the ship check found that no Ready makes whole. The one thing a Ready reviewer's edits do
+        # make whole is a key square the packet left unread, when each such square has its letter among them
+        filled = filled_by(ship, edits)
+        if [x for x in ship.get("incomplete") or [] if x not in filled]:
+            hold("incomplete", "Ready, but incomplete: " + "; ".join(map(str, ship["incomplete"])))
+            continue
+        if filled:
+            st = {**st, "why": st["why"] + f"; the ship check's \"{'; '.join(filled)}\" is filled by the edits applied"}
         if differ:
             hold("edits-differ", "reviewers' edits differ: " + ", ".join(sorted(differ)[:6]))
             continue
@@ -1076,6 +1094,9 @@ def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict |
                 continue
         else:
             text, done = apply_edits(text, edits)
+        if filled and "." in text.split("\n\n\n")[1]:  # the letters were given, and a square is still unread in what would ship
+            hold("incomplete", "Ready, but incomplete: " + "; ".join(map(str, ship["incomplete"])) + " (the edits don't fill every square)")
+            continue
         done = cdone + done
         passing[pid] = {"text": text, "edits": done, "edit_values": edits, "edit_sources": sources, "standing": st, "row": row,
                         "packet": f"{rel}/{pid}", "xd_fp": review.get("xd_fp", "")}
