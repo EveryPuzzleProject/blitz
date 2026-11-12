@@ -389,8 +389,10 @@ packet says it was made from that decision (`ocr.json` `reviewer_fixes.decisions
 stage recorded them), the hold is `awaits-replace` and the puzzle is in `broken`, pointing to
 assembly, with how many fixes of each kind wait and the reviewer's note. What was said stays on the
 row as `asked` (the shape of `asks`), so the card shows it under "Waiting on the pipeline: nothing to
-answer here yet". Nothing is read out of the note's words. Once the packet records the decision, the
-Not ready is a question again (`owner-hold` or `not-ready`): the reviewer's to look at.
+answer here yet". Nothing is read out of the note's words. Once the packet records the decision, it
+goes by triage: ready for review, and the Not ready is a question again (`owner-hold` or `not-ready`),
+the reviewer's to look at; needs work, and the hold is `needs-work` (triage's blocking parts and their
+stages), still in `broken`, with `asked` kept.
 
 With no puzzle held on a question, the batch page opens on `unchecked` and its Start walks those.
 

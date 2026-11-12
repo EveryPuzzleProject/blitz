@@ -267,8 +267,9 @@ def awaits_replace(proofs: list[dict], rule: Rule, xd: str, ocr: dict) -> dict |
     """The latest person's Not ready on a linked-ends puzzle whose fixes to the grid wait to be read in: it
     carries grid:, num: or cell: edits (the import applies only a Ready's edits; the stage that places the clues
     reads these from the ledger), and the packet doesn't record that it was made from that decision (ocr.json's
-    reviewer_fixes.decisions: who and when, as the stage wrote them). {who, at, note, shape, numbers, letters}
-    (how many of each), or None: nothing here is worked out from the edits but their count."""
+    reviewer_fixes.decisions: who and when, as the stage wrote them). {who, at, note, shape, numbers, letters,
+    read_in} (how many of each; read_in: the packet records that decision, so the fixes are in it), or None when
+    their latest Not ready carries no such fix: nothing here is worked out from the edits but their count."""
     if not linked(xd):
         return None
     used = {(d.get("by"), d.get("at")) for d in (ocr.get("reviewer_fixes") or {}).get("decisions") or []}
@@ -283,10 +284,8 @@ def awaits_replace(proofs: list[dict], rule: Rule, xd: str, ocr: dict) -> dict |
                 n[m[1]] += 1
         if not any(n.values()):
             return None  # their latest word carries no such fix: it is a question
-        if (r.get("by"), r.get("at")) in used:
-            return None  # the packet was made from it: theirs to look at again
         return {"who": r.get("by", ""), "at": r.get("at", ""), "note": (r.get("note") or "").strip(),
-                "shape": n["grid"], "numbers": n["num"], "letters": n["cell"]}
+                "shape": n["grid"], "numbers": n["num"], "letters": n["cell"], "read_in": (r.get("by"), r.get("at")) in used}
     return None
 
 
@@ -356,8 +355,8 @@ def queues(rows: list[dict]) -> list[dict]:
       puzzles with nothing but shared questions, then fewest questions), then the rest by queue and id; among
       the unchecked, the puzzles a Ready ships before the ones it can't yet (`also`: the ship check's
       incompleteness, kept on an unchecked puzzle too, so the card can say a Ready won't ship it).
-    asked (a puzzle that waits on the pipeline, WAITS): what was said on it, as a question's asks are, shown
-      on its card with nothing to answer.
+    asked (a broken puzzle whose Not ready waits on the pipeline: WAITS, or needs work after a reviewer's fixes
+      were read in): what was said on it, as a question's asks are, shown on its card with nothing to answer.
     reviewed: a person (the owner or a helper) has said Ready or Not ready: never an AI alone.
     spot_check: shipped on someone else's word than the owner's, and in the fixed one-in-ten sample.
     Returns the groups, largest first: [{key, label, puzzles, asks}]."""
@@ -370,7 +369,7 @@ def queues(rows: list[dict]) -> list[dict]:
             r["asks"] = []
         if r["queue"] not in ("question", "unchecked"):
             r["also"] = []
-        if r.get("reason") not in WAITS:
+        if r["queue"] != "broken":
             r.pop("asked", None)
         if r["queue"] != "broken":
             r["broken"] = []
@@ -1108,7 +1107,14 @@ def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict |
                 mine = list((proofs.get(pid) or {}).values())
                 said_so = asks_of(row["reason"], row["why"], latest.get(f"batch:{pid}") or {}, mine, rule, current)
                 wr = awaits_replace(mine, rule, pk["xd"], pk["ocr"])
-                if wr:
+                if wr and wr["read_in"]:
+                    # the packet was made from their fixes. Triage says it still needs work: the pipeline's, with what they
+                    # said kept. Triage says it is ready for review: theirs to look at again, a question as before.
+                    if t.get("decision") != "ready":
+                        row.update(reason="needs-work", asked=said_so, why="needs work after the reviewer's fixes to the grid were read in: "
+                                   + ("; ".join(sorted({b.get("code") or b.get("part") or "" for b in t.get("blocking") or []
+                                                        if isinstance(b, dict)} - {""})) or "triage's defects") + "; " + st["why"])
+                elif wr:
                     fixes = ", ".join(f"{n} {what}" for n, what in ((wr["shape"], "of the grid's shape"), (wr["numbers"], "square numbers"),
                                                                       (wr["letters"], "key letters")) if n)
                     row.update(reason="awaits-replace", awaits=wr, asked=said_so,

@@ -461,13 +461,23 @@ def test_a_not_ready_with_fixes_to_the_grid_waits_on_the_pipeline_and_does_not_l
     assert pub["asked"][0]["who"] == "the owner" and "oops6498" not in json.dumps(pub)    # the site's copy names no account
 
 
-def test_once_the_packet_is_made_from_those_fixes_it_is_the_reviewers_to_look_at_again(tmp_path):
+def test_once_the_packet_is_made_from_those_fixes_it_goes_by_what_triage_says(tmp_path):
     repo, proofs = batch(tmp_path, {NO9: [OWNER_NO9]}, pids=(NO9,))
     f = proofs / NO9 / "ocr.json"
     ocr = json.loads(f.read_text(encoding="utf-8"))
     # as xword-ocr records what a reading was made from (linkedends.Fixes.record: the decisions, by whom and when)
     ocr["reviewer_fixes"] = {"decisions": [{"by": OWNER_NO9["by"], "at": OWNER_NO9["at"], "answer": "notready"}]}
     f.write_text(json.dumps(ocr), encoding="utf-8")
+    # triage still says it needs work (No. 9's clue column): the pipeline's, with what the owner said kept on the card
+    r = row(plan(repo, proofs, RULE, "b"), NO9)
+    assert (r["reason"], r["queue"]) == ("needs-work", "broken") and r["asked"][0]["text"].startswith("i renumbered the grid")
+    assert r["why"].startswith("needs work after the reviewer's fixes to the grid were read in: ")
+    assert r["broken"] and all(b["code"] != "awaits-replace" for b in r["broken"])       # triage's blocking parts and their stages
+    # triage says it is ready for review: the owner's to look at again, a question as any Not ready is
+    t = tmp_path / "h" / "triage" / "c14" / "triage.json"
+    tri = json.loads(t.read_text(encoding="utf-8"))
+    tri["puzzles"][0].update(decision="ready", blocking=[])
+    t.write_text(json.dumps(tri), encoding="utf-8")
     r = row(plan(repo, proofs, RULE, "b"), NO9)
     assert (r["reason"], r["queue"]) == ("owner-hold", "question") and "asked" not in r
     assert r["asks"][0]["text"].startswith("i renumbered the grid")
