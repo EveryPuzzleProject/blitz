@@ -59,6 +59,7 @@ body:not(.show-changes) .legend { display: none; }
 #browse .rsform input { flex: 1 1 100%; font: inherit; font-size: 12px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 4px; }
 #browse .rsform button { font-size: 12px; padding: 4px 10px; }
 #browse .rserr { flex-basis: 100%; color: var(--bad); }
+#nopuzzle { max-width: 640px; margin: 60px auto; padding: 0 16px; font-size: 15px; line-height: 1.5; }
 .dropnote { background: var(--badbg); border-bottom: 1px solid #e9b4ae; padding: 6px 16px; font-size: 13px; }
 @media (max-width: 500px) { #browse .cards { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); } }
 main { max-width: 1220px; margin: 0 auto; padding: 16px; }
@@ -504,12 +505,46 @@ function restore() {
 
 // the site's open puzzles, a picker in the header (by date, or worst first), and which one to show
 const GRADE = {check: 'check closely', look: 'worth a look', clean: 'clean'};
+// <site-rows> (run under node by tests/test_site_rows.py; batch.html has the same allRows)
+// Every row of a read of the site's database. The database gives at most 1,000 rows to one request
+// (Supabase's max-rows) and says nothing when it stops there, so ask again from where the last page ended
+// until a page comes short. q needs an order that puts every row in one place (its key columns), or rows
+// move between pages. get1(query) gives a page's rows, or null when the request failed: then this
+// throws, so a caller never takes part of a list for all of it.
+// (2026-11-11: the site passed 1,000 open puzzles; ?p= for one past the 1,000th opened the first puzzle.)
+const SITE_ROWS = 1000;
+async function allRows(get1, q) {
+  const out = [];
+  for (;;) {
+    const rows = await get1(`${q}&limit=${SITE_ROWS}&offset=${out.length}`);
+    if (!rows) throw new Error('the site did not answer: ' + q.split('?')[0]);
+    out.push(...rows);
+    if (rows.length < SITE_ROWS) return out;
+  }
+}
+// The puzzle to show: the one ?p= names, or none (never another puzzle in its place); with no ?p=, the
+// first that isn't dropped.
+const choosePuzzle = (all, want, isDropped) =>
+  (want ? all.find(p => p.xdid === want) : all.find(p => !isDropped(p)) || all[0]) || null;
+// </site-rows>
+// nothing to show: say why where the puzzle would be, with the ways back to the puzzles
+function noPuzzle(title, html) {
+  document.title = title;
+  for (const el of document.body.children) if (el.tagName !== 'SCRIPT') el.style.display = 'none';
+  const n = document.createElement('div');
+  n.id = 'nopuzzle';
+  n.innerHTML = `<h2>${esc(title)}</h2><p>${html}</p><p><a href="batch/">All batches</a> · <a href="?browse">Browse every open puzzle</a></p>`;
+  document.body.prepend(n);
+  return false;
+}
 async function pickPuzzle() {
   if (!SITE) return;
   const h = {apikey: SITE.supabaseAnonKey, Authorization: 'Bearer ' + SITE.supabaseAnonKey};
-  const get = q => fetch(`${SITE.supabaseUrl}/rest/v1/${q}`, {headers: h}).then(r => r.ok ? r.json() : []);
+  const get1 = q => fetch(`${SITE.supabaseUrl}/rest/v1/${q}`, {headers: h}).then(r => r.ok ? r.json() : null).catch(() => null);
+  const get = q => allRows(get1, q).catch(() => []);  // a read that failed: no rows (a column the database doesn't have yet)
   let [all, said, put] = await Promise.all([get('puzzles?select=xdid,title,base_url,files,checkup,dropped,batch&open=eq.true&order=xdid'),
-                                            get('proofs?select=xdid,decision,user_id'), get('restores?select=xdid,who,user_id,at&order=at')]);
+                                            get('proofs?select=xdid,decision,user_id&order=xdid,user_id'),
+                                            get('restores?select=xdid,who,user_id,at&order=at,xdid,user_id')]);
   if (!all.length) all = await get('puzzles?select=xdid,title,base_url,files,checkup&open=eq.true&order=xdid');  // no dropped column
   if (!all.length) all = await get('puzzles?select=xdid,title,base_url,files&open=eq.true&order=xdid');  // no checkup column
   // dropped as not crosswords (site/schema-7-drops.sql): out of the picker and Next, under Browse's
@@ -531,7 +566,10 @@ async function pickPuzzle() {
   if (order === 'worst') all.sort((a, b) => (notReady[b.xdid] || 0) - (notReady[a.xdid] || 0) || g(a) - g(b)
     || (b.checkup?.high || 0) - (a.checkup?.high || 0) || (b.checkup?.medium || 0) - (a.checkup?.medium || 0) || (a.xdid < b.xdid ? -1 : 1));
   const want = params.get('p');
-  const here = all.find(p => p.xdid === want) || all.find(p => !isDropped(p)) || all[0];
+  if (!all.length) return noPuzzle("Couldn't load the puzzles", "The site's list of puzzles didn't load. Try again in a moment.");
+  const here = choosePuzzle(all, want, isDropped);
+  if (!here) return noPuzzle('No open puzzle ' + want, `There is no puzzle <b>${esc(want)}</b> among the ${all.length} open for review on the site. `
+    + 'The link may be mistyped, or the puzzle may have been closed since the link was made.');
   ID = here.xdid; dir = here.base_url + '/';
   FILES = here.files || null;
   await loadShip(here.batch);
@@ -675,7 +713,7 @@ async function loadProofs() {
   }
 }
 async function start() {
-  await pickPuzzle();
+  if (await pickPuzzle() === false) return;  // nothing to show, and the page says why
   restore();
   await loadProofs();
   await load();

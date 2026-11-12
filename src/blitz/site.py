@@ -399,13 +399,13 @@ def consensus(verdicts: dict[str, str], items: dict[str, dict[str, str]]) -> dic
 def fetch_decisions(agreed_only: bool = False) -> dict:
     """Everything helpers recorded, per puzzle: rejected if anyone rejected (their notes kept, with
     who), the verdict "needs-work" if anyone said so, and every report. Also each helper's own rows."""
-    names = {p["user_id"]: p["display_name"] or "a helper" for p in _rest("GET", "profiles?select=user_id,display_name") or []}
+    names = {p["user_id"]: p["display_name"] or "a helper" for p in _rest_all("profiles?select=user_id,display_name")}
     who = lambda r: names.get(r["user_id"], "a helper")
     out: dict[str, dict] = {}
     get = lambda x: out.setdefault(x, {"items": {}, "notes": {}, "verdict": "", "note": "", "reports": {}, "by": {}})
     votes: dict[str, dict[str, dict[str, str]]] = {}   # puzzle -> change -> helper -> decision
     said: dict[str, dict[str, str]] = {}               # puzzle -> helper -> verdict
-    for r in _rest("GET", "decisions?select=*&order=at") or []:
+    for r in _rest_all("decisions?select=*&order=at"):
         p = get(r["xdid"])
         votes.setdefault(r["xdid"], {}).setdefault(r["item"], {})[r["user_id"]] = r["decision"]
         p["by"].setdefault(who(r), {})[r["item"]] = r["decision"]
@@ -415,7 +415,7 @@ def fetch_decisions(agreed_only: bool = False) -> dict:
                 p["notes"][r["item"]] = "; ".join(filter(None, [p["notes"].get(r["item"]), f"{who(r)}: {r['note']}"]))
         else:
             p["items"].setdefault(r["item"], "accept")
-    for r in _rest("GET", "verdicts?select=*&order=at") or []:
+    for r in _rest_all("verdicts?select=*&order=at"):
         p = get(r["xdid"])
         if r["verdict"] == "needs-work" or not p["verdict"]:
             p["verdict"] = r["verdict"]
@@ -423,12 +423,12 @@ def fetch_decisions(agreed_only: bool = False) -> dict:
             p["note"] = "; ".join(filter(None, [p["note"], f"{who(r)}: {r['note']}"]))
         p["by"].setdefault(who(r), {})["verdict"] = r["verdict"]
         said.setdefault(r["xdid"], {})[r["user_id"]] = r["verdict"]
-    for r in _rest("GET", "reports?select=*&order=at") or []:
+    for r in _rest_all("reports?select=*&order=at"):
         p = get(r["xdid"])
         p["reports"][r["target"]] = "; ".join(filter(None, [p["reports"].get(r["target"]), f"{who(r)}: {r['text']}"]))
     # the review page's whole reviews (site/schema-5-proofs.sql): per helper, the decision, their edits
     # (field -> new value), comments, each part's verdict and a note. Not applied on import yet.
-    for r in _rest("GET", "proofs?select=*&order=at") or []:
+    for r in _rest_all("proofs?select=*&order=at"):
         rv = r.get("review") or {}
         get(r["xdid"]).setdefault("proofs", {})[r.get("who") or who(r)] = {
             "decision": r["decision"], "edits": rv.get("edits", {}), "comments": rv.get("comments", []),
@@ -439,7 +439,7 @@ def fetch_decisions(agreed_only: bool = False) -> dict:
     # puts back of puzzles dropped as not crosswords (site/schema-7-drops.sql): per helper, a note and when;
     # the importer records each as a person's keep on drop:<pid> in the publication's ledger
     try:
-        restores = _rest("GET", "restores?select=*&order=at") or []
+        restores = _rest_all("restores?select=*&order=at")
     except urllib.error.HTTPError:  # no restores table yet
         restores = []
     for r in restores:

@@ -346,10 +346,10 @@ def cmd_checkup(a) -> None:
 
 
 def cmd_site_status(a) -> None:
-    from .site import fetch_decisions, _rest
+    from .site import fetch_decisions, _rest_all
 
     data = fetch_decisions()["puzzles"]
-    open_ids = [r["xdid"] for r in _rest("GET", "puzzles?select=xdid&open=eq.true&order=xdid") or []]
+    open_ids = [r["xdid"] for r in _rest_all("puzzles?select=xdid&open=eq.true&order=xdid")]
     by = {"agreed": [], "disputed": [], "single": [], "none": []}
     for x in open_ids:
         by[data.get(x, {}).get("agreement", "none")].append(x)
