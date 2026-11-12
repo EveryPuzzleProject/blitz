@@ -324,7 +324,7 @@ draws these fields and works none of them out.
 |---|---|---|
 | `question` | held as `not-ready`, `owner-hold`, `edits-differ` or `candidate-undecided` | a person: answer on the proof page, and it can ship. The page's default list and its walk. |
 | `unchecked` | held as `no-ready` or `proof-stale` | a person: nobody's Ready counts for it yet, so it wants a whole proofread. No question to lead with. |
-| `broken` | every other hold: `needs-work`, `incomplete`, `sent-back`, `awaits-replace`, `edits-unapplied`, `packet-stale`, `no-packet`, `xd-exists`, a hold code | agents (as kinds of failure) and the maintainer (a diagnosis of the stage). Shown with its reason; no proofreading ask. |
+| `broken` | every other hold: `needs-work`, `incomplete`, `sent-back`, `awaits-replace`, `question-incomplete`, `edits-unapplied`, `packet-stale`, `no-packet`, `xd-exists`, a hold code | agents (as kinds of failure) and the maintainer (a diagnosis of the stage). Shown with its reason; no proofreading ask. |
 | `shippable` | passes, not written | nobody: `--write` ships it |
 | `shipped` | in `xd/` | nobody; a sample goes to the maintainer (`spot_check`) |
 | `set-aside`, `not-a-crossword` | the ledger's `setaside:` / `drop:` | nobody |
@@ -393,6 +393,19 @@ answer here yet". Nothing is read out of the note's words. Once the packet recor
 Not ready is a question again (`owner-hold` or `not-ready`): the reviewer's to look at.
 
 With no puzzle held on a question, the batch page opens on `unchecked` and its Start walks those.
+
+### An AI's question on a puzzle only the pipeline can make whole: `question-incomplete`
+
+When the only Not ready standing is an AI reviewer's and the ship check finds the puzzle incomplete
+in a way no answer or edit on the proof page mends (a clue with no text, a word with no clue, a clue
+on no word, a second set missing; not an unread key square, which a Ready's letters fill), the hold
+is `question-incomplete` and the puzzle is in `broken`, with the ship check's lines and their stages.
+Answering would ship nothing, and the packet will be made again, when the AI's questions can be asked
+again. They stay on the row as `asked`. A person's Not ready is a diagnosis: it stays a question for
+the owner (or `awaits-replace`, above).
+
+`also` is kept on an `unchecked` puzzle too (what the ship check finds incomplete: a Ready wouldn't
+ship it yet), the card says so, and `order` puts the unchecked puzzles a Ready ships before those.
 
 ## Candidate clue lists
 

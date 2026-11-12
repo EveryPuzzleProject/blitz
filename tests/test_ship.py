@@ -494,3 +494,34 @@ def test_an_ai_never_decides_a_candidate(tmp_path):
     assert (by["31"]["reason"]) == "no-ready"                                             # both: the check doesn't pass
     p = plan(repo, proofs, Rule(ai_ready="either"), "b")
     assert {r["pid"][-2:]: r["reason"] for r in p["rows"]} == {"31": "candidate-undecided", "32": "candidate-undecided"}
+
+
+INCOMPLETE = {"decision": "ready", "ship": {"ok": False, "findings": [{"code": "clue-empty"}, {"code": "triage-doubt"}],
+                                            "incomplete": ["clues with no text: A2 D19"]}}
+
+
+def test_a_not_ready_on_a_puzzle_no_answer_makes_whole_waits_on_the_pipeline(tmp_path):
+    """A question on a puzzle the ship check finds incomplete: answering it ships nothing, and the packet will be made
+    again. It is the pipeline's, with the question kept on the card; the same question on a whole puzzle is asked."""
+    said = {P + "31": [_ai_no(P + "31", ("ev:title", "Is it untitled?", "confirm"))],
+            P + "32": [_ai_no(P + "32", ("ev:title", "Is it untitled?", "confirm"))]}
+    repo, proofs = _batch(tmp_path, said, {P + "31": INCOMPLETE, P + "32": DOUBT})
+    p = plan(repo, proofs, Rule(ai_ready="both"), "b")
+    by = {r["pid"][-2:]: r for r in p["rows"]}
+    assert (by["31"]["queue"], by["31"]["reason"], by["32"]["queue"], by["32"]["reason"]) == ("broken", "question-incomplete", "question", "not-ready")
+    assert by["31"]["broken"] == [{"what": "clues with no text: A2 D19", "stage": "parts", "code": "incomplete", "detail": ""}]
+    assert by["31"]["asks"] == [] and [(a["row"], a["text"]) for a in by["31"]["asked"]] == [("ev:title", "Is it untitled?")]
+    assert by["31"]["why"].startswith("waiting on the pipeline: said Not ready by") and "no answer mends: clues with no text: A2 D19" in by["31"]["why"]
+    assert p["groups"] == [{"key": "title", "label": "the title", "puzzles": 1, "asks": 1}]   # only the question that is asked
+    rec = record(p)
+    assert rec["counts"]["held_by"] == {"question-incomplete": 1, "not-ready": 1}
+    assert next(r for r in rec["puzzles"] if r["pid"] == P + "31")["asked"][0]["text"] == "Is it untitled?"
+
+
+def test_the_proofreads_a_ready_ships_are_walked_before_the_ones_it_cannot(tmp_path):
+    repo, proofs = _batch(tmp_path, {}, {P + "31": INCOMPLETE, P + "32": DOUBT, P + "33": DOUBT})
+    p = plan(repo, proofs, Rule(ai_ready="both"), "b")
+    by = {r["pid"][-2:]: r for r in p["rows"]}
+    assert {r["queue"] for r in p["rows"]} == {"unchecked"}
+    assert [r["pid"][-2:] for r in sorted(p["rows"], key=lambda r: r["order"])] == ["32", "33", "31"]
+    assert by["31"]["also"] == ["clues with no text: A2 D19"] and by["32"]["also"] == []   # the card says a Ready won't ship it yet

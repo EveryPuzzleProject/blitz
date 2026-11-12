@@ -180,16 +180,21 @@ QUEUE_OF = {"not-ready": "question", "owner-hold": "question", "edits-differ": "
 # the stage a broken puzzle's reason points to, where triage recorded none (triage's blocking names its own)
 STAGE_OF = {"packet-stale": "proof packet", "no-packet": "proof packet", "edits-unapplied": "import", "xd-exists": "import",
             "clue-typed": "text step", "awaits-replace": "assembly"}
-# A Not ready that waits on the pipeline, not on a person's answer (its own reason, in the broken queue, with what
+# A Not ready that waits on the pipeline, not on a person's answer (each its own reason, in the broken queue, with what
 # was said kept on the row as `asked`):
 #   awaits-replace: a person's Not ready on a linked-ends puzzle carries fixes to the grid (its shape, its squares'
 #     numbers, key letters) that the packet wasn't made from: the pipeline reads them in and places the clues again
-#     (xword-ocr linkedends.hint, `remedy replace`).
-WAITS = ("awaits-replace",)
+#     (xword-ocr linkedends.hint, `remedy replace`);
+#   question-incomplete: the only Not ready standing is an AI reviewer's, and the ship check finds the puzzle incomplete
+#     in a way no answer or edit on the proof page mends (PIPELINE_MENDS: a clue with no text, a word with no clue, a
+#     second set missing; not an unread key square, which a Ready's letters fill). Its packet will be made again, and
+#     the AI's questions can be asked again then; a person's Not ready is a diagnosis and stays the owner's to see.
+WAITS = ("awaits-replace", "question-incomplete")
 GRID_FIX = re.compile(r"(grid|num|cell):r\d+c\d+")  # the edits the re-place stage reads
 # the ship check's findings that make a puzzle incomplete, and the stage each points to
 INCOMPLETE_STAGE = {"grid-unsolved": "key reading", "clue-empty": "parts", "clue-missing": "assembly", "clue-extra": "assembly",
                     "second-set-missing": "assembly"}
+PIPELINE_MENDS = frozenset(INCOMPLETE_STAGE) - {"grid-unsolved"}
 # a question about a header belongs to a group shared across puzzles (by the header it is about); one
 # about a clue, a square or a printed line is that puzzle's own
 GROUPS = {"title": "the title", "byline": "the byline", "notes": "the notes", "candidate": "a candidate clue list"}
@@ -316,7 +321,7 @@ def broken_of(row: dict, blocking: list, incomplete: list) -> list[dict]:
         out = [{"what": f"a reviewer's fixes to the grid wait to be read in ({fixes}): the words and the clues' places are made again from them",
                 "stage": STAGE_OF["awaits-replace"], "code": "awaits-replace", "detail": ""}]  # the note is in `asked`
         out += _incomplete(row["check"]["findings"], incomplete, "incomplete")
-    elif row["reason"] == "incomplete":
+    elif row["reason"] in ("incomplete", "question-incomplete"):
         out = _incomplete(row["check"]["findings"], incomplete, "incomplete")
     return out or [{"what": row["why"], "stage": STAGE_OF.get(row["reason"], ""), "code": row["reason"], "detail": ""}]
 
@@ -348,7 +353,9 @@ def queues(rows: list[dict]) -> list[dict]:
       maintainer, with the stage it points to), set-aside, not-a-crossword. One queue each.
     group: the largest shared-question group among a question puzzle's asks ("" when all are its own).
     order: its place in the batch's walk: questions first (shared groups, largest first; in a group the
-      puzzles with nothing but shared questions, then fewest questions), then the rest by queue and id.
+      puzzles with nothing but shared questions, then fewest questions), then the rest by queue and id; among
+      the unchecked, the puzzles a Ready ships before the ones it can't yet (`also`: the ship check's
+      incompleteness, kept on an unchecked puzzle too, so the card can say a Ready won't ship it).
     asked (a puzzle that waits on the pipeline, WAITS): what was said on it, as a question's asks are, shown
       on its card with nothing to answer.
     reviewed: a person (the owner or a helper) has said Ready or Not ready: never an AI alone.
@@ -360,7 +367,9 @@ def queues(rows: list[dict]) -> list[dict]:
         r["reviewed"] = any(s["kind"] in ("owner", "helper") for s in r.get("said") or [])
         r["spot_check"] = r["queue"] == "shipped" and r.get("rule") != "owner" and spot(r["pid"])
         if r["queue"] != "question":
-            r["asks"], r["also"] = [], []
+            r["asks"] = []
+        if r["queue"] not in ("question", "unchecked"):
+            r["also"] = []
         if r.get("reason") not in WAITS:
             r.pop("asked", None)
         if r["queue"] != "broken":
@@ -378,6 +387,8 @@ def queues(rows: list[dict]) -> list[dict]:
 
     def key(r):
         q = QUEUES.index(r["queue"])
+        if r["queue"] == "unchecked":  # the ones a Ready ships before the ones it can't yet (the ship check's incompleteness)
+            return (q, bool(r.get("also")), 0, 0, r["pid"])
         if r["queue"] != "question":
             return (q, 0, 0, 0, r["pid"])
         own = sum(not a["group"] for a in r["asks"])
@@ -1103,6 +1114,11 @@ def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict |
                     row.update(reason="awaits-replace", awaits=wr, asked=said_so,
                                why=f"waiting on the pipeline: {wr['who']} said Not ready with fixes to the grid ({fixes}) that the "
                                    "packet wasn't made from; the clues are placed again from them" + (f": {wr['note']}" if wr["note"] else ""))
+                elif (row["reason"] == "not-ready" and ship.get("incomplete") and set(row["check"]["findings"]) & PIPELINE_MENDS
+                      and all(a["kind"] == "ai" for a in said_so)):
+                    row.update(reason="question-incomplete", asked=said_so,
+                               why="waiting on the pipeline: " + row["why"] + "; and it is incomplete in a way no answer mends: "
+                                   + "; ".join(map(str, ship["incomplete"])))
             if QUEUE_OF.get(row["reason"]) == "question":
                 row["asks"] = asks_of(row["reason"], row["why"], latest.get(f"batch:{pid}") or {}, list((proofs.get(pid) or {}).values()), rule, current)
                 # what an answer won't mend: said beside the question, so nobody is surprised when it still doesn't ship
@@ -1110,6 +1126,8 @@ def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict |
                 candidate_asks()
             elif row["reason"] not in QUEUE_OF:
                 row["broken"] = broken_of(row, t.get("blocking"), ship.get("incomplete"))
+            if QUEUE_OF.get(row["reason"]) == "unchecked":  # a Ready wouldn't ship it yet: said on its card, and it is walked last
+                row["also"] = [str(x) for x in ship.get("incomplete") or []]
             continue
 
         def hold(reason, why, row=row, t=t, ship=ship):
