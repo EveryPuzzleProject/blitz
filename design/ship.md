@@ -402,6 +402,22 @@ stages), still in `broken`, with `asked` kept.
 
 With no puzzle held on a question, the batch page opens on `unchecked` and its Start walks those.
 
+**What the pipeline read in is shown and recorded.** A re-placed packet's own values include the
+owner's squares, key letters and numbers, so no Ready's edit carries them. The packet says which
+(`ocr.json` `reviewer_fixes.squares`: `{key, value, was, by, at}`, xword-ocr's record of what the
+reading was made from). The proof page draws them and works nothing out: the blank grid lists every
+one under "Read in from the owner's fixes on the proof page", with what the stage had there, where
+the key disagrees (`key_disagrees`), where the owner's accounts disagreed, and whose fixes were not
+used; a square or key letter the owner changed is outlined as a change by "the owner (read in by the
+pipeline)" after the OCR's value. At ship each becomes an edit record in provenance
+(`read_in_records`, stage `re-place`, before the Readys' own): a square's kind and a printed number
+as class `reading`, a key letter as `unclassed` (nothing says whether the key was misread or
+misprinted), a number with `before_recorded: false` (what stood there was not recorded). One the
+owner gave that the stage already had is no change and no record.
+
+**A clue placed by sequence** (triage's `clue-by-sequence`, xword-ocr) needs a person's Ready under
+any `ai_ready` (`PERSON_CODES`); it is a doubt on the clue's row, not a hold on a person's Ready.
+
 ### Proofreads a Ready ships come first
 
 An AI's question on a puzzle the ship check finds incomplete stays a question (it was tried as a

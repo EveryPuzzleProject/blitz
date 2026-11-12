@@ -1657,6 +1657,31 @@ def packet_edits(ocr: dict, review: dict) -> list[dict]:
     return out
 
 
+READ_IN_STAGE = "re-place"  # xword-ocr read the owner's fixes into the packet before review (linkedends.hint)
+
+
+def read_in_records(ocr: dict, pid: str = "") -> list[dict]:
+    """The edit records for what the packet's base values owe to the owner, not to the OCR: the squares, key letters
+    and printed numbers the pipeline read in from the owner's fixes on the proof page when it made the packet
+    (ocr.json's reviewer_fixes.squares, xword-ocr's record: {key, value, was, by, at}). They are in the packet's xd
+    already, so no Ready's edit carries them, and without these they would ship with no record. One per square
+    whose value is not what the stage had there (`was`), or whose `was` the stage didn't record (a number: before
+    "", before_recorded false). Class: a square's kind and a printed number are readings of the printed grid; a
+    key letter is unclassed (nothing says whether the key was misread or misprinted: never guessed). Stage
+    READ_IN_STAGE; `via` says how it reached the xd."""
+    what = {"grid": "grid square", "cell": "key square", "num": "square number"}
+    out = []
+    for s in (ocr.get("reviewer_fixes") or {}).get("squares") or []:
+        kind = str(s.get("key", "")).partition(":")[0]
+        if kind not in what or ("was" in s and s["was"] == s.get("value")):
+            continue
+        out.append({"key": s["key"], "what": what[kind], "class": UNCLASSED if kind == "cell" else READING,
+                    "before": s.get("was", ""), **({} if "was" in s else {"before_recorded": False}), "after": s.get("value", ""),
+                    "by": s.get("by", ""), "kind": "owner", "via": "read into the packet by the pipeline from the owner's proof-page fixes",
+                    "at": s.get("at", ""), "stage": READ_IN_STAGE, "evidence": {"proof": f"{PROOF_PAGE}{pid}&k={s['key']}"}})
+    return out
+
+
 def _record_edits(passing: dict, packs: dict, rule: Rule) -> None:
     """Every passing puzzle's xd as it ships (a clue's or header's misprint as printed, a misprinted key letter
     corrected and noted), its edit records and its corrections; a puzzle with an edit that has no whole record
@@ -1674,7 +1699,8 @@ def _record_edits(passing: dict, packs: dict, rule: Rule) -> None:
             x["row"].update(reason="edit-unrecorded", why=why, broken=[{"what": why, "stage": "import", "code": "edit-unrecorded", "detail": ""}])
             del passing[pid]
             continue
-        x.update(edit_records=e["records"], corrections=e["corrections"], notes=e["notes"], text=e["text"])
+        # first what the packet itself was made from (the owner's fixes read in before review), then the Readys' edits
+        x.update(edit_records=read_in_records(packs[pid]["ocr"], pid) + e["records"], corrections=e["corrections"], notes=e["notes"], text=e["text"])
         # what the packet's puzzle.xd doesn't show: the ship record carries it, the proof page draws it
         if e["notes"]:
             x["row"]["notes"] = e["notes"]  # added to the shipped xd's notes

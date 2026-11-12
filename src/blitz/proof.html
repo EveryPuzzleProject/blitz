@@ -836,8 +836,18 @@ const final = key => valueAt(key, rounds.length - 1);
 const G = () => ocr.grid.map((row, r) => [...row].map((ch, c) => final(`grid:r${r+1}c${c+1}`)).join(''));
 const hasKey = () => !!((ansImg || keyPage) && ocr.answers);
 // every version a field went through: [{who, color, value}], starting with the OCR
+// A value the pipeline read in from the owner's fixes on the proof page (ocr.reviewer_fixes.squares: xword-ocr's record
+// of what the reading was made from: {key, value, was, by, at}): the packet's base value is the owner's, not the OCR's.
+// Drawn from the record; nothing here works out which squares those are.
+const READ_IN = '#7a4fb5';
+const readIn = key => ((ocr.reviewer_fixes || {}).squares || []).find(s => s.key === key);
+const readInWho = f => `the owner, ${String(f.at || '').slice(0, 10)} (read in by the pipeline)`;
+const shapeOf = v => v === '_' ? '#' : v;  // the record writes a square outside the puzzle as the xd does
 function history(key, start = base(key)) {
-  const h = [{who: 'OCR', value: start}];
+  const f = readIn(key), was = f && f.was !== undefined ? shapeOf(f.was) : undefined;
+  // the stage's own reading first, where the record has it and the owner changed it; then the owner's, which is the base
+  const h = f && shapeOf(f.value) === shapeOf(start) && was !== undefined && was !== shapeOf(start)
+    ? [{who: 'OCR', value: was}, {who: readInWho(f), color: READ_IN, value: start}] : [{who: 'OCR', value: start}];
   rounds.forEach(r => { if (key in r.edits && r.edits[key] !== h[h.length - 1].value) h.push({who: r.who, color: r.color, value: r.edits[key]}); });
   return h;
 }
@@ -2122,6 +2132,26 @@ function showPage(key) {
   s.scrollIntoView({block: 'start'}); scrollBy(0, -70);
 }
 
+// What the packet was made from besides the OCR (ocr.reviewer_fixes, xword-ocr's record): every square, key letter and
+// number the owner gave on the proof page that the pipeline read in, each with what the stage had there; where the
+// owner's square and the key disagree; where the owner's accounts disagreed; and whose fixes were not used.
+function readInHtml() {
+  const f = ocr.reviewer_fixes;
+  if (!f) return '';
+  const sq = s => s.key.split(':')[1], shape = v => v === '.' ? 'a square' : 'not a square';
+  const one = s => s.key.startsWith('grid:') ? `${sq(s)}: ${shape(s.value)}${s.was !== undefined ? ` (read as ${shape(s.was)})` : ''}`
+    : s.key.startsWith('cell:') ? `${sq(s)}: key letter ${s.value}${s.was !== undefined ? ` (the key reader had ${s.was === '.' ? 'nothing' : s.was})` : ''}`
+    : `${sq(s)}: ${s.value ? 'number ' + s.value : 'no number'}`;
+  const days = [...new Set((f.squares || []).map(s => String(s.at || '').slice(0, 10)))];
+  const part = (label, test) => { const xs = (f.squares || []).filter(test); return xs.length ? `<li><b>${label}</b> ${xs.map(s => esc(one(s))).join('; ')}</li>` : ''; };
+  const items = part('The grid\'s shape:', s => s.key.startsWith('grid:')) + part('Key letters:', s => s.key.startsWith('cell:')) + part('Printed numbers:', s => s.key.startsWith('num:'))
+    + (f.key_disagrees || []).map(d => `<li><b>The key disagrees at ${esc(d.cell)}:</b> the owner says ${esc(d.owner)}, the key has ${esc(d.key)}. The owner's stands.</li>`).join('')
+    + (f.disagree || []).map(d => `<li><b>The owner's accounts gave ${esc(d.key.split(':')[1])} two values:</b> ${esc(d.stands.value || 'none')} (${esc(String(d.stands.at).slice(0, 10))}) stands over ${esc(d.over.value || 'none')} (${esc(String(d.over.at).slice(0, 10))}).</li>`).join('')
+    + (f.not_used || []).map(x => `<li><b>Not used:</b> ${x.why.startsWith('an AI') ? "an AI reviewer's" : x.why.startsWith('an account') ? "an ignored account's" : "a helper's or a guest's"} fixes of ${esc(String(x.at).slice(0, 10))} (${x.num} number(s), ${x.grid} of shape, ${x.cell} letter(s)). ${esc(f.rule || '')}</li>`).join('');
+  if (!items) return '';
+  return `<p style="margin:10px 14px 0;font-size:13px"><b>Read in from the owner's fixes on the proof page${days.length ? ' (' + days.map(esc).join(', ') + ')' : ''}:</b>
+    <span class="hint">these are the packet's own values now, not the OCR's; squares the owner changed are outlined <span style="color:${READ_IN}">in this colour</span></span></p><ul class="reasons" id="readin">${items}</ul>`;
+}
 // ---- the blank grid: only when the black squares or numbering need checking ----
 function blankReasons() {
   const out = [];
@@ -2134,6 +2164,9 @@ function blankReasons() {
   if ((ocr.grid_asymmetric_squares || []).length) out.push(`The grid isn't symmetric (${ocr.grid_asymmetric_squares.join(', ')}): check it's printed that way.`);
   const fixes = rounds.flatMap(r => Object.keys(r.edits).filter(k => k.startsWith('grid:')).map(k => `${k.slice(5)} (${r.who})`));
   if (fixes.length) out.push(`A reviewer changed black squares: ${fixes.join(', ')}.`);
+  const rf = ocr.reviewer_fixes || {};
+  if ((rf.squares || []).length) out.push(`This packet was made from ${rf.squares.length} fix(es) the owner gave on the proof page: each is listed below with its square.`);
+  if ((rf.key_disagrees || []).length) out.push(`The owner's decision and the answer key say different things at ${rf.key_disagrees.map(d => d.cell).join(', ')}.`);
   const nums = rounds.flatMap(r => Object.keys(r.edits).filter(k => k.startsWith('num:')).map(k => `${k.slice(4)} → ${r.edits[k] || 'none'} (${r.who})`));
   if (nums.length) out.push(`A reviewer corrected printed numbers: ${nums.join(', ')}.`);
   // judged by the crop each clue's text now comes from (sourceFor): a crop assembly put in the wrong slot, whose text the
@@ -2166,7 +2199,7 @@ function blankSection(why, optional) {
   } else s = sec('blank', 'Blank grid', 'the blank grid', linkedEnds() ? 'the shape, and the numbers printed in the squares: each clue names its word by its two end numbers' : 'black squares and numbers');
   s.id = 'blankpanel';
   if (optional && !why.length) why = ['Nothing flagged: the checks found the blank grid agrees with the answer key.'];
-  s.insertAdjacentHTML('beforeend', `<p style="margin:10px 14px 0;font-size:13px"><b>${optional ? 'What the checks found:' : "Why you're seeing this:"}</b></p><ul class="reasons">${why.map(w => `<li>${esc(w)}</li>`).join('')}</ul>
+  s.insertAdjacentHTML('beforeend', `<p style="margin:10px 14px 0;font-size:13px"><b>${optional ? 'What the checks found:' : "Why you're seeing this:"}</b></p><ul class="reasons">${why.map(w => `<li>${esc(w)}</li>`).join('')}</ul>${readInHtml()}
     <div class="gridwrap">
     ${gridImg ? `<div class="gridbox" id="bscan"><img src="${dir}grid.png" alt="blank grid scan"></div>`
       : `<div class="gridbox pagebox" id="bscan"><img src="${dir}page.jpg" alt="the puzzle's page"><a class="ctxbtn" href="${dir}_src/page.jpg" target="_blank">open it larger ↗</a></div>`}

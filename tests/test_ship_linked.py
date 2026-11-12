@@ -509,3 +509,28 @@ def test_a_grid_fix_on_an_ordinary_puzzle_is_still_a_question(tmp_path):
     repo, proofs = _batch(tmp_path, {P + "31": [no]}, {P + "31": DOUBT})
     r = plan(repo, proofs, Rule(ai_ready="both"), "b")["rows"][0]
     assert (r["reason"], r["queue"]) == ("not-ready", "question")                     # the import applies such edits from a Ready
+
+
+def test_what_the_pipeline_read_in_from_the_owner_ships_with_an_edit_record(tmp_path):
+    """A re-placed packet's base values include the owner's squares, key letters and numbers. No Ready's edit carries
+    them, so ship records them from the packet's own record (ocr.json reviewer_fixes.squares, as xword-ocr writes it)."""
+    repo, proofs = batch(tmp_path, {NO11: [said(PERSON, SITE, {})]}, pids=(NO11,))
+    f = proofs / NO11 / "ocr.json"
+    ocr = json.loads(f.read_text(encoding="utf-8"))
+    who = {"by": OWNER_NO9["by"], "at": "2026-11-12T20:00:34Z"}
+    ocr["reviewer_fixes"] = {"decisions": [{**who, "answer": "notready"}], "squares": [
+        {"key": "grid:r4c3", "value": "_", "was": ".", **who},      # the shape: a reading of the printed grid
+        {"key": "grid:r5c5", "value": ".", "was": ".", **who},      # what the stage had already: no change, no record
+        {"key": "cell:r2c8", "value": "N", "was": ".", **who},      # a key letter: nothing says misread or misprinted
+        {"key": "num:r1c7", "value": "29", **who}]}                 # a number: what stood there before isn't recorded
+    f.write_text(json.dumps(ocr), encoding="utf-8")
+    p = plan(repo, proofs, RULE, "b")
+    assert row(p, NO11)["status"] == "shippable"
+    write(repo, p, "2026-11-12")
+    (prov,) = provenance(repo)
+    got = [(x["key"], x["what"], x["class"], x["before"], x["after"], x["stage"], x["kind"]) for x in prov["edits"]["records"]]
+    assert got == [("grid:r4c3", "grid square", "reading", ".", "_", "re-place", "owner"),
+                   ("cell:r2c8", "key square", "unclassed", ".", "N", "re-place", "owner"),
+                   ("num:r1c7", "square number", "reading", "", "29", "re-place", "owner")]
+    assert prov["edits"]["records"][2]["before_recorded"] is False and prov["edits"]["records"][0]["by"] == OWNER_NO9["by"]
+    assert prov["edits"]["records"][0]["evidence"]["proof"].endswith(f"{NO11}&k=grid:r4c3")
