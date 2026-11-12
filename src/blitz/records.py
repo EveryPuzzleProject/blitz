@@ -293,7 +293,7 @@ def render(pub: str, xdid: str, xd: dict, exp: dict, status: dict, ocr: dict, re
                                 f"The puzzle as printed in {name}" + (f", {long_date(d)}" if d else ""), head.get("Source", "")))
     if separate_clues:
         figs.append(scan_figure("scan-clues", img["clue_page.jpg"], sizes.get("clue_page.jpg"), {},
-                                "Its clues, printed on the facing page", head.get("Clue-Source", "")))
+                                "Its clues, printed on another page", head.get("Clue-Source", "")))
     # Beside the transcription: the page the clues were read from, with the OCR's box for each.
     cmp_name = "clue_page.jpg" if separate_clues else "page.jpg"
     compare = (scan_figure("scan-compare", img[cmp_name], sizes.get(cmp_name), boxes,
@@ -612,7 +612,12 @@ def build(pub_repo: Path, out: Path, cache: Path, only: list[str] | None = None,
                         img[name] = name
                     else:
                         img[name] = (images_base.rstrip("/") + f"/{pub}/{x}/" if images_base else exp["package_url"]) + name
-            if (pkg / "grid.png").exists() and og_image(pkg / "grid.png", page_dir / "og.jpg"):
+            share = pkg / "grid.png"
+            if not share.exists() and "page.jpg" in known:  # no grid crop (a cover puzzle): the printed page instead
+                share = pkg / "page.jpg"
+                if not share.exists():
+                    share.write_bytes(_get(exp["package_url"] + "page.jpg") or b"")
+            if share.exists() and og_image(share, page_dir / "og.jpg"):
                 img["og.jpg"] = record_url(pub, x) + "og.jpg"
         nav = {"prev": (xdids[i - 1], meta[xdids[i - 1]]) if i else None,
                "next": (xdids[i + 1], meta[xdids[i + 1]]) if i + 1 < len(xdids) else None}
