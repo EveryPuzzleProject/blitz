@@ -209,7 +209,6 @@ const HELD = {'edit-unrecorded': 'an edit with no record of what it changed', 'n
               'edits-unapplied': "an edit the import can't apply yet", 'xd-exists': 'another file has its id', 'no-packet': 'no proof packet',
               'clue-typed': 'a clue typed with no OCR reading', 'sent-back': 'a reviewer sent it back to the pipeline',
               'awaits-replace': "waiting on the pipeline: a reviewer's fixes to the grid aren't read in yet",
-              'question-incomplete': 'waiting on the pipeline: incomplete in a way no answer mends',
               'candidate-undecided': 'a candidate clue list is undecided', 'candidate-partial': "a candidate list taken into the puzzle isn't whole"};
 // ---- what the batch asks of people: each puzzle's queue, as blitz ship recorded it (ship.json: queue, asks, broken,
 // group, order, spot_check; asked: what was said on a puzzle that waits on the pipeline; also: what a Ready or an
@@ -368,7 +367,7 @@ async function landing() {
     const us = qs.length ? [] : d.puzzles.filter(p => queueOf(p) === 'unchecked').sort((x, y) => ordOf(x) - ordOf(y));
     const proofread = us.length ? `../?p=${encodeURIComponent(us[0].pid)}&walk=${encodeURIComponent(QUEUE.unchecked[0])}&pids=${us.map(p => p.pid).join(',')}`
       + '&back=' + encodeURIComponent(location.pathname + list) : '';
-    const waiting = d.puzzles.filter(p => ['awaits-replace', 'question-incomplete'].includes((shipOf(p) || {}).reason)).length;
+    const waiting = d.puzzles.filter(p => (shipOf(p) || {}).reason === 'awaits-replace').length;
     return `<div class="bcard"><div><div class="t"><a class="tl" href="${list}">${esc(b.title || b.name)}</a></div>
       <div class="meta"><b>${qs.length} puzzles held on a question you can answer</b>${us.length ? ` · <b>${us.length} to proofread</b>` : ''}${waiting ? ` · ${waiting} waiting on the pipeline, nothing to answer` : ''} · ${n('shipped')} shipped · ${all} in all · a question takes a few minutes; stop whenever you like</div></div>
       <span>${start ? `<a class="go" href="${start}">Start with the questions →</a> ` : proofread ? `<a class="go" href="${proofread}">Start proofreading →</a> ` : ''}<a href="${list}">See the list</a></span>

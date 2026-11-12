@@ -113,7 +113,8 @@ def standing(batch: dict, proofs: list[dict], *, check_ok: bool = False, codes: 
     - otherwise any Not ready that stands holds it for the owner (not-ready): a person's on any version, the
       AI reviewer's on the current one;
     - otherwise one person's Ready ships it (rule "people");
-    - otherwise, with rule.ai_ready on, the AI's Ready ships it (rule "ai");
+    - otherwise, with rule.ai_ready on, the AI's Ready ships it (rule "ai"), unless it carries one of PERSON_CODES
+      (clue-by-sequence), which only a person's Ready ships;
     - otherwise it waits (no-ready; proof-stale when all that was said, a Ready or an AI's Not ready, was on
       an earlier version);
     - and a puzzle that would ship is held when it carries one of rule.hold_codes (the code is the reason).
@@ -151,7 +152,8 @@ def standing(batch: dict, proofs: list[dict], *, check_ok: bool = False, codes: 
         no = [s for s in said if s["answer"] == "notready" and not s["stale"]]
         people = [s for s in ready if s["kind"] == "helper"]
         ai = any(s["kind"] == "ai" for s in ready)
-        ai_ok = {"off": False, "both": ai and check_ok, "either": ai or check_ok}[rule.ai_ready]
+        person = sorted(set(codes) & set(PERSON_CODES))  # needs a person's Ready, whatever ai_ready says
+        ai_ok = {"off": False, "both": ai and check_ok, "either": ai or check_ok}[rule.ai_ready] and not person
         if no:
             res = out("hold", "not-ready", "said Not ready by " + "; ".join(s["who"] + (f": {s['note']}" if s["note"] else "") for s in no))
         elif people:
@@ -164,7 +166,8 @@ def standing(batch: dict, proofs: list[dict], *, check_ok: bool = False, codes: 
                       + " was on an earlier version of the puzzle")
         else:
             has = [x for x in ("the AI proof reviewer said Ready" if ai else "", "the ship check passes" if check_ok else "") if x]
-            res = out("hold", "no-ready", "no person has said Ready" + (f" ({'; '.join(has)})" if has else ""))
+            res = out("hold", "no-ready", "no person has said Ready" + (f" ({'; '.join(has)})" if has else "")
+                      + (f"; {', '.join(person)} needs a person's Ready, whatever ai_ready says" if person else ""))
     held = sorted(set(codes) & set(rule.hold_codes))
     if res["status"] == "ship" and held:
         res = {**out("hold", held[0], f"carries {', '.join(held)}: held whoever said Ready"), "rule": res["rule"]}
@@ -180,21 +183,23 @@ QUEUE_OF = {"not-ready": "question", "owner-hold": "question", "edits-differ": "
 # the stage a broken puzzle's reason points to, where triage recorded none (triage's blocking names its own)
 STAGE_OF = {"packet-stale": "proof packet", "no-packet": "proof packet", "edits-unapplied": "import", "xd-exists": "import",
             "clue-typed": "text step", "awaits-replace": "assembly"}
-# A Not ready that waits on the pipeline, not on a person's answer (each its own reason, in the broken queue, with what
+# A Not ready that waits on the pipeline, not on a person's answer (its own reason, in the broken queue, with what
 # was said kept on the row as `asked`):
-#   awaits-replace: a person's Not ready on a linked-ends puzzle carries fixes to the grid (its shape, its squares'
+#   awaits-replace: the owner's Not ready on a linked-ends puzzle carries fixes to the grid (its shape, its squares'
 #     numbers, key letters) that the packet wasn't made from: the pipeline reads them in and places the clues again
-#     (xword-ocr linkedends.hint, `remedy replace`);
-#   question-incomplete: the only Not ready standing is an AI reviewer's, and the ship check finds the puzzle incomplete
-#     in a way no answer or edit on the proof page mends (PIPELINE_MENDS: a clue with no text, a word with no clue, a
-#     second set missing; not an unread key square, which a Ready's letters fill). Its packet will be made again, and
-#     the AI's questions can be asked again then; a person's Not ready is a diagnosis and stays the owner's to see.
-WAITS = ("awaits-replace", "question-incomplete")
+#     (xword-ocr linkedends.hint, `remedy replace`). The owner's only (the owner's rule, 2026-11-12, "Owner only for
+#     now"): a helper's or a guest's fixes restart nothing, so their Not ready stays a question for the owner.
+# (An AI's question on an incomplete puzzle stays a question: it may be that a clue is not printed in the paper, which
+# only a person can decide. The cold review of 2026-11-12 found 9 such among the Collegian's 18.)
+WAITS = ("awaits-replace",)
+# triage codes that need a person's Ready, whatever ai_ready says: an AI's Ready and the ship check never ship them.
+# clue-by-sequence: a clue placed by the list's sequence on a linked-ends puzzle (xword-ocr linkedends). Not a hold on
+# a person's Ready: the doubt shows on the clue's proof row.
+PERSON_CODES = ("clue-by-sequence",)
 GRID_FIX = re.compile(r"(grid|num|cell):r\d+c\d+")  # the edits the re-place stage reads
 # the ship check's findings that make a puzzle incomplete, and the stage each points to
 INCOMPLETE_STAGE = {"grid-unsolved": "key reading", "clue-empty": "parts", "clue-missing": "assembly", "clue-extra": "assembly",
                     "second-set-missing": "assembly"}
-PIPELINE_MENDS = frozenset(INCOMPLETE_STAGE) - {"grid-unsolved"}
 # a question about a header belongs to a group shared across puzzles (by the header it is about); one
 # about a clue, a square or a printed line is that puzzle's own
 GROUPS = {"title": "the title", "byline": "the byline", "notes": "the notes", "candidate": "a candidate clue list"}
@@ -264,7 +269,8 @@ def sent_back(proofs: list[dict], rule: Rule, current: tuple = ()) -> dict | Non
 
 
 def awaits_replace(proofs: list[dict], rule: Rule, xd: str, ocr: dict) -> dict | None:
-    """The latest person's Not ready on a linked-ends puzzle whose fixes to the grid wait to be read in: it
+    """The owner's latest Not ready on a linked-ends puzzle whose fixes to the grid wait to be read in (the owner's
+    only: xword-ocr's stage reads no one else's, by the owner's rule of 2026-11-12, so nobody else's wait): it
     carries grid:, num: or cell: edits (the import applies only a Ready's edits; the stage that places the clues
     reads these from the ledger), and the packet doesn't record that it was made from that decision (ocr.json's
     reviewer_fixes.decisions: who and when, as the stage wrote them). {who, at, note, shape, numbers, letters,
@@ -274,7 +280,7 @@ def awaits_replace(proofs: list[dict], rule: Rule, xd: str, ocr: dict) -> dict |
         return None
     used = {(d.get("by"), d.get("at")) for d in (ocr.get("reviewer_fixes") or {}).get("decisions") or []}
     for r in sorted(proofs, key=lambda r: r.get("at", ""), reverse=True):
-        if r.get("answer") != "notready" or _name(r) in rule.ignore or kind_of(r, rule) not in ("owner", "helper"):
+        if r.get("answer") != "notready" or _name(r) in rule.ignore or kind_of(r, rule) != "owner":
             continue
         edits = ((r.get("proof") or {}).get("review") or {}).get("edits") or {}
         n = {"grid": 0, "num": 0, "cell": 0}
@@ -320,7 +326,7 @@ def broken_of(row: dict, blocking: list, incomplete: list) -> list[dict]:
         out = [{"what": f"a reviewer's fixes to the grid wait to be read in ({fixes}): the words and the clues' places are made again from them",
                 "stage": STAGE_OF["awaits-replace"], "code": "awaits-replace", "detail": ""}]  # the note is in `asked`
         out += _incomplete(row["check"]["findings"], incomplete, "incomplete")
-    elif row["reason"] in ("incomplete", "question-incomplete"):
+    elif row["reason"] == "incomplete":
         out = _incomplete(row["check"]["findings"], incomplete, "incomplete")
     return out or [{"what": row["why"], "stage": STAGE_OF.get(row["reason"], ""), "code": row["reason"], "detail": ""}]
 
@@ -1120,11 +1126,6 @@ def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict |
                     row.update(reason="awaits-replace", awaits=wr, asked=said_so,
                                why=f"waiting on the pipeline: {wr['who']} said Not ready with fixes to the grid ({fixes}) that the "
                                    "packet wasn't made from; the clues are placed again from them" + (f": {wr['note']}" if wr["note"] else ""))
-                elif (row["reason"] == "not-ready" and ship.get("incomplete") and set(row["check"]["findings"]) & PIPELINE_MENDS
-                      and all(a["kind"] == "ai" for a in said_so)):
-                    row.update(reason="question-incomplete", asked=said_so,
-                               why="waiting on the pipeline: " + row["why"] + "; and it is incomplete in a way no answer mends: "
-                                   + "; ".join(map(str, ship["incomplete"])))
             if QUEUE_OF.get(row["reason"]) == "question":
                 row["asks"] = asks_of(row["reason"], row["why"], latest.get(f"batch:{pid}") or {}, list((proofs.get(pid) or {}).values()), rule, current)
                 # what an answer won't mend: said beside the question, so nobody is surprised when it still doesn't ship

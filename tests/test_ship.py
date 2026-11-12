@@ -500,22 +500,25 @@ INCOMPLETE = {"decision": "ready", "ship": {"ok": False, "findings": [{"code": "
                                             "incomplete": ["clues with no text: A2 D19"]}}
 
 
-def test_a_not_ready_on_a_puzzle_no_answer_makes_whole_waits_on_the_pipeline(tmp_path):
-    """A question on a puzzle the ship check finds incomplete: answering it ships nothing, and the packet will be made
-    again. It is the pipeline's, with the question kept on the card; the same question on a whole puzzle is asked."""
-    said = {P + "31": [_ai_no(P + "31", ("ev:title", "Is it untitled?", "confirm"))],
-            P + "32": [_ai_no(P + "32", ("ev:title", "Is it untitled?", "confirm"))]}
-    repo, proofs = _batch(tmp_path, said, {P + "31": INCOMPLETE, P + "32": DOUBT})
-    p = plan(repo, proofs, Rule(ai_ready="both"), "b")
-    by = {r["pid"][-2:]: r for r in p["rows"]}
-    assert (by["31"]["queue"], by["31"]["reason"], by["32"]["queue"], by["32"]["reason"]) == ("broken", "question-incomplete", "question", "not-ready")
-    assert by["31"]["broken"] == [{"what": "clues with no text: A2 D19", "stage": "parts", "code": "incomplete", "detail": ""}]
-    assert by["31"]["asks"] == [] and [(a["row"], a["text"]) for a in by["31"]["asked"]] == [("ev:title", "Is it untitled?")]
-    assert by["31"]["why"].startswith("waiting on the pipeline: said Not ready by") and "no answer mends: clues with no text: A2 D19" in by["31"]["why"]
-    assert p["groups"] == [{"key": "title", "label": "the title", "puzzles": 1, "asks": 1}]   # only the question that is asked
-    rec = record(p)
-    assert rec["counts"]["held_by"] == {"question-incomplete": 1, "not-ready": 1}
-    assert next(r for r in rec["puzzles"] if r["pid"] == P + "31")["asked"][0]["text"] == "Is it untitled?"
+def test_an_ais_question_on_an_incomplete_puzzle_stays_a_question(tmp_path):
+    """It may be that the clue is not printed in the paper, which only a person can decide (the Collegian, 2026-11-12):
+    the question is asked, with what an answer won't mend said beside it."""
+    said = {P + "31": [_ai_no(P + "31", ("clue:D44", "No clue is printed for D44. Record it as not printed?", "confirm"))]}
+    repo, proofs = _batch(tmp_path, said, {P + "31": INCOMPLETE})
+    r = plan(repo, proofs, Rule(ai_ready="both"), "b")["rows"][0]
+    assert (r["queue"], r["reason"]) == ("question", "not-ready") and r["asks"][0]["row"] == "clue:D44"
+    assert r["also"] == ["clues with no text: A2 D19"] and "asked" not in r
+
+
+def test_a_clue_placed_by_sequence_needs_a_persons_ready_whatever_ai_ready_says():
+    codes = {"clue-by-sequence"}
+    for opt in ("both", "either"):
+        st = standing({}, [AI, CHECK], check_ok=True, codes=codes, rule=Rule(ai_ready=opt, hold_codes=()))
+        assert (st["status"], st["reason"]) == ("hold", "no-ready") and "clue-by-sequence needs a person's Ready" in st["why"]
+        assert standing({}, [AI, CHECK], check_ok=True, codes=set(), rule=Rule(ai_ready=opt, hold_codes=()))["status"] == "ship"
+    # a person's Ready ships it: the doubt is on the proof row, not a hold
+    assert standing({}, [HELPER], codes=codes, rule=Rule(hold_codes=()))["status"] == "ship"
+    assert standing({}, [OWNER], codes=codes, rule=Rule(hold_codes=()))["status"] == "ship"
 
 
 def test_the_proofreads_a_ready_ships_are_walked_before_the_ones_it_cannot(tmp_path):
