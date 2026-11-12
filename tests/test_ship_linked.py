@@ -430,3 +430,63 @@ def test_an_ais_ready_never_fills_an_unread_square_for_itself(tmp_path):
         repo, proofs = batch(tmp_path / str(i), {NO12: [LEDGER[NO12], said(who, SITE, {})]})
         r = row(plan(repo, proofs, either, "b"), NO12)
         assert (r["status"], r["rule"]) == ("shippable", ("people", "owner")[i]) and "filled by the edits applied" in r["why"]
+
+
+# ---- a Not ready that waits on the pipeline ----
+
+NO9 = "nyw1914-02-15-L001"
+# the owner's Not ready on No. 9 as the ledger has it (2026-11-12): 29 square numbers, two squares of shape, two key
+# letters, and "i renumbered the grid. doesn't look like the clues match and will need to be rebuilt."
+OWNER_NO9 = next(json.loads(ln) for ln in (DATA / "owner-2026-11-12.jsonl").read_text(encoding="utf-8").splitlines() if NO9 in ln)
+
+
+def test_a_not_ready_with_fixes_to_the_grid_waits_on_the_pipeline_and_does_not_lead_the_walk(tmp_path):
+    repo, proofs = batch(tmp_path, {NO9: [OWNER_NO9], NO11: [LEDGER[NO11]], NO12: [LEDGER[NO12]]}, pids=(NO9, NO11, NO12))
+    p = plan(repo, proofs, RULE, "nyw-1914-c1")
+    r = row(p, NO9)
+    assert (r["status"], r["reason"], r["queue"]) == ("held", "awaits-replace", "broken")
+    assert r["asks"] == [] and r["reviewed"]
+    b = r["broken"][0]
+    assert (b["stage"], b["code"]) == ("assembly", "awaits-replace") and "2 square(s) of the grid's shape, 32 square number(s), 2 key letter(s)" in b["what"]
+    assert [x["code"] for x in r["broken"][1:]] == ["incomplete", "incomplete"]            # and what the ship check finds, with its stages
+    # what was said, kept on the card with nothing to answer
+    assert [(a["kind"], a["text"]) for a in r["asked"]] == [("owner", "i renumbered the grid. doesn't look like the clues match and will need to be rebuilt.")]
+    assert r["why"].startswith("waiting on the pipeline: oops6498 (review site) said Not ready with fixes to the grid")
+    # nothing is held on a question, so the walk is the puzzles a person can do something about
+    walk = [x["pid"] for x in sorted(p["rows"], key=lambda x: x["order"])]
+    assert walk.index(NO9) > max(walk.index(NO11), walk.index(NO12))
+    rec = record(p)
+    assert rec["counts"]["queues"]["question"] == 0 and rec["counts"]["held_by"]["awaits-replace"] == 1
+    pub = next(x for x in rec["puzzles"] if x["pid"] == NO9)
+    assert pub["asked"][0]["who"] == "the owner" and "oops6498" not in json.dumps(pub)    # the site's copy names no account
+
+
+def test_once_the_packet_is_made_from_those_fixes_it_is_the_reviewers_to_look_at_again(tmp_path):
+    repo, proofs = batch(tmp_path, {NO9: [OWNER_NO9]}, pids=(NO9,))
+    f = proofs / NO9 / "ocr.json"
+    ocr = json.loads(f.read_text(encoding="utf-8"))
+    # as xword-ocr records what a reading was made from (linkedends.Fixes.record: the decisions, by whom and when)
+    ocr["reviewer_fixes"] = {"decisions": [{"by": OWNER_NO9["by"], "at": OWNER_NO9["at"], "answer": "notready"}]}
+    f.write_text(json.dumps(ocr), encoding="utf-8")
+    r = row(plan(repo, proofs, RULE, "b"), NO9)
+    assert (r["reason"], r["queue"]) == ("owner-hold", "question") and "asked" not in r
+    assert r["asks"][0]["text"].startswith("i renumbered the grid")
+
+
+def test_a_not_ready_with_no_fix_to_the_grid_stays_a_question(tmp_path):
+    # a helper's Not ready with a note and a clue edit: a question for the owner, as before
+    no = said(PERSON, SITE, {"clue:A12": "x"}, answer="notready", at="2026-11-12T01:00:00Z")
+    # an AI reviewer's Not ready with a key letter: an AI's fixes are not the pipeline's to read in
+    ai = said("Claude (AI proof reviewer, m)", AGENT, {"cell:r4c8": "L"}, answer="notready")
+    repo, proofs = batch(tmp_path, {NO11: [no], NO12: [ai]}, pids=(NO11, NO12))
+    p = plan(repo, proofs, RULE, "b")
+    assert [(row(p, pid)["reason"], row(p, pid)["queue"]) for pid in (NO11, NO12)] == [("not-ready", "question")] * 2
+
+
+def test_a_grid_fix_on_an_ordinary_puzzle_is_still_a_question(tmp_path):
+    from test_ship import DOUBT, P, _batch
+
+    no = said(PERSON, SITE, {"cell:r1c1": "A", "grid:r2c2": "#"}, answer="notready")
+    repo, proofs = _batch(tmp_path, {P + "31": [no]}, {P + "31": DOUBT})
+    r = plan(repo, proofs, Rule(ai_ready="both"), "b")["rows"][0]
+    assert (r["reason"], r["queue"]) == ("not-ready", "question")                     # the import applies such edits from a Ready

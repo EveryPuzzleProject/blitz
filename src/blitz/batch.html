@@ -208,9 +208,12 @@ const HELD = {'edit-unrecorded': 'an edit with no record of what it changed', 'n
               'packet-stale': 'its proof packet is out of date', 'edits-differ': "reviewers' edits differ",
               'edits-unapplied': "an edit the import can't apply yet", 'xd-exists': 'another file has its id', 'no-packet': 'no proof packet',
               'clue-typed': 'a clue typed with no OCR reading', 'sent-back': 'a reviewer sent it back to the pipeline',
+              'awaits-replace': "waiting on the pipeline: a reviewer's fixes to the grid aren't read in yet",
+              'question-incomplete': 'waiting on the pipeline: incomplete in a way no answer mends',
               'candidate-undecided': 'a candidate clue list is undecided', 'candidate-partial': "a candidate list taken into the puzzle isn't whole"};
 // ---- what the batch asks of people: each puzzle's queue, as blitz ship recorded it (ship.json: queue, asks, broken,
-// group, order, spot_check). On a snapshot the page draws these and nothing else: it never sorts a puzzle into a
+// group, order, spot_check; asked: what was said on a puzzle that waits on the pipeline; also: what a Ready or an
+// answer wouldn't mend). On a snapshot the page draws these and nothing else: it never sorts a puzzle into a
 // queue itself. No record (or one from before the queues): "not recorded".
 const QUEUE = {question: ['Held on a question', 'p-glance', 'var(--glance)', 'a person can answer it on the proof page, and then it can ship'],
                unchecked: ['Not checked yet', 'p-rev', 'var(--rev)', "nobody's Ready counts for it yet: it wants a whole proofread"],
@@ -256,6 +259,13 @@ function asksHtmlQ(p, x, rows) {
     ${head.map(one).join('')}${rest.length ? `<details><summary>${rest.length} more</summary>${rest.map(one).join('')}</details>` : ''}
     ${(x.also || []).length ? `<div class="also" title="the ship check's finding: an answer here won't mend it">Also incomplete, which an answer won't mend: ${x.also.map(esc).join('; ')}</div>` : ''}</div>`;
 }
+// what was said on a puzzle that waits on the pipeline (the record's asked): shown, with nothing to answer
+function askedHtmlQ(p, x, rows) {
+  if (!(x.asked || []).length) return '';
+  return `<div class="q"><div class="who"><b>Waiting on the pipeline: nothing to answer here yet.</b> What was said, kept for when it comes back:</div>`
+    + x.asked.map(a => `<div class="qa"><a class="rowk" href="${proofUrl(p.pid, a.row, rows)}"${TAB} title="opens the proof page at this row">${esc(rowName(a.row))} →</a> `
+      + `${esc(a.text)} <span class="who">${esc(a.who + (a.at ? ', ' + a.at : ''))}</span></div>`).join('') + `</div>`;
+}
 function brokenHtmlQ(x) {
   return `<div class="block">${x.broken.map(b => `<div><b>${esc(b.what)}</b> <span class="st">· points to ${b.stage ? esc(STAGENAME[b.stage] || b.stage) : 'a stage not recorded'}`
     + ` · ${esc(b.code)}${b.detail ? ': ' + esc(b.detail) : ''}</span></div>`).join('')}
@@ -271,8 +281,10 @@ function standsHtmlQ(p, x, q) {
   // a question's askers are named with their questions: here, only what anyone else said
   const said = saidQ(x, s => q !== 'question' || s.answer === 'ready');
   if (q === 'question' && !said) return '';
+  const wont = q === 'unchecked' && (x.also || []).length
+    ? `<br><span class="meta" style="color:var(--person)" title="the ship check's finding">A Ready won't ship it yet, incomplete: ${x.also.map(esc).join('; ')}</span>` : '';
   return `<div class="shipline ${q === 'broken' ? 'held' : esc(q)}" title="${esc(x.reason || x.rule || '')}: blitz ship, ${esc((SHIP.at || '').slice(0, 10))}"><b>${head}</b>`
-    + (why ? `<br><span class="meta">${why}</span>` : '') + (said ? `<br><span class="meta">${x.reviewed ? 'Reviewed by a person. ' : ''}${said}</span>` : '') + `</div>`;
+    + (why ? `<br><span class="meta">${why}</span>` : '') + wont + (said ? `<br><span class="meta">${x.reviewed ? 'Reviewed by a person. ' : ''}${said}</span>` : '') + `</div>`;
 }
 const U = u => u && DATA ? new URL(u, new URL(DATA, location.href)).href : u;
 const FILES = () => params.get('files') || SITE.filesBase;  // the site's bucket (?files=: a local copy of its layout)
@@ -294,8 +306,10 @@ async function load() {
   SHIP = DATA ? await fetch(U('ship.json'), {cache: 'no-cache'}).then(r => r.ok ? r.json() : null).catch(() => null) : null;
   SHIPBY = Object.fromEntries(((SHIP || {}).puzzles || []).map(x => [x.pid, x]));
   await liveVotes();
-  // a snapshot opens on the puzzles held on a question; with no record of the queues, on all of them
-  if (DATA) filter = !recorded() ? 'all' : [...QORDER, 'all', 'spot', 'none'].includes(params.get('f')) ? params.get('f') : 'question';
+  // a snapshot opens on the puzzles held on a question (with none, on the ones not checked yet, when there are any);
+  // with no record of the queues, on all of them
+  const opens = () => !SHIP.counts.queues.question && SHIP.counts.queues.unchecked ? 'unchecked' : 'question';
+  if (DATA) filter = !recorded() ? 'all' : [...QORDER, 'all', 'spot', 'none'].includes(params.get('f')) ? params.get('f') : opens();
   draw();
   $('#tools').hidden = !!DATA;
   if (!DATA) { drawTools(); drawRerun(); }
@@ -350,9 +364,14 @@ async function landing() {
     const first = qs[0] && ((shipOf(qs[0]).asks || [])[0] || {}).row;
     const start = qs.length ? `../?p=${encodeURIComponent(qs[0].pid)}${first ? '&k=' + encodeURIComponent(first) : ''}&walk=${encodeURIComponent(QUEUE.question[0])}&pids=${qs.map(p => p.pid).join(',')}`
       + '&back=' + encodeURIComponent(location.pathname + list) : '';
+    // no question to answer: the walk is the puzzles not checked yet, in the recorded order (the ones a Ready ships first)
+    const us = qs.length ? [] : d.puzzles.filter(p => queueOf(p) === 'unchecked').sort((x, y) => ordOf(x) - ordOf(y));
+    const proofread = us.length ? `../?p=${encodeURIComponent(us[0].pid)}&walk=${encodeURIComponent(QUEUE.unchecked[0])}&pids=${us.map(p => p.pid).join(',')}`
+      + '&back=' + encodeURIComponent(location.pathname + list) : '';
+    const waiting = d.puzzles.filter(p => ['awaits-replace', 'question-incomplete'].includes((shipOf(p) || {}).reason)).length;
     return `<div class="bcard"><div><div class="t"><a class="tl" href="${list}">${esc(b.title || b.name)}</a></div>
-      <div class="meta"><b>${qs.length} puzzles held on a question you can answer</b> · ${n('shipped')} shipped · ${all} in all · a question takes a few minutes; stop whenever you like</div></div>
-      <span>${start ? `<a class="go" href="${start}">Start with the questions →</a> ` : ''}<a href="${list}">See the list</a></span>
+      <div class="meta"><b>${qs.length} puzzles held on a question you can answer</b>${us.length ? ` · <b>${us.length} to proofread</b>` : ''}${waiting ? ` · ${waiting} waiting on the pipeline, nothing to answer` : ''} · ${n('shipped')} shipped · ${all} in all · a question takes a few minutes; stop whenever you like</div></div>
+      <span>${start ? `<a class="go" href="${start}">Start with the questions →</a> ` : proofread ? `<a class="go" href="${proofread}">Start proofreading →</a> ` : ''}<a href="${list}">See the list</a></span>
       <div class="bar">${QORDER.map(q => `<span style="width:${100 * n(q) / all}%;background:${QUEUE[q][2]}${q === 'shipped' ? ';opacity:.45' : ''}"></span>`).join('')}</div>
       <div class="pills">${QORDER.filter(n).map(q => `<span class="pill ${QUEUE[q][1]}">${QUEUE[q][0]} ${n(q)}</span>`).join('')}</div></div>`;
   };
@@ -840,7 +859,7 @@ function drawQueues() {
     return `${head}<div class="row withpage" id="${esc(p.pid)}">${picHtml(p)}
       <div>${p.feature ? `<div class="feat">${esc(p.feature)}</div>` : ''}<div class="t">${p.title ? esc(p.title) : '<span class="none">no title found</span>'}</div>
         <div class="meta">${esc(p.date)} · ${p.grid.length}×${(p.grid[0] || '').length}${p.byline ? ' · ' + esc(p.byline) : ''}${p.cryptic ? ' · cryptic' : ''}${rec ? '' : ' · triage: ' + esc(p.choice === 'drop' ? 'not a crossword' : p.triage || 'not recorded')}</div>
-        ${q === 'question' && (x.asks || []).length ? asksHtmlQ(p, x, rows) : ''}${q === 'broken' ? brokenHtmlQ(x) : ''}${q === 'set-aside' ? asideHtml(p) : ''}
+        ${q === 'question' && (x.asks || []).length ? asksHtmlQ(p, x, rows) : ''}${q === 'broken' ? askedHtmlQ(p, x, rows) + brokenHtmlQ(x) : ''}${q === 'set-aside' ? asideHtml(p) : ''}
         ${rec ? standsHtmlQ(p, x, q) + candHtmlQ(p, x) : `<div class="shipline none"><b>Where it stands: not recorded</b></div>`}${doubts}</div>
       <div class="side"><span class="pill ${k[1]}" title="${esc(k[3] || '')}">${k[0]}</span>${x && x.spot_check ? '<span class="pill p-spot" title="in the maintainer\'s spot-check sample">Spot-check</span>' : ''}
         <span class="state">${tally(p) || (WALKED.includes(q) && started(p.pid) ? '<b class="started">you started this</b>' : '')}</span>${side}</div></div>`;
