@@ -1022,7 +1022,9 @@ def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict |
                                             "printed answers?" + (f" ({'The owner' if p['kind'] == 'owner' else 'A helper'} chose "
                                             f"\"{p['decision']}\" {p['why']}, so it doesn't count yet: it counts in a Ready on this version.)" if p else "")})
         if st["status"] != "ship":
-            if st["reason"] == "no-ready" and t.get("decision") != "ready":
+            # nobody's Ready counts for it (none given, or all that was said was on an earlier version) and triage says
+            # it needs work: the pipeline's, not a proofread to ask of a person, whoever looked at an earlier version
+            if st["reason"] in ("no-ready", "proof-stale") and t.get("decision") != "ready":
                 row.update(reason="needs-work", why="needs work: " + ("; ".join(
                     sorted({b.get("code") or b.get("part") or "" for b in t.get("blocking") or [] if isinstance(b, dict)} - {""})) or "triage's defects") + "; " + st["why"])
             sb = sent_back(list((proofs.get(pid) or {}).values()), rule, current) if row["reason"] == "not-ready" else None

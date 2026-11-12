@@ -74,8 +74,12 @@ A puzzle the rule passes can still be held by the import, each with its own reas
 | `candidate-undecided` | the packet records a candidate clue list and no reviewer who said Ready has decided it (next section but one). A question, not a breakage |
 | `candidate-partial` | a candidate was taken into the puzzle (as the clues, or as a second set) and doesn't cover its slots |
 
-The rule's own reasons: `owner-hold`, `not-ready`, `no-ready`, `needs-work` (no Ready, and
-triage's disposition isn't ready), and each hold code.
+The rule's own reasons: `owner-hold`, `not-ready`, `no-ready`, `needs-work` (no Ready that
+counts, and triage's disposition isn't ready), and each hold code. `needs-work` takes the place of
+`proof-stale` as it does of `no-ready` (since 2026-11-12): a puzzle whose new version triage says
+needs work is the pipeline's (broken, with the stage triage's blocking parts point to), whoever
+reviewed an earlier version; before, it showed under "not checked yet", which asks a person to
+proofread it. What was said stays in `said`, marked `stale`, and in the reason.
 
 ## What it writes (publication repo)
 

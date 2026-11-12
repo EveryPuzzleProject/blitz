@@ -346,3 +346,20 @@ def test_only_an_unread_square_with_its_letter_is_made_whole_by_an_edit():
     assert filled_by(ship, {"cell:r1c1": "A", "cell:r2c2": "b", "clue:A5": "Typed"}) == ["2 square(s) unsolved"]  # never the clue
     assert filled_by(ship, {"cell:r1c1": "A"}) == [] and filled_by(ship, {"cell:r1c1": "A", "cell:r2c2": "_"}) == []
     assert filled_by({"findings": [{"code": "grid-unsolved"}], "incomplete": ["2 square(s) unsolved"]}, {"cell:r1c1": "A"}) == []  # squares not named
+
+
+def test_a_puzzle_triage_says_needs_work_is_broken_whoever_reviewed_an_earlier_version(tmp_path):
+    # No. 7: the owner's Ready was on an earlier version, and triage says this one needs work (a block of clues unread).
+    # It is the pipeline's, with the stage it points to: not "not checked yet", which asks a person to proofread it
+    stale = said("Claude (AI proof reviewer, m)", AGENT, {}, answer="notready")
+    stale["id"], stale["proof"]["review"]["xd"] = f"proof:{NO11}", "an-earlier-version"
+    repo, proofs = batch(tmp_path, {NO7: [LEDGER[NO7]], NO11: [stale]})
+    p = plan(repo, proofs, RULE, "b")
+    r = row(p, NO7)
+    assert (r["status"], r["reason"], r["queue"]) == ("held", "needs-work", "broken")
+    assert r["why"].startswith("needs work: clues-unread; ") and r["why"].endswith("Ready was on an earlier version of the puzzle: look again")
+    assert [(b["code"], b["stage"]) for b in r["broken"]] == [("clues-unread", "parts")] and r["asks"] == []
+    assert r["reviewed"] and r["said"][0]["stale"]                                              # still said, and shown as given earlier
+    # No. 11: all that was said is stale too, but triage says it is ready for review: that one is a proofread to ask for
+    r = row(p, NO11)
+    assert (r["reason"], r["queue"]) == ("proof-stale", "unchecked")
