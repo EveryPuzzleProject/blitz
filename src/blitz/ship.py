@@ -1672,9 +1672,15 @@ def edit_records(packet_xd: str, applied: str, apply: list[dict], rule: Rule = R
     declined = {}  # (key, printed, meant) -> (the owner's record, how)
     edit_key = lambda key: f"meta:{_field(key)}" if _field(key) else key  # the edit a misprint's key sits beside
     for r in apply:
-        if kind_of(r, rule) != "owner" or _name(r) in rule.ignore:
-            continue
         review = (r.get("proof") or {}).get("review") or {}
+        if kind_of(r, rule) != "owner" or _name(r) in rule.ignore:
+            for d in review.get("declines") or [] if _name(r) not in rule.ignore else []:  # only the owner declines: said, not taken
+                if isinstance(d, dict):
+                    proposals.append({"key": str(d.get("key", "")), "printed": str(d.get("printed", "")), "meant": str(d.get("meant", "")), **who(r),
+                                      "what": "decline", "status": "not taken",
+                                      "says": f"A decline of the mark on {str(d.get('key', '')).partition(':')[2]} (“{d.get('printed', '')}”): "
+                                              "not taken, only the owner declines a mark."})
+            continue
         mine = {(str(t.get("key", "")), str(t.get("printed", "")).strip()) for t in review.get("typos") or [] if isinstance(t, dict)}
         for d in review.get("declines") or []:
             if isinstance(d, dict) and d.get("key"):
@@ -1687,7 +1693,8 @@ def edit_records(packet_xd: str, applied: str, apply: list[dict], rule: Rule = R
     declined_keys = set()
 
     def decline_says(t3, how):
-        return (f"{_label(t3[0], pairs)}: marked as printed “{t3[1]}”, meant “{t3[2]}”: declined by the owner"
+        what = f"The key letter at {t3[0][5:]}" if t3[0].startswith("cell:") else _label(t3[0], pairs)
+        return (f"{what}: marked as printed “{t3[1]}”, meant “{t3[2]}”: declined by the owner"
                 + (": their edit on the row keeps the printed words" if how == "edit" else ": not a misprint") + ".")
     for t in list(typos):
         hit = declined.get(t[:3])
@@ -2549,8 +2556,17 @@ def export(repo: Path, dest: Path, pub: str, scans: Path | None = None, shelf: s
         if out_code:
             held.append((r["xdid"], NOT_EXPORTED[out_code]))
             continue
-        gid = next((o["gxd_id"] for o in _tsv(repo / "gxd-exports.tsv") if o["xdid"] == r["xdid"] and o.get("gxd_id")), r["xdid"])
         no = owner_declines(repo, r["pid"], rule)  # declined by the owner after it shipped: not made, not listed
+        # a key letter corrected in the shipped xd that the owner has since declined: the xd itself is wrong now, so the
+        # puzzle is held back until blitz ship --write ships it again with the letter as printed
+        undone = [e for e in (r.get("edits") or {}).get("records") or [] if e.get("class") == "key correction" and e.get("misprint")
+                  and (e["key"], e["misprint"].get("printed"), e["misprint"].get("meant")) in no]
+        if undone:
+            held.append((r["xdid"], "key-declined: the owner has declined the key correction(s) "
+                         + ", ".join(f"{e['key'][5:]} {e['misprint']['printed']}->{e['misprint']['meant']}" for e in undone)
+                         + " since it shipped: re-ship it first (blitz ship --write), then export"))
+            continue
+        gid = next((o["gxd_id"] for o in _tsv(repo / "gxd-exports.tsv") if o["xdid"] == r["xdid"] and o.get("gxd_id")), r["xdid"])
         text, fixed_notes, fixed = corrected(text, [c for c in r.get("corrections") or [] if (c.get("key"), c.get("printed"), c.get("meant")) not in no])
         corrections += [{"xdid": r["xdid"], **c} for c in fixed]
         xd = to_gxd(text, [p["text"] for p in r.get("printed") or [] if p["label"] in labels] + list(r.get("notes") or []) + fixed_notes, feature_as)

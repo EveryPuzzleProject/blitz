@@ -203,3 +203,37 @@ def test_declines_come_through_from_the_site():
                                                                       "declines": [{"key": "clue:A3", "printed": "Cockail", "meant": "Cocktail"}]}}}},
                      [], {"games1978-03-01-L030"})
     assert recs[0]["proof"]["review"]["declines"][0]["key"] == "clue:A3"
+
+
+def test_a_key_correction_declined_after_shipping_holds_the_puzzle_back_from_the_export(tmp_path):
+    import json
+    from blitz.ship import export, plan, write
+    g = site(GUEST, {"cell:r2c2": "X"}, at=EARLY)
+    g["proof"]["review"]["key_corrections"] = [{"key": "cell:r2c2", "printed": "D", "corrected": "X", "edited": True}]
+    repo, proofs, p = shipped(tmp_path, g, owner({}, at=LATE))
+    write(repo, p, "2026-11-13")
+    assert "\nCXE\n" in (repo / "xd" / "games1978-03-01.xd").read_text(encoding="utf-8")
+    pid = p["rows"][0]["pid"]
+    later = _declines(owner({}, at="2026-11-14T00:00:00Z"), {"key": "cell:r2c2", "printed": "D", "meant": "X"})
+    later["id"], later["proof"]["review"]["xd"] = "proof:" + pid, "fp"          # the owner's later Ready, on this version
+    with (repo / "fixes" / "decisions.jsonl").open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(later) + "\n")
+    res = export(repo, tmp_path / "out", "games")
+    held = (tmp_path / "out" / "held-back.tsv").read_text(encoding="utf-8")
+    assert "games1978-03-01\tkey-declined:" in held and "r2c2 D->X" in held and "re-ship it first" in held
+    assert not list((tmp_path / "out").rglob("*.xd"))
+    # re-shipped: the letter as printed, and the export takes it
+    p = plan(repo, proofs, __import__("test_ship_edits").BOTH, "b")
+    assert p["rows"][0]["status"] == "shippable" and "\nCDE\n" in p["passing"][pid]["text"]
+    assert p["passing"][pid]["proposals"][0]["says"].startswith("The key letter at r2c2: marked as printed")
+    write(repo, p, "2026-11-14")
+    export(repo, tmp_path / "out2", "games")
+    assert "key-declined" not in (tmp_path / "out2" / "held-back.tsv").read_text(encoding="utf-8")
+
+
+def test_a_guests_decline_is_shown_not_taken(tmp_path):
+    _, _, p = shipped(tmp_path, owner({}, MARK, at=EARLY), _declines(site(GUEST, {}, at=LATE), *MARK, by=OWNER), xd=COCK)
+    x = ships(p)
+    assert [c["by"] for c in x["corrections"]] == [OWNER]                              # the owner's mark stands
+    (q,) = x["proposals"]
+    assert (q["what"], q["status"], q["by"]) == ("decline", "not taken", GUEST) and "only the owner declines" in q["says"]

@@ -315,7 +315,7 @@ an edit to the marked row by the marker, "another's edit" one by another reviewe
 | helper, guest (`marks: owner`) | valid | the row check; a proposal waiting for the owner, never applied at the export | the other's edit ships as it is, with its own records; a proposal waiting for the owner | a proposal waiting for the owner; nothing changes (also when its words aren't in the row) |
 | helper, guest (either) | malformed | dropped, shown "not taken"; when it still names a clue or header and printed words: the edit stands only if it keeps them once, else `misprint-edit` | dropped, shown "not taken"; the other's edit ships as it is | dropped, shown "not taken"; nothing changes |
 | ignored account | either | nothing (its Ready doesn't count, so its edits aren't applied) | nothing | nothing |
-| anyone's, **declined by the owner** | valid | not taken, whatever else: shown "declined by the owner"; never corrected at the export, never in `corrections.tsv`; the marker's own edit is classed on its own | as the left; the owner's own edit on the row keeping the printed words once declines another person's mark by itself (not an AI's: that one is proposed, as above) | not taken, as the left |
+| anyone's, **declined by the owner** | valid | not taken, whatever else: shown "declined by the owner"; never corrected at the export, never in `corrections.tsv`; the marker's own edit is classed on its own | as the left; the owner's own edit on the row keeping the printed words once declines another person's mark by itself, also a mark made after the edit, which the owner may not have seen (their edit says what the row is; not an AI's mark: that one is proposed, as above) | not taken, as the left |
 
 A key letter's mark (`key_corrections`, or a `typos` entry for a square): the owner's or the AI's, and under
 `marks: people` a helper's or a guest's, is corrected here with its note (case 3), or held `edit-unrecorded` when it
@@ -336,7 +336,10 @@ letter as the key printed it (the marker's edit to the letter meant goes back, r
 the letter meant, the printed letter is put back with a record of class `decision`, the owner's). An explicit decline
 counts on an AI reviewer's mark too. Ship reads the declines in the Readys that ship the puzzle; `ship-export` also
 reads each of the owner's accounts' latest proof record in the ledger (`ship.owner_declines`), so a decline given after
-a puzzle shipped holds at the export before the record is made again. `tests/test_ship_whose.py` runs these cells,
+a puzzle shipped holds at the export before the record is made again: a clue's or a header's correction is simply not
+made; a key letter, already corrected in the shipped xd with its note, holds the puzzle back from the export
+(`held-back.tsv`, `key-declined: … re-ship it first`) until `blitz ship --write` ships it again with the letter as
+printed. A decline in a helper's or a guest's review does nothing, and is shown "not taken" with the other untaken input. `tests/test_ship_whose.py` runs these cells,
 with the cold review's probe for a guest and for a helper.
 
 **Two marks on one row or square that say different things** (since 2026-11-13; same words from several reviewers
