@@ -130,7 +130,8 @@ def test_site_import_combines_helpers(monkeypatch):
             {"xdid": "p1", "user_id": uid["b"], "verdict": "needs-work", "note": "A1"}],
         "reports?select=*&order=at": [{"xdid": "p1", "target": "clue:D2", "user_id": uid["a"], "text": "Long tune."}],
         "proofs?select=*&order=at": [{"xdid": "p1", "user_id": uid["b"], "who": "Bo", "decision": "ready", "at": "t",
-                                      "review": {"edits": {"clue:A1": "Feline."}, "status": {"A": {"v": "ok"}}}}],
+                                      "review": {"edits": {"clue:A1": "Feline.", "line:B2": "One.\nTwo."}, "status": {"A": {"v": "ok"}},
+                                                 "typos": [{"key": "meta:title", "printed": "No. 5", "meant": "No. 7"}]}}],
         "restores?select=*&order=at": [],  # dropped puzzles a helper put back (schema-7)
     }
     # the key-squares page: two guests who gave no name are told apart
@@ -151,7 +152,9 @@ def test_site_import_combines_helpers(monkeypatch):
     assert p["items"] == {"clue:A1": "reject"} and p["notes"]["clue:A1"] == "a helper: scan says Feline."
     assert p["verdict"] == "needs-work" and p["reports"] == {"clue:D2": "Ann: Long tune."}
     assert p["by"]["Ann"] == {"clue:A1": "accept", "verdict": "looks-right"}
-    assert p["proofs"]["Bo"]["edits"] == {"clue:A1": "Feline."} and p["proofs"]["Bo"]["decision"] == "ready"
+    assert p["proofs"]["Bo"]["edits"] == {"clue:A1": "Feline.", "line:B2": "One.\nTwo."} and p["proofs"]["Bo"]["decision"] == "ready"
+    assert p["proofs"]["Bo"]["typos"] == [{"key": "meta:title", "printed": "No. 5", "meant": "No. 7"}]  # a person's misprint mark comes in too
+    assert "key_corrections" not in p["proofs"]["Bo"]
 
 
 # Moved from xword-ocr's test_triage.py when xword-ocr stopped doing review (2026-10-09).

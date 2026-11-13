@@ -241,7 +241,9 @@ def test_edits_that_cannot_be_applied_hold_the_puzzle_and_say_why():
     assert "where the number was read from" in cant({"line:B15": "No. 12"})[0] and "meta:" in cant({"line:B15": "No. 12"})[0]
     assert "isn't a line kept or dropped" in cant({"keep:B15": False})[0]
     assert "no such printed line" in cant({"line:B99": "x"})[0]
-    assert "isn't one line of text" in cant({"line:B17": "a\nb"})[0]
+    assert cant({"line:B17": "a\nb"}) == []  # a paragraph break in a printed line: each part a line of the block
+    assert "not an empty line" in cant({"line:B17": "a\n\nb"})[0]
+    assert "isn't one line of text" in cant({"clue:A6": "a\nb"})[0]
     assert "an empty line" in cant({"line:B17": " "})[0]
     assert "the grid has no such square" in cant({"cell:r40c1": "A"})[0]
     assert "neither one letter nor a kind of square" in cant({"cell:r2c7": "AB"})[0]            # no rebus squares in 1914

@@ -430,7 +430,10 @@ def from_site(decisions: dict, have: list[dict], pids: set) -> list[dict]:
             if o.get("answer") == p["decision"] and o.get("at") == p.get("at", ""):
                 continue
             review = {"edits": p.get("edits") or {}, "comments": p.get("comments") or [], "status": p.get("parts") or {},
-                      "note": p.get("note", ""), "xd": p.get("xd", ""), **({"sendback": p["sendback"]} if p.get("sendback") else {})}
+                      "note": p.get("note", ""), "xd": p.get("xd", ""), **({"sendback": p["sendback"]} if p.get("sendback") else {}),
+                      # what the reviewer marked as printed wrong (the proof page's control): a clue's or a header's
+                      # misprint, a misprinted key letter; the shape the AI reviewer's review has them in
+                      **({k: p[k] for k in ("typos", "key_corrections") if p.get(k)})}
             out.append({"id": f"proof:{pid}", "answer": p["decision"], "note": (p.get("note") or "").strip(), "fix": "", "by": by,
                         "at": p.get("at", ""), "via": SITE, "proof": {"xdid": pid, "review": review, "at": p.get("at", "")}})
     return out
@@ -723,6 +726,42 @@ def printed_lines(ocr: dict, review: dict, edits: dict | None = None) -> list[di
              "keep": bool(edits.get(f"keep:B{ln.get('n')}", ln.get("keep", False)))} for ln in (ocr or {}).get("lines") or []]
 
 
+def block_lines(lines) -> list[str]:
+    """The lines of the xd's "Printed with puzzle:" block for the packet's printed lines (printed_lines()): the kept
+    ones in the packet's order, a line break inside one's text (a paragraph break a reviewer gave it) a line of
+    the block."""
+    return [t for ln in lines if ln["keep"] for t in ln["text"].split("\n")]
+
+
+def printed_place(xd: str, ocr: dict, review: dict) -> dict | None:
+    """Where the packet's printed lines land in its xd, and what the import does with a reviewer's keep / discard
+    or text edit to one: recorded per puzzle in the ship record (`printed`), so the proof page can show what the
+    notes would be with a review's edits without working any of this out. None for a packet with no printed lines.
+
+    {head: the block's heading in the xd's notes, lines: the numbers (B<n>) of the packet lines the block is made
+    of, in its order, or None when the xd's block is not the packet's kept lines (then nothing says where an edit
+    lands, and none is applied), edits: "applied" (a linked-ends puzzle: the block is written again from the kept
+    lines, apply_linked) or "held" (any other puzzle: a Ready carrying a keep: or line: edit holds it as
+    edits-unapplied), fixed: the lines a header was read from (not kept or dropped), says: that, in words}."""
+    if not xd or not (ocr or {}).get("lines"):
+        return None
+    lines = printed_lines(ocr, review or {})
+    after = "\n\n\n".join(xd.replace("\r\n", "\n").rstrip("\n").split("\n\n\n")[2:]).split("\n")
+    at = next((i for i, ln in enumerate(after) if ln == PRINTED_HEAD), None)
+    block = after[at + 1:_block(after, at)] if at is not None else []
+    agrees = block == block_lines(lines)
+    applied = linked(xd)
+    fixed = sorted({n for n in ((ocr or {}).get("evidence") or {}).values() if isinstance(n, int)})
+    says = ("the xd's printed lines are not the packet's kept lines, so nothing says where an edit to one lands: none is applied"
+            if not agrees else
+            "the import writes this block again from the kept lines, in the packet's order, with each line's text as edited"
+            if applied else
+            "the import doesn't apply a keep, discard or text edit of a printed line to this kind of puzzle yet: a Ready "
+            "carrying one holds the puzzle (edits-unapplied), and the notes stay as the packet has them")
+    return {"head": PRINTED_HEAD, "lines": [ln["n"] for ln in lines if ln["keep"]] if agrees else None,
+            "edits": "applied" if applied and agrees else "held", "fixed": fixed, "says": says}
+
+
 def apply_linked(text: str, edits: dict, ocr: dict | None = None, review: dict | None = None) -> tuple[str, list[str], list[str]]:
     """A linked-ends xd with the reviewers' edits applied: (text, the keys applied, what can't be applied safely,
     in words). Any of the last holds the puzzle (edits-unapplied): nothing is applied in part.
@@ -748,8 +787,10 @@ def apply_linked(text: str, edits: dict, ocr: dict | None = None, review: dict |
     for k, v in edits.items():
         if not LINKED_APPLIED.fullmatch(k):
             cant.append(f"{k}: not a kind of edit the import applies to a linked-ends puzzle")
-        elif k.startswith(("clue:", "meta:", "line:")) and (not isinstance(v, str) or "\n" in v):
+        elif k.startswith(("clue:", "meta:")) and (not isinstance(v, str) or "\n" in v):
             cant.append(f"{k}: its value isn't one line of text")
+        elif k.startswith("line:") and (not isinstance(v, str) or any(not t.strip() for t in v.split("\n")[1:])):
+            cant.append(f"{k}: a printed line's text can hold line breaks, not an empty line (the xd's block ends at one)")
     # the squares: kinds and letters
     squares, bad = _square_edits(edits, cells)
     cant += bad
@@ -838,7 +879,7 @@ def apply_linked(text: str, edits: dict, ocr: dict | None = None, review: dict |
                 evidence.setdefault(n, []).append(f)
         at = next((i for i, ln in enumerate(after) if ln == PRINTED_HEAD), None)
         block = after[at + 1:_block(after, at)] if at is not None else []
-        if block != [ln["text"] for ln in have.values() if ln["keep"]]:
+        if block != block_lines(have.values()):
             cant.append(f"{', '.join(lines[:4])}: the xd's printed lines aren't the packet's kept lines, so the edit has no place in it")
         heads = {h.partition(": ")[0]: h.partition(": ")[2].strip() for h in [*head]}
         for k in lines:
@@ -857,7 +898,7 @@ def apply_linked(text: str, edits: dict, ocr: dict | None = None, review: dict |
             else:
                 done.append(k)
         if not cant:
-            new = [ln["text"] for ln in printed_lines(ocr or {}, review or {}, edits) if ln["keep"]]
+            new = block_lines(printed_lines(ocr or {}, review or {}, edits))
             if at is not None and new:
                 after[at + 1:_block(after, at)] = new
             elif at is not None:  # nothing kept any more: the block goes, with the blank line that set it off
@@ -1262,6 +1303,7 @@ def counts(rows: list[dict]) -> dict:
 NOTES_HEAD = "Answer key corrected:"  # the xd notes block ship writes: one line per corrected key letter
 EDIT_STAGE = "proof review"
 READING, UNCLASSED, DECISION, KEY_FIX = "reading", "unclassed", "decision", "key correction"  # an applied edit's class
+MARKED = "the reviewer's own misprint entry on this row: the misprint is held back as a correction, the rest of the edit is the reading"
 _DIR = {"A": "Across", "D": "Down"}
 # a misprint's key: a clue, a key square, or a header under either name a reviewer uses for it (the proof
 # page's evidence row ev:title / ev:byline / ev:number, or the edit's meta:title)
@@ -1422,7 +1464,7 @@ def edit_records(packet_xd: str, applied: str, apply: list[dict], rule: Rule = R
                 key_said.setdefault(t3[0], {"text": str(t.get("text") or "").strip(), "crop": t.get("crop") or ""})
     who = lambda r: {"by": r.get("by", ""), "kind": kind_of(r, rule), "via": r.get("via", ""), "at": r.get("at", "")}
     whole = lambda key, printed, meant: bool(printed and meant and printed != meant and _TYPO_KEY.fullmatch(key))
-    records, missing, have, more_edits, back, key_fix, said = [], [], {}, {}, set(), {}, {}
+    records, missing, have, more_edits, back, key_fix, said, marked = [], [], {}, {}, set(), {}, {}, set()
     edit_key = lambda key: f"meta:{_field(key)}" if _field(key) else key  # the edit a misprint's key sits beside
     # the candidate lists a reviewer took in (as the clues, or as a second set): their decision wrote those lines
     lists = [k for k in owner if k.startswith("candidate:") and (value[k] == "clues" or str(value[k]).startswith("second:"))]
@@ -1445,6 +1487,8 @@ def edit_records(packet_xd: str, applied: str, apply: list[dict], rule: Rule = R
         elif edit_key(key) in owner:  # case 2 on a clue or header the reviewer also edited
             ek = edit_key(key)
             v = more_edits.get(ek, value[ek]) or ""
+            if whole(key, printed, meant) and owner[ek] is r:
+                marked.add(ek)  # the same reviewer said which part of the row is the print's mistake
             if not whole(key, printed, meant):
                 missing.append(f"{key}: an edit beside a misprint entry that doesn't say what was printed and what was meant")
             elif _count(v, printed):
@@ -1476,10 +1520,16 @@ def edit_records(packet_xd: str, applied: str, apply: list[dict], rule: Rule = R
         if before == after:
             return  # an edit that changes nothing is no edit
         why = _why(r, more.get("decided_by") or k) or (_why(r, "line:" + k[5:]) if k.startswith("keep:") else "")
+        # An edit with no comment on a row where a person named the misprint themselves (typos, from the proof page's
+        # "printed this way, but wrong") is classed by that entry: they said which words are the print's mistake
+        # (held back as a correction), so what else their edit changes is the reading. An AI reviewer's edit is
+        # classed by its comment, as before; with neither, nothing says which it is, and it is unclassed.
+        by_mark = not why and k in marked and kind_of(r, rule) in ("owner", "helper")
         cls = (DECISION if what in ("decision", "printed line kept") or more.get("decided_by") else KEY_FIX if k in key_fix
-               else UNCLASSED if k in back or not why else READING)
+               else READING if by_mark else UNCLASSED if k in back or not why else READING)
         have[k] = {"key": k, "what": what, "class": cls, "before": before, "after": after, **who(r), "stage": EDIT_STAGE,
-                   **({"why": why} if why else {}), "evidence": evidence(k), **more,
+                   **({"why": why} if why else {}), **({"classed_by": MARKED} if by_mark and cls == READING else {}),
+                   "evidence": evidence(k), **more,
                    **({"beside": "a correction of the print, not applied: see corrections"} if k in back else {})}
         records.append(have[k])
 
@@ -1555,8 +1605,8 @@ def edit_records(packet_xd: str, applied: str, apply: list[dict], rule: Rule = R
         if moved and not any(h["what"] in ("square number", "grid square") for h in records):
             missing.append(f"the clue lines of {' '.join(moved[:6])} changed their labels with no edit to a square's number or kind recorded")
         block = lambda t: next((b.strip("\n").split("\n")[1:] for b in t.replace("\r\n", "\n").split("\n\n") if b.strip("\n").startswith(PRINTED_HEAD)), [])
-        if block(packet_xd) != block(text) and block(text) != [ln["text"] for ln in printed_lines(
-                ocr, packet_review or {}, {k: v for k, v in value.items() if k.startswith(("line:", "keep:"))}) if ln["keep"]]:
+        if block(packet_xd) != block(text) and block(text) != block_lines(printed_lines(
+                ocr, packet_review or {}, {k: v for k, v in value.items() if k.startswith(("line:", "keep:"))})):
             missing.append("the printed lines ship as something other than the packet's kept lines with the edits recorded for them")
     for k, what, before, after in diffs:
         if k.startswith("cell:") and k not in have and "grid:" + k[5:] in have:
@@ -1870,13 +1920,82 @@ def record(p: dict, public: bool = True) -> dict:
             "at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "counts": counts(p["rows"]),
             "groups": p["groups"], "spot": {"one_in": SPOT_ONE_IN, "of": "puzzles shipped on someone else's word than the owner's",
                                             "by": "sha1 of the puzzle's id"},
-            "puzzles": [{**row, **{k: r[k] for k in ("notes", "corrections") if r.get(k)}} for row, r in zip(rows, p["rows"])]}
+            "puzzles": [{**row, **{k: r[k] for k in ("notes", "corrections") if r.get(k)}, **_recorded_more(p, r)} for row, r in zip(rows, p["rows"])]}
+
+
+def _recorded_more(p: dict, r: dict) -> dict:
+    """What the record says beyond the rule's answer, for the proof page: where the packet's printed lines land in
+    its xd (printed_place), and for a puzzle that passes, the fingerprint of the xd as it will ship (as_shipped:
+    the text itself is in its own file beside the record, AS_SHIPPED)."""
+    pk = (p.get("packs") or {}).get(r["pid"]) or {}
+    place = printed_place(pk.get("xd", ""), pk.get("ocr") or {}, pk.get("review") or {})
+    x = (p.get("passing") or {}).get(r["pid"])
+    return {**({"printed": place} if place else {}), **({"as_shipped": fingerprint(x["text"])} if x else {})}
+
+
+# ---- the xd as it will ship: one file per passing puzzle, beside the ship record ----------------
+# The exact text `--write` writes (or wrote) for each puzzle the rule passes, with the record of every edit behind it,
+# made by the same code in the same run as the record. The batch page's "Ready to ship" card and the proof page draw
+# it; nothing on them works it out. Where: the record's folder, AS_SHIPPED/<pid>.json (the site: batch/<batch>/
+# as-shipped/<pid>.json beside ship.json; the publication repo: pipeline/ship/<batch>/as-shipped/<pid>.json).
+AS_SHIPPED = "as-shipped"
+
+
+def _public_who(e: dict) -> dict:
+    """An edit record's or a correction's `by` as the site's copy names people: a helper is "a helper", the owner's
+    review-site account "the owner" (as record() names them)."""
+    if e.get("kind") == "helper":
+        return {**e, "by": "a helper"}
+    if e.get("kind") == "owner" and str(e.get("by", "")).endswith(f"({SITE})"):
+        return {**e, "by": "the owner"}
+    return e
+
+
+def as_shipped(p: dict, rec: dict, public: bool = True) -> dict[str, dict]:
+    """{pid: the record of the xd as it will ship} for every puzzle the plan passes (shippable, or shipped and
+    unchanged): {_about, pid, xdid, batch, run, at, status, xd (the text), xd_fp, packet, packet_xd, decision {rule,
+    ai_ready, by, why, said}, edits {records, packet}, corrections, notes, printed}: the shape of its provenance row,
+    with the text. rec: the ship record made with it (record(p, public)), whose `at` and rows it carries."""
+    out = {}
+    rows = {r["pid"]: r for r in rec["puzzles"]}
+    for pid, x in sorted((p.get("passing") or {}).items()):
+        pk, st, row = p["packs"][pid], x["standing"], rows[pid]
+        pub = _public_who if public else (lambda e: e)
+        out[pid] = {
+            "_about": "blitz ship: the xd exactly as `blitz ship --write` writes it for this puzzle, with the record of every "
+                      "edit behind it (design/ship.md, \"The xd as it will ship\"). Made with the batch's ship record; stale "
+                      "when the record is made again.",
+            "pid": pid, "xdid": x["xdid"], "batch": p["batch"], "run": p["run"], "at": rec["at"], "status": row["status"],
+            "xd": x["text"], "xd_fp": fingerprint(x["text"]), "packet": x["packet"], "packet_xd": x["xd_fp"],
+            "decision": {"rule": st["rule"], "ai_ready": p["rule"]["ai_ready"], "why": row["why"], "said": row["said"]},
+            "edits": {"records": [pub(e) for e in x.get("edit_records", [])], "packet": packet_edits(pk["ocr"], pk["review"])},
+            "corrections": [pub(c) for c in x.get("corrections", [])], "notes": x.get("notes", []),
+            "printed": _printed(pk["ocr"], pk["review"], {k: v for k, v in (x.get("edit_values") or {}).items() if k in x["edits"]})}
+    return out
+
+
+def write_as_shipped(folder: Path, p: dict, rec: dict, public: bool = True) -> list[Path]:
+    """as_shipped() into folder/AS_SHIPPED/<pid>.json; files of puzzles that no longer pass are removed."""
+    d = Path(folder) / AS_SHIPPED
+    docs = as_shipped(p, rec, public)
+    d.mkdir(parents=True, exist_ok=True)
+    for old in d.glob("*.json"):
+        if old.stem not in docs:
+            old.unlink()
+    out = []
+    for pid, doc in docs.items():
+        f = d / f"{pid}.json"
+        f.write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n", encoding="utf-8", newline="\n")
+        out.append(f)
+    return out
 
 
 def write_record(repo: Path, p: dict) -> Path:
     f = Path(repo) / "pipeline" / "ship" / f"{p['batch']}.json"
     f.parent.mkdir(parents=True, exist_ok=True)
-    f.write_text(json.dumps(record(p), ensure_ascii=False, indent=1) + "\n", encoding="utf-8", newline="\n")
+    rec = record(p)
+    f.write_text(json.dumps(rec, ensure_ascii=False, indent=1) + "\n", encoding="utf-8", newline="\n")
+    write_as_shipped(f.parent / p["batch"], p, rec)
     return f
 
 
