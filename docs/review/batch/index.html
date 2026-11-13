@@ -225,7 +225,8 @@ const HELD = {'edit-unrecorded': 'an edit with no record of what it changed', 'n
               'edits-unapplied': "an edit the import can't apply yet", 'xd-exists': 'another file has its id', 'no-packet': 'no proof packet',
               'clue-typed': 'a clue typed with no OCR reading', 'sent-back': 'a reviewer sent it back to the pipeline',
               'awaits-replace': "waiting on the pipeline: a reviewer's fixes to the grid aren't read in yet",
-              'candidate-undecided': 'a candidate clue list is undecided', 'candidate-partial': "a candidate list taken into the puzzle isn't whole"};
+              'candidate-undecided': 'a candidate clue list is undecided', 'mark-invalid': "a misprint mark that can't be taken",
+              'misprint-edit': 'a row marked as a misprint would ship other than as printed', 'proposal-waits': "a helper's key correction waits for the owner", 'candidate-partial': "a candidate list taken into the puzzle isn't whole"};
 // ---- what the batch asks of people: each puzzle's queue, as blitz ship recorded it (ship.json: queue, asks, broken,
 // group, order, spot_check; asked: what was said on a puzzle that waits on the pipeline; also: what a Ready or an
 // answer wouldn't mend). On a snapshot the page draws these and nothing else: it never sorts a puzzle into a
@@ -322,6 +323,8 @@ function shippedHtml(d) {
       <span class="meta">${esc(e.by)}${e.at ? ', ' + esc(String(e.at).slice(0, 10)) : ''} · ${esc(CLASS_SAYS[e.class] || e.class)}${e.why ? ' · “' + esc(e.why) + '”' : ''}${e.note ? ' · note: ' + esc(e.note) : ''}</span></li>`).join('')}</ul>
     ${fixes.length ? `<h3>Misprints kept as printed here</h3><ul class="shiprecs">${fixes.map(c => `<li>${esc(c.says)} <b>Stays as printed here; corrected to “${esc(c.meant)}” at the gxd export</b>, with its note
       <span class="meta">${esc(c.by)}${c.fits === 'already' ? ' · the text already has the words meant: the export writes the note only' : c.fits === 'unplaced' ? " · the export can't place it in the text and leaves it alone" : ''}</span></li>`).join('')}</ul>` : ''}
+    ${(d.proposals || []).length ? `<h3>Proposed, waiting for the owner</h3><ul class="shiprecs">${d.proposals.map(q => `<li>${esc(q.says)} <b>Not applied: the owner decides</b>
+      <span class="meta">${esc(q.by)}</span></li>`).join('')}</ul>` : ''}
     ${pk.length ? `<details><summary>${pk.length} change${pk.length > 1 ? 's' : ''} the text review made before any reviewer saw it</summary><ul class="shiprecs">${pk.map(e => `<li>${esc(e.key)}: ${one(e.before)} → ${one(e.after)}${e.why ? ` <span class="meta">${esc(e.why)}</span>` : ''}</li>`).join('')}</ul></details>` : ''}`;
 }
 async function shipView(pid) {

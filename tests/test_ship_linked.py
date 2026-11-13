@@ -382,7 +382,8 @@ def test_a_correction_the_import_cannot_make_holds_the_puzzle_and_nothing_says_i
     assert e["text"] == swapped and by == {} and e["notes"] == [] and e["corrections"] == []    # no note, no record: nothing changed
     assert len(e["cant"]) == 1 and "cell:r2c3" in e["cant"][0] and "labelled 3-4 is listed where A2's belongs" in e["cant"][0]
     # through the ship path, on No. 11's packet with two of its lines changed over: held for the import, in words
-    repo, proofs = batch(tmp_path, {NO11: [said(PERSON, SITE, {}, typos=[{"key": "cell:r2c7", "printed": "E", "meant": "X"}])]})
+    owner = "oops6498 (review site)"  # a key letter is corrected on the owner's word only (2026-11-13)
+    repo, proofs = batch(tmp_path, {NO11: [said(owner, SITE, {}, typos=[{"key": "cell:r2c7", "printed": "E", "meant": "X"}])]})
     xd = packet(NO11)[0]
     a, b = "1-2. To unite in matrimony. ~ WED\n", "3-4. A woman's costume for horseback riding. ~ HABIT\n"
     (proofs / NO11 / "puzzle.xd").write_text(xd.replace(a + b, b + a), encoding="utf-8")
@@ -391,7 +392,7 @@ def test_a_correction_the_import_cannot_make_holds_the_puzzle_and_nothing_says_i
     assert (r["status"], r["reason"], r["queue"]) == ("held", "edits-unapplied", "broken") and NO11 not in p["passing"]
     assert "cell:r2c7" in r["why"] and "can't be made" in r["why"] and r["broken"][0]["stage"] == "import" and "notes" not in r
     # the same entry on the packet as it is: corrected, with its note
-    repo, proofs = batch(tmp_path / "2", {NO11: [said(PERSON, SITE, {}, typos=[{"key": "cell:r2c7", "printed": "E", "meant": "X"}])]})
+    repo, proofs = batch(tmp_path / "2", {NO11: [said(owner, SITE, {}, typos=[{"key": "cell:r2c7", "printed": "E", "meant": "X"}])]})
     p = plan(repo, proofs, RULE, "b")
     assert row(p, NO11)["status"] == "shippable" and "_____WXD_____\n" in p["passing"][NO11]["text"] and len(row(p, NO11)["notes"]) == 1
     # and the export says "applied" only for a correction of the print it did apply

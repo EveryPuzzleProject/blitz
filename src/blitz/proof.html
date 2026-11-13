@@ -1345,6 +1345,8 @@ function shippedHtml(d) {
       <span class="hint">${esc(e.by)}${e.at ? ', ' + esc(String(e.at).slice(0, 10)) : ''} · ${esc(CLASS_SAYS[e.class] || e.class)}${e.why ? ' · “' + esc(e.why) + '”' : ''}${e.note ? ' · note: ' + esc(e.note) : ''}</span></li>`).join('')}</ul>
     ${fixes.length ? `<h3>Misprints kept as printed here</h3><ul class="shiprecs">${fixes.map(c => `<li>${esc(c.says)} <b>Stays as printed here; corrected to “${esc(c.meant)}” at the gxd export</b>, with its note
       <span class="hint">${esc(c.by)}${c.fits === 'already' ? ' · the text already has the words meant: the export writes the note only' : c.fits === 'unplaced' ? " · the export can't place it in the text and leaves it alone" : ''}</span></li>`).join('')}</ul>` : ''}
+    ${(d.proposals || []).length ? `<h3>Proposed, waiting for the owner</h3><ul class="shiprecs">${d.proposals.map(q => `<li>${esc(q.says)} <b>Not applied: the owner decides</b>
+      <span class="hint">${esc(q.by)}</span></li>`).join('')}</ul>` : ''}
     ${pk.length ? `<details><summary>${pk.length} change${pk.length > 1 ? 's' : ''} the text review made before any reviewer saw it</summary><ul class="shiprecs">${pk.map(e => `<li>${esc(e.key)}: ${one(e.before)} → ${one(e.after)}${e.why ? ` <span class="hint">${esc(e.why)}</span>` : ''}</li>`).join('')}</ul></details>` : ''}`;
 }
 function shippedSection() {
@@ -1370,11 +1372,17 @@ function legend() {
 // ---- a person's "printed this way, but wrong": the review's typos [{key, printed, meant}] (a clue's, a header's) and
 // key_corrections [{key: cell:r3c4, printed, corrected, edited}], the shapes the AI reviewer's review has them in
 // (blitz design/ship.md, "The record of every edit"). Shown with what will happen to each, as ship's rule has it.
+// Whose marks take effect (the owner's rule, 2026-11-13, "Owner only for now"; blitz ship MARKS_COUNT): the owner's
+// (an account in the ship record's rule.owner, or the maintainer's own tools off the site) and the AI reviewer's.
+// Anyone else's is a proposal, waiting for the owner. (Later: an Accept button here, on the owner's own page, that
+// writes the proposal into the owner's review as their mark.)
+const marksCount = r => !!r.ai || !SITE || ((SHIP || {}).rule || {}).owner?.includes(r === cur ? cur.who : r.who);
+const markFate = (r, said) => marksCount(r) ? said : 'Proposed: waiting for the owner, who decides whether it is corrected. Nothing is changed until then.';
 const markKeys = key => /^meta:/.test(key) ? [key, 'ev:' + (key.slice(5) === 'puzzle_number' ? 'number' : key.slice(5))] : [key];
 const marksAt = key => rounds.flatMap(r => (r.typos || []).filter(t => markKeys(key).includes(t.key)).map(t => [r, t]));
 function marksHtml(key) {
   return marksAt(key).map(([r, t]) => `<div class="mark"><b>Printed this way, but wrong</b> <span class="by" style="color:${r.color}">${esc(r.who)}</span>:
-    printed “${esc(t.printed)}”, meant “${esc(t.meant)}”. <span class="hint">Stays as printed here; corrected to “${esc(t.meant)}” at the gxd export, with a note.</span>
+    printed “${esc(t.printed)}”, meant “${esc(t.meant)}”. <span class="hint">${esc(markFate(r, `Stays as printed here; corrected to “${t.meant}” at the gxd export, with a note.`))}</span>
     ${r === cur ? `<button class="linkbtn unmark" data-k="${esc(t.key)}" data-p="${esc(t.printed)}">take it back</button>` : ''}</div>`).join('');
 }
 function markForm(host, key, now) {
@@ -2453,7 +2461,7 @@ function subhead(s, title, hint) {
 }
 const LABELS = {instructions: "the puzzle's own instructions, theme or meta", 'test-solver': "a test solver's remark",
   intro: 'an intro to the puzzle', credit: 'a credit or reprint line', kind: 'the kind of puzzle ("Illustrated Crossword")',
-  section: 'a section banner', furniture: 'page furniture (footer, page number, an answer-page pointer)',
+  answers: "where the puzzle's answers are printed", section: 'a section banner', furniture: 'page furniture (footer, page number)',
   'other-puzzle': "another puzzle's text", other: 'something else'};
 const DISCARD = ['section', 'furniture', 'other-puzzle'];
 const BY_RE = /\s+by\s+(?=\S)/i;
@@ -3088,12 +3096,14 @@ function keyMisprints(host) {
   if (!host) return;
   const all = rounds.flatMap(r => (r.key_corrections || []).map(t => [r, t]));
   host.innerHTML = all.map(([r, t]) => `<div class="mark"><b>The key printed ${esc(t.printed)} at ${esc(String(t.key).slice(5))}</b> <span class="by" style="color:${r.color}">${esc(r.who)}</span>:
-      corrected to ${esc(t.corrected)}. <span class="hint">Corrected in the xd blitz ships, with a note saying the key printed ${esc(t.printed)}.</span>
+      ${marksCount(r) ? 'corrected' : 'proposed'}: ${esc(t.corrected)}. <span class="hint">${esc(markFate(r, `Corrected in the xd blitz ships, with a note saying the key printed ${t.printed}.`))}</span>
       ${r === cur ? `<button class="linkbtn unkey" data-k="${esc(t.key)}">take it back</button>` : ''}</div>`).join('')
     + `<button class="linkbtn" id="keymisbtn" title="The printed key has a wrong letter: the clue and the crossing words call for another">✎ A letter the printed key got wrong…</button>`;
   host.querySelectorAll('.unkey').forEach(b => b.onclick = () => {
+    const was = (cur.key_corrections || []).find(t => t.key === b.dataset.k);
     cur.key_corrections = (cur.key_corrections || []).filter(t => t.key !== b.dataset.k);
-    setEdit(b.dataset.k, undefined, true); save(); render();
+    if (was && was.edited) setEdit(b.dataset.k, undefined, true);
+    save(); render();
   });
   host.querySelector('#keymisbtn').onclick = () => {
     const sq = selCell ? `r${selCell[0] + 1}c${selCell[1] + 1}` : '';
@@ -3113,8 +3123,12 @@ function keyMisprints(host) {
         : p === c ? 'The letter meant is the one printed.' : '';
       if (bad) { msg.hidden = false; msg.textContent = bad; return; }
       const key = `cell:r${+m[1]}c${+m[2]}`;
-      cur.key_corrections = [...(cur.key_corrections || []).filter(t => t.key !== key), {key, printed: p, corrected: c, edited: true}];
-      setEdit(key, c, true); save(); render();
+      // the owner's (or the maintainer's tools'): the square takes the letter meant; anyone else's is a proposal and
+      // leaves the square as it is (a key letter is corrected on the owner's word only)
+      const mine = marksCount(cur);
+      cur.key_corrections = [...(cur.key_corrections || []).filter(t => t.key !== key), {key, printed: p, corrected: c, edited: mine}];
+      if (mine) setEdit(key, c, true);
+      save(); render();
     };
     box.querySelector('.save').onclick = go;
     box.querySelector('.skip').onclick = () => box.remove();

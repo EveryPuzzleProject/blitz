@@ -471,11 +471,15 @@ def cmd_ship(a) -> None:
         account, key_id, secret, bucket = _env("R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_BUCKET")
         s3 = r2.client(account, key_id, secret)
         key, pub = f"batch/{p['batch']}/ship.json", ship.record(p)
-        docs = ship.as_shipped(p, pub)  # each beside ship.json, as-shipped/<pid>.json (an older one of a puzzle that no longer passes stays, unread)
+        docs = ship.as_shipped(p, pub)  # each beside ship.json, as-shipped/<pid>.json
         r2.sync(s3, bucket, [r2.Put(key, body=json.dumps(pub, ensure_ascii=False, indent=1).encode("utf-8"), cache="no-cache", type="application/json"),
                              *[r2.Put(f"batch/{p['batch']}/{ship.AS_SHIPPED}/{pid}.json", body=json.dumps(doc, ensure_ascii=False, indent=1).encode("utf-8"),
                                       cache="no-cache", type="application/json") for pid, doc in docs.items()]], {}, force=True)
-        print(f"published {key}: https://blitz.xwordapp.com/review/batch/?b={p['batch']}")
+        gone = ship.stale_as_shipped(r2.listing(s3, bucket, f"batch/{p['batch']}/{ship.AS_SHIPPED}/"), p["batch"], docs)
+        for k in gone:  # a puzzle that no longer passes: its file goes, so nothing public says it will ship
+            s3.delete_object(Bucket=bucket, Key=k)
+        print(f"published {key} and {len(docs)} as-shipped file(s)" + (f", removed {len(gone)} stale one(s)" if gone else "")
+              + f": https://blitz.xwordapp.com/review/batch/?b={p['batch']}")
 
 
 def cmd_ship_export(a) -> None:
