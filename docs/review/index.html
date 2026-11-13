@@ -266,6 +266,16 @@ h2 .quick { margin-left: 8px; font-size: 12px; padding: 2px 10px; }
 .typed .txt { flex: 1; outline: none; white-space: pre-wrap; border-radius: 3px; padding: 0 3px; min-height: 1.35em; }
 .typed .txt:hover { background: #f4efe6; cursor: text; }
 .typed .txt:focus { background: #fff; box-shadow: 0 0 0 2px #1f5fbf; }
+.nlbtn { font-size: 11px; margin-left: 6px; padding: 1px 6px; vertical-align: top; }
+.edhint { font-size: 11.5px; color: var(--muted); margin: 2px 0 0 3px; } .edhint.bad { color: #a8321f; font-weight: 600; }
+.dflt { font-size: 11.5px; color: #8a6d12; font-style: italic; margin-bottom: 3px; }
+.mark { font-size: 12.5px; background: #f6eed4; border-radius: 6px; padding: 4px 8px; margin: 3px 0; }
+.markform label { font-size: 12.5px; margin-right: 8px; } .markform input { font: inherit; }
+.xdn.preview { border-left: 3px solid #1f5fbf; padding-left: 8px; } .pvtag { font-size: 11px; background: #e6eefb; color: #1f5fbf; border-radius: 8px; padding: 1px 7px; font-weight: 600; }
+.pvl { display: flex; gap: 8px; align-items: baseline; } .pvl pre { margin: 2px 0; flex: 1; white-space: pre-wrap; }
+details.xdn.was summary { font-size: 12px; color: var(--muted); cursor: pointer; }
+pre.shipxd { background: #faf8f3; border: 1px solid #ece6da; border-radius: 6px; padding: 10px 12px; white-space: pre-wrap; font-size: 12.5px; max-height: 70vh; overflow: auto; }
+.shipmeta { font-size: 12px; color: var(--muted); margin: 4px 0 8px; } .shiprecs { font-size: 13px; padding-left: 18px; } #asshipped h3 { font-size: 14px; margin: 10px 0 4px; }
 .typed .txt:empty::before { content: '(no text)'; color: #aaa; font-style: italic; }
 ins { text-decoration: none; border-bottom: 2px solid currentColor; }
 del { text-decoration: line-through; opacity: .8; }
@@ -494,9 +504,10 @@ if (SITE && !location.search) location.replace('batch/');  // /review/ itself: t
 let ID = params.get('p') || 'judge1931-10-03';
 // the packet's files as the site lists them (null: not listed, so ask for each); the batch's ship record
 // (blitz ship: design/ship.md), which holds the questions puzzles are held on; this packet's xd, as text
-let FILES = null, SHIP = null, SHIPBY = {}, xdText = null;
+let FILES = null, SHIP = null, SHIPBY = {}, xdText = null, SHIPBATCH = '', SHIPPED = null;
 async function loadShip(batch) {
   if (!SITE || !/^[\w.-]+$/.test(batch || '')) return;
+  SHIPBATCH = batch;
   SHIP = await fetch(`${params.get('files') || SITE.filesBase}/batch/${batch}/ship.json`, {cache: 'no-cache'}).then(r => r.ok ? r.json() : null).catch(() => null);
   SHIPBY = Object.fromEntries(((SHIP || {}).puzzles || []).map(x => [x.pid, x]));
 }
@@ -717,13 +728,14 @@ async function loadProofs() {
     if (p.user_id === me) {
       if (!store.cur) {
         store.cur = {who: p.who, edits: r.edits || {}, comments: r.comments || [], status: r.status || {},
-          note: r.note || '', decision: p.decision, submitted: p.at};
+          note: r.note || '', decision: p.decision, submitted: p.at, typos: r.typos || [], key_corrections: r.key_corrections || []};
         store.xd = r.xd || '';  // the version it was made on
       }
       continue;
     }
     const bad = Object.entries(r.status || {}).filter(([, x]) => x.v === 'bad').map(([id, x]) => `Problem in the ${PART[id]?.name || id}: ${x.note || ''}`);
     remote.push({who: p.who || 'A helper', person: true, decision: p.decision, xd: r.xd || '', edits: r.edits || {}, comments: r.comments || [],
+      typos: r.typos || [], key_corrections: r.key_corrections || [],
       summary: [p.decision === 'ready' ? 'Said ready.' : 'Said not ready.', ...bad, r.note].filter(Boolean).join(' ')});
   }
 }
@@ -789,6 +801,10 @@ async function load() {
   for (const [k, v] of Object.entries(rev.sic || {})) agent.comments.push({key: k, text: 'Printed this way, kept as printed: ' + v});
   agent.looked = rev.confirm || [];
   aiRounds = await aiRound(fp);
+  const want = (SHIPBY[ID] || {}).as_shipped;
+  SHIPPED = want ? await fetch(`${params.get('files') || SITE.filesBase}/batch/${SHIPBATCH}/as-shipped/${encodeURIComponent(ID)}.json`, {cache: 'no-cache'})
+    .then(r => r.ok ? r.json() : null).catch(() => null) : null;
+  if (SHIPPED && SHIPPED.xd_fp !== want) SHIPPED = {stale: true, ...SHIPPED};  // a file from another making of the record
   // the name you last typed, in this browser: typed once, kept for every puzzle after
   let known = '';
   try { known = localStorage.getItem('proof-who') || ''; } catch (e) {}
@@ -827,6 +843,7 @@ async function aiRound(fp) {
     + (comments.length ? ` and left ${comments.length} comment(s)` : '') + '.';
   const from = ai.record ? ` (the ledger's ${ai.record} record${ai.at ? ', ' + when(ai.at) : ''})` : '';
   return [{who, ai: true, stale: !same, edits: same ? {...edits} : {}, comments: same ? [...comments] : [],
+    typos: same ? r.typos || [] : [], key_corrections: same ? r.key_corrections || [] : [],
     summary: [stale, ai.answer === 'ready' ? 'Said ready.' : ai.answer === 'notready' ? 'Said not ready.' : '', ...bad, r.note].filter(Boolean).join(' ') + from}];
 }
 
@@ -1206,6 +1223,8 @@ function render() {
   }
   for (const s of main.querySelectorAll('section[data-sec]')) s.append(s.foot);
   main.append(xdNotesSection());
+  const ws = shippedSection();
+  if (ws) main.append(ws);
   main.append(summarySection());
   const qs = questionSection();  // last, so it can say whether each question's row is on the page; shown first
   if (qs) main.prepend(qs);
@@ -1296,10 +1315,30 @@ function xdNotesSection() {
   // what ship adds to the notes of the xd that ships (the ship record's notes for this puzzle): drawn as recorded, never worked out here
   const added = ((SHIPBY || {})[ID] || {}).notes || [];
   const fixes = ((SHIPBY || {})[ID] || {}).corrections || [];
+  // the printed lines' block as it would be with this review's keeps, discards and text edits, by the place the ship
+  // record recorded (printedBlock: nothing is worked out but which of the packet's lines are kept)
+  const place = ((SHIPBY || {})[ID] || {}).printed, pv = printedBlock(ocr.lines, place, cur.edits, rev.corrections);
+  const PH = (place || {}).head || 'Printed with puzzle:';
+  const longMark = t => t.length > LONG_LINE ? ` <b class="m-flag" title="a long line: check that it belongs to this puzzle">${t.length.toLocaleString()} characters</b>` : '';
+  const preview = () => `<div class="xdn preview" id="xdnote-preview"><div class="xdh">${esc(PH)} <span class="pvtag">preview with this review's edits: not yet the shipped text</span>
+      <span class="hint">${pv.placed ? esc(place.says) : 'the packet\'s lines and the xd\'s block disagree, so nothing says where these land: the import applies none of them'} (where the lines land: the batch's ship record${SHIP?.at ? ', ' + esc(SHIP.at.slice(0, 10)) : ''})</span></div>
+      ${pv.out.length ? pv.lines.map(L => `<div class="pvl"><a href="#B${L.n}">B${L.n}</a> <pre>${esc(L.text)}</pre>${longMark(L.text)}</div>`).join('')
+        : '<div class="hint">Every line discarded: the block goes from the notes.</div>'}
+      ${pv.applied ? '' : '<div class="askline">Not applied as it stands: a Ready carrying these edits holds the puzzle until the import applies them to this kind of puzzle.</div>'}</div>`;
+  const showPreview = pv && pv.touched;
+  let shown = false;
+  const blockHtml = (b, i) => {
+    const [h, ...rest] = b.split('\n');
+    if (showPreview && h === PH) { shown = true; return preview() + `<details class="xdn was"><summary>${esc(h)} as this packet's puzzle.xd has it</summary><pre>${esc(rest.join('\n'))}</pre></details>`; }
+    return `<div class="xdn" id="xdnote-${i + 1}"><div class="xdh">${esc(h)}</div>${rest.length ? `<pre>${esc(rest.join('\n'))}</pre>` : ''}</div>`;
+  };
+  const drawn = blocks.map(blockHtml).join('');
+  const noPlace = !place && Object.keys(cur.edits).some(k => /^(keep|line):B\d+$/.test(k)) && xdText != null
+    ? `<div class="askline">Your keeps, discards and line edits aren't shown here: where each printed line lands in the xd is not recorded (the batch's ship record is from before it, or there is none). The notes below are the packet's.</div>` : '';
   s.innerHTML = `<h2>Notes in the xd file <span class="hint">read-only: what the xd carries after its clues, as written in this packet's puzzle.xd${rev?.xd_fp ? ' (xd ' + esc(rev.xd_fp) + ')' : ''}</span></h2><div class="xdbody">`
     + (xdText == null ? `<div class="xdnone"><b>Not recorded here.</b> This packet was published without its xd file (puzzle.xd), so whatever notes the xd carries can't be shown on this page. Publishing the packet again adds it.</div>`
-      : !blocks.length ? `<div class="hint">The xd has no notes.</div>`
-      : blocks.map((b, i) => { const [h, ...rest] = b.split('\n'); return `<div class="xdn" id="xdnote-${i + 1}"><div class="xdh">${esc(h)}</div>${rest.length ? `<pre>${esc(rest.join('\n'))}</pre>` : ''}</div>`; }).join(''))
+      : noPlace + (showPreview && !blocks.some(b => b.split('\n')[0] === PH) && pv.out.length ? preview() : '')
+        + (!blocks.length ? `<div class="hint">The xd has no notes.</div>` : drawn))
     + (added.length ? `<div class="xdn" id="xdnote-ship"><div class="xdh">Answer key corrected: <span class="hint">not in this packet's puzzle.xd: blitz ship adds these lines to the notes of the xd that ships, one for each misprinted key letter a reviewer corrected (from the batch's ship record${SHIP?.at ? ', ' + esc(SHIP.at.slice(0, 10)) : ''})</span></div><pre>${esc(added.join('\n'))}</pre></div>` : '')
     + (fixes.length ? `<div class="xdn" id="xdnote-corrections"><div class="xdh">Corrections of the print, proposed: <span class="hint">not applied to the xd blitz ships, which keeps these as printed: the gxd export makes each correction and writes its note (from the batch's ship record${SHIP?.at ? ', ' + esc(SHIP.at.slice(0, 10)) : ''})</span></div><pre>${esc(fixes.map(c => c.says + (c.fits === 'already' ? '  [the text already has the word meant: the export writes the note only]' : c.fits === 'unplaced' ? '  [not placed in the text: the export leaves it alone]' : '')).join('\n'))}</pre></div>` : '')
     + `<div class="margin">${cs.map(([r, c]) => noteHtml(r, c.text, c.why, c)).join('')}<button class="t" id="xdcomment">＋ Comment on the notes</button></div></div>`;
@@ -1307,10 +1346,135 @@ function xdNotesSection() {
   return s;
 }
 
+// ---- the xd as it will ship: blitz ship's file beside the batch's record (as-shipped/<pid>.json), drawn as recorded:
+// the exact text --write writes, which decision ships it, every edit's record, and what the gxd export will do ----
+const CLASS_SAYS = {reading: 'a reading fix', unclassed: 'unclassed: nothing says whether it fixes a reading or the print',
+  'key correction': "the key's misprint, corrected with a note", decision: 'a decision'};
+function shippedHtml(d) {
+  const recs = (d.edits || {}).records || [], fixes = d.corrections || [], pk = (d.edits || {}).packet || [];
+  const one = v => `“${esc(String(v ?? '').length > 120 ? String(v).slice(0, 117) + '…' : v)}”`;
+  return `<pre class="shipxd">${esc(d.xd)}</pre>
+    <div class="shipmeta">xd ${esc(d.xd_fp)} · made from the packet ${esc(d.packet)} (xd ${esc(d.packet_xd)}) · ${esc((d.decision || {}).why || '')}</div>
+    <h3>${recs.length ? recs.length + ' edit' + (recs.length > 1 ? 's' : '') + ' by reviewers, each recorded' : 'No edit by a reviewer'}</h3>
+    <ul class="shiprecs">${recs.map(e => `<li><a href="?p=${encodeURIComponent(d.pid)}&k=${encodeURIComponent(e.key)}">${esc(e.key)}</a> ${esc(e.what)}: ${one(e.before)} → ${one(e.after)}
+      <span class="hint">${esc(e.by)}${e.at ? ', ' + esc(String(e.at).slice(0, 10)) : ''} · ${esc(CLASS_SAYS[e.class] || e.class)}${e.why ? ' · “' + esc(e.why) + '”' : ''}${e.note ? ' · note: ' + esc(e.note) : ''}</span></li>`).join('')}</ul>
+    ${fixes.length ? `<h3>Misprints kept as printed here</h3><ul class="shiprecs">${fixes.map(c => `<li>${esc(c.says)} <b>Stays as printed here; corrected to “${esc(c.meant)}” at the gxd export</b>, with its note
+      <span class="hint">${esc(c.by)}${c.fits === 'already' ? ' · the text already has the words meant: the export writes the note only' : c.fits === 'unplaced' ? " · the export can't place it in the text and leaves it alone" : ''}</span></li>`).join('')}</ul>` : ''}
+    ${(d.proposals || []).length ? `<h3>Proposed, waiting for the owner</h3><ul class="shiprecs">${d.proposals.map(q => `<li>${esc(q.says)} <b>Not applied: the owner decides</b>
+      <span class="hint">${esc(q.by)}</span></li>`).join('')}</ul>` : ''}
+    ${pk.length ? `<details><summary>${pk.length} change${pk.length > 1 ? 's' : ''} the text review made before any reviewer saw it</summary><ul class="shiprecs">${pk.map(e => `<li>${esc(e.key)}: ${one(e.before)} → ${one(e.after)}${e.why ? ` <span class="hint">${esc(e.why)}</span>` : ''}</li>`).join('')}</ul></details>` : ''}`;
+}
+function shippedSection() {
+  const x = SHIPBY[ID];
+  if (!x || !x.as_shipped) return null;
+  const s = document.createElement('section');
+  s.id = 'asshipped';
+  const view = `batch/?b=${encodeURIComponent(SHIPBATCH)}&ship=${encodeURIComponent(ID)}`;
+  s.innerHTML = `<h2>The xd as it will ship <span class="hint">${x.status === 'shipped' ? 'in the publication as ' + esc(x.xdid) : 'ready to ship as ' + esc(x.xdid)}: from the batch's ship record${SHIP?.at ? ', ' + esc(SHIP.at.slice(0, 10)) : ''}, made by the code that writes it</span></h2><div class="xdbody">`
+    + (!SHIPPED ? `<div class="xdnone"><b>Not recorded here.</b> The ship record says this puzzle passes, but its xd as it will ship isn't beside the record (made before blitz ship kept it). Making the record again adds it.</div>`
+      : (SHIPPED.stale ? `<div class="askline">This file is from another making of the record (xd ${esc(SHIPPED.xd_fp)}, the record says ${esc(x.as_shipped)}): make the record again.</div>` : '')
+        + `<div class="hint">What ships comes from the decisions as they stood when the record was made${cur.submitted || Object.keys(cur.edits).length ? ': edits and answers given here since are not in it until it is made again' : ''}. <a href="${view}">Open it on its own ↗</a></div>`
+        + shippedHtml(SHIPPED))
+    + `</div>`;
+  return s;
+}
+
 function legend() {
   document.getElementById('legend').innerHTML = 'Changes: <span><u>underlined</u> = added, <s>struck</s> = removed, coloured by who made them:</span>' +
     rounds.map(r => `<span><i class="sw" style="background:${r.color}"></i>${esc(r.who)}${r === cur && r.who !== 'You' ? ' (you)' : ''}</span>`).join('');
 }
+
+// ---- a person's "printed this way, but wrong": the review's typos [{key, printed, meant}] (a clue's, a header's) and
+// key_corrections [{key: cell:r3c4, printed, corrected, edited}], the shapes the AI reviewer's review has them in
+// (blitz design/ship.md, "The record of every edit"). Shown with what will happen to each, as ship's rule has it.
+// Whose marks take effect (the owner's rule, 2026-11-13, "Owner only for now"; blitz ship MARKS_COUNT): the owner's
+// (an account in the ship record's rule.owner, or the maintainer's own tools off the site) and the AI reviewer's.
+// Anyone else's is a proposal, waiting for the owner. (Later: an Accept button here, on the owner's own page, that
+// writes the proposal into the owner's review as their mark.)
+const marksCount = r => !!r.ai || !SITE || ((SHIP || {}).rule || {}).owner?.includes(r === cur ? cur.who : r.who);
+const markFate = (r, said) => marksCount(r) ? said : 'Proposed: waiting for the owner, who decides whether it is corrected. Nothing is changed until then.';
+const markKeys = key => /^meta:/.test(key) ? [key, 'ev:' + (key.slice(5) === 'puzzle_number' ? 'number' : key.slice(5))] : [key];
+const marksAt = key => rounds.flatMap(r => (r.typos || []).filter(t => markKeys(key).includes(t.key)).map(t => [r, t]));
+function marksHtml(key) {
+  return marksAt(key).map(([r, t]) => `<div class="mark"><b>Printed this way, but wrong</b> <span class="by" style="color:${r.color}">${esc(r.who)}</span>:
+    printed “${esc(t.printed)}”, meant “${esc(t.meant)}”. <span class="hint">${esc(markFate(r, `Stays as printed here; corrected to “${t.meant}” at the gxd export, with a note.`))}</span>
+    ${r === cur ? `<button class="linkbtn unmark" data-k="${esc(t.key)}" data-p="${esc(t.printed)}">take it back</button>` : ''}</div>`).join('');
+}
+function markForm(host, key, now) {
+  host.querySelector('.markform')?.remove();
+  const box = document.createElement('div');
+  box.className = 'compose markform';
+  box.innerHTML = `<div class="q">Printed this way, but wrong: the scan is good and the original has a mistake. blitz keeps it as printed; the gxd export corrects it, with a note.</div>
+    <label>Printed: <input class="mp" value="${esc(now)}"></label> <label>Meant: <input class="mm"></label>
+    <div class="hint">Narrow “Printed” to the words that are wrong (“No. 5”), and give what was meant (“No. 7”).</div><div class="edhint bad" hidden></div>
+    <div class="acts"><button class="skip">Cancel</button><button class="save">Save</button></div>`;
+  host.prepend(box);
+  const [mp, mm, msg] = ['.mp', '.mm', '.edhint'].map(q => box.querySelector(q));
+  const go = () => {
+    const c = misprintCheck(final(key), mp.value, mm.value);
+    if (!c.ok) { msg.hidden = false; msg.textContent = c.msg; return; }
+    if (c.back !== undefined) setEdit(key, c.back, true);  // the correction typed in: the text goes back as printed
+    cur.typos = (cur.typos || []).filter(t => !(t.key === key && t.printed === c.printed));
+    cur.typos.push({key, printed: c.printed, meant: c.meant});
+    save(); box.remove(); render();
+  };
+  box.querySelector('.save').onclick = go;
+  box.querySelector('.skip').onclick = () => box.remove();
+  box.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); go(); } if (e.key === 'Escape') { e.preventDefault(); box.remove(); } };
+  mp.focus(); mp.select();
+}
+addEventListener('click', e => {
+  const b = e.target.closest('.unmark');
+  if (!b) return;
+  e.stopPropagation();
+  cur.typos = (cur.typos || []).filter(t => !(t.key === b.dataset.k && t.printed === b.dataset.p));
+  save(); render();
+}, true);
+
+// <edit-rules> (run under node by tests/test_proof_edits.py)
+// Which fields can hold a line break: a printed line's text (line:B<n>), whose breaks become lines of the xd's
+// "Printed with puzzle:" block (blitz ship block_lines). A clue, a header (title, byline, ...) is one line of the xd.
+const MULTILINE = key => /^line:B\d+$/.test(key);
+const ONE_LINE_SAYS = key => /^clue:/.test(key) ? "A clue is one line in the xd file: it can't hold a line break."
+  : `The ${/^meta:puzzle_number$/.test(key) ? 'number' : (key.split(':')[1] || 'value')} is one line in the xd file (a header): it can't hold a line break.`;
+// The text an edit box holds, as it is saved: each line trimmed, no empty line (the xd's block ends at one, so a
+// paragraph break is one line break), and none at all in a field that can't hold one. said: what was changed, in words.
+function cleanText(raw, multi) {
+  const lines = String(raw ?? '').replace(/\r/g, '').replace(/ /g, ' ').split('\n').map(t => t.trim());
+  const kept = lines.filter(Boolean);
+  if (!multi) return {value: kept.join(' '), said: kept.length > 1 ? 'joined into one line' : ''};
+  return {value: kept.join('\n'), said: kept.length < lines.length - (lines[lines.length - 1] === '' ? 1 : 0) ? 'an empty line taken out' : ''};
+}
+// The "Printed with puzzle:" block as it would be with one review's edits, by the place the ship record recorded
+// for the packet's lines (blitz ship printed_place: which lines the block is made of, in the packet's order, and
+// whether the import applies such an edit). Nothing here decides where a line lands: a line is in the block when
+// it is kept (the review's keep:B<n>, else the packet's keep) and isn't a header's line; its text is the review's
+// line:B<n>, else the text step's correction, else what was read. Returns null when the record says nothing.
+function printedBlock(lines, place, edits, corrections) {
+  if (!place || !Array.isArray(lines)) return null;
+  const fixed = new Set(place.fixed || []);
+  const text = L => edits['line:B' + L.n] ?? (corrections || {})['line:B' + L.n] ?? L.text ?? '';
+  const kept = lines.filter(L => !fixed.has(L.n) && 'label' in L && (edits['keep:B' + L.n] ?? !!L.keep));
+  const touched = Object.keys(edits).some(k => /^(keep|line):B\d+$/.test(k));
+  return {lines: kept.map(L => ({n: L.n, text: text(L)})), out: kept.flatMap(L => text(L).split('\n')), touched,
+          placed: Array.isArray(place.lines), applied: place.edits === 'applied'};
+}
+// A person's "printed this way, but wrong" on a row whose text is `now`: whole words, as ship matches them. ok when
+// the printed words are in the text once; back: the text with the printed words put back, when the text has the
+// words meant instead (the reviewer had typed the correction: blitz ships what was printed).
+function misprintCheck(now, printed, meant) {
+  printed = String(printed || '').trim(); meant = String(meant || '').trim(); now = String(now || '');
+  const re = w => new RegExp('(?<![\\w])' + w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![\\w])', 'g');
+  const count = w => w ? (now.match(re(w)) || []).length : 0;
+  if (!printed || !meant) return {ok: false, msg: 'Say what is printed and what was meant.'};
+  if (printed === meant) return {ok: false, msg: 'What was meant is the same as what is printed.'};
+  if (count(printed) === 1) return {ok: true, printed, meant};
+  if (!count(printed) && count(meant) === 1) return {ok: true, printed, meant, back: now.replace(re(meant), () => printed)};
+  return {ok: false, msg: count(printed) ? `“${printed}” is in the text more than once: give more of the words around it.`
+    : `“${printed}” isn't in the text as it stands: copy the words as printed.`};
+}
+const LONG_LINE = 300;  // a kept printed line longer than this is flagged on its row and in the notes' preview
+// </edit-rules>
 
 // the parts of a puzzle, how to talk about them, and which fields belong to each
 const PART = {
@@ -1423,7 +1587,7 @@ function summarySection() {
 // when ready with no edits, since edits aren't applied on import yet
 // the same review, to a local server (?save=): plain text, so the browser sends it without asking first
 async function saveLocal(d) {
-  const review = {edits: cur.edits, comments: cur.comments, status: cur.status, note: cur.note || '', xd: rev?.xd_fp || '',
+  const review = {edits: cur.edits, comments: cur.comments, status: cur.status, note: cur.note || '', xd: rev?.xd_fp || '', ...((cur.typos || []).length ? {typos: cur.typos} : {}), ...((cur.key_corrections || []).length ? {key_corrections: cur.key_corrections} : {}),
                   ...(d === 'notready' && cur.sendback ? {sendback: cur.sendback} : {})};
   const who = (cur.who === 'You' ? '' : cur.who || '').slice(0, 40);
   const r = await fetch(SAVE, {method: 'POST', headers: {'Content-Type': 'text/plain'},
@@ -1441,7 +1605,7 @@ async function submitReview(d) {
   const who = (cur.who === 'You' ? '' : cur.who || '').slice(0, 40);
   // xd: the version of the puzzle this page showed (the packet's fingerprint of its .xd), so the import knows
   // exactly what was proofed and a later change to the puzzle lapses the proof
-  const review = {edits: cur.edits, comments: cur.comments, status: cur.status, note: cur.note || '', xd: rev?.xd_fp || '',
+  const review = {edits: cur.edits, comments: cur.comments, status: cur.status, note: cur.note || '', xd: rev?.xd_fp || '', ...((cur.typos || []).length ? {typos: cur.typos} : {}), ...((cur.key_corrections || []).length ? {key_corrections: cur.key_corrections} : {}),
                   ...(d === 'notready' && cur.sendback ? {sendback: cur.sendback} : {})};
   const p = await sb.from('proofs').upsert({xdid: ID, user_id: uid, who, decision: d, review, at});
   if (p.error) throw p.error;
@@ -2312,7 +2476,7 @@ function subhead(s, title, hint) {
 }
 const LABELS = {instructions: "the puzzle's own instructions, theme or meta", 'test-solver': "a test solver's remark",
   intro: 'an intro to the puzzle', credit: 'a credit or reprint line', kind: 'the kind of puzzle ("Illustrated Crossword")',
-  section: 'a section banner', furniture: 'page furniture (footer, page number, an answer-page pointer)',
+  answers: "where the puzzle's answers are printed", section: 'a section banner', furniture: 'page furniture (footer, page number)',
   'other-puzzle': "another puzzle's text", other: 'something else'};
 const DISCARD = ['section', 'furniture', 'other-puzzle'];
 const BY_RE = /\s+by\s+(?=\S)/i;
@@ -2413,7 +2577,12 @@ function headerSection(hs) {
       continue;
     }
     const k = keptOf(L), was = {converted: ' (from its earlier keep/discard)', rule: ' (by rule)', default: ' (a default)', assembly: " (assembly's)"}[L.by] || '';
-    ab.innerHTML = `<div class="xdcol"><div class="kd"><button class="k1 ${k ? 'on' : ''}">Keep</button> <button class="k0 ${k ? '' : 'on'}">Discard</button></div>
+    // the text step's record of what decided it (keep_by: xword-ocr textstep): a line nothing placed is discarded by default
+    const byDefault = !k && cur.edits['keep:B' + L.n] === undefined && L.keep_by === 'label' && labelOf(L) === 'other';
+    const len = final('line:B' + L.n).length;
+    const long = k && len > LONG_LINE ? `<div><b class="m-flag m-long" title="a kept line this long is usually the page's other text: check it belongs to this puzzle">kept: ${len.toLocaleString()} characters</b></div>` : '';
+    if (long) row.classList.add('longline');
+    ab.innerHTML = `<div class="xdcol">${long}${byDefault ? '<div class="dflt">discarded by default: not part of this puzzle</div>' : ''}<div class="kd"><button class="k1 ${k ? 'on' : ''}">Keep</button> <button class="k0 ${k ? '' : 'on'}">Discard</button></div>
       <div class="hint">the text step says it's${esc(was)} <select class="lbl">${Object.entries(LABELS).map(([v, d]) => `<option value="${v}" ${v === labelOf(L) ? 'selected' : ''}>${esc(d)}</option>`).join('')}</select></div>
       ${cur.edits['keep:B' + L.n] !== undefined || cur.edits['label:B' + L.n] !== undefined ? '<div class="hint">(you changed it)</div>' : ''}</div>`;
     const dflt = () => L.keep ?? !DISCARD.includes(labelOf(L));
@@ -2440,6 +2609,7 @@ function headerSection(hs) {
     // anchors from the text step's list (#Title) land here too
     tr.innerHTML = `<th id="${esc(name)}">${esc(name)}</th>
       <td class="hv"><span class="v" contenteditable="true" spellcheck="false"></span>
+        ${marksHtml(k)}<button class="linkbtn markh" title="The scan is good and the original has a mistake: kept as printed here, corrected at the gxd export">✎ printed this way, but wrong…</button>
         ${own ? `<div class="ovr" style="color:${last.color}">${esc(last.who)}'s value; the rule gives “${esc(derived)}” <button class="undo">use the rule's</button></div>` : ''}
         ${ask ? `<div class="askline"><b>${esc(ask.says)}</b> If it's printed, type it here as printed; if not, say so in a comment.</div>`
           : !derived && !own && gapOf(f) ? `<div class="askline">None printed: confirmed by ${esc(gapOf(f).by)}${gapOf(f).note ? ` (${esc(gapOf(f).note)})` : ''}. If you see a ${f} on the scan, type it here as printed.</div>`
@@ -2454,12 +2624,24 @@ function headerSection(hs) {
     sp.textContent = own ? last.value : derived;
     if (own) sp.style.color = last.color;
     if (!sp.textContent) sp.dataset.empty = '1';
-    // Enter finishes; Shift+Enter is a line break in the value (the browser puts a <br>, read back as a newline)
-    sp.onkeydown = e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sp.blur(); } };
+    // Enter saves, Esc puts it back; a header is one line of the xd, so Shift+Enter says so instead of breaking the line
+    let hcancel = false;
+    const hsay = t => { let m = tr.querySelector('.edhint'); if (!m) { m = document.createElement('div'); m.className = 'edhint bad'; sp.after(m); } m.textContent = t; };
+    sp.onkeydown = e => {
+      if (e.key === 'Escape') { e.preventDefault(); hcancel = true; sp.blur(); }
+      else if (e.key === 'Enter' && e.shiftKey) { e.preventDefault(); hsay(ONE_LINE_SAYS(k)); }
+      else if (e.key === 'Enter') { e.preventDefault(); sp.blur(); }
+    };
     // your value: saved as your edit; the rule's value again: your edit dropped (or saved, over an earlier round's)
     const set = v => hedit(k, v === derived && !rounds.slice(0, -1).some(r => k in r.edits) ? undefined : v);
-    sp.onblur = () => { const v = sp.innerText.replace(/\r/g, '').trim(); if (v !== (own ? last.value : derived)) set(v); };
+    sp.onblur = () => {
+      if (hcancel) { hcancel = false; sp.textContent = own ? last.value : derived; return; }
+      const c = cleanText(sp.innerText, false);
+      if (c.said) hsay(`${ONE_LINE_SAYS(k)} The lines were ${c.said}.`);
+      if (c.value !== (own ? last.value : derived)) set(c.value);
+    };
     tr.querySelector('.undo')?.addEventListener('click', () => set(derived));
+    tr.querySelector('.markh').onclick = () => markForm(tr.querySelector('.hv'), k, sp.textContent);
     tr.querySelector('.askline')?.addEventListener('click', () => sp.focus());
     const sel = tr.querySelector('.evch select');
     sel.onchange = () => setEv(f, !sel.value ? null : /^M/.test(sel.value) ? sel.value : +sel.value);
@@ -2526,7 +2708,8 @@ function addRow(s, key, label, box, flags = [], src = null) {
   const odd = isClue && !pair && (pn !== slot.slice(1) || !NUM[slot]);
   row.innerHTML = `<div class="lab"${meta ? ` title="${esc(slot)}'s clue in the ${esc(meta)} set (the other clue set printed for this grid): the xd's ${esc(slot)} ^${esc(meta)} line"` : ''}>${meta && !solo ? `${esc(slot)}<span class="metakey">^${esc(meta)}</span>` : esc(cl)}</div>
     <div class="body"><div class="scan"></div><div>
-      <div class="typed">${isClue ? `<span class="num${odd ? ' odd' : ''}${pair ? ' pair' : ''}" title="${pair ? `the numbers printed in this word's two end squares (${esc(slot)} in our grid; the blank grid shows the numbers)` : 'the number printed beside this clue'}">${esc(pn)}.</span>` : ''}<span class="txt" spellcheck="false"></span></div>
+      <div class="typed">${isClue ? `<span class="num${odd ? ' odd' : ''}${pair ? ' pair' : ''}" title="${pair ? `the numbers printed in this word's two end squares (${esc(slot)} in our grid; the blank grid shows the numbers)` : 'the number printed beside this clue'}">${esc(pn)}.</span>` : ''}<span class="txt" spellcheck="false"></span>${MULTILINE(key) ? '<button class="nlbtn" hidden title="Start a new line here (a paragraph break): Shift+Enter does the same">↵ new line</button>' : ''}</div>
+      <div class="edhint" hidden></div>
       ${key.startsWith('other:') ? `<div class="keep">
         <button class="k1" title="Keep this line with the puzzle: it goes in the xd's Notes">Keep</button>
         <button class="k0" title="Discard it: a banner, notice or ad, not part of the puzzle">Discard</button></div>` : ''}
@@ -2655,13 +2838,16 @@ function addRow(s, key, label, box, flags = [], src = null) {
     });
     const m = row.querySelector('.margin'), open = m.querySelector('.compose');
     const cellNotes = isClue && (!meta || solo) ? entryCells(cl).flatMap(([r, c]) => [`cell:r${r+1}c${c+1}`, spKey(r, c)].flatMap(k => commentsFor(k).map(x => [...x, `r${r+1}c${c+1}`]))) : [];
-    m.innerHTML = commentsFor(key).map(([r, c]) => noteHtml(r, c.text, c.why, c)).join('') +
+    m.innerHTML = (isClue ? marksHtml(key) : '') + commentsFor(key).map(([r, c]) => noteHtml(r, c.text, c.why, c)).join('') +
       cellNotes.map(([r, c, at]) => noteHtml(r, `(square ${at}) ${c.text}`, c.why, c)).join('') + '<button class="addc">💬 Comment</button> <button class="addc flagc" title="You can’t settle this one from the scan: the next reviewer takes a second look. The rest of the part can still look good.">⚑ Not sure</button>'
+      + (isClue ? ' <button class="addc markc" title="The scan is good and the original has a mistake: kept as printed here, corrected at the gxd export">✎ Printed this way, but wrong…</button>' : '')
       // with printed pairs, a text on the wrong word is moved by its pair, or every text from here on shifts a word
       + (isClue && linkedEnds() && !meta ? ` <span class="mv"><button class="addc mvb" title="This text belongs to another word: give that word's printed pair (the two numbers in its end squares). The texts swap.">⇄ Move text to…</button><button class="addc shb" data-d="1" title="The texts from this word to the end of the list each belong one word later (a clue was lost before this one): this word's clue becomes missing.">⇣ Shift texts later</button><button class="addc shb" data-d="-1" title="The texts from this word on each belong one word earlier (a line that isn't a clue was counted as one).">⇡ Shift texts earlier</button></span>` : '');
     if (open) m.prepend(open);
     m.querySelector('.addc').onclick = () => compose(m, key, false);
     m.querySelector('.flagc').onclick = () => compose(m, key, false, true);
+    const mk = m.querySelector('.markc');
+    if (mk) mk.onclick = () => markForm(m, key, final(key));
     const mv = m.querySelector('.mvb');
     if (mv) mv.onclick = () => {
       const box = document.createElement('span');
@@ -2683,13 +2869,32 @@ function addRow(s, key, label, box, flags = [], src = null) {
     row.querySelector('.k1').onclick = () => { if (final(key) === '') { setEdit(key, lastText(), true); compose(row.querySelector('.margin'), key, true); } };
     row.querySelector('.k0').onclick = () => { if (final(key) !== '') { setEdit(key, '', true); compose(row.querySelector('.margin'), key, true); } };
   }
-  txt.onfocus = () => { txt.textContent = final(key); setFocus(rows.indexOf(row)); };
+  // Enter saves, Esc puts it back as it was; Shift+Enter (or the button, for touch) is a new line where the xd can
+  // hold one (a printed line), and is refused, saying why, where it can't (a clue, a header)
+  const multi = MULTILINE(key), hint = row.querySelector('.edhint'), nl = row.querySelector('.nlbtn');
+  let cancel = false;
+  const tell = (t, bad) => { hint.hidden = !t; hint.textContent = t || ''; hint.classList.toggle('bad', !!bad); };
+  txt.onfocus = () => {
+    txt.textContent = final(key); setFocus(rows.indexOf(row));
+    if (nl) nl.hidden = false;
+    tell(multi ? 'Enter saves · Shift+Enter starts a new line · Esc cancels' : 'Enter saves · Esc cancels');
+  };
   txt.onblur = () => {
-    const v = txt.textContent.trim();
-    if (v !== final(key)) { setEdit(key, v, true); compose(row.querySelector('.margin'), key, true); }
+    if (nl) nl.hidden = true;
+    if (cancel) { cancel = false; tell(''); row.paint(); return; }
+    const c = cleanText(txt.innerText, multi);
+    tell(c.said ? (multi ? `Saved with ${c.said}.` : `${ONE_LINE_SAYS(key)} The lines were ${c.said}.`) : '', !multi && c.said);
+    if (c.value !== final(key)) { setEdit(key, c.value, true); compose(row.querySelector('.margin'), key, true); }
     else row.paint();
   };
-  txt.onkeydown = e => { if (e.key === 'Escape' || e.key === 'Enter') { e.preventDefault(); txt.blur(); } };
+  const newLine = () => { document.execCommand('insertLineBreak') || document.execCommand('insertText', false, '\n'); };
+  if (nl) nl.onmousedown = e => { e.preventDefault(); newLine(); };
+  txt.onkeydown = e => {
+    if (e.key === 'Escape') { e.preventDefault(); cancel = true; txt.blur(); }
+    else if (e.key === 'Enter' && (e.shiftKey || e.altKey) && multi) { e.preventDefault(); newLine(); }
+    else if (e.key === 'Enter' && e.shiftKey) { e.preventDefault(); tell(ONE_LINE_SAYS(key), true); }
+    else if (e.key === 'Enter') { e.preventDefault(); txt.blur(); }
+  };
   row.onclick = e => {
     if (e.target.closest('.txt, .margin, .abox, .compose, a, button, input, textarea')) return;
     setFocus(rows.indexOf(row));
@@ -2845,6 +3050,7 @@ function refresh(key) {
     const b = document.getElementById('blankpanel'); if (key.startsWith('special:') && b) drawBlank(b);
   }
   else rows.find(r => r.dataset.key === key)?.paint();
+  if (/^line:B\d+$/.test(key)) document.getElementById('xdnotes')?.replaceWith(xdNotesSection());
   progress(); historyButtons();
 }
 function jumpTo(key) {
@@ -2877,6 +3083,7 @@ function gridSection() {
       <p>Hover a square for its position. While you're writing a note, click a square to put its position in the note.</p>
       ${anySp ? '' : markTool('fix its letter')}</details>
       <div class="splist" id="gspecial"></div>
+      <div class="keymis" id="keymis"></div>
       ${blankReasons().length ? `<p class="m-flag" style="padding:4px 8px;border-radius:6px">The blank grid may be worth a look: ${esc(blankReasons().join(' '))} <button class="ctxbtn" onclick="showBlank()">Open the blank grid</button></p>` : ''}
       <div class="margin" id="gnotes"></div>
     </div></div>`);
@@ -2884,6 +3091,7 @@ function gridSection() {
   wireMarkTool(s);
   if (!ansImg) gridMode = 'side';
   drawGrid(s);
+  keyMisprints(s.querySelector('#keymis'));
   const nu = s.querySelectorAll('#gtyped .unsure').length, uk = s.querySelector('#unsurekey');
   // the OCR's own doubts about letters, outlined in orange; a button takes the outlines off (and back)
   if (uk && nu) {
@@ -2896,6 +3104,52 @@ function gridSection() {
     paint();
   }
   return s;
+}
+// A letter the printed key got wrong (the clue and the crossings call for another): corrected in the xd blitz ships,
+// with a note in its notes (ship's case 3). Recorded as key_corrections in the review, the square's letter set too.
+function keyMisprints(host) {
+  if (!host) return;
+  const all = rounds.flatMap(r => (r.key_corrections || []).map(t => [r, t]));
+  host.innerHTML = all.map(([r, t]) => `<div class="mark"><b>The key printed ${esc(t.printed)} at ${esc(String(t.key).slice(5))}</b> <span class="by" style="color:${r.color}">${esc(r.who)}</span>:
+      ${marksCount(r) ? 'corrected' : 'proposed'}: ${esc(t.corrected)}. <span class="hint">${esc(markFate(r, `Corrected in the xd blitz ships, with a note saying the key printed ${t.printed}.`))}</span>
+      ${r === cur ? `<button class="linkbtn unkey" data-k="${esc(t.key)}">take it back</button>` : ''}</div>`).join('')
+    + `<button class="linkbtn" id="keymisbtn" title="The printed key has a wrong letter: the clue and the crossing words call for another">✎ A letter the printed key got wrong…</button>`;
+  host.querySelectorAll('.unkey').forEach(b => b.onclick = () => {
+    const was = (cur.key_corrections || []).find(t => t.key === b.dataset.k);
+    cur.key_corrections = (cur.key_corrections || []).filter(t => t.key !== b.dataset.k);
+    if (was && was.edited) setEdit(b.dataset.k, undefined, true);
+    save(); render();
+  });
+  host.querySelector('#keymisbtn').onclick = () => {
+    const sq = selCell ? `r${selCell[0] + 1}c${selCell[1] + 1}` : '';
+    const box = document.createElement('div');
+    box.className = 'compose markform';
+    box.innerHTML = `<div class="q">The printed key has a wrong letter here. It is corrected in the xd, with a note that the key printed otherwise.</div>
+      <label>Square: <input class="ks" size="7" value="${esc(sq)}" placeholder="r3c4"></label> <label>The key prints: <input class="kp" size="2"></label>
+      <label>Should be: <input class="kc" size="2"></label><div class="edhint bad" hidden></div>
+      <div class="acts"><button class="skip">Cancel</button><button class="save">Save</button></div>`;
+    host.prepend(box);
+    const [ks, kp, kc, msg] = ['.ks', '.kp', '.kc', '.edhint'].map(q => box.querySelector(q));
+    if (sq) kp.value = final('cell:' + sq);
+    const go = () => {
+      const m = /^r(\d+)c(\d+)$/i.exec(ks.value.trim()), p = kp.value.trim().toUpperCase(), c = kc.value.trim().toUpperCase();
+      const bad = !m || !ocr.grid[m[1] - 1] || ocr.grid[m[1] - 1][m[2] - 1] === undefined ? 'Give a square of the grid, as r3c4.'
+        : !/^[A-Z]$/.test(p) || !/^[A-Z]$/.test(c) ? 'Give one letter for what the key prints and one for what it should be.'
+        : p === c ? 'The letter meant is the one printed.' : '';
+      if (bad) { msg.hidden = false; msg.textContent = bad; return; }
+      const key = `cell:r${+m[1]}c${+m[2]}`;
+      // the owner's (or the maintainer's tools'): the square takes the letter meant; anyone else's is a proposal and
+      // leaves the square as it is (a key letter is corrected on the owner's word only)
+      const mine = marksCount(cur);
+      cur.key_corrections = [...(cur.key_corrections || []).filter(t => t.key !== key), {key, printed: p, corrected: c, edited: mine}];
+      if (mine) setEdit(key, c, true);
+      save(); render();
+    };
+    box.querySelector('.save').onclick = go;
+    box.querySelector('.skip').onclick = () => box.remove();
+    box.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); go(); } if (e.key === 'Escape') { e.preventDefault(); box.remove(); } };
+    (sq ? kc : ks).focus();
+  };
 }
 // a square's letters; several (a rebus square) set small in up to three lines, the way the
 // printed keys stack them ("TNL" over "DMS")

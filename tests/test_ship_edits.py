@@ -118,10 +118,9 @@ def test_a_misprint_corrected_as_an_edit_is_taken_back_out_and_the_rest_of_the_e
     _, _, p = shipped(tmp_path / "b", said(AI_BY, AGENT, {"clue:A3": "Two"}, typos=typos), CHECK, xd=XD.replace("A3. Two ~", "A3. Tow ~"))
     x = p["passing"][P]
     assert "A3. Tow ~ CDE" in x["text"] and x["edit_records"] == [] and x["corrections"][0]["fits"] == "printed"
-    # an edit with neither word is a reading fix like any other: it ships, and the proposal says it can't be placed
+    # an edit with neither word would ship the marked row other than as printed: held (fix A, 2026-11-13)
     _, _, p = shipped(tmp_path / "c", said(AI_BY, AGENT, {"clue:A3": "Deux"}, typos=typos), CHECK)
-    x = p["passing"][P]
-    assert "A3. Deux ~ CDE" in x["text"] and x["corrections"][0]["fits"] == "unplaced" and "beside" not in x["edit_records"][0]
+    assert (p["rows"][0]["reason"], p["rows"][0]["queue"]) == ("misprint-edit", "broken") and not p["passing"]
 
 
 def test_an_edit_that_puts_the_clue_back_as_printed_ships_with_the_correction_proposed(tmp_path):
@@ -238,7 +237,9 @@ def test_a_key_correction_with_no_whole_record_does_not_ship(tmp_path):
                                              ({}, {"key": "cell:r9c9", "printed": "D", "meant": "X"}, "names no square"))):
         _, _, p = shipped(tmp_path / str(i), said(AI_BY, AGENT, edits, typos=[typo]), CHECK)
         row = p["rows"][0]
-        assert (row["status"], row["reason"], row["queue"]) == ("held", "edit-unrecorded", "broken") and word in row["why"] and not p["passing"]
+        reason = "mark-invalid" if not typo["printed"] else "edit-unrecorded"  # a mark with no printed letter isn't taken at all
+        assert (row["status"], row["reason"], row["queue"]) == ("held", reason, "broken") and not p["passing"]
+        assert word in row["why"] or (reason == "mark-invalid" and "no printed text" in row["why"])
 
 
 def test_the_reviewers_key_corrections_are_read_as_xword_ocr_writes_them(tmp_path):
@@ -265,7 +266,7 @@ def test_the_reviewers_key_corrections_are_read_as_xword_ocr_writes_them(tmp_pat
         rec = said(AI_BY, AGENT, {"cell:r2c2": "X"})
         rec["proof"]["review"]["key_corrections"] = [bad]
         _, _, p = shipped(tmp_path / f"c{i}", rec, CHECK)
-        assert p["rows"][0]["reason"] == "edit-unrecorded" and not p["passing"]
+        assert p["rows"][0]["reason"] == ("edit-unrecorded" if i == 3 else "mark-invalid") and not p["passing"]  # incomplete: not taken
 
 
 # ---- no record, no ship ----

@@ -435,7 +435,9 @@ def fetch_decisions(agreed_only: bool = False) -> dict:
             "parts": rv.get("status", {}), "note": rv.get("note", ""), "at": r["at"],
             "xd": rv.get("xd", ""),  # the xd version the page showed (packet xd_fp); "" before 2026-10-13
             # sent back: a Not ready with what's wrong (xword-ocr problems.py: kind, part, note)
-            **({"sendback": rv["sendback"]} if rv.get("sendback") and r["decision"] == "notready" else {})}
+            **({"sendback": rv["sendback"]} if rv.get("sendback") and r["decision"] == "notready" else {}),
+            # what the reviewer marked "printed this way, but wrong" (a clue's or a header's misprint; a key letter)
+            **{k: rv[k] for k in ("typos", "key_corrections") if rv.get(k)}}
     # puts back of puzzles dropped as not crosswords (site/schema-7-drops.sql): per helper, a note and when;
     # the importer records each as a person's keep on drop:<pid> in the publication's ledger
     try:

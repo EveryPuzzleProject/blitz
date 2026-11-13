@@ -73,6 +73,10 @@ A puzzle the rule passes can still be held by the import, each with its own reas
 | `xd-exists` | `xd/` already has another file under its id |
 | `candidate-undecided` | the packet records a candidate clue list and no reviewer who said Ready has decided it (next section but one). A question, not a breakage |
 | `candidate-partial` | a candidate was taken into the puzzle (as the clues, or as a second set) and doesn't cover its slots |
+| `mark-invalid` | a misprint mark (`typos`, `key_corrections`) that can't be taken: malformed, or naming words the row doesn't have (The record of every edit) |
+| `misprint-edit` | a row marked as a misprint whose edit would ship it other than as printed |
+| `proposal-waits` | a helper's or a guest's key correction, with their own edit to the square: a question for the owner |
+| `mark-disputed` | an AI reviewer's misprint mark on a row a person edited, disagreeing with the edit: a question for the owner |
 
 The rule's own reasons: `owner-hold`, `not-ready`, `no-ready`, `needs-work` (no Ready that
 counts, and triage's disposition isn't ready), and each hold code. `needs-work` takes the place of
@@ -236,13 +240,121 @@ exactly what the ledger and the packet make.
 
 Not recorded yet: a hand fix made upstream of the packet (the publication's `fixes.toml`, a typed
 grid) reaches the xd inside the packet and is named in the xd's own headers and on the proof
-page, not in `edits`. A person on the proof page has no way to say an edit corrects a misprint
-(no `typos` from the page), so theirs is a reading fix if they commented and unclassed if not.
+page, not in `edits`.
+
+**A person's own misprint mark (since 2026-11-13).** On the proof page a clue row and each row of
+the headers table have "Printed this way, but wrong…", and the answer key has "A letter the printed
+key got wrong…". They write the same `typos` and `key_corrections` into the person's review as the AI
+reviewer's (the site keeps them in the review; `blitz site-import` and `from_site` carry them to the
+ledger), so the three cases above apply unchanged: a clue's or a header's stays as printed and the
+export corrects it; a key letter is corrected at ship with its note. The page accepts a mark only
+when the printed words are in the row's text once, whole (what ship calls `fits: printed`); when
+the reviewer had typed the correction, the page puts the printed words back (blitz ships what was
+printed). Each mark shows on its row with what will happen to it ("Stays as printed here; corrected
+to … at the gxd export").
+
+**Whose marks take effect: the owner's rule, 2026-11-13, "Owner only for now".** A `typos` or
+`key_corrections` entry takes effect when it is the owner's (an account in the rule's `owner` list, or
+the owner's own tools) or the AI proof reviewer's (decided 2026-11-11): `ship.MARKS_COUNT`. Anyone
+else's (a helper, a guest) is a **proposal**: kept in the ledger, carried as `proposals` (`{key,
+printed, meant, what, says, status: "waiting for the owner", by, kind}`) on the ship record's row, the
+as-shipped file and the provenance row, shown on the proof page and in the as-shipped view as
+"Proposed: waiting for the owner", and never applied: `ship-export` reads only `corrections`, and a
+key letter is not corrected in blitz. A helper who also changed the square to their proposed letter
+holds the puzzle as `proposal-waits` (a question for the owner, at the square's row), since shipping
+their edit would correct the letter on their word; on the page a helper's key mark leaves the square
+alone. An account on the rule's `ignore` list counts for nothing, not even a proposal. (Later, not
+built: an Accept button beside a proposal on the proof page, shown to the owner only, that writes the
+proposal into the owner's own review as their mark; the batch page would list proposals per puzzle.)
+
+**A marked row ships as printed** (the cold review, 2026-11-13, three passes). "The row check", below,
+is: the edit to the row stands when it keeps the printed words once; when it has the words meant once
+instead (and not the printed ones), those go back as printed; any other edit (the words meant typed
+twice or in another case, the printed words gone) holds the puzzle as `misprint-edit`, since nothing
+can tell which words are the misprint and the row would ship other than as printed. A mark says nothing
+about the rest of an edit: that is classed on its own evidence (a comment on the row: a reading fix;
+none: unclassed, listed for the owner). The whole rule, for a clue's or a header's mark; "own edit" is
+an edit to the marked row by the marker, "another's edit" one by another reviewer whose Ready counts:
+
+| who marked | mark | own edit on the row | another's edit on the row | no edit on the row |
+|---|---|---|---|---|
+| owner | valid | the row check; the correction is proposed for the export | the row check (the owner's mark governs the row, whoever edited it) | the correction is proposed for the export (`fits` printed, or already); the printed words and the words meant both absent: `mark-invalid` |
+| AI reviewer | valid | the row check; the correction is proposed for the export | a person's edit is never changed, dropped or overridden by the AI's mark: where the edit keeps the printed words once, it ships as it is and the correction is proposed; otherwise held `mark-disputed`, a question for the owner showing the person's edit (with its comment) and the AI's mark (fourth pass, 2026-11-13) | as the owner's |
+| owner, AI reviewer | malformed | `mark-invalid` | `mark-invalid` | `mark-invalid` |
+| helper, guest | valid | the row check; a proposal waiting for the owner, never applied at the export | the other's edit ships as it is, with its own records; a proposal waiting for the owner | a proposal waiting for the owner; nothing changes (also when its words aren't in the row) |
+| helper, guest | malformed | dropped, shown "not taken"; when it still names a clue or header and printed words: the edit stands only if it keeps them once, else `misprint-edit` | dropped, shown "not taken"; the other's edit ships as it is | dropped, shown "not taken"; nothing changes |
+| ignored account | either | nothing (its Ready doesn't count, so its edits aren't applied) | nothing | nothing |
+
+A key letter's mark (`key_corrections`, or a `typos` entry for a square): the owner's or the AI's is
+corrected here with its note (case 3), or held `edit-unrecorded` when it doesn't match the square; a
+malformed one is `mark-invalid`. A helper's or a guest's is a proposal; with their own edit of the square
+to that letter it holds as `proposal-waits`; another person's edit of the square ships as it is.
+
+**What a mark may hold** (fix B). Ship takes a mark only when its key names a clue, a header or (a key
+letter) a square; its printed and meant (corrected) words are text of one line, with no tab or
+control character, at most 200 characters, and differ; a key letter's are one letter each; and the
+printed words (or, already corrected, the words meant) are in the row's text. Otherwise the puzzle is
+held as `mark-invalid` (`ship.mark_problem`), and the mark reaches neither the xd nor `ship-export`.
+`corrected()` checks the same before it applies anything, and `corrections.tsv` never carries a tab or
+a line break. A clue's or a header's edit with a line break, a tab or another control character is
+refused at import (`edits-unapplied`); a printed line's text may hold line breaks and nothing else of
+the kind.
 
 A dry run writes none of this. Three options write the record alone and ship nothing (status
 only, for a batch that isn't shipping yet): `--record` (the publication repo's
 `pipeline/ship/<batch>.json`), `--snapshot <folder>` (a `ship.json` there) and `--publish` (the
 site's copy). Without `--write` a passing puzzle shows as ready to ship, never as shipped.
+
+## The xd as it will ship
+
+Each of those (and `--write`) also writes, for every puzzle the rule passes (ready to ship, or
+shipped and unchanged), the exact xd text `--write` writes for it, made in the same run by the same
+code, with the record of every edit behind it. One JSON file per puzzle beside the record:
+
+| copy | where |
+|---|---|
+| the publication repo (`--record`, `--write`) | `pipeline/ship/<batch>/as-shipped/<pid>.json` |
+| a snapshot (`--snapshot <folder>`) | `<folder>/as-shipped/<pid>.json` |
+| the site (`--publish`) | `batch/<batch>/as-shipped/<pid>.json`, beside `ship.json` |
+
+`{_about, pid, xdid, batch, run, at, status, xd, xd_fp, packet, packet_xd, decision: {rule, ai_ready,
+why, said}, edits: {records, packet}, corrections, notes, printed}`: the shape of the puzzle's
+provenance row, with the text. `at` is the record's; `xd_fp` is `fingerprint(xd)`, and the record's
+row for the puzzle carries the same value as `as_shipped`, so a page can tell a file from another
+making of the record. A helper is "a helper" and the owner's site account "the owner", as in the
+record's public copy. A puzzle that no longer passes loses its file when the record is made again,
+on the site too (`--publish` removes it: `ship.stale_as_shipped`). A file whose fingerprint isn't the
+record's is drawn under a warning.
+
+The batch page's "Ready to ship" and "Shipped" cards link to it (`?b=<batch>&ship=<pid>`): the text,
+which decision ships it, every edit's record (each linking to its row on the proof page), the
+misprints kept as printed with what the export will do, the text review's own changes. The proof
+page draws the same file under "The xd as it will ship". Both draw only what the file says, and say
+"not recorded" when the record points to a file that isn't there.
+
+## Where the printed lines land
+
+The record's row for each puzzle carries `printed` (`ship.printed_place`): where the packet's printed
+lines land in its xd and what the import does with a keep, a discard or a text edit of one: `{head:
+"Printed with puzzle:", lines: [the numbers of the packet's lines the block is made of, in its order]
+(null when the xd's block isn't the packet's kept lines), edits: applied | held, fixed: [the lines a
+header was read from], says}`. `applied`: a linked-ends puzzle, whose block the import writes again
+from the kept lines in the packet's order (`apply_linked`). `held`: any other puzzle, which a Ready
+carrying such an edit holds (`edits-unapplied`).
+
+The proof page's "Notes in the xd file" draws that block with the review's own keeps, discards and
+line edits, labelled "preview with this review's edits: not yet the shipped text", the packet's block
+under it, and redraws it on each such edit. It works out nothing but which of the packet's lines are
+kept (the page's `printedBlock`, which `tests/test_proof_edits.py` runs against `apply_linked` on real
+packets). The record, not the packet, carries the place because it exists for every packet already
+published (no packet is rebuilt for it), and because what the import does with the edit is ship's
+to say. With no record of it, the page says so and shows the packet's notes. A kept printed line
+over 300 characters is flagged on its row and in the preview.
+
+A printed line's text may hold line breaks (a paragraph break: Shift+Enter, or "new line", on the
+proof page). Each is a line of the block (`ship.block_lines`); an empty line is refused (the block
+ends at one). A clue's or a header's text is one line of the xd, and the page refuses a break there,
+saying so.
 
 ## Linked ends (the New York World's FUN, 1913-14)
 
@@ -269,7 +381,8 @@ A key correction's note names the words by their pairs ("The printed answer key 
 a proposed correction of a clue's print says "The clue for 5-6 is printed ...".
 
 **What isn't applied holds the puzzle** (`edits-unapplied`, broken, stage import), with the reason
-in words; nothing is applied in part. The import places no clue and decides no number: those are
+in words; nothing is applied in part (a printed line's text may hold line breaks, each a line of the
+block, since 2026-11-13). The import places no clue and decides no number: those are
 assembly's.
 
 - A shape fix (`grid:`) is applied only when the grid keeps the same words: every word of the
@@ -322,7 +435,7 @@ draws these fields and works none of them out.
 
 | `queue` | from | who it is for |
 |---|---|---|
-| `question` | held as `not-ready`, `owner-hold`, `edits-differ` or `candidate-undecided` | a person: answer on the proof page, and it can ship. The page's default list and its walk. |
+| `question` | held as `not-ready`, `owner-hold`, `edits-differ`, `candidate-undecided`, `proposal-waits` or `mark-disputed` | a person: answer on the proof page, and it can ship. The page's default list and its walk. |
 | `unchecked` | held as `no-ready` or `proof-stale` | a person: nobody's Ready counts for it yet, so it wants a whole proofread. No question to lead with. |
 | `broken` | every other hold: `needs-work`, `incomplete`, `sent-back`, `awaits-replace`, `edits-unapplied`, `packet-stale`, `no-packet`, `xd-exists`, a hold code | agents (as kinds of failure) and the maintainer (a diagnosis of the stage). Shown with its reason; no proofreading ask. |
 | `shippable` | passes, not written | nobody: `--write` ships it |
