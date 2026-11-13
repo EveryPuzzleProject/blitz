@@ -324,7 +324,7 @@ draws these fields and works none of them out.
 |---|---|---|
 | `question` | held as `not-ready`, `owner-hold`, `edits-differ` or `candidate-undecided` | a person: answer on the proof page, and it can ship. The page's default list and its walk. |
 | `unchecked` | held as `no-ready` or `proof-stale` | a person: nobody's Ready counts for it yet, so it wants a whole proofread. No question to lead with. |
-| `broken` | every other hold: `needs-work`, `incomplete`, `sent-back`, `edits-unapplied`, `packet-stale`, `no-packet`, `xd-exists`, a hold code | agents (as kinds of failure) and the maintainer (a diagnosis of the stage). Shown with its reason; no proofreading ask. |
+| `broken` | every other hold: `needs-work`, `incomplete`, `sent-back`, `awaits-replace`, `edits-unapplied`, `packet-stale`, `no-packet`, `xd-exists`, a hold code | agents (as kinds of failure) and the maintainer (a diagnosis of the stage). Shown with its reason; no proofreading ask. |
 | `shippable` | passes, not written | nobody: `--write` ships it |
 | `shipped` | in `xd/` | nobody; a sample goes to the maintainer (`spot_check`) |
 | `set-aside`, `not-a-crossword` | the ledger's `setaside:` / `drop:` | nobody |
@@ -377,6 +377,55 @@ the hold `sent-back` instead of `not-ready`: the puzzle leaves `question` for `b
 person said and the stage it points to (a part's stage: the clue lists and the grid are parts, the key
 and the title assembly; else the kind's: missing or misread is parts, mixed is assembly; "" for
 something else). The owner's later Ready still overrides, as it does any Not ready.
+
+### A Not ready that waits on the pipeline: `awaits-replace`
+
+**Whose fixes: the owner's rule, 2026-11-12, "Owner only for now".** Only the owner's fixes to a grid
+restart a puzzle: records made in the owner's own tools, or on the review site under an account in
+the rule's `owner` list. A helper's or a guest's stay in the ledger, show in the packet as not used,
+and restart nothing; their Not ready is a question for the owner as any other is. An account on the
+rule's `ignore` list never counts. (Later, not built: a button for the owner to accept a helper's fix.)
+
+On a linked-ends puzzle (the New York World's) the owner mends the grid on the proof page: a square
+that isn't one, a square's printed number, a key letter. The import applies only a Ready's edits, and
+the words and the clues' places follow from the grid, so the owner's Not ready carrying such edits
+(`grid:`, `num:`, `cell:`) is a diagnosis for the stage that places the clues, which reads them from
+the ledger (xword-ocr `linkedends.hint`; `xword-ocr remedy replace` reads the puzzle again). Until the
+packet says it was made from that decision (`ocr.json` `reviewer_fixes.decisions`: who and when, as the
+stage recorded them), the hold is `awaits-replace` and the puzzle is in `broken`, pointing to
+assembly, with how many fixes of each kind wait and the reviewer's note. What was said stays on the
+row as `asked` (the shape of `asks`), so the card shows it under "Waiting on the pipeline: nothing to
+answer here yet". Nothing is read out of the note's words. Once the packet records the decision, it
+goes by triage: ready for review, and the Not ready is a question again (`owner-hold` or `not-ready`),
+the reviewer's to look at; needs work, and the hold is `needs-work` (triage's blocking parts and their
+stages), still in `broken`, with `asked` kept.
+
+With no puzzle held on a question, the batch page opens on `unchecked` and its Start walks those.
+
+**What the pipeline read in is shown and recorded.** A re-placed packet's own values include the
+owner's squares, key letters and numbers, so no Ready's edit carries them. The packet says which
+(`ocr.json` `reviewer_fixes.squares`: `{key, value, was, by, at}`, xword-ocr's record of what the
+reading was made from). The proof page draws them and works nothing out: the blank grid lists every
+one under "Read in from the owner's fixes on the proof page", with what the stage had there, where
+the key disagrees (`key_disagrees`), where the owner's accounts disagreed, and whose fixes were not
+used; a square or key letter the owner changed is outlined as a change by "the owner (read in by the
+pipeline)" after the OCR's value. At ship each becomes an edit record in provenance
+(`read_in_records`, stage `re-place`, before the Readys' own): a square's kind and a printed number
+as class `reading`, a key letter as `unclassed` (nothing says whether the key was misread or
+misprinted), a number with `before_recorded: false` (what stood there was not recorded). One the
+owner gave that the stage already had is no change and no record.
+
+**A clue placed by sequence** (triage's `clue-by-sequence`, xword-ocr) needs a person's Ready under
+any `ai_ready` (`PERSON_CODES`); it is a doubt on the clue's row, not a hold on a person's Ready.
+
+### Proofreads a Ready ships come first
+
+An AI's question on a puzzle the ship check finds incomplete stays a question (it was tried as a
+hold of its own and dropped on the cold review of 2026-11-12: for 9 of the Collegian's 18 the
+question is that a clue is not printed in the paper, which only a person can decide).
+
+`also` is kept on an `unchecked` puzzle too (what the ship check finds incomplete: a Ready wouldn't
+ship it yet), the card says so, and `order` puts the unchecked puzzles a Ready ships before those.
 
 ## Candidate clue lists
 

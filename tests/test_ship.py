@@ -494,3 +494,37 @@ def test_an_ai_never_decides_a_candidate(tmp_path):
     assert (by["31"]["reason"]) == "no-ready"                                             # both: the check doesn't pass
     p = plan(repo, proofs, Rule(ai_ready="either"), "b")
     assert {r["pid"][-2:]: r["reason"] for r in p["rows"]} == {"31": "candidate-undecided", "32": "candidate-undecided"}
+
+
+INCOMPLETE = {"decision": "ready", "ship": {"ok": False, "findings": [{"code": "clue-empty"}, {"code": "triage-doubt"}],
+                                            "incomplete": ["clues with no text: A2 D19"]}}
+
+
+def test_an_ais_question_on_an_incomplete_puzzle_stays_a_question(tmp_path):
+    """It may be that the clue is not printed in the paper, which only a person can decide (the Collegian, 2026-11-12):
+    the question is asked, with what an answer won't mend said beside it."""
+    said = {P + "31": [_ai_no(P + "31", ("clue:D44", "No clue is printed for D44. Record it as not printed?", "confirm"))]}
+    repo, proofs = _batch(tmp_path, said, {P + "31": INCOMPLETE})
+    r = plan(repo, proofs, Rule(ai_ready="both"), "b")["rows"][0]
+    assert (r["queue"], r["reason"]) == ("question", "not-ready") and r["asks"][0]["row"] == "clue:D44"
+    assert r["also"] == ["clues with no text: A2 D19"] and "asked" not in r
+
+
+def test_a_clue_placed_by_sequence_needs_a_persons_ready_whatever_ai_ready_says():
+    codes = {"clue-by-sequence"}
+    for opt in ("both", "either"):
+        st = standing({}, [AI, CHECK], check_ok=True, codes=codes, rule=Rule(ai_ready=opt, hold_codes=()))
+        assert (st["status"], st["reason"]) == ("hold", "no-ready") and "clue-by-sequence needs a person's Ready" in st["why"]
+        assert standing({}, [AI, CHECK], check_ok=True, codes=set(), rule=Rule(ai_ready=opt, hold_codes=()))["status"] == "ship"
+    # a person's Ready ships it: the doubt is on the proof row, not a hold
+    assert standing({}, [HELPER], codes=codes, rule=Rule(hold_codes=()))["status"] == "ship"
+    assert standing({}, [OWNER], codes=codes, rule=Rule(hold_codes=()))["status"] == "ship"
+
+
+def test_the_proofreads_a_ready_ships_are_walked_before_the_ones_it_cannot(tmp_path):
+    repo, proofs = _batch(tmp_path, {}, {P + "31": INCOMPLETE, P + "32": DOUBT, P + "33": DOUBT})
+    p = plan(repo, proofs, Rule(ai_ready="both"), "b")
+    by = {r["pid"][-2:]: r for r in p["rows"]}
+    assert {r["queue"] for r in p["rows"]} == {"unchecked"}
+    assert [r["pid"][-2:] for r in sorted(p["rows"], key=lambda r: r["order"])] == ["32", "33", "31"]
+    assert by["31"]["also"] == ["clues with no text: A2 D19"] and by["32"]["also"] == []   # the card says a Ready won't ship it yet
