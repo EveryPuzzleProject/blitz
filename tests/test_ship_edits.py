@@ -26,10 +26,10 @@ def said(by, via, edits, comments=(), typos=None, at="2026-10-22T00:00:00Z"):
     return r
 
 
-def shipped(tmp_path, *recs, xd=XD):
+def shipped(tmp_path, *recs, xd=XD, rule=BOTH):
     repo, proofs = _batch(tmp_path, {P: list(recs)}, {P: OK})
     (proofs / P / "puzzle.xd").write_text(xd, encoding="utf-8")
-    return repo, proofs, plan(repo, proofs, BOTH, "b")
+    return repo, proofs, plan(repo, proofs, rule, "b")
 
 
 def row_of(repo):

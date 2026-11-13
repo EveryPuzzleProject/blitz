@@ -59,24 +59,38 @@ counted).
 | `hold_codes` | `["clue-typed"]` | triage reason codes that hold a puzzle whoever said Ready. `clue-typed` (a clue the text step supplied with no OCR reading) doesn't exist in triage yet; when it does, such puzzles are held with no change here. |
 | `owner` | `[]` | the owner's own accounts on the review site. Who the owner is isn't in the code: it is this list in the publication's `fixes/ship-rule.json` (GAMES: `oops6498`, confirmed by the owner 2026-11-10). The site's copy of the ship record shows such a decision as "the owner", a helper's as "a helper". |
 | `ignore` | `[]` | review-site accounts whose decisions don't count (GAMES: `walkthrough test`, a scripted usability test that left a Ready and a Not ready on the live site). |
+| `marks` | `people` | whose misprint marks and key corrections take effect (The record of every edit, "Whose marks take effect"). |
+| `grid_fixes` | `people` | whose fixes to a linked-ends grid in a Not ready the re-place stage reads in (`awaits-replace`; xword-ocr `linkedends.hint` reads the same setting). |
+| `typed_clues` | `people` | whose clue typed on the proof page, where the packet has no text for it, makes the puzzle whole (`incomplete`, below). |
+
+**Whose input counts** (the last three; `ship.counts_for`). The owner's rule of 2026-11-13, replacing the three "Owner
+only for now" answers of 2026-11-12 and 2026-11-13: "I'm okay with a pretty broad sense that the other reviewers can
+have power to mark shit up and do whatever they want. Given that we can always go back and fix it." Each is `people`
+(any person's input counts as the owner's: a helper's, a guest's) or `owner` (the owner's only, per publication, in
+`fixes/ship-rule.json`). Whatever they say: an account on `ignore` never counts; an AI reviewer's input keeps its own
+limits (it never stands in for or overrides a person); every such input is applied only with its record (who, when,
+what was there before); the owner's own decision overrides anyone's; and where two people's inputs disagree the
+owner's stands, otherwise the puzzle is a question for the owner (`edits-differ`, `mark-disputed`; for grid fixes,
+xword-ocr's hint). The ship record's `rule` carries all three.
 
 A puzzle the rule passes can still be held by the import, each with its own reason:
 
 | reason | meaning |
 |---|---|
 | `edit-unrecorded` | an edit with no whole record of what it changed (The record of every edit, below) |
-| `incomplete` | the ship check found missing or empty clues, an unsolved grid, a partial second clue set: no Ready makes it whole. One exception since 2026-11-12 (`ship.filled_by`): an unsolved grid, when the edits that ship with the Ready give every square the check named its letter (a key square the packet left unread, read by a reviewer: a reading fix with its record), and only when a person's decision ships the puzzle (rule `owner` or `people`): an AI's Ready never lifts it with its own letter, under any `ai_ready`. The reason it shipped says so. An empty or missing clue is never made whole by an edit. It needs the finding's `cells`, which records made before xword-ocr named them don't have (GAMES run15-restart), so it takes effect for a batch at its next triage run |
+| `incomplete` | the ship check found missing or empty clues, an unsolved grid, a partial second clue set: no Ready makes it whole. One exception since 2026-11-12 (`ship.filled_by`): an unsolved grid, when the edits that ship with the Ready give every square the check named its letter (a key square the packet left unread, read by a reviewer: a reading fix with its record), and only when a person's decision ships the puzzle (rule `owner` or `people`): an AI's Ready never lifts it with its own letter, under any `ai_ready`. The reason it shipped says so. It needs the finding's `cells`, which records made before xword-ocr named them don't have (GAMES run15-restart), so it takes effect for a batch at its next triage run. A second exception since 2026-11-13: clues with no text (`clue-empty`, which names them in `items`), when each one has its text in the own edits of a person whose typed clue counts (the rule's `typed_clues`: any person's by default), in a decision of a person's that ships the puzzle. An AI's edit never counts, not even beside the owner's Ready (the AI's Ready on No. 11 carries a D23; the owner's empty Ready beside it doesn't make D23 typed). Such a clue is typed by hand, not read: it ships with class `typed` (The record of every edit), in the xd's `Typed by hand:` block, and in the row's `typed`. A helper's typed clue under `typed_clues: owner` leaves the puzzle held, and the reason says so. A missing clue (no line for it in the xd), an extra one or a second set is never made whole by an edit |
 | `packet-stale` | the proof packet doesn't show its xd: rebuild the packet |
 | `proof-stale` | all that was said (a Ready, or an AI's Not ready) was on an earlier version of the puzzle |
 | `edits-differ` | two reviewers changed the same thing two ways |
-| `edits-unapplied` | a proof-page edit the import doesn't apply: a line's label or keep (`line:B3`), a header's evidence line (`ev:title`), a fill-in blank, a rebus square; in a linked-ends puzzle, an edit that can't be applied safely (Linked ends, below) |
+| `edits-unapplied` | a proof-page edit the import doesn't apply: a line's keep or text in a puzzle that isn't linked-ends (`keep:B3`, `line:B3`), a header's evidence line (`ev:title`), a fill-in blank, a rebus square; a line's label it can't hold (A printed line's label, below); in a linked-ends puzzle, an edit that can't be applied safely (Linked ends, below) |
 | `xd-exists` | `xd/` already has another file under its id |
 | `candidate-undecided` | the packet records a candidate clue list and no reviewer who said Ready has decided it (next section but one). A question, not a breakage |
 | `candidate-partial` | a candidate was taken into the puzzle (as the clues, or as a second set) and doesn't cover its slots |
 | `mark-invalid` | a misprint mark (`typos`, `key_corrections`) that can't be taken: malformed, or naming words the row doesn't have (The record of every edit) |
 | `misprint-edit` | a row marked as a misprint whose edit would ship it other than as printed |
-| `proposal-waits` | a helper's or a guest's key correction, with their own edit to the square: a question for the owner |
-| `mark-disputed` | an AI reviewer's misprint mark on a row a person edited, disagreeing with the edit: a question for the owner |
+| `proposal-waits` | under `marks: owner`, a helper's or a guest's key correction, with their own edit to the square: a question for the owner |
+| `fixes-disputed` | a linked-ends packet whose re-place found reviewers' grid fixes disagreeing on a square with none of them the owner's (xword-ocr `reviewer_fixes.undecided`): neither was read in; a question for the owner at each square (since 2026-11-13) |
+| `mark-disputed` | a misprint mark on a row another person edited, disagreeing with the edit (an AI reviewer's mark on anyone's edit; a helper's or a guest's on another helper's), or two people's marks on one row or square that say different things, neither the owner's: a question for the owner |
 
 The rule's own reasons: `owner-hold`, `not-ready`, `no-ready`, `needs-work` (no Ready that
 counts, and triage's disposition isn't ready), and each hold code. `needs-work` takes the place of
@@ -96,7 +110,8 @@ proofread it. What was said stays in `said`, marked `stale`, and in the reason.
 - `provenance.jsonl`, append-only, the last row for an xdid stands:
   `{xdid, pid, batch, run, packet, packet_xd, xd, shipped: {at, rule, ai_ready, by, why}, said:
   [{who, kind, answer, at, stale}], edits: {applied, from, records, packet}, corrections, notes,
-  check, codes, sources: {grid, clues, key}, printed: [{label, text}]}`. `kind` is owner, helper,
+  check, codes, sources: {grid, clues, key}, printed: [{label, text}], typed}` (`typed` only when a person typed a
+  clue where none was read: The record of every edit). `kind` is owner, helper,
   ai or check; `printed` is the kept printed lines with the text step's labels, which the
   export's Notes rule picks from; `edits`, `corrections` and `notes` are the next section.
 - `gxd-exports.tsv`: judge's columns (`gxd_id xdid date number gxd_mr exported proof_url
@@ -161,7 +176,18 @@ leaves the value as it was makes no record.
 - `reading`: the reviewer commented on the row. The comment is the evidence that the page shows
   the new text; it is quoted in `why`, not parsed.
 - `key correction`: a `typos` entry names the square (case 3).
-- `decision`: not a value of the xd (a candidate list's decision, and the clues it wrote).
+- `decision`: not a value of the xd (a candidate list's decision, and the clues it wrote; a printed line kept or
+  dropped; a printed line's label, `label:B1`, what "printed line label": what the line is, not a reading of it).
+- `typed`: a clue a person typed where the packet had no text for it (the ship check's `clue-empty`; the
+  `incomplete` row above). Nothing was read, so it is not a reading fix, whatever the comment says. The record is
+  the typist's (their `by`, their comment as `why`), and its `note` is the line of the xd's `Typed by hand:` block:
+  `The clue for 33-34 was typed by the owner on the proof page (2026-11-13): no text for it was read from the scan.
+  Their comment: "That's what the scan says."` (a helper is "a helper"; no account is named in the xd). The block
+  is ship's own, after the xd's other notes, like `Answer key corrected:`; it is not in the row's `notes`, so the
+  gxd export never takes it (gxd's Notes are the printed text and misprint notes; this is provenance). The
+  provenance row, the ship record's row and the as-shipped file carry it as `typed` (`[{key, by, kind, at,
+  note}]`; the record's row `[{key, kind, note}]`), the record's `counts.typed` counts such clues in what ships
+  (absent when none), and the batch card, the as-shipped view and the proof page's "Notes in the xd file" show it.
 - `unclassed`: no comment on the row and no `typos` entry, so nothing says whether the reviewer
   fixed a reading or corrected the print. It is applied, and reported: `blitz ship` lists each one
   ("unclassed <pid> <key> by <reviewer>"), and the record says `unclassed`. Holding these instead
@@ -253,10 +279,14 @@ the reviewer had typed the correction, the page puts the printed words back (bli
 printed). Each mark shows on its row with what will happen to it ("Stays as printed here; corrected
 to … at the gxd export").
 
-**Whose marks take effect: the owner's rule, 2026-11-13, "Owner only for now".** A `typos` or
-`key_corrections` entry takes effect when it is the owner's (an account in the rule's `owner` list, or
-the owner's own tools) or the AI proof reviewer's (decided 2026-11-11): `ship.MARKS_COUNT`. Anyone
-else's (a helper, a guest) is a **proposal**: kept in the ledger, carried as `proposals` (`{key,
+**Whose marks take effect: the rule's `marks`.** A `typos` or `key_corrections` entry takes effect when it is
+the owner's (an account in the rule's `owner` list, or the owner's own tools), the AI proof reviewer's (decided
+2026-11-11), or, with `marks: people` (the default since 2026-11-13, "the other reviewers can have power to mark
+shit up"), anyone's. A helper's or a guest's mark that takes effect is the owner's in every way but two: one that
+can't be taken (malformed, or naming words its row doesn't have) is dropped and shown "not taken" instead of
+holding the puzzle (a guest's slip doesn't hold a puzzle; it never reaches the export either way), and it never
+changes another person's edit (the table). With `marks: owner` (the owner's "Owner only for now" of 2026-11-13,
+still available per publication), anyone else's (a helper, a guest) is a **proposal**: kept in the ledger, carried as `proposals` (`{key,
 printed, meant, what, says, status: "waiting for the owner", by, kind}`) on the ship record's row, the
 as-shipped file and the provenance row, shown on the proof page and in the as-shipped view as
 "Proposed: waiting for the owner", and never applied: `ship-export` reads only `corrections`, and a
@@ -281,14 +311,41 @@ an edit to the marked row by the marker, "another's edit" one by another reviewe
 | owner | valid | the row check; the correction is proposed for the export | the row check (the owner's mark governs the row, whoever edited it) | the correction is proposed for the export (`fits` printed, or already); the printed words and the words meant both absent: `mark-invalid` |
 | AI reviewer | valid | the row check; the correction is proposed for the export | a person's edit is never changed, dropped or overridden by the AI's mark: where the edit keeps the printed words once, it ships as it is and the correction is proposed; otherwise held `mark-disputed`, a question for the owner showing the person's edit (with its comment) and the AI's mark (fourth pass, 2026-11-13) | as the owner's |
 | owner, AI reviewer | malformed | `mark-invalid` | `mark-invalid` | `mark-invalid` |
-| helper, guest | valid | the row check; a proposal waiting for the owner, never applied at the export | the other's edit ships as it is, with its own records; a proposal waiting for the owner | a proposal waiting for the owner; nothing changes (also when its words aren't in the row) |
-| helper, guest | malformed | dropped, shown "not taken"; when it still names a clue or header and printed words: the edit stands only if it keeps them once, else `misprint-edit` | dropped, shown "not taken"; the other's edit ships as it is | dropped, shown "not taken"; nothing changes |
+| helper, guest (`marks: people`, the default) | valid | the row check; the correction is proposed for the export, as the owner's | the other's edit is never changed by the mark: where it keeps the printed words once, it ships as it is and the correction is proposed; otherwise the owner's edit stands and the mark is shown "not taken", and another helper's or guest's edit holds the puzzle `mark-disputed` (the owner decides); an AI's edit gets the row check, as under the owner's mark | the correction is proposed for the export; its words absent from the row: dropped, shown "not taken" (not `mark-invalid`) |
+| helper, guest (`marks: owner`) | valid | the row check; a proposal waiting for the owner, never applied at the export | the other's edit ships as it is, with its own records; a proposal waiting for the owner | a proposal waiting for the owner; nothing changes (also when its words aren't in the row) |
+| helper, guest (either) | malformed | dropped, shown "not taken"; when it still names a clue or header and printed words: the edit stands only if it keeps them once, else `misprint-edit` | dropped, shown "not taken"; the other's edit ships as it is | dropped, shown "not taken"; nothing changes |
 | ignored account | either | nothing (its Ready doesn't count, so its edits aren't applied) | nothing | nothing |
+| anyone's, **declined by the owner** | valid | not taken, whatever else: shown "declined by the owner"; never corrected at the export, never in `corrections.tsv`; the marker's own edit is classed on its own | as the left; the owner's own edit on the row keeping the printed words once declines another person's mark by itself, also a mark made after the edit, which the owner may not have seen (their edit says what the row is; not an AI's mark: that one is proposed, as above) | not taken, as the left |
 
-A key letter's mark (`key_corrections`, or a `typos` entry for a square): the owner's or the AI's is
-corrected here with its note (case 3), or held `edit-unrecorded` when it doesn't match the square; a
-malformed one is `mark-invalid`. A helper's or a guest's is a proposal; with their own edit of the square
-to that letter it holds as `proposal-waits`; another person's edit of the square ships as it is.
+A key letter's mark (`key_corrections`, or a `typos` entry for a square): the owner's or the AI's, and under
+`marks: people` a helper's or a guest's, is corrected here with its note (case 3), or held `edit-unrecorded` when it
+doesn't match the square; a malformed one is `mark-invalid` (a helper's or a guest's: dropped, "not taken"). Under
+`marks: owner` a helper's or a guest's is a proposal; with their own edit of the square to that letter it holds as
+`proposal-waits`; another person's edit of the square ships as it is.
+
+**The owner declines a mark: "not a misprint"** (the second cold pass, 2026-11-13: "the owner's decision overrides"
+has to hold for the one input that changes the corpus). On a row carrying someone else's mark, the owner's proof page
+has a "not a misprint" button; it writes `declines: [{key, printed, meant, by}]` into the owner's review (the site and
+`from_site` carry it to the ledger, beside `typos`), and the button takes the decline back. The owner's own edit on
+the marked row that keeps the printed words once declines another person's (a helper's or a guest's) mark on those
+words too, unless the owner marked them themself: their edit says what the row is, and the page says so on the mark.
+A declined mark, a key letter's included, is not taken under either `marks` setting: it is carried as a proposal with
+`status: "declined by the owner"` and `declined_by`, shown on the proof page and in the as-shipped view under "Declined
+by the owner", never corrected at `ship-export` and never in `corrections.tsv`; a declined key correction leaves the
+letter as the key printed it (the marker's edit to the letter meant goes back, recorded; where the packet already had
+the letter meant, the printed letter is put back with a record of class `decision`, the owner's). An explicit decline
+counts on an AI reviewer's mark too. Ship reads the declines in the Readys that ship the puzzle; `ship-export` also
+reads each of the owner's accounts' latest proof record in the ledger (`ship.owner_declines`), so a decline given after
+a puzzle shipped holds at the export before the record is made again: a clue's or a header's correction is simply not
+made; a key letter, already corrected in the shipped xd with its note, holds the puzzle back from the export
+(`held-back.tsv`, `key-declined: … re-ship it first`) until `blitz ship --write` ships it again with the letter as
+printed. A decline in a helper's or a guest's review does nothing, and is shown "not taken" with the other untaken input. `tests/test_ship_whose.py` runs these cells,
+with the cold review's probe for a guest and for a helper.
+
+**Two marks on one row or square that say different things** (since 2026-11-13; same words from several reviewers
+are one mark). The owner's is taken and the others are shown "not taken"; with no owner's among them, a person's is
+taken over an AI's (an AI never overrides a person); two people's (helpers, guests) hold the puzzle `mark-disputed`,
+a question for the owner with each mark as an ask, and neither is taken. `tests/test_ship_whose.py` runs these cells.
 
 **What a mark may hold** (fix B). Ship takes a mark only when its key names a clue, a header or (a key
 letter) a square; its printed and meant (corrected) words are text of one line, with no tab or
@@ -351,6 +408,43 @@ published (no packet is rebuilt for it), and because what the import does with t
 to say. With no record of it, the page says so and shows the packet's notes. A kept printed line
 over 300 characters is flagged on its row and in the preview.
 
+### A printed line's label (since 2026-11-13)
+
+Each printed line the text step didn't take a header from has a label saying what it is (xword-ocr textstep:
+`instructions`, `test-solver`, `intro`, `credit`, `kind`, `answers`, `section`, `furniture`, `other-puzzle`,
+`other`; `ship.LINE_LABELS`). The label is not in the xd's text: the `Printed with puzzle:` block holds the kept
+lines' text only. It is in the provenance row's `printed`, `[{label, text}]`, which the gxd export's Notes rule
+picks from (`intro` and `instructions` unless the owner set the rule on the batch page), and it is what the text
+step's keep went by (`section`, `furniture`, `other-puzzle` discarded; the packet records the keep it made). The
+proof page's "the text step says it's …" menu on a line's row writes `label:B<n>`.
+
+The import applies it to any puzzle, linked-ends or not: the line's label in `printed` (and so in the as-shipped
+file) is the reviewer's, with a record of class `decision` (`before` the text step's label, `after` the
+reviewer's, `line`, `kept`). It is a decision about what the line is, not a reading fix: nothing in the line was
+read differently. It changes no keep: the line is in the block when it is kept (the packet's keep, or the
+reviewer's `keep:B<n>`), as the page's preview of the block shows. It is refused (`edits-unapplied`,
+`ship.label_problems`) when the value isn't one of the labels, the packet has no such line, the line is one a
+header was read from (it has no label of its own), or the packet records no keep for the line (the page would
+then keep or discard it by the new label, the import by nothing recorded).
+
+**"This line is the title."** The menu has no title, and the import makes no header from a label. A title is a
+header, given in the headers table (its value, `meta:title`, applied in any puzzle; or its line, `ev:title`, which
+the import still refuses). So a `label:B<n>` of `title` (`ship.SAID_LABELS`) is taken as what the reviewer said of
+the line, not as its label: the line keeps the text step's label, its keep is applied as any other, no `Title:` is
+written, and the record (`printed line label`, `before` = `after`, `said: "title"`, a `note` saying so) keeps the
+reviewer's word. That leaves the "no title printed" gap a publication rule records (the World's chain C1) as it
+was, and a misprint mark on the Title row as it was: with no `Title:` in the xd, a mark there names words the row
+doesn't have (`mark-invalid`). A printed line takes no misprint mark (a mark's key is a clue's, a header's or a
+square's).
+
+Why a line like this should not become the title, even when a reviewer calls it one: New York World No. 7 is read
+from the Minneapolis Journal's reprint, whose heading is "CROSS-WORD PUZZLE NO. 5". That is the reprinting paper's
+own series label, not the puzzle's title: the canonical number is the FUN series' 7 (`Number: 7`), and the owner
+(2026-11-13) takes the Journal's "No. 5" as a misprint to discard, not a title ("it'd be a little bit weird to title
+the puzzle number 5"). The owner's first Ready had kept B1 and relabelled it `intro` (a label, which the import
+applies: it would ship first in the block); the owner discards B1 instead, and No. 7 ships with no `Title:` and
+B1 out of the block.
+
 A printed line's text may hold line breaks (a paragraph break: Shift+Enter, or "new line", on the
 proof page). Each is a line of the block (`ship.block_lines`); an empty line is refused (the block
 ends at one). A clue's or a header's text is one line of the xd, and the page refuses a break there,
@@ -375,6 +469,7 @@ and so do the records (`clue:A6`, with the printed pair in `pair`).
 | `num:r3c5` (a number, a letter, or empty) | the Numbering section is written again; a line whose word's end it touches takes the pair the ends then give, or its slot's own label when an end has no number | `square number`, with `pairs` (the lines relabelled) |
 | `line:B4` | the line's text in the xd's `Printed with puzzle:` block, and in the row's `printed` (which the export's Notes rule reads) | `printed line` |
 | `keep:B3` | the line joins or leaves that block and `printed` | `printed line kept`, class `decision`, with the line's text |
+| `label:B3` | the line's label in `printed`; nothing in the xd's text (A printed line's label, below) | `printed line label`, class `decision` |
 | `meta:title` and the other headers | as in any xd | `header` |
 
 A key correction's note names the words by their pairs ("The printed answer key gave 5-6 as ...");
@@ -414,7 +509,7 @@ assembly's.
   still listed as applied with its `printed line` record (`kept: false`).
 - `label:`, `ev:`, `candidate:`, a fill-in blank: as for any puzzle.
 
-`line:` and `keep:` are applied to linked-ends puzzles only. Any other puzzle is still held on
+`line:` and `keep:` are applied to linked-ends puzzles only (`label:` to any puzzle, since 2026-11-13). Any other puzzle is still held on
 them (GAMES 1977-79 has three such), though nothing in how they are applied is particular to
 linked ends: lifting that is a change to `refused()` and a look at those three.
 
@@ -435,7 +530,7 @@ draws these fields and works none of them out.
 
 | `queue` | from | who it is for |
 |---|---|---|
-| `question` | held as `not-ready`, `owner-hold`, `edits-differ`, `candidate-undecided`, `proposal-waits` or `mark-disputed` | a person: answer on the proof page, and it can ship. The page's default list and its walk. |
+| `question` | held as `not-ready`, `owner-hold`, `edits-differ`, `candidate-undecided`, `proposal-waits`, `mark-disputed` or `fixes-disputed` | a person: answer on the proof page, and it can ship. The page's default list and its walk. |
 | `unchecked` | held as `no-ready` or `proof-stale` | a person: nobody's Ready counts for it yet, so it wants a whole proofread. No question to lead with. |
 | `broken` | every other hold: `needs-work`, `incomplete`, `sent-back`, `awaits-replace`, `edits-unapplied`, `packet-stale`, `no-packet`, `xd-exists`, a hold code | agents (as kinds of failure) and the maintainer (a diagnosis of the stage). Shown with its reason; no proofreading ask. |
 | `shippable` | passes, not written | nobody: `--write` ships it |
@@ -493,11 +588,15 @@ something else). The owner's later Ready still overrides, as it does any Not rea
 
 ### A Not ready that waits on the pipeline: `awaits-replace`
 
-**Whose fixes: the owner's rule, 2026-11-12, "Owner only for now".** Only the owner's fixes to a grid
-restart a puzzle: records made in the owner's own tools, or on the review site under an account in
-the rule's `owner` list. A helper's or a guest's stay in the ledger, show in the packet as not used,
-and restart nothing; their Not ready is a question for the owner as any other is. An account on the
-rule's `ignore` list never counts. (Later, not built: a button for the owner to accept a helper's fix.)
+**Whose fixes: the rule's `grid_fixes`.** With `people` (the default since 2026-11-13) any person's fixes to a grid
+restart a puzzle as the owner's do: a helper's or a guest's Not ready with them waits on the re-place
+(`awaits-replace`), and xword-ocr's stage reads them in (`linkedends.hint`, by the same setting, which the
+publication's `fixes/ship-rule.json` gives both). Where two people's fixes disagree on a square, the owner's stands;
+otherwise the stage applies neither and flags the puzzle for the owner. With `owner` (the owner's rule of
+2026-11-12, "Owner only for now"), only the owner's fixes restart a puzzle: records made in the owner's own tools, or
+on the review site under an account in the rule's `owner` list; a helper's or a guest's stay in the ledger, show in
+the packet as not used, and restart nothing; their Not ready is a question for the owner as any other is. An account
+on the rule's `ignore` list, and an AI reviewer, never count.
 
 On a linked-ends puzzle (the New York World's) the owner mends the grid on the proof page: a square
 that isn't one, a square's printed number, a key letter. The import applies only a Ready's edits, and

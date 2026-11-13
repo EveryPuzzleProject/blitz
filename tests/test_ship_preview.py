@@ -104,7 +104,7 @@ def test_only_the_owners_and_the_ais_marks_take_effect_a_helpers_or_a_guests_wai
                                               (said(AI_BY, AGENT, {}, typos=typo), (CHECK,), True),
                                               (said(PERSON, SITE, {}, typos=typo), (), False),                       # a helper
                                               (said(f"a helper 3f2a ({SITE})", SITE, {}, typos=typo), (), False))):  # a guest
-        _, _, p = shipped(tmp_path / str(i), rec, *extra, xd=xd)
+        _, _, p = shipped(tmp_path / str(i), rec, *extra, xd=xd, rule=Rule(ai_ready="both", marks="owner"))   # people: test_ship_whose.py
         x = p["passing"][P]
         assert "Title: Cross-Word Puzzle No. 5" in x["text"]                                    # as printed, whoever marked it
         assert bool(x["corrections"]) == counts and bool(x["proposals"]) != counts
@@ -125,7 +125,7 @@ def test_an_ignored_accounts_marks_never_count_and_a_helpers_key_letter_waits_fo
     # a helper who corrects a key letter on their own word: the letter isn't corrected in blitz; it is the owner's question
     kc = said(PERSON, SITE, {"cell:r2c2": "X"})
     kc["proof"]["review"]["key_corrections"] = [{"key": "cell:r2c2", "printed": "D", "corrected": "X", "edited": True}]
-    _, _, p = shipped(tmp_path / "k", kc)
+    _, _, p = shipped(tmp_path / "k", kc, rule=Rule(ai_ready="both", marks="owner"))
     row = p["rows"][0]
     assert (row["status"], row["reason"], row["queue"]) == ("held", "proposal-waits", "question") and not p["passing"]
     assert row["asks"][0]["row"] == "cell:r2c2" and "owner's word" in row["asks"][0]["text"]
@@ -169,7 +169,8 @@ def test_a_helpers_or_a_guests_marked_row_ships_as_printed_too(tmp_path):
     xd = XD.replace("A3. Two ~", "A3. Cockail party ~")
     typo = [{"key": "clue:A3", "printed": "Cockail", "meant": "Cocktail"}]
     for i, who in enumerate((PERSON, f"a helper 3f2a ({SITE})")):                              # a helper, a guest
-        _, _, p = shipped(tmp_path / str(i), said(who, SITE, {"clue:A3": "Cocktail party"}, typos=typo), xd=xd)
+        _, _, p = shipped(tmp_path / str(i), said(who, SITE, {"clue:A3": "Cocktail party"}, typos=typo), xd=xd,
+                          rule=Rule(ai_ready="both", marks="owner"))
         x = p["passing"][P]
         assert "A3. Cockail party ~" in x["text"] and x["edit_records"] == [] and x["corrections"] == []
         assert x["proposals"][0]["status"] == "waiting for the owner"

@@ -302,8 +302,11 @@ function standsHtmlQ(p, x, q) {
   // the xd as it will ship, beside the record (as-shipped/<pid>.json): the last look before the import
   const xdlink = (q === 'shippable' || q === 'shipped') && x.as_shipped
     ? `<br><a class="shipxdlink" href="${shipViewUrl(p.pid)}" title="the exact xd blitz ship writes for it, with every edit's record">See the xd as it will ship →</a>` : '';
+  // clues a person typed where none was read (the record's typed): said on the card, as the xd's notes say it
+  const typed = (q === 'shippable' || q === 'shipped') && (x.typed || []).length
+    ? `<br><span class="meta" title="no text was read for these: a person typed them on the proof page">Typed by hand: ${x.typed.map(t => esc(t.key.replace(/^clue:/, '')) + ' (' + esc(t.kind === 'owner' ? 'the owner' : 'a helper') + ')').join(', ')}</span>` : '';
   return `<div class="shipline ${q === 'broken' ? 'held' : esc(q)}" title="${esc(x.reason || x.rule || '')}: blitz ship, ${esc((SHIP.at || '').slice(0, 10))}"><b>${head}</b>`
-    + (why ? `<br><span class="meta">${why}</span>` : '') + wont + (said ? `<br><span class="meta">${x.reviewed ? 'Reviewed by a person. ' : ''}${said}</span>` : '') + xdlink + `</div>`;
+    + (why ? `<br><span class="meta">${why}</span>` : '') + wont + typed + (said ? `<br><span class="meta">${x.reviewed ? 'Reviewed by a person. ' : ''}${said}</span>` : '') + xdlink + `</div>`;
 }
 const U = u => u && DATA ? new URL(u, new URL(DATA, location.href)).href : u;
 // ---- the xd as it will ship (?ship=<pid>): blitz ship's file beside the record, as-shipped/<pid>.json, drawn as
@@ -311,7 +314,8 @@ const U = u => u && DATA ? new URL(u, new URL(DATA, location.href)).href : u;
 // the gxd export will do with a misprint. The proof page draws the same file under its notes.
 const shipViewUrl = pid => { const u = new URLSearchParams(location.search); u.set('ship', pid); return '?' + u.toString(); };
 const CLASS_SAYS = {reading: 'a reading fix', unclassed: 'unclassed: nothing says whether it fixes a reading or the print',
-  'key correction': "the key's misprint, corrected with a note", decision: 'a decision'};
+  'key correction': "the key's misprint, corrected with a note", decision: 'a decision',
+  typed: 'typed by hand: no text for it was read, so not a reading fix'};
 const proofAt = (pid, k) => `${SITE ? '../' : params.get('proof') || '/proof/'}?p=${encodeURIComponent(pid)}${!SITE && params.get('base') ? '&base=' + encodeURIComponent(params.get('base')) : ''}${k ? '&k=' + encodeURIComponent(k) : ''}`;
 function shippedHtml(d) {
   const recs = (d.edits || {}).records || [], fixes = d.corrections || [], pk = (d.edits || {}).packet || [];
@@ -323,7 +327,13 @@ function shippedHtml(d) {
       <span class="meta">${esc(e.by)}${e.at ? ', ' + esc(String(e.at).slice(0, 10)) : ''} · ${esc(CLASS_SAYS[e.class] || e.class)}${e.why ? ' · “' + esc(e.why) + '”' : ''}${e.note ? ' · note: ' + esc(e.note) : ''}</span></li>`).join('')}</ul>
     ${fixes.length ? `<h3>Misprints kept as printed here</h3><ul class="shiprecs">${fixes.map(c => `<li>${esc(c.says)} <b>Stays as printed here; corrected to “${esc(c.meant)}” at the gxd export</b>, with its note
       <span class="meta">${esc(c.by)}${c.fits === 'already' ? ' · the text already has the words meant: the export writes the note only' : c.fits === 'unplaced' ? " · the export can't place it in the text and leaves it alone" : ''}</span></li>`).join('')}</ul>` : ''}
-    ${(d.proposals || []).length ? `<h3>Proposed, waiting for the owner</h3><ul class="shiprecs">${d.proposals.map(q => `<li>${esc(q.says)} <b>Not applied: the owner decides</b>
+    ${(d.typed || []).length ? `<h3>Typed by hand</h3><ul class="shiprecs">${d.typed.map(t => `<li>${esc(t.note)}</li>`).join('')}</ul>` : ''}
+    ${(d.printed || []).length ? `<h3>Printed lines it keeps, and what each is</h3><ul class="shiprecs">${d.printed.map(q => `<li>${one(q.text)} <span class="meta">${esc(q.label)}: the gxd export's Notes rule picks the lines it takes by this</span></li>`).join('')}</ul>` : ''}
+    ${(d.proposals || []).filter(q => q.status === 'waiting for the owner').length ? `<h3>Proposed, waiting for the owner</h3><ul class="shiprecs">${d.proposals.filter(q => q.status === 'waiting for the owner').map(q => `<li>${esc(q.says)} <b>Not applied: the owner decides</b>
+      <span class="meta">${esc(q.by)}</span></li>`).join('')}</ul>` : ''}
+    ${(d.proposals || []).filter(q => q.status === 'declined by the owner').length ? `<h3>Declined by the owner</h3><ul class="shiprecs">${d.proposals.filter(q => q.status === 'declined by the owner').map(q => `<li>${esc(q.says)} <b>Not taken: not corrected at the gxd export</b>
+      <span class="meta">marked by ${esc(q.by)}</span></li>`).join('')}</ul>` : ''}
+    ${(d.proposals || []).filter(q => q.status === 'not taken').length ? `<h3>Marks not taken</h3><ul class="shiprecs">${d.proposals.filter(q => q.status === 'not taken').map(q => `<li>${esc(q.says)}
       <span class="meta">${esc(q.by)}</span></li>`).join('')}</ul>` : ''}
     ${pk.length ? `<details><summary>${pk.length} change${pk.length > 1 ? 's' : ''} the text review made before any reviewer saw it</summary><ul class="shiprecs">${pk.map(e => `<li>${esc(e.key)}: ${one(e.before)} → ${one(e.after)}${e.why ? ` <span class="meta">${esc(e.why)}</span>` : ''}</li>`).join('')}</ul></details>` : ''}`;
 }
