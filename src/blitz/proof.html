@@ -1377,11 +1377,12 @@ function legend() {
 // ---- a person's "printed this way, but wrong": the review's typos [{key, printed, meant}] (a clue's, a header's) and
 // key_corrections [{key: cell:r3c4, printed, corrected, edited}], the shapes the AI reviewer's review has them in
 // (blitz design/ship.md, "The record of every edit"). Shown with what will happen to each, as ship's rule has it.
-// Whose marks take effect (the owner's rule, 2026-11-13, "Owner only for now"; blitz ship MARKS_COUNT): the owner's
-// (an account in the ship record's rule.owner, or the maintainer's own tools off the site) and the AI reviewer's.
-// Anyone else's is a proposal, waiting for the owner. (Later: an Accept button here, on the owner's own page, that
-// writes the proposal into the owner's review as their mark.)
-const marksCount = r => !!r.ai || !SITE || ((SHIP || {}).rule || {}).owner?.includes(r === cur ? cur.who : r.who);
+// Whose marks take effect (blitz ship counts_for, the ship record's rule.marks): the owner's (an account in rule.owner,
+// or the maintainer's own tools off the site), the AI reviewer's, and with rule.marks "people" (the default since
+// 2026-11-13) anyone's. With "owner" (or a record from before the setting, made under "Owner only for now") anyone
+// else's is a proposal, waiting for the owner.
+const marksCount = r => !!r.ai || !SITE || ((SHIP || {}).rule || {}).marks === 'people'
+  || ((SHIP || {}).rule || {}).owner?.includes(r === cur ? cur.who : r.who);
 const markFate = (r, said) => marksCount(r) ? said : 'Proposed: waiting for the owner, who decides whether it is corrected. Nothing is changed until then.';
 const markKeys = key => /^meta:/.test(key) ? [key, 'ev:' + (key.slice(5) === 'puzzle_number' ? 'number' : key.slice(5))] : [key];
 const marksAt = key => rounds.flatMap(r => (r.typos || []).filter(t => markKeys(key).includes(t.key)).map(t => [r, t]));

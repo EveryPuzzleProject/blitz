@@ -144,16 +144,16 @@ def test_the_owners_typed_clue_makes_the_puzzle_whole_and_ships_typed_by_hand(tm
     (x,) = [x for x in rec_["puzzles"] if x["pid"] == NO11]
     assert x["status"] == "shipped" and x["typed"] == [{"key": "clue:D23", "kind": "owner", "note": note}] and rec_["counts"]["typed"] == 1
     assert as_shipped(p, rec_)[NO11]["typed"][0]["by"] == "the owner"   # the site's copy names no account
-    assert rec_["rule"]["typed_clues"] == "owner"
+    assert rec_["rule"]["typed_clues"] == "people"
 
 
-def test_a_helpers_typed_clue_waits_for_the_owner_unless_the_rule_says_people(tmp_path):
+def test_a_helpers_typed_clue_counts_unless_the_rule_says_owner(tmp_path):
     rec = said(PERSON, SITE, {"clue:D23": "A sudden slide."})
-    _, p = _typed(tmp_path, [rec])
+    _, p = _typed(tmp_path, [rec], Rule(ai_ready="both", owner=("oops6498",), typed_clues="owner"))
     r = row(p, NO11)
     assert (r["status"], r["reason"], r["rule"]) == ("held", "incomplete", "people")
     assert "D23 typed by a helper: a clue typed where none was read makes the puzzle whole only on the owner's word" in r["why"]
-    _, p = _typed(tmp_path / "2", [rec], Rule(ai_ready="both", owner=("oops6498",), typed_clues="people"))
+    _, p = _typed(tmp_path / "2", [rec])                                                    # typed_clues: people, the default
     assert row(p, NO11)["status"] == "shippable"
     assert next(e for e in p["passing"][NO11]["edit_records"] if e["key"] == "clue:D23")["kind"] == "helper"
 
@@ -200,9 +200,12 @@ def test_a_typed_clue_on_an_ordinary_puzzle(tmp_path):
 
 def test_the_rule_says_whose_typed_clue_counts(tmp_path):
     (tmp_path / "fixes").mkdir()
-    assert rule_of(tmp_path).typed_clues == "owner"
-    (tmp_path / "fixes" / "ship-rule.json").write_text(json.dumps({"typed_clues": "people"}), encoding="utf-8")
-    assert rule_of(tmp_path).typed_clues == "people"
+    assert (rule_of(tmp_path).typed_clues, rule_of(tmp_path).marks, rule_of(tmp_path).grid_fixes) == ("people",) * 3
+    (tmp_path / "fixes" / "ship-rule.json").write_text(json.dumps({"typed_clues": "owner", "marks": "owner"}), encoding="utf-8")
+    assert (rule_of(tmp_path).typed_clues, rule_of(tmp_path).marks, rule_of(tmp_path).grid_fixes) == ("owner", "owner", "people")
+    (tmp_path / "fixes" / "ship-rule.json").write_text(json.dumps({"grid_fixes": "helpers"}), encoding="utf-8")
+    with pytest.raises(Stop):
+        rule_of(tmp_path)
     (tmp_path / "fixes" / "ship-rule.json").write_text(json.dumps({"typed_clues": "anyone"}), encoding="utf-8")
     with pytest.raises(Stop):
         rule_of(tmp_path)

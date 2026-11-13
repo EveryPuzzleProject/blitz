@@ -59,14 +59,26 @@ counted).
 | `hold_codes` | `["clue-typed"]` | triage reason codes that hold a puzzle whoever said Ready. `clue-typed` (a clue the text step supplied with no OCR reading) doesn't exist in triage yet; when it does, such puzzles are held with no change here. |
 | `owner` | `[]` | the owner's own accounts on the review site. Who the owner is isn't in the code: it is this list in the publication's `fixes/ship-rule.json` (GAMES: `oops6498`, confirmed by the owner 2026-11-10). The site's copy of the ship record shows such a decision as "the owner", a helper's as "a helper". |
 | `ignore` | `[]` | review-site accounts whose decisions don't count (GAMES: `walkthrough test`, a scripted usability test that left a Ready and a Not ready on the live site). |
-| `typed_clues` | `owner` | whose clue typed on the proof page, where the packet has no text for it, makes the puzzle whole (`incomplete`, below): `owner` (the owner's own Ready only, as for grid fixes and misprint marks) or `people` (a helper's too). Never an AI's. Since 2026-11-13; the default is a proposal for the owner to confirm. |
+| `marks` | `people` | whose misprint marks and key corrections take effect (The record of every edit, "Whose marks take effect"). |
+| `grid_fixes` | `people` | whose fixes to a linked-ends grid in a Not ready the re-place stage reads in (`awaits-replace`; xword-ocr `linkedends.hint` reads the same setting). |
+| `typed_clues` | `people` | whose clue typed on the proof page, where the packet has no text for it, makes the puzzle whole (`incomplete`, below). |
+
+**Whose input counts** (the last three; `ship.counts_for`). The owner's rule of 2026-11-13, replacing the three "Owner
+only for now" answers of 2026-11-12 and 2026-11-13: "I'm okay with a pretty broad sense that the other reviewers can
+have power to mark shit up and do whatever they want. Given that we can always go back and fix it." Each is `people`
+(any person's input counts as the owner's: a helper's, a guest's) or `owner` (the owner's only, per publication, in
+`fixes/ship-rule.json`). Whatever they say: an account on `ignore` never counts; an AI reviewer's input keeps its own
+limits (it never stands in for or overrides a person); every such input is applied only with its record (who, when,
+what was there before); the owner's own decision overrides anyone's; and where two people's inputs disagree the
+owner's stands, otherwise the puzzle is a question for the owner (`edits-differ`, `mark-disputed`; for grid fixes,
+xword-ocr's hint). The ship record's `rule` carries all three.
 
 A puzzle the rule passes can still be held by the import, each with its own reason:
 
 | reason | meaning |
 |---|---|
 | `edit-unrecorded` | an edit with no whole record of what it changed (The record of every edit, below) |
-| `incomplete` | the ship check found missing or empty clues, an unsolved grid, a partial second clue set: no Ready makes it whole. One exception since 2026-11-12 (`ship.filled_by`): an unsolved grid, when the edits that ship with the Ready give every square the check named its letter (a key square the packet left unread, read by a reviewer: a reading fix with its record), and only when a person's decision ships the puzzle (rule `owner` or `people`): an AI's Ready never lifts it with its own letter, under any `ai_ready`. The reason it shipped says so. It needs the finding's `cells`, which records made before xword-ocr named them don't have (GAMES run15-restart), so it takes effect for a batch at its next triage run. A second exception since 2026-11-13: clues with no text (`clue-empty`, which names them in `items`), when each one has its text in the own edits of a person whose typed clue counts (the rule's `typed_clues`: the owner by default), in a decision of a person's that ships the puzzle. An AI's edit never counts, not even beside the owner's Ready (the AI's Ready on No. 11 carries a D23; the owner's empty Ready beside it doesn't make D23 typed). Such a clue is typed by hand, not read: it ships with class `typed` (The record of every edit), in the xd's `Typed by hand:` block, and in the row's `typed`. A helper's typed clue under `owner` leaves the puzzle held, and the reason says so. A missing clue (no line for it in the xd), an extra one or a second set is never made whole by an edit |
+| `incomplete` | the ship check found missing or empty clues, an unsolved grid, a partial second clue set: no Ready makes it whole. One exception since 2026-11-12 (`ship.filled_by`): an unsolved grid, when the edits that ship with the Ready give every square the check named its letter (a key square the packet left unread, read by a reviewer: a reading fix with its record), and only when a person's decision ships the puzzle (rule `owner` or `people`): an AI's Ready never lifts it with its own letter, under any `ai_ready`. The reason it shipped says so. It needs the finding's `cells`, which records made before xword-ocr named them don't have (GAMES run15-restart), so it takes effect for a batch at its next triage run. A second exception since 2026-11-13: clues with no text (`clue-empty`, which names them in `items`), when each one has its text in the own edits of a person whose typed clue counts (the rule's `typed_clues`: any person's by default), in a decision of a person's that ships the puzzle. An AI's edit never counts, not even beside the owner's Ready (the AI's Ready on No. 11 carries a D23; the owner's empty Ready beside it doesn't make D23 typed). Such a clue is typed by hand, not read: it ships with class `typed` (The record of every edit), in the xd's `Typed by hand:` block, and in the row's `typed`. A helper's typed clue under `typed_clues: owner` leaves the puzzle held, and the reason says so. A missing clue (no line for it in the xd), an extra one or a second set is never made whole by an edit |
 | `packet-stale` | the proof packet doesn't show its xd: rebuild the packet |
 | `proof-stale` | all that was said (a Ready, or an AI's Not ready) was on an earlier version of the puzzle |
 | `edits-differ` | two reviewers changed the same thing two ways |
@@ -76,8 +88,8 @@ A puzzle the rule passes can still be held by the import, each with its own reas
 | `candidate-partial` | a candidate was taken into the puzzle (as the clues, or as a second set) and doesn't cover its slots |
 | `mark-invalid` | a misprint mark (`typos`, `key_corrections`) that can't be taken: malformed, or naming words the row doesn't have (The record of every edit) |
 | `misprint-edit` | a row marked as a misprint whose edit would ship it other than as printed |
-| `proposal-waits` | a helper's or a guest's key correction, with their own edit to the square: a question for the owner |
-| `mark-disputed` | an AI reviewer's misprint mark on a row a person edited, disagreeing with the edit: a question for the owner |
+| `proposal-waits` | under `marks: owner`, a helper's or a guest's key correction, with their own edit to the square: a question for the owner |
+| `mark-disputed` | a misprint mark on a row another person edited, disagreeing with the edit (an AI reviewer's mark on anyone's edit; a helper's or a guest's on another helper's), or two people's marks on one row or square that say different things, neither the owner's: a question for the owner |
 
 The rule's own reasons: `owner-hold`, `not-ready`, `no-ready`, `needs-work` (no Ready that
 counts, and triage's disposition isn't ready), and each hold code. `needs-work` takes the place of
@@ -266,10 +278,14 @@ the reviewer had typed the correction, the page puts the printed words back (bli
 printed). Each mark shows on its row with what will happen to it ("Stays as printed here; corrected
 to … at the gxd export").
 
-**Whose marks take effect: the owner's rule, 2026-11-13, "Owner only for now".** A `typos` or
-`key_corrections` entry takes effect when it is the owner's (an account in the rule's `owner` list, or
-the owner's own tools) or the AI proof reviewer's (decided 2026-11-11): `ship.MARKS_COUNT`. Anyone
-else's (a helper, a guest) is a **proposal**: kept in the ledger, carried as `proposals` (`{key,
+**Whose marks take effect: the rule's `marks`.** A `typos` or `key_corrections` entry takes effect when it is
+the owner's (an account in the rule's `owner` list, or the owner's own tools), the AI proof reviewer's (decided
+2026-11-11), or, with `marks: people` (the default since 2026-11-13, "the other reviewers can have power to mark
+shit up"), anyone's. A helper's or a guest's mark that takes effect is the owner's in every way but two: one that
+can't be taken (malformed, or naming words its row doesn't have) is dropped and shown "not taken" instead of
+holding the puzzle (a guest's slip doesn't hold a puzzle; it never reaches the export either way), and it never
+changes another person's edit (the table). With `marks: owner` (the owner's "Owner only for now" of 2026-11-13,
+still available per publication), anyone else's (a helper, a guest) is a **proposal**: kept in the ledger, carried as `proposals` (`{key,
 printed, meant, what, says, status: "waiting for the owner", by, kind}`) on the ship record's row, the
 as-shipped file and the provenance row, shown on the proof page and in the as-shipped view as
 "Proposed: waiting for the owner", and never applied: `ship-export` reads only `corrections`, and a
@@ -294,14 +310,21 @@ an edit to the marked row by the marker, "another's edit" one by another reviewe
 | owner | valid | the row check; the correction is proposed for the export | the row check (the owner's mark governs the row, whoever edited it) | the correction is proposed for the export (`fits` printed, or already); the printed words and the words meant both absent: `mark-invalid` |
 | AI reviewer | valid | the row check; the correction is proposed for the export | a person's edit is never changed, dropped or overridden by the AI's mark: where the edit keeps the printed words once, it ships as it is and the correction is proposed; otherwise held `mark-disputed`, a question for the owner showing the person's edit (with its comment) and the AI's mark (fourth pass, 2026-11-13) | as the owner's |
 | owner, AI reviewer | malformed | `mark-invalid` | `mark-invalid` | `mark-invalid` |
-| helper, guest | valid | the row check; a proposal waiting for the owner, never applied at the export | the other's edit ships as it is, with its own records; a proposal waiting for the owner | a proposal waiting for the owner; nothing changes (also when its words aren't in the row) |
-| helper, guest | malformed | dropped, shown "not taken"; when it still names a clue or header and printed words: the edit stands only if it keeps them once, else `misprint-edit` | dropped, shown "not taken"; the other's edit ships as it is | dropped, shown "not taken"; nothing changes |
+| helper, guest (`marks: people`, the default) | valid | the row check; the correction is proposed for the export, as the owner's | the other's edit is never changed by the mark: where it keeps the printed words once, it ships as it is and the correction is proposed; otherwise the owner's edit stands and the mark is shown "not taken", and another helper's or guest's edit holds the puzzle `mark-disputed` (the owner decides); an AI's edit gets the row check, as under the owner's mark | the correction is proposed for the export; its words absent from the row: dropped, shown "not taken" (not `mark-invalid`) |
+| helper, guest (`marks: owner`) | valid | the row check; a proposal waiting for the owner, never applied at the export | the other's edit ships as it is, with its own records; a proposal waiting for the owner | a proposal waiting for the owner; nothing changes (also when its words aren't in the row) |
+| helper, guest (either) | malformed | dropped, shown "not taken"; when it still names a clue or header and printed words: the edit stands only if it keeps them once, else `misprint-edit` | dropped, shown "not taken"; the other's edit ships as it is | dropped, shown "not taken"; nothing changes |
 | ignored account | either | nothing (its Ready doesn't count, so its edits aren't applied) | nothing | nothing |
 
-A key letter's mark (`key_corrections`, or a `typos` entry for a square): the owner's or the AI's is
-corrected here with its note (case 3), or held `edit-unrecorded` when it doesn't match the square; a
-malformed one is `mark-invalid`. A helper's or a guest's is a proposal; with their own edit of the square
-to that letter it holds as `proposal-waits`; another person's edit of the square ships as it is.
+A key letter's mark (`key_corrections`, or a `typos` entry for a square): the owner's or the AI's, and under
+`marks: people` a helper's or a guest's, is corrected here with its note (case 3), or held `edit-unrecorded` when it
+doesn't match the square; a malformed one is `mark-invalid` (a helper's or a guest's: dropped, "not taken"). Under
+`marks: owner` a helper's or a guest's is a proposal; with their own edit of the square to that letter it holds as
+`proposal-waits`; another person's edit of the square ships as it is.
+
+**Two marks on one row or square that say different things** (since 2026-11-13; same words from several reviewers
+are one mark). The owner's is taken and the others are shown "not taken"; with no owner's among them, a person's is
+taken over an AI's (an AI never overrides a person); two people's (helpers, guests) hold the puzzle `mark-disputed`,
+a question for the owner with each mark as an ask, and neither is taken. `tests/test_ship_whose.py` runs these cells.
 
 **What a mark may hold** (fix B). Ship takes a mark only when its key names a clue, a header or (a key
 letter) a square; its printed and meant (corrected) words are text of one line, with no tab or
@@ -544,11 +567,15 @@ something else). The owner's later Ready still overrides, as it does any Not rea
 
 ### A Not ready that waits on the pipeline: `awaits-replace`
 
-**Whose fixes: the owner's rule, 2026-11-12, "Owner only for now".** Only the owner's fixes to a grid
-restart a puzzle: records made in the owner's own tools, or on the review site under an account in
-the rule's `owner` list. A helper's or a guest's stay in the ledger, show in the packet as not used,
-and restart nothing; their Not ready is a question for the owner as any other is. An account on the
-rule's `ignore` list never counts. (Later, not built: a button for the owner to accept a helper's fix.)
+**Whose fixes: the rule's `grid_fixes`.** With `people` (the default since 2026-11-13) any person's fixes to a grid
+restart a puzzle as the owner's do: a helper's or a guest's Not ready with them waits on the re-place
+(`awaits-replace`), and xword-ocr's stage reads them in (`linkedends.hint`, by the same setting, which the
+publication's `fixes/ship-rule.json` gives both). Where two people's fixes disagree on a square, the owner's stands;
+otherwise the stage applies neither and flags the puzzle for the owner. With `owner` (the owner's rule of
+2026-11-12, "Owner only for now"), only the owner's fixes restart a puzzle: records made in the owner's own tools, or
+on the review site under an account in the rule's `owner` list; a helper's or a guest's stay in the ledger, show in
+the packet as not used, and restart nothing; their Not ready is a question for the owner as any other is. An account
+on the rule's `ignore` list, and an AI reviewer, never count.
 
 On a linked-ends puzzle (the New York World's) the owner mends the grid on the proof page: a square
 that isn't one, a square's printed number, a key letter. The import applies only a Ready's edits, and

@@ -499,12 +499,16 @@ def test_a_not_ready_with_no_fix_to_the_grid_stays_a_question(tmp_path):
     assert [(row(p, pid)["reason"], row(p, pid)["queue"]) for pid in (NO11, NO12)] == [("not-ready", "question")] * 2
 
 
-def test_a_helpers_or_a_guests_grid_fixes_restart_nothing_and_stay_a_question(tmp_path):
-    """The owner's rule, 2026-11-12, "Owner only for now": the same edits from anyone but the owner wait for nothing."""
+def test_a_helpers_or_a_guests_grid_fixes_wait_for_the_re_place_unless_the_rule_says_owner(tmp_path):
+    """grid_fixes: people (the default since 2026-11-13): a helper's or a guest's Not ready with fixes to the grid waits on
+    the pipeline as the owner's does. grid_fixes: owner (the owner's rule of 2026-11-12, "Owner only for now"): the same
+    edits from anyone but the owner wait for nothing, and stay a question."""
     edits = OWNER_NO9["proof"]["review"]["edits"]
     for who in (PERSON, f"guest-7f3a ({SITE})"):
         repo, proofs = batch(tmp_path / who[:5], {NO9: [said(who, SITE, edits, answer="notready")]}, pids=(NO9,))
         r = row(plan(repo, proofs, RULE, "b"), NO9)
+        assert (r["reason"], r["queue"]) == ("awaits-replace", "broken") and r["awaits"]["who"] == who
+        r = row(plan(repo, proofs, Rule(ai_ready="both", owner=("oops6498",), grid_fixes="owner"), "b"), NO9)
         assert (r["reason"], r["queue"]) == ("not-ready", "question") and "asked" not in r
 
 

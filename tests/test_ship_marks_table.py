@@ -15,6 +15,9 @@ COCK = XD.replace("A3. Two ~", "A3. Cockail party ~")
 MARK = [{"key": "clue:A3", "printed": "Cockail", "meant": "Cocktail"}]
 BAD = [{"key": "clue:A3", "printed": "Cockail", "meant": "Cock\ntail"}]        # malformed: a line break in the words meant
 EARLY, LATE = "2026-10-21T00:00:00Z", "2026-10-23T00:00:00Z"
+OWNER_ONLY = Rule(ai_ready="both", marks="owner")  # the helper and guest rows below are the table under marks: owner
+# (the owner's "Owner only for now" of 2026-11-13); under marks: people, the default since the same day, a helper's or a
+# guest's mark counts as the owner's: tests/test_ship_whose.py
 
 
 def owner(edits, typos=None, comments=(), at=EARLY):
@@ -103,13 +106,13 @@ def test_owner_or_ai_malformed_holds_whoever_edited(tmp_path):
         assert held(p) == "mark-invalid", i
 
 
-# ---- helper, guest: valid ----
+# ---- helper, guest: valid (marks: owner) ----
 
 def test_helper_or_guest_valid_own_edit_the_row_check_and_a_proposal(tmp_path):
     for i, who in enumerate((PERSON, GUEST)):
-        _, _, p = shipped(tmp_path / f"a{i}", site(who, {"clue:A3": "Cocktail party"}, MARK), xd=COCK)   # the second pass's probe
+        _, _, p = shipped(tmp_path / f"a{i}", site(who, {"clue:A3": "Cocktail party"}, MARK), xd=COCK, rule=OWNER_ONLY)   # the second pass's probe
         assert a3(p) == "A3. Cockail party ~ CDE" and ships(p)["corrections"] == [] and ships(p)["proposals"][0]["status"] == "waiting for the owner"
-        _, _, p = shipped(tmp_path / f"b{i}", site(who, {"clue:A3": "cocktail party"}, MARK), xd=COCK)
+        _, _, p = shipped(tmp_path / f"b{i}", site(who, {"clue:A3": "cocktail party"}, MARK), xd=COCK, rule=OWNER_ONLY)
         assert held(p) == "misprint-edit"
 
 
@@ -119,7 +122,7 @@ def test_helper_or_guest_valid_anothers_edit_ships_as_it_is(tmp_path):
     fix = owner({"clue:A3": "Two"}, comments=[("clue:A3", "The crop reads Two.")])
     for i, mark in enumerate(([{"key": "clue:A3", "printed": "Tow", "meant": "Two"}],
                               [{"key": "clue:A3", "printed": "Mocktail", "meant": "Cocktail"}])):  # and one naming absent words
-        _, _, p = shipped(tmp_path / str(i), fix, site(GUEST, {}, mark), xd=tow)
+        _, _, p = shipped(tmp_path / str(i), fix, site(GUEST, {}, mark), xd=tow, rule=OWNER_ONLY)
         x = ships(p)
         assert a3(p) == "A3. Two ~ CDE" and x["edit_records"][0]["class"] == "reading" and x["edit_records"][0]["by"] == OWNER
         assert x["corrections"] == [] and x["proposals"][0]["status"] == "waiting for the owner"
@@ -127,7 +130,7 @@ def test_helper_or_guest_valid_anothers_edit_ships_as_it_is(tmp_path):
 
 def test_helper_or_guest_valid_no_edit_nothing_changes(tmp_path):
     for i, mark in enumerate((MARK, [{"key": "clue:A3", "printed": "Mocktail", "meant": "Cocktail"}])):
-        _, _, p = shipped(tmp_path / str(i), site(GUEST, {}, mark), xd=COCK)
+        _, _, p = shipped(tmp_path / str(i), site(GUEST, {}, mark), xd=COCK, rule=OWNER_ONLY)
         assert a3(p) == "A3. Cockail party ~ CDE" and ships(p)["corrections"] == [] and ships(p)["proposals"]
 
 
@@ -174,9 +177,10 @@ def test_a_key_letters_mark_by_whom_and_whose_edit(tmp_path):
         return r
     _, _, p = shipped(tmp_path / "o", rec(owner({"cell:r2c2": "X"}), kc))                       # the owner's: corrected, noted
     assert ships(p)["edit_records"][0]["class"] == "key correction" and ships(p)["notes"]
-    _, _, p = shipped(tmp_path / "h", rec(site(GUEST, {"cell:r2c2": "X"}), kc))                  # a guest's, with their own edit
+    _, _, p = shipped(tmp_path / "h", rec(site(GUEST, {"cell:r2c2": "X"}), kc), rule=OWNER_ONLY)  # a guest's, with their own edit
     assert held(p) == "proposal-waits"
-    _, _, p = shipped(tmp_path / "x", owner({"cell:r2c2": "X"}, comments=[("grid:r2c2", "The key shows X.")]), rec(site(GUEST, {}), kc))
+    _, _, p = shipped(tmp_path / "x", owner({"cell:r2c2": "X"}, comments=[("grid:r2c2", "The key shows X.")]), rec(site(GUEST, {}), kc),
+                      rule=OWNER_ONLY)
     assert ships(p)["edit_records"][0]["class"] == "reading" and ships(p)["proposals"][0]["what"] == "key letter"  # another's: as it is
     _, _, p = shipped(tmp_path / "bad", rec(owner({}), [{"key": "cell:r2c2", "printed": "D", "corrected": "XY"}]))
     assert held(p) == "mark-invalid"

@@ -40,7 +40,8 @@ from .work import Stop
 SITE, AGENT = "review site", "agent review"  # a ledger record's via: a helper's (the hosted proof page), an AI's
 CHECK_BY = "the ship check"  # the by of the no-model ship check's own Ready (xword-ocr shipcheck)
 AI_READY = ("off", "both", "either")
-TYPED_CLUES = ("owner", "people")  # whose typed clue makes a puzzle whole (Rule.typed_clues)
+WHOSE = ("people", "owner")  # whose input counts (Rule.marks, grid_fixes, typed_clues): any person's, or the owner's only
+WHOSE_INPUT = ("marks", "grid_fixes", "typed_clues")
 PUBLIC = "https://pub-52ac4a15c4ba43fe8e4af5a496733fb5.r2.dev"  # the review site's packages
 PROOF_PAGE = "https://blitz.xwordapp.com/review/?p="
 CREDIT = "Every Puzzle Project"
@@ -61,14 +62,24 @@ class Rule:
     ignore: reviewers whose decisions don't count (a scripted usability test's account).
     owner: the owner's own accounts on the review site. A decision made there under one of these
       names is the owner's, and overrides as the owner's do in their own tools.
-    typed_clues: whose clue typed on the proof page, where the packet has no text for it (the ship check's
-      clue-empty), makes the puzzle whole: "owner" (the default: the owner's own Ready only, as for grid
-      fixes and misprint marks) or "people" (a helper's Ready too). Never an AI's (filled_by)."""
+
+    Whose input counts (the owner's rule of 2026-11-13: "the other reviewers can have power to mark shit up and do
+    whatever they want, given that we can always go back and fix it"), one value each, "people" (the default: any
+    person's, the owner's or a helper's or a guest's, as the owner's) or "owner" (the owner's only; anyone else's
+    is a proposal, or waits for the owner). An account on `ignore` never counts; an AI reviewer's input keeps its own
+    limits whatever these say (counts_for). Where two people's inputs disagree, the owner's stands; otherwise the
+    puzzle is a question for the owner.
+    marks: a misprint mark or a key correction (typos, key_corrections): it takes effect (case 2 or 3).
+    grid_fixes: a Not ready's fixes to a linked-ends grid (grid:, num:, cell:) that the re-place stage reads in.
+    typed_clues: a clue typed on the proof page where the packet has no text for it (the ship check's clue-empty)
+      makes the puzzle whole (filled_by)."""
     ai_ready: str = "off"
     hold_codes: tuple = ("clue-typed",)
     ignore: tuple = ()
     owner: tuple = ()
-    typed_clues: str = "owner"
+    marks: str = "people"
+    grid_fixes: str = "people"
+    typed_clues: str = "people"
 
 
 def rule_of(repo: Path, **over) -> Rule:
@@ -78,8 +89,9 @@ def rule_of(repo: Path, **over) -> Rule:
     d.update({k: v for k, v in over.items() if v is not None})
     if d.get("ai_ready", "off") not in AI_READY:
         raise Stop(f"ai_ready is one of {', '.join(AI_READY)}, not {d['ai_ready']!r}")
-    if d.get("typed_clues", "owner") not in TYPED_CLUES:
-        raise Stop(f"typed_clues is one of {', '.join(TYPED_CLUES)}, not {d['typed_clues']!r}")
+    for k in WHOSE_INPUT:
+        if d.get(k, "people") not in WHOSE:
+            raise Stop(f"{k} is one of {', '.join(WHOSE)}, not {d[k]!r}")
     return Rule(**{k: tuple(v) if isinstance(v, list) else v for k, v in d.items()})
 
 
@@ -90,6 +102,14 @@ def kind_of(rec: dict, rule: Rule = Rule()) -> str:
     if rec.get("via") == AGENT:
         return "check" if rec.get("by", "").startswith(CHECK_BY) else "ai"
     return "helper" if rec.get("via") == SITE and _name(rec) not in rule.owner else "owner"
+
+
+def counts_for(rec: dict, rule: Rule, what: str) -> bool:
+    """Whether a person's input of one kind (WHOSE_INPUT: marks, grid_fixes, typed_clues) counts as the owner's would:
+    the owner's always, a helper's or a guest's when the rule says "people" for it, an ignored account's never. An AI
+    reviewer's or the ship check's is not a person's: False here (an AI's mark has its own rule, MARKS_COUNT)."""
+    k = kind_of(rec, rule)
+    return _name(rec) not in rule.ignore and (k == "owner" or (k == "helper" and getattr(rule, what) == "people"))
 
 
 def _name(rec: dict) -> str:
@@ -277,8 +297,9 @@ def sent_back(proofs: list[dict], rule: Rule, current: tuple = ()) -> dict | Non
 
 
 def awaits_replace(proofs: list[dict], rule: Rule, xd: str, ocr: dict) -> dict | None:
-    """The owner's latest Not ready on a linked-ends puzzle whose fixes to the grid wait to be read in (the owner's
-    only: xword-ocr's stage reads no one else's, by the owner's rule of 2026-11-12, so nobody else's wait): it
+    """The latest Not ready on a linked-ends puzzle, by a person whose grid fixes count (Rule.grid_fixes: any person's by
+    default since 2026-11-13, or the owner's only; xword-ocr's stage reads the same people's), whose fixes to the grid
+    wait to be read in: it
     carries grid:, num: or cell: edits (the import applies only a Ready's edits; the stage that places the clues
     reads these from the ledger), and the packet doesn't record that it was made from that decision (ocr.json's
     reviewer_fixes.decisions: who and when, as the stage wrote them). {who, at, note, shape, numbers, letters,
@@ -288,7 +309,7 @@ def awaits_replace(proofs: list[dict], rule: Rule, xd: str, ocr: dict) -> dict |
         return None
     used = {(d.get("by"), d.get("at")) for d in (ocr.get("reviewer_fixes") or {}).get("decisions") or []}
     for r in sorted(proofs, key=lambda r: r.get("at", ""), reverse=True):
-        if r.get("answer") != "notready" or _name(r) in rule.ignore or kind_of(r, rule) != "owner":
+        if r.get("answer") != "notready" or not counts_for(r, rule, "grid_fixes"):
             continue
         edits = ((r.get("proof") or {}).get("review") or {}).get("edits") or {}
         n = {"grid": 0, "num": 0, "cell": 0}
@@ -1280,14 +1301,14 @@ def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict |
         # person's decision ships it (the owner's, or a helper's Ready; never an AI's Ready, whatever ai_ready says):
         # a key square the packet left unread, when each such square has its letter among the edits that ship (since
         # 2026-11-12); a clue the packet has no text for, when each such clue has its text in the own edits of someone
-        # whose typed clue counts (Rule.typed_clues: the owner by default), never from an AI's edit (since 2026-11-13)
+        # whose typed clue counts (Rule.typed_clues: any person's by default), never from an AI's edit (since 2026-11-13)
         people, typists = {}, {}  # the people's own clue edits; the record behind each typed clue
         for r in st["apply"]:
             kd = kind_of(r, rule)
             for k, v in (((r.get("proof") or {}).get("review") or {}).get("edits") or {}).items():
                 if kd in ("owner", "helper") and k.startswith("clue:"):
                     people.setdefault(k, v)
-                if k.startswith("clue:") and (kd == "owner" or (kd == "helper" and rule.typed_clues == "people")):
+                if k.startswith("clue:") and counts_for(r, rule, "typed_clues"):
                     typists.setdefault(k, r)
         typed_by = {k: ((r.get("proof") or {}).get("review") or {}).get("edits", {}).get(k) for k, r in typists.items()}
         filled = filled_by(ship, edits, typed_by) if st["rule"] in ("owner", "people") else []
@@ -1360,7 +1381,7 @@ def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict |
             row.update(xdid=p["xdid"], why=row["why"] + f" (already in xd/ as {p['xdid']})")
     groups = queues(rows)
     return {"groups": groups, "pub": pub or re.match(r"[a-z]+", repo.name)[0], "batch": batch or run, "run": run, "packets": rel, "rule": {"ai_ready": rule.ai_ready, "hold_codes": list(rule.hold_codes),
-            "ignore": list(rule.ignore), "owner": list(rule.owner), "typed_clues": rule.typed_clues}, "rows": rows, "passing": passing, "pins": [p for p in pins if p["xdid"] in {x["xdid"] for x in passing.values()}],
+            "ignore": list(rule.ignore), "owner": list(rule.owner), **{k: getattr(rule, k) for k in WHOSE_INPUT}}, "rows": rows, "passing": passing, "pins": [p for p in pins if p["xdid"] in {x["xdid"] for x in passing.values()}],
             "site": new_site, "packs": packs}
 
 
@@ -1403,12 +1424,25 @@ EDIT_STAGE = "proof review"
 READING, UNCLASSED, DECISION, KEY_FIX = "reading", "unclassed", "decision", "key correction"  # an applied edit's class
 TYPED = "typed"  # a clue a person typed where the packet had no text for it (filled_by): nothing was read, so not a reading fix
 TYPED_HEAD = "Typed by hand:"  # the xd notes block ship writes: one line per clue a person typed where none was read
-# Whose misprint marks take effect (the owner's rule, 2026-11-13, "Owner only for now"): a typos or key_corrections
-# entry from the owner (rule.owner on the review site, or their own tools) or from the AI proof reviewer (2026-11-11).
-# Anyone else's is a proposal: kept in the ledger, shown on the proof page and in the xd as it will ship as "proposed
-# by ..., waiting for the owner", never applied at ship-export nor (a key letter) corrected here.
+# Whose misprint marks take effect: the owner's and the AI proof reviewer's (2026-11-11), and since 2026-11-13 any
+# person's (Rule.marks "people", the default; counts_for). With Rule.marks "owner", a helper's or a guest's is a
+# proposal: kept in the ledger, shown on the proof page and in the xd as it will ship as "proposed by ..., waiting for
+# the owner", never applied at ship-export nor (a key letter) corrected here. A helper's or a guest's mark that can't be
+# taken (malformed, or naming words its row doesn't have) is dropped and said, under either setting: it holds nothing,
+# and never reaches the export. An owner's or an AI's holds the puzzle (mark-invalid).
 MARKS_COUNT = ("owner", "ai")
 MARK_MAX = 200  # characters in a mark's printed or meant words
+
+
+def _dispute(key: str, editor: dict, edit, marker: dict, printed: str, meant: str, rule: Rule) -> dict:
+    """A misprint mark against another reviewer's edit on the same row: the owner's question, showing both."""
+    why = _why(editor, key)
+    return {"key": key, "asks": [
+        {"who": editor.get("by", ""), "kind": kind_of(editor, rule), "at": "", "row": key, "group": "",
+         "text": f"Edited the row to “{str(edit)[:120]}”" + (f", saying: {why}" if why else ", with no comment")},
+        {"who": marker.get("by", ""), "kind": kind_of(marker, rule), "at": "", "row": key, "group": "",
+         "text": f"Marks “{printed}” as printed and “{meant}” as meant: a misprint, which would ship as printed. Which is right: "
+                 "the reading in the edit, or the misprint?"}]}
 
 
 def mark_problem(t, key_letter: bool = False) -> str:
@@ -1578,11 +1612,12 @@ def edit_records(packet_xd: str, applied: str, apply: list[dict], rule: Rule = R
         for k, v in (review.get("edits") or {}).items():
             if k not in owner:
                 owner[k], value[k] = r, v
-        counts = kind_of(r, rule) in MARKS_COUNT and _name(r) not in rule.ignore  # the owner's rule of 2026-11-13
+        counts = (kind_of(r, rule) in MARKS_COUNT and _name(r) not in rule.ignore) or counts_for(r, rule, "marks")
+        holds = counts and kind_of(r, rule) != "helper"  # a mark that can't be taken holds the puzzle: the owner's or the AI's
         for kind, ts in (("typos", review.get("typos") or []), ("key_corrections", review.get("key_corrections") or [])):
             for t in ts if isinstance(ts, list) else [ts]:
                 why = mark_problem(t, kind == "key_corrections" or str((t or {}).get("key", "") if isinstance(t, dict) else "").startswith("cell:"))
-                if why and counts:
+                if why and holds:
                     invalid.append(f"{kind} from {r.get('by', '')}: {why}")
                 elif why and _name(r) not in rule.ignore:  # a helper's or a guest's: dropped, said, holding nothing
                     k0, p0 = (t.get("key"), t.get("printed")) if isinstance(t, dict) else (None, None)
@@ -1618,7 +1653,34 @@ def edit_records(packet_xd: str, applied: str, apply: list[dict], rule: Rule = R
                 typos.append((*t3, r))
                 key_said.setdefault(t3[0], {"text": str(t.get("text") or "").strip(), "crop": t.get("crop") or ""})
     whole = lambda key, printed, meant: bool(printed and meant and printed != meant and _TYPO_KEY.fullmatch(key))
-    records, missing, have, more_edits, back, key_fix, said, misedit, disputes = [], [], {}, {}, set(), {}, {}, [], []
+    disputes = []
+    by_key = {}
+    for t in typos:
+        by_key.setdefault(t[0], []).append(t)
+    for key, ts in by_key.items():
+        if len({(pr, mn) for _, pr, mn, _ in ts}) < 2:
+            continue  # one mark on the row, or the same words from everyone who marked it
+        kinds = {id(t): kind_of(t[3], rule) for t in ts}
+        people = [t for t in ts if kinds[id(t)] in ("owner", "helper")]
+        mine = [t for t in ts if kinds[id(t)] == "owner"]
+        keep = mine if mine else people if people and len({(pr, mn) for _, pr, mn, _ in people}) == 1 else None
+        if keep is None and people:  # two people (not the owner) disagree: neither is taken, the owner decides
+            disputes.append({"key": key, "asks": [{"who": t[3].get("by", ""), "kind": kinds[id(t)], "at": "", "row": key, "group": "",
+                                                    "text": f"Marks “{t[1]}” as printed and “{t[2]}” as meant. Another reviewer's mark on "
+                                                            "the same row says otherwise: which is the misprint?"} for t in people]})
+            keep = []
+        elif keep is None:
+            continue  # only AI reviewers' marks: as before
+        for t in ts:
+            if t not in keep:
+                typos.remove(t)
+                if t[0].startswith("cell:"):
+                    of_key.discard(t[:3])
+                proposals.append({"key": t[0], "printed": t[1], "meant": t[2], **who(t[3]), "what": "key letter" if t[0].startswith("cell:") else "misprint",
+                                  "status": "not taken", "says": f"Marks “{t[1]}” as printed, “{t[2]}” meant: not taken, "
+                                  + ("the owner's mark on the row says otherwise." if mine else "a person's mark on the row says otherwise." if kinds[id(t)] == "ai"
+                                     else "another reviewer's mark on the row says otherwise; the owner decides.")})
+    records, missing, have, more_edits, back, key_fix, said, misedit = [], [], {}, {}, set(), {}, {}, []
     edit_key = lambda key: f"meta:{_field(key)}" if _field(key) else key  # the edit a misprint's key sits beside
     # the candidate lists a reviewer took in (as the clues, or as a second set): their decision wrote those lines
     lists = [k for k in owner if k.startswith("candidate:") and (value[k] == "clues" or str(value[k]).startswith("second:"))]
@@ -1641,7 +1703,7 @@ def edit_records(packet_xd: str, applied: str, apply: list[dict], rule: Rule = R
             misedit.append(f"{ek}: the edit (“{v[:80]}”) doesn't keep the printed “{printed}” once, beside the mark that it "
                            f"is printed so and meant “{meant}”: the row would ship other than as printed")
 
-    for key, printed, meant, r in typos:
+    for key, printed, meant, r in list(typos):
         if key.startswith("cell:") or (key, printed, meant) in of_key:  # case 3: the key's letter is corrected here, and only with its whole record
             at = _square(was_c, key)
             if not whole(key, printed, meant) or len(printed) != 1 or len(meant) != 1 or not at:
@@ -1662,10 +1724,20 @@ def edit_records(packet_xd: str, applied: str, apply: list[dict], rule: Rule = R
             # proposed as usual; where they disagree, the puzzle is a question for the owner, showing both.
             ek = edit_key(key)
             if _count(value[ek] or "", printed) != 1:
-                pr = owner[ek]
-                disputes.append({"key": ek, "edit": value[ek], "edit_by": pr.get("by", ""), "edit_kind": kind_of(pr, rule),
-                                 "edit_why": _why(pr, ek), "printed": printed, "meant": meant, "mark_by": r.get("by", "")})
-        elif edit_key(key) in owner:  # case 2 on a clue or header the reviewer also edited
+                disputes.append(_dispute(ek, owner[ek], value[ek], r, printed, meant, rule))
+        elif (edit_key(key) in owner and kind_of(r, rule) == "helper" and edit_key(key) not in (((r.get("proof") or {}).get("review") or {}).get("edits") or {})
+              and kind_of(owner[edit_key(key)], rule) in ("owner", "helper") and _count(value[edit_key(key)] or "", printed) != 1):
+            # a helper's or a guest's mark on a row another person edited, disagreeing with the edit (since 2026-11-13, when their
+            # marks count): one person's edit is never changed by another's mark. The owner's edit stands and the mark is not
+            # taken; another helper's: the owner decides
+            ek, pr = edit_key(key), owner[edit_key(key)]
+            typos.remove((key, printed, meant, r))
+            if kind_of(pr, rule) == "owner":
+                proposals.append({"key": key, "printed": printed, "meant": meant, **who(r), "what": "misprint", "status": "not taken",
+                                  "says": f"Marks “{printed}” as printed, “{meant}” meant: not taken, the owner's edit on the row stands."})
+            else:
+                disputes.append(_dispute(ek, pr, value[ek], r, printed, meant, rule))
+        elif edit_key(key) in owner:  # case 2 on a clue or header the reviewer also edited (the owner's mark governs the row)
             marked_row(key, printed, meant)
     # a helper's or a guest's mark (design/ship.md, the table under "A marked row ships as printed"): it checks only the
     # marker's own edit on the row, never another person's, so blitz doesn't ship the print corrected on their word; the
@@ -1833,6 +1905,10 @@ def edit_records(packet_xd: str, applied: str, apply: list[dict], rule: Rule = R
             cur = now_q.get(key[5:]) if key.startswith("clue:") else now_h.get(HEADER[_field(key)], "")
             fits = ("unplaced" if cur is None else "printed" if _count(cur, printed) == 1
                     else "already" if not _count(cur, printed) and _count(cur, meant) else "unplaced")
+            if cur is not None and not _count(cur, printed) and not _count(cur, meant) and kind_of(r, rule) == "helper":
+                proposals.append({"key": key, "printed": printed, "meant": meant, **who(r), "what": "misprint", "status": "not taken",
+                                  "says": f"Marks “{printed}” as printed: not taken, the row's text doesn't have it."})
+                continue  # a helper's or a guest's: dropped and said, holding nothing
             if cur is not None and not _count(cur, printed) and not _count(cur, meant):  # names words the row doesn't have
                 invalid.append(f"typos from {r.get('by', '')}: {key}: “{printed}” isn't in the row's text (nor the words meant)")
             says = f"{_label(key, pairs)} is printed '{printed}'; meant '{meant}'."
@@ -1970,16 +2046,10 @@ def _record_edits(passing: dict, packs: dict, rule: Rule) -> None:
                 del passing[pid]
         if pid not in passing:
             continue
-        if e.get("disputes") and pid in passing:  # an AI's mark against a person's edit on the same words: the owner's question
+        if e.get("disputes") and pid in passing:  # a mark against another's edit, or two people's marks: the owner's question
             d = e["disputes"]
-            x["row"].update(reason="mark-disputed", why="an AI reviewer's misprint mark disagrees with a person's edit on the same row: "
-                            + ", ".join(sorted({q["key"] for q in d})) + "; the owner decides",
-                            asks=[a for q in d for a in (
-                                {"who": q["edit_by"], "kind": q["edit_kind"], "at": "", "row": q["key"], "group": "",
-                                 "text": f"Edited the row to “{q['edit'][:120]}”" + (f", saying: {q['edit_why']}" if q["edit_why"] else ", with no comment")},
-                                {"who": q["mark_by"], "kind": "ai", "at": "", "row": q["key"], "group": "",
-                                 "text": f"Marks “{q['printed']}” as printed and “{q['meant']}” as meant: a misprint, which would ship as "
-                                         "printed. Which is right: the person's reading, or the AI's misprint?"})])
+            x["row"].update(reason="mark-disputed", why="a misprint mark disagrees with another reviewer's edit or mark on the same row: "
+                            + ", ".join(sorted({q["key"] for q in d})) + "; the owner decides", asks=[a for q in d for a in q["asks"]])
             del passing[pid]
             continue
         if e.get("waits"):
