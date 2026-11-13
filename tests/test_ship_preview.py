@@ -162,6 +162,38 @@ def test_a_marked_row_never_ships_corrected_and_its_other_changes_keep_their_own
     assert p["passing"][P]["edit_records"][0]["class"] == "reading"
 
 
+def test_a_helpers_or_a_guests_marked_row_ships_as_printed_too(tmp_path):
+    """The second pass's probe: a helper marks "Cockail" as meaning "Cocktail" and edits the clue to "Cocktail party". Their
+    own mark says the edit corrects the print, which blitz never ships, whoever makes it: the words go back as printed,
+    and the correction still waits for the owner."""
+    xd = XD.replace("A3. Two ~", "A3. Cockail party ~")
+    typo = [{"key": "clue:A3", "printed": "Cockail", "meant": "Cocktail"}]
+    for i, who in enumerate((PERSON, f"a helper 3f2a ({SITE})")):                              # a helper, a guest
+        _, _, p = shipped(tmp_path / str(i), said(who, SITE, {"clue:A3": "Cocktail party"}, typos=typo), xd=xd)
+        x = p["passing"][P]
+        assert "A3. Cockail party ~" in x["text"] and x["edit_records"] == [] and x["corrections"] == []
+        assert x["proposals"][0]["status"] == "waiting for the owner"
+        # and the same edit with another word read again: that ships, unclassed; the misprint stays as printed
+        _, _, p = shipped(tmp_path / f"m{i}", said(who, SITE, {"clue:A3": "Cocktail parties"}, typos=typo), xd=xd)
+        (e,) = p["passing"][P]["edit_records"]
+        assert "A3. Cockail parties ~" in p["passing"][P]["text"] and e["class"] == "unclassed"
+        # an edit that loses the printed words holds the puzzle, as the owner's does
+        _, _, p = shipped(tmp_path / f"h{i}", said(who, SITE, {"clue:A3": "cocktail party"}, typos=typo), xd=xd)
+        assert p["rows"][0]["reason"] == "misprint-edit" and not p["passing"]
+
+
+def test_a_guests_malformed_mark_is_dropped_with_a_note_and_holds_nothing(tmp_path):
+    bad = [{"key": "clue:A3", "printed": "Two", "meant": "Tw\to"}]
+    _, _, p = shipped(tmp_path, said(f"a helper 3f2a ({SITE})", SITE, {}, typos=bad))
+    x = p["passing"][P]
+    (q,) = x["proposals"]
+    assert (q["status"], q["what"]) == ("not taken", "malformed") and "tab" in q["says"] and x["corrections"] == []
+    assert next(r for r in record(p)["puzzles"] if r["pid"] == P)["proposals"][0]["status"] == "not taken"
+    # the owner's malformed mark still holds
+    _, _, p = shipped(tmp_path / "o", said(OWNER_BY, "watch", {}, typos=bad))
+    assert p["rows"][0]["reason"] == "mark-invalid"
+
+
 # ---- B. a mark or an edit that a clue or header can't hold ----------------------------------
 
 def test_a_malformed_mark_holds_the_puzzle_and_never_reaches_the_export(tmp_path):

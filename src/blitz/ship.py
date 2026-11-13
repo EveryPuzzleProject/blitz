@@ -1478,7 +1478,7 @@ def edit_records(packet_xd: str, applied: str, apply: list[dict], rule: Rule = R
     outside, pairs = (OUTSIDE if is_linked else "#"), _pairs(packet_xd)
     was_h, was_c, was_q = _read(packet_xd)
     owner, value, typos, seen, of_key, key_said = {}, {}, [], set(), set(), {}
-    invalid, proposals = [], []  # marks that can't be taken (they hold the puzzle); marks that wait for the owner
+    invalid, proposals, row_marks = [], [], []  # marks that can't be taken (they hold the puzzle); marks that wait for the owner
     who = lambda r: {"by": r.get("by", ""), "kind": kind_of(r, rule), "via": r.get("via", ""), "at": r.get("at", "")}
     for r in apply:
         review = (r.get("proof") or {}).get("review") or {}
@@ -1489,11 +1489,16 @@ def edit_records(packet_xd: str, applied: str, apply: list[dict], rule: Rule = R
         for kind, ts in (("typos", review.get("typos") or []), ("key_corrections", review.get("key_corrections") or [])):
             for t in ts if isinstance(ts, list) else [ts]:
                 why = mark_problem(t, kind == "key_corrections" or str((t or {}).get("key", "") if isinstance(t, dict) else "").startswith("cell:"))
-                if why:
+                if why and counts:
                     invalid.append(f"{kind} from {r.get('by', '')}: {why}")
+                elif why and _name(r) not in rule.ignore:  # a helper's or a guest's: dropped, said, holding nothing
+                    proposals.append({"key": str(t.get("key", "")) if isinstance(t, dict) else "", "printed": "", "meant": "", **who(r),
+                                      "what": "malformed", "status": "not taken", "says": f"A mark that can't be taken, dropped: {why}."})
                 elif not counts and _name(r) not in rule.ignore:
                     letter = kind == "key_corrections" or t["key"].startswith("cell:")
                     meant = (t.get("corrected") if kind == "key_corrections" else t.get("meant")).strip()
+                    if not letter:  # whoever marked it, the row ships as printed (its edit is checked below)
+                        row_marks.append((t["key"], t["printed"].strip(), meant))
                     proposals.append({"key": t["key"], "printed": t["printed"].strip(), "meant": meant, **who(r),
                                       "what": "key letter" if letter else "misprint", "status": "waiting for the owner",
                                       "says": (f"The key prints {t['printed'].strip().upper()} at {t['key'][5:]}; proposed: {meant.upper()}." if letter
@@ -1523,6 +1528,23 @@ def edit_records(packet_xd: str, applied: str, apply: list[dict], rule: Rule = R
     lists = [k for k in owner if k.startswith("candidate:") and (value[k] == "clues" or str(value[k]).startswith("second:"))]
     cands = {f"candidate:{c.get('id')}": c for c in ocr.get("candidates") or [] if isinstance(c, dict)}
 
+    def marked_row(key, printed, meant):
+        """A clue's or a header's mark beside an edit to that row: the edit stands when it keeps the printed words once;
+        with the words meant once instead, those go back as printed; anything else would ship the row other than as
+        printed (the words meant typed twice or in another case, the printed words gone), and holds the puzzle."""
+        ek = edit_key(key)
+        v = more_edits.get(ek, value[ek]) or ""
+        if not whole(key, printed, meant):
+            missing.append(f"{key}: an edit beside a misprint entry that doesn't say what was printed and what was meant")
+        elif _count(v, printed) == 1:
+            pass  # the edit keeps the printed words: it stands as it is, and whatever else it changes is classed on its own
+        elif not _count(v, printed) and _count(v, meant) == 1:  # an edit toward the words meant: they go back as printed
+            more_edits[ek] = _swap(v, meant, printed)
+            back.add(ek)
+        else:
+            misedit.append(f"{ek}: the edit (“{v[:80]}”) doesn't keep the printed “{printed}” once, beside the mark that it "
+                           f"is printed so and meant “{meant}”: the row would ship other than as printed")
+
     for key, printed, meant, r in typos:
         if key.startswith("cell:") or (key, printed, meant) in of_key:  # case 3: the key's letter is corrected here, and only with its whole record
             at = _square(was_c, key)
@@ -1538,20 +1560,12 @@ def edit_records(packet_xd: str, applied: str, apply: list[dict], rule: Rule = R
             else:
                 missing.append(f"{key}: a key correction to {meant.upper()} that doesn't match the square ({cur})")
         elif edit_key(key) in owner:  # case 2 on a clue or header the reviewer also edited
-            ek = edit_key(key)
-            v = more_edits.get(ek, value[ek]) or ""
-            if not whole(key, printed, meant):
-                missing.append(f"{key}: an edit beside a misprint entry that doesn't say what was printed and what was meant")
-            elif _count(v, printed) == 1:
-                pass  # the edit keeps the printed words: it stands as it is, and whatever else it changes is classed on its own
-            elif not _count(v, printed) and _count(v, meant) == 1:  # an edit toward the words meant: they go back as printed
-                more_edits[ek] = _swap(v, meant, printed)
-                back.add(ek)
-            else:
-                # the marked row would ship other than as printed (the words meant typed twice, in another case, or the
-                # printed words gone): nothing here can tell which words are the misprint, so the puzzle is held
-                misedit.append(f"{ek}: the edit (“{v[:80]}”) doesn't keep the printed “{printed}” once, beside the mark that it "
-                               f"is printed so and meant “{meant}”: the row would ship other than as printed")
+            marked_row(key, printed, meant)
+    # a proposal's row too (a helper's or a guest's mark): it says the print has a mistake there, and the three-case rule
+    # ships a clue's or a header's misprint as printed whoever says so; the correction itself waits for the owner
+    for key, printed, meant in row_marks:
+        if edit_key(key) in owner:
+            marked_row(key, printed, meant)
     # the follow-on edits (a key letter corrected from its entry alone, a misprint taken back out of an edit) are
     # applied here, and one that isn't applied is never recorded or noted as if it were: the puzzle is held for it
     if invalid or misedit:  # held before anything is made of them

@@ -262,12 +262,15 @@ as-shipped file and the provenance row, shown on the proof page and in the as-sh
 key letter is not corrected in blitz. A helper who also changed the square to their proposed letter
 holds the puzzle as `proposal-waits` (a question for the owner, at the square's row), since shipping
 their edit would correct the letter on their word; on the page a helper's key mark leaves the square
-alone. An account on the rule's `ignore` list counts for nothing, not even a proposal. (Later, not
+alone. An account on the rule's `ignore` list counts for nothing, not even a proposal. A proposal's row still ships as
+printed (the next paragraph): a mark says the print has a mistake there, and blitz never ships a clue's or a
+header's misprint corrected, whoever marks it. A helper's or a guest's malformed mark holds nothing: it is dropped,
+shown among the proposals as "not taken" with the reason; the owner's or the AI's still holds the puzzle. (Later, not
 built: an Accept button beside a proposal on the proof page, shown to the owner only, that writes the
 proposal into the owner's own review as their mark; the batch page would list proposals per puzzle.)
 
-**A marked row ships as printed** (fix A of the cold review, 2026-11-13). Beside a mark that takes
-effect, the reviewer's edit to the same row stands when it keeps the printed words once; when it has
+**A marked row ships as printed** (fix A of the cold review, 2026-11-13). Beside any mark, a proposal too,
+the reviewer's edit to the same row stands when it keeps the printed words once; when it has
 the words meant once instead (and not the printed ones), those go back as printed. Any other edit
 (the words meant typed twice or in another case, the printed words gone) is held as `misprint-edit`:
 nothing can tell which words are the misprint, and the row would ship other than as printed. The mark
