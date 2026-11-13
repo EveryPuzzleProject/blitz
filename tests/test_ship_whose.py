@@ -49,9 +49,11 @@ def test_a_helpers_mark_on_the_owners_edit_the_owners_edit_stands(tmp_path):
     x = ships(p)
     assert a3(p) == "A3. Cocktail party ~ CDE" and x["edit_records"][0]["class"] == "reading" and x["corrections"] == []
     assert x["proposals"][0]["status"] == "not taken" and "the owner's edit on the row stands" in x["proposals"][0]["says"]
-    # where the owner's edit keeps the printed words, the two agree: the mark takes effect
+    # where the owner's edit keeps the printed words, their edit says what the row is: it declines the mark (since the
+    # second cold pass, 2026-11-13)
     _, _, p = shipped(tmp_path / "agree", owner({"clue:A3": "Cockail parties"}), site(GUEST, {}, MARK), xd=COCK)
-    assert a3(p) == "A3. Cockail parties ~ CDE" and ships(p)["corrections"][0]["by"] == GUEST
+    assert a3(p) == "A3. Cockail parties ~ CDE" and ships(p)["corrections"] == []
+    assert ships(p)["proposals"][0]["status"] == "declined by the owner"
 
 
 def test_a_helpers_mark_on_another_helpers_edit_is_the_owners_question(tmp_path):
@@ -113,3 +115,91 @@ def test_peoples_grid_fixes_that_disagree_hold_the_puzzle_for_the_owner(tmp_path
     r = row(plan(repo, proofs, RULE, "b"), NO11)
     assert (r["status"], r["reason"], r["queue"]) == ("held", "fixes-disputed", "question")
     assert [(a["who"], a["row"]) for a in r["asks"]] == [(PERSON, "grid:r5c7"), (GUEST, "grid:r5c7")]
+
+
+# ---- the owner declines a mark: "not a misprint" (the second cold pass, 2026-11-13) ----
+
+def _declines(r, *marks, by=GUEST):
+    r["proof"]["review"]["declines"] = [{**m, "by": by} for m in marks]
+    return r
+
+
+def test_the_reviewers_probe_the_owner_declines_a_guests_or_a_helpers_mark(tmp_path):
+    from blitz.ship import export, write
+    for i, who in enumerate((GUEST, PERSON)):
+        # the mark alone: it takes effect
+        _, _, p = shipped(tmp_path / f"m{i}", site(who, {}, MARK, at=EARLY), owner({}, at=LATE), xd=COCK)
+        assert ships(p)["corrections"][0]["by"] == who
+        # the owner's explicit "not a misprint": declined, never at the export
+        repo, _, p = shipped(tmp_path / f"d{i}", site(who, {}, MARK, at=EARLY), _declines(owner({}, at=LATE), *MARK, by=who), xd=COCK)
+        x = ships(p)
+        assert a3(p) == "A3. Cockail party ~ CDE" and x["corrections"] == []
+        (q,) = x["proposals"]
+        assert (q["status"], q["by"], q["declined_by"]) == ("declined by the owner", who, OWNER) and "not a misprint" in q["says"]
+        assert next(r for r in record(p)["puzzles"])["proposals"][0]["status"] == "declined by the owner"
+        write(repo, p, "2026-11-13")
+        res = export(repo, tmp_path / f"out{i}", "games")
+        assert res["corrections"] == {"applied": 0, "noted": 0, "not applied": 0}
+        assert "Cocktail" not in (tmp_path / f"out{i}" / "corrections.tsv").read_text(encoding="utf-8")
+        # the owner edits the row back to the print, with a comment: their edit declines it too, and says so
+        fix = owner({"clue:A3": "Cockail party"}, comments=[("clue:A3", "as printed, not a typo")], at=LATE)
+        _, _, p = shipped(tmp_path / f"e{i}", site(who, {}, MARK, at=EARLY), fix, xd=COCK)
+        x = ships(p)
+        assert a3(p) == "A3. Cockail party ~ CDE" and x["corrections"] == [] and "keeps the printed words" in x["proposals"][0]["says"]
+
+
+def test_the_owners_own_mark_is_not_declined_by_their_own_edit(tmp_path):
+    _, _, p = shipped(tmp_path, owner({"clue:A3": "Cockail parties"}, MARK), site(GUEST, {}, MARK), xd=COCK)
+    assert [c["by"] for c in ships(p)["corrections"]] == [OWNER]
+
+
+def test_taking_the_decline_back_lets_the_mark_take_effect(tmp_path):
+    later = owner({}, at="2026-10-24T00:00:00Z")                         # the owner's latest record has no decline
+    _, _, p = shipped(tmp_path, site(GUEST, {}, MARK, at=EARLY), later, xd=COCK)
+    assert ships(p)["corrections"][0]["by"] == GUEST
+
+
+def test_a_declined_key_correction_leaves_the_letter_as_printed(tmp_path):
+    kc = [{"key": "cell:r2c2", "printed": "D", "corrected": "X", "edited": True}]
+    dec = {"key": "cell:r2c2", "printed": "D", "meant": "X"}
+    g = site(GUEST, {"cell:r2c2": "X"}, at=EARLY)
+    g["proof"]["review"]["key_corrections"] = kc
+    _, _, p = shipped(tmp_path / "edit", g, _declines(owner({}, at=LATE), dec))
+    x = ships(p)
+    assert "\nCDE\n" in x["text"] and x["notes"] == [] and x["proposals"][0]["status"] == "declined by the owner"
+    # the packet already had the letter meant (corrected before review): the decline puts the printed letter back, recorded
+    g = site(GUEST, {}, at=EARLY)
+    g["proof"]["review"]["key_corrections"] = [{**kc[0], "edited": False}]
+    _, _, p = shipped(tmp_path / "packet", g, _declines(owner({}, at=LATE), dec), xd=XD.replace("\nCDE\n", "\nCXE\n").replace("CDE", "CXE"))
+    x = ships(p)
+    assert "\nCDE\n" in x["text"] and [(e["key"], e["class"], e["before"], e["after"], e["by"]) for e in x["edit_records"]] == [
+        ("cell:r2c2", "decision", "X", "D", OWNER)]
+
+
+def test_the_owner_can_decline_an_ais_mark_and_a_waiting_proposal(tmp_path):
+    from blitz.ship import Rule
+    _, _, p = shipped(tmp_path / "ai", said(AI_BY, AGENT, {}, typos=MARK), CHECK, _declines(owner({}, at=LATE), *MARK, by=AI_BY), xd=COCK)
+    assert ships(p)["corrections"] == [] and ships(p)["proposals"][0]["status"] == "declined by the owner"
+    # marks: owner: a guest's mark waits for the owner, who declines it
+    _, _, p = shipped(tmp_path / "wait", site(GUEST, {}, MARK, at=EARLY), _declines(owner({}, at=LATE), *MARK), xd=COCK,
+                      rule=Rule(ai_ready="both", marks="owner"))
+    assert ships(p)["proposals"][0]["status"] == "declined by the owner" and ships(p)["corrections"] == []
+
+
+def test_a_decline_given_after_the_puzzle_shipped_holds_at_the_export(tmp_path):
+    import json
+    from blitz.ship import export, write
+    repo, proofs, p = shipped(tmp_path, site(GUEST, {}, MARK, at=EARLY), owner({}, at=LATE), xd=COCK)
+    write(repo, p, "2026-11-13")
+    with (repo / "fixes" / "decisions.jsonl").open("a", encoding="utf-8") as fh:  # the owner declines it later
+        fh.write(json.dumps({**_declines(owner({}, at="2026-11-14T00:00:00Z"), *MARK), "id": "proof:" + p["rows"][0]["pid"]}) + "\n")
+    res = export(repo, tmp_path / "out", "games")
+    assert res["corrections"] == {"applied": 0, "noted": 0, "not applied": 0}
+
+
+def test_declines_come_through_from_the_site():
+    from blitz.ship import from_site
+    recs = from_site({"games1978-03-01-L030": {"proofs": {"oops6498": {"decision": "ready", "at": "2026-11-13T00:00:00Z",
+                                                                      "declines": [{"key": "clue:A3", "printed": "Cockail", "meant": "Cocktail"}]}}}},
+                     [], {"games1978-03-01-L030"})
+    assert recs[0]["proof"]["review"]["declines"][0]["key"] == "clue:A3"

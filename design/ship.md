@@ -315,12 +315,29 @@ an edit to the marked row by the marker, "another's edit" one by another reviewe
 | helper, guest (`marks: owner`) | valid | the row check; a proposal waiting for the owner, never applied at the export | the other's edit ships as it is, with its own records; a proposal waiting for the owner | a proposal waiting for the owner; nothing changes (also when its words aren't in the row) |
 | helper, guest (either) | malformed | dropped, shown "not taken"; when it still names a clue or header and printed words: the edit stands only if it keeps them once, else `misprint-edit` | dropped, shown "not taken"; the other's edit ships as it is | dropped, shown "not taken"; nothing changes |
 | ignored account | either | nothing (its Ready doesn't count, so its edits aren't applied) | nothing | nothing |
+| anyone's, **declined by the owner** | valid | not taken, whatever else: shown "declined by the owner"; never corrected at the export, never in `corrections.tsv`; the marker's own edit is classed on its own | as the left; the owner's own edit on the row keeping the printed words once declines another person's mark by itself (not an AI's: that one is proposed, as above) | not taken, as the left |
 
 A key letter's mark (`key_corrections`, or a `typos` entry for a square): the owner's or the AI's, and under
 `marks: people` a helper's or a guest's, is corrected here with its note (case 3), or held `edit-unrecorded` when it
 doesn't match the square; a malformed one is `mark-invalid` (a helper's or a guest's: dropped, "not taken"). Under
 `marks: owner` a helper's or a guest's is a proposal; with their own edit of the square to that letter it holds as
 `proposal-waits`; another person's edit of the square ships as it is.
+
+**The owner declines a mark: "not a misprint"** (the second cold pass, 2026-11-13: "the owner's decision overrides"
+has to hold for the one input that changes the corpus). On a row carrying someone else's mark, the owner's proof page
+has a "not a misprint" button; it writes `declines: [{key, printed, meant, by}]` into the owner's review (the site and
+`from_site` carry it to the ledger, beside `typos`), and the button takes the decline back. The owner's own edit on
+the marked row that keeps the printed words once declines another person's (a helper's or a guest's) mark on those
+words too, unless the owner marked them themself: their edit says what the row is, and the page says so on the mark.
+A declined mark, a key letter's included, is not taken under either `marks` setting: it is carried as a proposal with
+`status: "declined by the owner"` and `declined_by`, shown on the proof page and in the as-shipped view under "Declined
+by the owner", never corrected at `ship-export` and never in `corrections.tsv`; a declined key correction leaves the
+letter as the key printed it (the marker's edit to the letter meant goes back, recorded; where the packet already had
+the letter meant, the printed letter is put back with a record of class `decision`, the owner's). An explicit decline
+counts on an AI reviewer's mark too. Ship reads the declines in the Readys that ship the puzzle; `ship-export` also
+reads each of the owner's accounts' latest proof record in the ledger (`ship.owner_declines`), so a decline given after
+a puzzle shipped holds at the export before the record is made again. `tests/test_ship_whose.py` runs these cells,
+with the cold review's probe for a guest and for a helper.
 
 **Two marks on one row or square that say different things** (since 2026-11-13; same words from several reviewers
 are one mark). The owner's is taken and the others are shown "not taken"; with no owner's among them, a person's is

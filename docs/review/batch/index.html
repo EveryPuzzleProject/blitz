@@ -329,7 +329,11 @@ function shippedHtml(d) {
       <span class="meta">${esc(c.by)}${c.fits === 'already' ? ' · the text already has the words meant: the export writes the note only' : c.fits === 'unplaced' ? " · the export can't place it in the text and leaves it alone" : ''}</span></li>`).join('')}</ul>` : ''}
     ${(d.typed || []).length ? `<h3>Typed by hand</h3><ul class="shiprecs">${d.typed.map(t => `<li>${esc(t.note)}</li>`).join('')}</ul>` : ''}
     ${(d.printed || []).length ? `<h3>Printed lines it keeps, and what each is</h3><ul class="shiprecs">${d.printed.map(q => `<li>${one(q.text)} <span class="meta">${esc(q.label)}: the gxd export's Notes rule picks the lines it takes by this</span></li>`).join('')}</ul>` : ''}
-    ${(d.proposals || []).length ? `<h3>Proposed, waiting for the owner</h3><ul class="shiprecs">${d.proposals.map(q => `<li>${esc(q.says)} <b>Not applied: the owner decides</b>
+    ${(d.proposals || []).filter(q => q.status === 'waiting for the owner').length ? `<h3>Proposed, waiting for the owner</h3><ul class="shiprecs">${d.proposals.filter(q => q.status === 'waiting for the owner').map(q => `<li>${esc(q.says)} <b>Not applied: the owner decides</b>
+      <span class="meta">${esc(q.by)}</span></li>`).join('')}</ul>` : ''}
+    ${(d.proposals || []).filter(q => q.status === 'declined by the owner').length ? `<h3>Declined by the owner</h3><ul class="shiprecs">${d.proposals.filter(q => q.status === 'declined by the owner').map(q => `<li>${esc(q.says)} <b>Not taken: not corrected at the gxd export</b>
+      <span class="meta">marked by ${esc(q.by)}</span></li>`).join('')}</ul>` : ''}
+    ${(d.proposals || []).filter(q => q.status === 'not taken').length ? `<h3>Marks not taken</h3><ul class="shiprecs">${d.proposals.filter(q => q.status === 'not taken').map(q => `<li>${esc(q.says)}
       <span class="meta">${esc(q.by)}</span></li>`).join('')}</ul>` : ''}
     ${pk.length ? `<details><summary>${pk.length} change${pk.length > 1 ? 's' : ''} the text review made before any reviewer saw it</summary><ul class="shiprecs">${pk.map(e => `<li>${esc(e.key)}: ${one(e.before)} → ${one(e.after)}${e.why ? ` <span class="meta">${esc(e.why)}</span>` : ''}</li>`).join('')}</ul></details>` : ''}`;
 }

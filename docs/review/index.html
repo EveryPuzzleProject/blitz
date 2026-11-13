@@ -728,14 +728,14 @@ async function loadProofs() {
     if (p.user_id === me) {
       if (!store.cur) {
         store.cur = {who: p.who, edits: r.edits || {}, comments: r.comments || [], status: r.status || {},
-          note: r.note || '', decision: p.decision, submitted: p.at, typos: r.typos || [], key_corrections: r.key_corrections || []};
+          note: r.note || '', decision: p.decision, submitted: p.at, typos: r.typos || [], key_corrections: r.key_corrections || [], declines: r.declines || []};
         store.xd = r.xd || '';  // the version it was made on
       }
       continue;
     }
     const bad = Object.entries(r.status || {}).filter(([, x]) => x.v === 'bad').map(([id, x]) => `Problem in the ${PART[id]?.name || id}: ${x.note || ''}`);
     remote.push({who: p.who || 'A helper', person: true, decision: p.decision, xd: r.xd || '', edits: r.edits || {}, comments: r.comments || [],
-      typos: r.typos || [], key_corrections: r.key_corrections || [],
+      typos: r.typos || [], key_corrections: r.key_corrections || [], declines: r.declines || [],
       summary: [p.decision === 'ready' ? 'Said ready.' : 'Said not ready.', ...bad, r.note].filter(Boolean).join(' ')});
   }
 }
@@ -1365,7 +1365,11 @@ function shippedHtml(d) {
       <span class="hint">${esc(c.by)}${c.fits === 'already' ? ' · the text already has the words meant: the export writes the note only' : c.fits === 'unplaced' ? " · the export can't place it in the text and leaves it alone" : ''}</span></li>`).join('')}</ul>` : ''}
     ${(d.typed || []).length ? `<h3>Typed by hand</h3><ul class="shiprecs">${d.typed.map(t => `<li>${esc(t.note)}</li>`).join('')}</ul>` : ''}
     ${(d.printed || []).length ? `<h3>Printed lines it keeps, and what each is</h3><ul class="shiprecs">${d.printed.map(q => `<li>${one(q.text)} <span class="hint">${esc(q.label)}: the gxd export's Notes rule picks the lines it takes by this</span></li>`).join('')}</ul>` : ''}
-    ${(d.proposals || []).length ? `<h3>Proposed, waiting for the owner</h3><ul class="shiprecs">${d.proposals.map(q => `<li>${esc(q.says)} <b>Not applied: the owner decides</b>
+    ${(d.proposals || []).filter(q => q.status === 'waiting for the owner').length ? `<h3>Proposed, waiting for the owner</h3><ul class="shiprecs">${d.proposals.filter(q => q.status === 'waiting for the owner').map(q => `<li>${esc(q.says)} <b>Not applied: the owner decides</b>
+      <span class="hint">${esc(q.by)}</span></li>`).join('')}</ul>` : ''}
+    ${(d.proposals || []).filter(q => q.status === 'declined by the owner').length ? `<h3>Declined by the owner</h3><ul class="shiprecs">${d.proposals.filter(q => q.status === 'declined by the owner').map(q => `<li>${esc(q.says)} <b>Not taken: not corrected at the gxd export</b>
+      <span class="hint">marked by ${esc(q.by)}</span></li>`).join('')}</ul>` : ''}
+    ${(d.proposals || []).filter(q => q.status === 'not taken').length ? `<h3>Marks not taken</h3><ul class="shiprecs">${d.proposals.filter(q => q.status === 'not taken').map(q => `<li>${esc(q.says)}
       <span class="hint">${esc(q.by)}</span></li>`).join('')}</ul>` : ''}
     ${pk.length ? `<details><summary>${pk.length} change${pk.length > 1 ? 's' : ''} the text review made before any reviewer saw it</summary><ul class="shiprecs">${pk.map(e => `<li>${esc(e.key)}: ${one(e.before)} → ${one(e.after)}${e.why ? ` <span class="hint">${esc(e.why)}</span>` : ''}</li>`).join('')}</ul></details>` : ''}`;
 }
@@ -1401,11 +1405,39 @@ const marksCount = r => !!r.ai || !SITE || ((SHIP || {}).rule || {}).marks === '
 const markFate = (r, said) => marksCount(r) ? said : 'Proposed: waiting for the owner, who decides whether it is corrected. Nothing is changed until then.';
 const markKeys = key => /^meta:/.test(key) ? [key, 'ev:' + (key.slice(5) === 'puzzle_number' ? 'number' : key.slice(5))] : [key];
 const marksAt = key => rounds.flatMap(r => (r.typos || []).filter(t => markKeys(key).includes(t.key)).map(t => [r, t]));
+// The owner's "not a misprint" on someone else's mark (blitz ship: the review's declines [{key, printed, meant, by}]):
+// the mark is not taken, never reaches the gxd export, and a key letter stays as printed. The owner's own edit on the
+// row that keeps the printed words declines another person's mark as well, and the row says so. The owner can take a
+// decline back. Drawn from the reviews; ship's record decides.
+const ownerRound = r => !r.ai && (!SITE || !!((SHIP || {}).rule || {}).owner?.includes(r === cur ? cur.who : r.who));
+const sameMark = (d, t) => d.key === t.key && d.printed === t.printed && (d.meant ?? '') === (t.meant ?? t.corrected ?? '');
+const declinedBy = t => rounds.filter(r => ownerRound(r) && (r.declines || []).some(d => sameMark(d, t)));
+const wordCount = (text, w) => (String(text || '').match(new RegExp('(?<![\\w])' + w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![\\w])', 'g')) || []).length;
+function declineHtml(r, t, editKey) {
+  if (r === cur) return '';
+  const by = declinedBy(t), mine = by.includes(cur), owner = ownerRound(cur);
+  const byEdit = !r.ai && owner && !by.length && editKey && typeof cur.edits[editKey] === 'string' && wordCount(cur.edits[editKey], t.printed) === 1
+    && !(cur.typos || []).some(m => m.key === t.key && m.printed === t.printed);
+  return (by.length ? ` <b class="declined">Declined by the owner${by.some(x => x !== cur) ? ` (${esc(by.filter(x => x !== cur).map(x => x.who).join(', '))})` : ''}: not a misprint.</b> <span class="hint">Not taken: not corrected at the gxd export${t.key.startsWith('cell:') ? ', and the letter stays as the key printed it' : ''}.</span>` : '')
+    + (byEdit ? ` <span class="hint"><b>Your edit on this row keeps the printed “${esc(t.printed)}”: it declines this mark</b> (not corrected at the gxd export).</span>` : '')
+    + (owner && !byEdit ? ` <button class="linkbtn decline" data-k="${esc(t.key)}" data-p="${esc(t.printed)}" data-m="${esc(t.meant ?? t.corrected ?? '')}" data-by="${esc(r.who)}">${mine ? 'take the decline back' : 'not a misprint'}</button>` : '');
+}
 function marksHtml(key) {
   return marksAt(key).map(([r, t]) => `<div class="mark"><b>Printed this way, but wrong</b> <span class="by" style="color:${r.color}">${esc(r.who)}</span>:
     printed “${esc(t.printed)}”, meant “${esc(t.meant)}”. <span class="hint">${esc(markFate(r, `Stays as printed here; corrected to “${t.meant}” at the gxd export, with a note.`))}</span>
+    ${declineHtml(r, t, key)}
     ${r === cur ? `<button class="linkbtn unmark" data-k="${esc(t.key)}" data-p="${esc(t.printed)}">take it back</button>` : ''}</div>`).join('');
 }
+addEventListener('click', e => {
+  const b = e.target.closest('.decline');
+  if (!b) return;
+  e.stopPropagation();
+  const d = {key: b.dataset.k, printed: b.dataset.p, meant: b.dataset.m, by: b.dataset.by};
+  const had = (cur.declines || []).some(x => sameMark(x, d));
+  cur.declines = (cur.declines || []).filter(x => !sameMark(x, d));
+  if (!had) cur.declines.push(d);
+  save(); render();
+}, true);
 function markForm(host, key, now) {
   host.querySelector('.markform')?.remove();
   const box = document.createElement('div');
@@ -1593,7 +1625,7 @@ function summarySection() {
 // when ready with no edits, since edits aren't applied on import yet
 // the same review, to a local server (?save=): plain text, so the browser sends it without asking first
 async function saveLocal(d) {
-  const review = {edits: cur.edits, comments: cur.comments, status: cur.status, note: cur.note || '', xd: rev?.xd_fp || '', ...((cur.typos || []).length ? {typos: cur.typos} : {}), ...((cur.key_corrections || []).length ? {key_corrections: cur.key_corrections} : {}),
+  const review = {edits: cur.edits, comments: cur.comments, status: cur.status, note: cur.note || '', xd: rev?.xd_fp || '', ...((cur.typos || []).length ? {typos: cur.typos} : {}), ...((cur.key_corrections || []).length ? {key_corrections: cur.key_corrections} : {}), ...((cur.declines || []).length ? {declines: cur.declines} : {}),
                   ...(d === 'notready' && cur.sendback ? {sendback: cur.sendback} : {})};
   const who = (cur.who === 'You' ? '' : cur.who || '').slice(0, 40);
   const r = await fetch(SAVE, {method: 'POST', headers: {'Content-Type': 'text/plain'},
@@ -1611,7 +1643,7 @@ async function submitReview(d) {
   const who = (cur.who === 'You' ? '' : cur.who || '').slice(0, 40);
   // xd: the version of the puzzle this page showed (the packet's fingerprint of its .xd), so the import knows
   // exactly what was proofed and a later change to the puzzle lapses the proof
-  const review = {edits: cur.edits, comments: cur.comments, status: cur.status, note: cur.note || '', xd: rev?.xd_fp || '', ...((cur.typos || []).length ? {typos: cur.typos} : {}), ...((cur.key_corrections || []).length ? {key_corrections: cur.key_corrections} : {}),
+  const review = {edits: cur.edits, comments: cur.comments, status: cur.status, note: cur.note || '', xd: rev?.xd_fp || '', ...((cur.typos || []).length ? {typos: cur.typos} : {}), ...((cur.key_corrections || []).length ? {key_corrections: cur.key_corrections} : {}), ...((cur.declines || []).length ? {declines: cur.declines} : {}),
                   ...(d === 'notready' && cur.sendback ? {sendback: cur.sendback} : {})};
   const p = await sb.from('proofs').upsert({xdid: ID, user_id: uid, who, decision: d, review, at});
   if (p.error) throw p.error;
@@ -3119,6 +3151,7 @@ function keyMisprints(host) {
   const all = rounds.flatMap(r => (r.key_corrections || []).map(t => [r, t]));
   host.innerHTML = all.map(([r, t]) => `<div class="mark"><b>The key printed ${esc(t.printed)} at ${esc(String(t.key).slice(5))}</b> <span class="by" style="color:${r.color}">${esc(r.who)}</span>:
       ${marksCount(r) ? 'corrected' : 'proposed'}: ${esc(t.corrected)}. <span class="hint">${esc(markFate(r, `Corrected in the xd blitz ships, with a note saying the key printed ${t.printed}.`))}</span>
+      ${declineHtml(r, t, '')}
       ${r === cur ? `<button class="linkbtn unkey" data-k="${esc(t.key)}">take it back</button>` : ''}</div>`).join('')
     + `<button class="linkbtn" id="keymisbtn" title="The printed key has a wrong letter: the clue and the crossing words call for another">✎ A letter the printed key got wrong…</button>`;
   host.querySelectorAll('.unkey').forEach(b => b.onclick = () => {

@@ -486,7 +486,7 @@ def from_site(decisions: dict, have: list[dict], pids: set) -> list[dict]:
                       "note": p.get("note", ""), "xd": p.get("xd", ""), **({"sendback": p["sendback"]} if p.get("sendback") else {}),
                       # what the reviewer marked as printed wrong (the proof page's control): a clue's or a header's
                       # misprint, a misprinted key letter; the shape the AI reviewer's review has them in
-                      **({k: p[k] for k in ("typos", "key_corrections") if p.get(k)})}
+                      **({k: p[k] for k in ("typos", "key_corrections", "declines") if p.get(k)})}
             out.append({"id": f"proof:{pid}", "answer": p["decision"], "note": (p.get("note") or "").strip(), "fix": "", "by": by,
                         "at": p.get("at", ""), "via": SITE, "proof": {"xdid": pid, "review": review, "at": p.get("at", "")}})
     return out
@@ -1663,6 +1663,50 @@ def edit_records(packet_xd: str, applied: str, apply: list[dict], rule: Rule = R
                 typos.append((*t3, r))
                 key_said.setdefault(t3[0], {"text": str(t.get("text") or "").strip(), "crop": t.get("crop") or ""})
     whole = lambda key, printed, meant: bool(printed and meant and printed != meant and _TYPO_KEY.fullmatch(key))
+    # The owner's "not a misprint" (since 2026-11-13): an explicit decline in the owner's review (declines: [{key,
+    # printed, meant, by}], the proof page's button on someone else's mark), or the owner's own edit on the marked row
+    # that keeps the printed words once (their edit says what the row is) with no mark of their own on those words.
+    # A declined mark is not taken: shown "declined by the owner", never at ship-export, a key letter left as printed.
+    # The explicit decline counts on any mark, an AI's included; the owner's edit declines another person's only (an
+    # AI's mark beside a person's edit that keeps the printed words is proposed, as before).
+    declined = {}  # (key, printed, meant) -> (the owner's record, how)
+    edit_key = lambda key: f"meta:{_field(key)}" if _field(key) else key  # the edit a misprint's key sits beside
+    for r in apply:
+        if kind_of(r, rule) != "owner" or _name(r) in rule.ignore:
+            continue
+        review = (r.get("proof") or {}).get("review") or {}
+        mine = {(str(t.get("key", "")), str(t.get("printed", "")).strip()) for t in review.get("typos") or [] if isinstance(t, dict)}
+        for d in review.get("declines") or []:
+            if isinstance(d, dict) and d.get("key"):
+                declined[(str(d["key"]), str(d.get("printed", "")).strip(), str(d.get("meant", "")).strip())] = (r, "declined")
+        for key, printed, meant, m in typos:
+            ek = edit_key(key)
+            if (kind_of(m, rule) == "helper" and (key, printed) not in mine and isinstance((review.get("edits") or {}).get(ek), str)
+                    and _count(review["edits"][ek], printed) == 1):
+                declined.setdefault((key, printed, meant), (r, "edit"))
+    declined_keys = set()
+
+    def decline_says(t3, how):
+        return (f"{_label(t3[0], pairs)}: marked as printed “{t3[1]}”, meant “{t3[2]}”: declined by the owner"
+                + (": their edit on the row keeps the printed words" if how == "edit" else ": not a misprint") + ".")
+    for t in list(typos):
+        hit = declined.get(t[:3])
+        if not hit:
+            continue
+        typos.remove(t)
+        of_key.discard(t[:3])
+        proposals.append({"key": t[0], "printed": t[1], "meant": t[2], **who(t[3]), "what": "key letter" if t[0].startswith("cell:") else "misprint",
+                          "status": "declined by the owner", "declined_by": hit[0].get("by", ""), "says": decline_says(t[:3], hit[1])})
+        if t[0].startswith("cell:"):
+            declined_keys.add((t[0], t[1], t[2], id(hit[0])))
+    for q in proposals:  # a mark that was waiting for the owner (marks: owner), declined
+        hit = declined.get((q["key"], q["printed"], q["meant"])) if q["status"] == "waiting for the owner" else None
+        if hit:
+            q.update(status="declined by the owner", declined_by=hit[0].get("by", ""), says=decline_says((q["key"], q["printed"], q["meant"]), hit[1]))
+            if q["key"].startswith("cell:"):
+                declined_keys.add((q["key"], q["printed"], q["meant"], id(hit[0])))
+            row_marks[:] = [x for x in row_marks if (x[0], x[1], x[2]) != (q["key"], q["printed"], q["meant"])]
+    decliner = {id(r): r for r in apply}
     disputes = []
     by_key = {}
     for t in typos:
@@ -1691,6 +1735,17 @@ def edit_records(packet_xd: str, applied: str, apply: list[dict], rule: Rule = R
                                   + ("the owner's mark on the row says otherwise." if mine else "a person's mark on the row says otherwise." if kinds[id(t)] == "ai"
                                      else "another reviewer's mark on the row says otherwise; the owner decides.")})
     records, missing, have, more_edits, back, key_fix, said, misedit = [], [], {}, {}, set(), {}, {}, []
+    kept_printed = set()  # squares a declined key correction leaves as the key printed them
+    for key, printed, meant, rid in declined_keys:
+        at = _square(was_c, key)
+        if not at or len(printed) != 1:
+            continue
+        cur = (value[key] or "").upper() if key in owner else was_c[at[0]][at[1]]
+        if cur == meant.upper() and cur != printed.upper():
+            more_edits[key] = printed.upper()
+            if key not in owner:
+                owner[key] = decliner[rid]
+            kept_printed.add(key)
     edit_key = lambda key: f"meta:{_field(key)}" if _field(key) else key  # the edit a misprint's key sits beside
     # the candidate lists a reviewer took in (as the clues, or as a second set): their decision wrote those lines
     lists = [k for k in owner if k.startswith("candidate:") and (value[k] == "clues" or str(value[k]).startswith("second:"))]
@@ -1791,6 +1846,7 @@ def edit_records(packet_xd: str, applied: str, apply: list[dict], rule: Rule = R
         # a mark on the row says which words are the print's mistake, nothing about the rest of the edit: that is
         # classed on its own evidence (a comment on the row: a reading fix; none: unclassed, listed for the owner)
         cls = (TYPED if k in typed else DECISION if what in ("decision", "printed line kept", "printed line label") or more.get("decided_by")
+               or k in kept_printed
                else KEY_FIX if k in key_fix
                else UNCLASSED if k in back or not why else READING)
         have[k] = {"key": k, "what": what, "class": cls, "before": before, "after": after, **who(r), "stage": EDIT_STAGE,
@@ -1927,7 +1983,8 @@ def edit_records(packet_xd: str, applied: str, apply: list[dict], rule: Rule = R
                             **({"edit": mine} if mine is not None else {})})
     # a helper's or a guest's key correction whose square they also changed to it: the letter would be corrected here
     # on their word, which the owner's rule keeps for the owner: held, a question for the owner
-    waits = [p for p in proposals if p["what"] == "key letter" and p["key"] in owner and owner[p["key"]].get("by") == p["by"]
+    waits = [p for p in proposals if p["what"] == "key letter" and p["status"] == "waiting for the owner" and p["key"] in owner
+             and owner[p["key"]].get("by") == p["by"]
              and str(value.get(p["key"]) or "").upper() == p["meant"].upper()]
     if invalid:
         return {"text": applied, "records": [], "corrections": [], "notes": [], "missing": [], "invalid": invalid, "misedit": [],
@@ -1946,6 +2003,18 @@ def edit_records(packet_xd: str, applied: str, apply: list[dict], rule: Rule = R
     return {"text": with_notes(with_notes(text, notes), typed_notes, TYPED_HEAD), "records": records, "corrections": corrections, "notes": notes,
             "typed": typed_notes, "missing": missing,
             "invalid": invalid, "misedit": misedit, "proposals": proposals, "waits": waits}
+
+
+def owner_declines(repo: Path, pid: str, rule: Rule) -> set:
+    """The marks the owner has declined on a puzzle ("not a misprint", the proof page's button): (key, printed, meant)
+    from each of the owner's accounts' latest proof record in the ledger, whatever its answer. The export reads it, so
+    a decline given after the puzzle shipped holds at the export too, before the record is made again."""
+    latest = {}
+    for r in ledger(repo):
+        if r.get("id") == f"proof:{pid}" and kind_of(r, rule) == "owner" and _name(r) not in rule.ignore:
+            latest[r.get("by", "")] = r
+    return {(str(d.get("key", "")), str(d.get("printed", "")).strip(), str(d.get("meant", "")).strip())
+            for r in latest.values() for d in ((r.get("proof") or {}).get("review") or {}).get("declines") or [] if isinstance(d, dict)}
 
 
 def corrected(text: str, corrections: list[dict]) -> tuple[str, list[str], list[dict]]:
@@ -2469,6 +2538,7 @@ def export(repo: Path, dest: Path, pub: str, scans: Path | None = None, shelf: s
             shutil.rmtree(old)
     dest.mkdir(parents=True, exist_ok=True)
     receipts, held, pages, done, days, corrections = [], [], {}, [], [], []
+    rule = rule_of(repo)  # whose decline of a mark counts: the owner's
     for r in sorted(provenance(repo), key=lambda r: r["xdid"]):
         f = repo / "xd" / f"{r['xdid']}.xd"
         if not f.exists():
@@ -2480,7 +2550,8 @@ def export(repo: Path, dest: Path, pub: str, scans: Path | None = None, shelf: s
             held.append((r["xdid"], NOT_EXPORTED[out_code]))
             continue
         gid = next((o["gxd_id"] for o in _tsv(repo / "gxd-exports.tsv") if o["xdid"] == r["xdid"] and o.get("gxd_id")), r["xdid"])
-        text, fixed_notes, fixed = corrected(text, r.get("corrections"))  # a clue's or header's misprint: corrected here, with its note
+        no = owner_declines(repo, r["pid"], rule)  # declined by the owner after it shipped: not made, not listed
+        text, fixed_notes, fixed = corrected(text, [c for c in r.get("corrections") or [] if (c.get("key"), c.get("printed"), c.get("meant")) not in no])
         corrections += [{"xdid": r["xdid"], **c} for c in fixed]
         xd = to_gxd(text, [p["text"] for p in r.get("printed") or [] if p["label"] in labels] + list(r.get("notes") or []) + fixed_notes, feature_as)
         day = _header(xd, "Date") or r["xdid"][len(pub):len(pub) + 10]
