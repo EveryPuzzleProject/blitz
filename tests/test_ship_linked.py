@@ -13,7 +13,7 @@ import json
 import shutil
 from pathlib import Path
 
-from blitz.ship import (AGENT, NOTES_HEAD, SITE, Rule, _printed, apply_edits, apply_linked, corrected, edit_records, linked, plan,
+from blitz.ship import (AGENT, LINE_LABELS, NOTES_HEAD, SITE, Rule, _printed, apply_edits, apply_linked, corrected, edit_records, linked, plan,
                         provenance, read_linked, record, refused, write)
 from test_ship import proof
 
@@ -233,7 +233,7 @@ def test_a_squares_number_corrected_relabels_its_words_line_and_the_numbering_se
 def test_edits_that_cannot_be_applied_hold_the_puzzle_and_say_why():
     xd, ocr, review = packet(NO11)
     assert refused({"label:B3": "intro", "ev:number": "4", "clue:A2^Easy": "x", "candidate:A-alt1": "remove", "fitb:A2": "no"}, xd) == [
-        "candidate:A-alt1", "clue:A2^Easy", "ev:number", "fitb:A2", "label:B3"]
+        "candidate:A-alt1", "clue:A2^Easy", "ev:number", "fitb:A2"]                     # a label is applied (test_ship_labels_typed.py)
     cant = lambda edits: apply_linked(xd, edits, ocr, review)[2]
     assert "the grid has no such word with a clue" in cant({"clue:A99": "x"})[0]
     # B15 is the line the Number was read from: its text may be corrected while it still shows the xd's Number
@@ -310,9 +310,9 @@ def test_an_edit_the_import_cannot_apply_holds_a_linked_ends_puzzle_as_broken(tm
     r = row(plan(repo, proofs, RULE, "b"), NO11)
     assert (r["status"], r["reason"], r["queue"]) == ("held", "edits-unapplied", "broken")
     assert "can't apply to this linked-ends puzzle as it stands: line:B15" in r["why"] and r["broken"][0]["stage"] == "import"
-    repo, proofs = batch(tmp_path / "2", {NO11: [said(PERSON, SITE, {"label:B17": "intro"})]})
+    repo, proofs = batch(tmp_path / "2", {NO11: [said(PERSON, SITE, {"label:B17": "a heading"})]})
     r = row(plan(repo, proofs, RULE, "b"), NO11)
-    assert (r["reason"], r["why"]) == ("edits-unapplied", "proof-page edits the import can't apply yet: label:B17")
+    assert (r["reason"], r["why"]) == ("edits-unapplied", "proof-page edits the import can't apply yet: label:B17: 'a heading' is not a label of a printed line (" + ", ".join(LINE_LABELS) + ")")
     assert record(plan(repo, proofs, RULE, "b"))["counts"]["queues"]["broken"] >= 1
 
 
@@ -345,7 +345,10 @@ def test_only_an_unread_square_with_its_letter_is_made_whole_by_an_edit():
     ship = {"findings": [{"code": "grid-unsolved", "detail": "2 square(s) unsolved", "cells": ["r1c1", "r2c2"]},
                          {"code": "clue-empty", "detail": "clues with no text: A5", "items": ["A5"]}],
             "incomplete": ["2 square(s) unsolved", "clues with no text: A5"]}
-    assert filled_by(ship, {"cell:r1c1": "A", "cell:r2c2": "b", "clue:A5": "Typed"}) == ["2 square(s) unsolved"]  # never the clue
+    assert filled_by(ship, {"cell:r1c1": "A", "cell:r2c2": "b", "clue:A5": "Typed"}) == ["2 square(s) unsolved"]  # not the clue...
+    # ...unless it is in the typed edits: those of the people whose typed clue counts (Rule.typed_clues; tests/test_ship_labels_typed.py)
+    assert filled_by(ship, {}, {"clue:A5": "Typed"}) == ["clues with no text: A5"]
+    assert filled_by(ship, {}, {"clue:A5": "[missing]"}) == [] and filled_by(ship, {}, {"clue:A5": " "}) == []
     assert filled_by(ship, {"cell:r1c1": "A"}) == [] and filled_by(ship, {"cell:r1c1": "A", "cell:r2c2": "_"}) == []
     assert filled_by({"findings": [{"code": "grid-unsolved"}], "incomplete": ["2 square(s) unsolved"]}, {"cell:r1c1": "A"}) == []  # squares not named
 

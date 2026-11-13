@@ -40,6 +40,7 @@ from .work import Stop
 SITE, AGENT = "review site", "agent review"  # a ledger record's via: a helper's (the hosted proof page), an AI's
 CHECK_BY = "the ship check"  # the by of the no-model ship check's own Ready (xword-ocr shipcheck)
 AI_READY = ("off", "both", "either")
+TYPED_CLUES = ("owner", "people")  # whose typed clue makes a puzzle whole (Rule.typed_clues)
 PUBLIC = "https://pub-52ac4a15c4ba43fe8e4af5a496733fb5.r2.dev"  # the review site's packages
 PROOF_PAGE = "https://blitz.xwordapp.com/review/?p="
 CREDIT = "Every Puzzle Project"
@@ -59,11 +60,15 @@ class Rule:
       text step supplied with no OCR reading behind it).
     ignore: reviewers whose decisions don't count (a scripted usability test's account).
     owner: the owner's own accounts on the review site. A decision made there under one of these
-      names is the owner's, and overrides as the owner's do in their own tools."""
+      names is the owner's, and overrides as the owner's do in their own tools.
+    typed_clues: whose clue typed on the proof page, where the packet has no text for it (the ship check's
+      clue-empty), makes the puzzle whole: "owner" (the default: the owner's own Ready only, as for grid
+      fixes and misprint marks) or "people" (a helper's Ready too). Never an AI's (filled_by)."""
     ai_ready: str = "off"
     hold_codes: tuple = ("clue-typed",)
     ignore: tuple = ()
     owner: tuple = ()
+    typed_clues: str = "owner"
 
 
 def rule_of(repo: Path, **over) -> Rule:
@@ -73,6 +78,8 @@ def rule_of(repo: Path, **over) -> Rule:
     d.update({k: v for k, v in over.items() if v is not None})
     if d.get("ai_ready", "off") not in AI_READY:
         raise Stop(f"ai_ready is one of {', '.join(AI_READY)}, not {d['ai_ready']!r}")
+    if d.get("typed_clues", "owner") not in TYPED_CLUES:
+        raise Stop(f"typed_clues is one of {', '.join(TYPED_CLUES)}, not {d['typed_clues']!r}")
     return Rule(**{k: tuple(v) if isinstance(v, list) else v for k, v in d.items()})
 
 
@@ -332,17 +339,41 @@ def broken_of(row: dict, blocking: list, incomplete: list) -> list[dict]:
     return out or [{"what": row["why"], "stage": STAGE_OF.get(row["reason"], ""), "code": row["reason"], "detail": ""}]
 
 
-def filled_by(ship: dict, edits: dict) -> list[str]:
+def typed_text(v) -> bool:
+    """A clue's text as a person typed it on the proof page where the packet had none: one line, not empty, and not
+    the text step's own "[missing]" mark."""
+    return isinstance(v, str) and bool(v.strip()) and not CONTROL.search(v) and "[missing]" not in v
+
+
+def filled_by(ship: dict, edits: dict, typed: dict | None = None) -> list[str]:
     """The ship check's incompleteness that the edits about to be applied make whole (its lines of
-    ship.incomplete): an unsolved grid (grid-unsolved, which names its squares) when every one of those squares
-    has its letter among the edits. Nothing else: an empty or missing clue, or a second set, isn't made whole by
-    an edit here (a clue typed where the packet has none is not a reading fix)."""
+    ship.incomplete). Called only when a person's decision ships the puzzle (an AI's Ready never makes it whole):
+
+    - an unsolved grid (grid-unsolved, which names its squares) when every one of those squares has its letter
+      among `edits`, the edits that ship (a key square the packet left unread, read by a reviewer: a reading fix);
+    - clues with no text (clue-empty, which names its clues in `items`) when every one of them has its text in
+      `typed`: the own edits of the people whose typed clue counts (Rule.typed_clues), never an AI's (none is
+      passed in, whoever's Ready ships the puzzle). Nothing was read for such a
+      clue, so it ships typed by a person (class "typed", and the xd's TYPED_HEAD block), never as a reading fix.
+
+    Nothing else: a missing clue (no line for it in the xd), an extra one, a second set isn't made whole by an edit."""
     out = []
     for f in ship.get("findings") or []:
-        if (isinstance(f, dict) and f.get("code") == "grid-unsolved" and f.get("cells") and f.get("detail") in (ship.get("incomplete") or [])
+        if not isinstance(f, dict) or f.get("detail") not in (ship.get("incomplete") or []):
+            continue
+        if (f.get("code") == "grid-unsolved" and f.get("cells")
                 and all(isinstance(edits.get(f"cell:{c}"), str) and len(edits[f"cell:{c}"]) == 1 and edits[f"cell:{c}"].isalpha() for c in f["cells"])):
             out.append(f["detail"])
+        elif (f.get("code") == "clue-empty" and f.get("items") and typed is not None
+              and all(isinstance(c, str) and typed_text(typed.get(f"clue:{c}")) for c in f["items"])):
+            out.append(f["detail"])
     return out
+
+
+def typed_clues(ship: dict, filled: list[str]) -> list[str]:
+    """The clues (clue:D1) a person's typed text makes whole: the items of each clue-empty finding filled_by() filled."""
+    return [f"clue:{c}" for f in ship.get("findings") or [] if isinstance(f, dict) and f.get("code") == "clue-empty"
+            and f.get("detail") in filled for c in f.get("items") or []]
 
 
 def spot(pid: str) -> bool:
@@ -451,7 +482,7 @@ def _header(xd: str, key: str) -> str:
 # ---- the reviewers' edits, onto the packet's xd ----------------------------------------------
 
 APPLIED = re.compile(r"clue:[AD]\d+(?:\^[A-Za-z][\w-]*)?|cell:r\d+c\d+|meta:(title|author|byline|puzzle_number|editor|feature)"
-                     r"|candidate:[AD]-alt\d+")
+                     r"|candidate:[AD]-alt\d+|label:B\d+")
 # A candidate clue list (assembly's: a list that fits the grid, neither its clues nor a recognised second set; the
 # packet's ocr.json candidates) is decided on the proof page by an edit candidate:<id> with one of these values:
 # remove (not this puzzle's), answers (the printed answers, not clues), clues (these are the real clues: they
@@ -470,7 +501,7 @@ def refused(edits: dict, text: str) -> list[str]:
     line's label or keep, a fill-in blank, a note), a rebus square, a header of several lines. A
     linked-ends puzzle takes its own kinds (LINKED_APPLIED: a square's kind, a square's printed number,
     a printed line's text and keep); whether each can be applied safely is apply_linked()'s to say."""
-    bad = lambda k, v: k.startswith(("clue:", "meta:")) and (not isinstance(v, str) or bool(CONTROL.search(v)))  # one line of the xd
+    bad = lambda k, v: k.startswith(("clue:", "meta:", "label:")) and (not isinstance(v, str) or bool(CONTROL.search(v)))  # one line
     if linked(text):
         return sorted(k for k, v in edits.items() if not LINKED_APPLIED.fullmatch(k) or bad(k, v)
                       or (k.startswith("line:") and (not isinstance(v, str) or bool(CONTROL_BUT_NL.search(v)))))
@@ -575,11 +606,20 @@ def apply_edits(text: str, edits: dict) -> tuple[str, list[str]]:
 
 CONTROL = re.compile(r"[\x00-\x1f\x7f]")  # no clue or header holds one (a line break, a tab)
 CONTROL_BUT_NL = re.compile(r"[\x00-\x09\x0b-\x1f\x7f]")  # a printed line may hold a line break, nothing else
-LINKED_APPLIED = re.compile(r"clue:[AD]\d+|cell:r\d+c\d+|grid:r\d+c\d+|num:r\d+c\d+|line:B\d+|keep:B\d+"
+LINKED_APPLIED = re.compile(r"clue:[AD]\d+|cell:r\d+c\d+|grid:r\d+c\d+|num:r\d+c\d+|line:B\d+|keep:B\d+|label:B\d+"
                             r"|meta:(title|author|byline|puzzle_number|editor|feature)")
 PAIR_LINE = re.compile(r"([A-Za-z0-9?]+-[A-Za-z0-9?]+|[AD]\d+)\. (.*) ~ (.*)$")
 OUTSIDE = "#_"  # not squares of a linked-ends puzzle
 PRINTED_HEAD = "Printed with puzzle:"  # the xd notes block of the printed lines the packet keeps (xword-ocr textstep)
+# A printed line's label: what the line is (xword-ocr textstep's labels; the proof page's LABELS). It isn't in the xd's
+# text (the "Printed with puzzle:" block has the kept lines' text only): it is in the row's `printed`, which the gxd
+# export's Notes rule picks from (notes_labels: intro and instructions, unless the owner set the rule), and it is what
+# the text step's default keep went by. A reviewer's label:B<n> is applied to `printed` (label_problems() says when it
+# can't be), with a record of class decision. "title" is not a line's label: the title is a header (the proof page's
+# headers table: meta:title, or its line, ev:title). A label:B<n> = "title" changes no label and makes no Title; it
+# is kept on the record as what the reviewer said (`said`), and the line is kept or not by its keep, as any other.
+LINE_LABELS = ("instructions", "test-solver", "intro", "credit", "kind", "answers", "section", "furniture", "other-puzzle", "other")
+SAID_LABELS = ("title",)  # said of a line, taken as the reviewer's note on it, not as its label
 EVIDENCE_HEADER = {"title": "Title", "number": "Number", "byline": "Byline", "author": "Author", "editor": "Editor",
                    "feature": "Feature", "date": "Date"}  # ocr.json's evidence fields and the xd header each gives
 _SYM = {str(n): (chr(ord("a") + n - 10) if n < 36 else chr(ord("A") + n - 36)) for n in range(10, 62)}
@@ -726,9 +766,37 @@ def printed_lines(ocr: dict, review: dict, edits: dict | None = None) -> list[di
     keep:B<n> (kept or not) edits: [{n, text, keep, label}]. text is the text step's correction where it made
     one; a line a header was read from has no keep of its own and isn't kept."""
     fixed, edits = (review or {}).get("corrections") or {}, edits or {}
-    return [{"n": ln.get("n"), "label": ln.get("label") or "",
+    return [{"n": ln.get("n"), "label": label_of(ln, edits),
              "text": edits.get(f"line:B{ln.get('n')}") or fixed.get(f"line:B{ln.get('n')}") or ln.get("text") or "",
              "keep": bool(edits.get(f"keep:B{ln.get('n')}", ln.get("keep", False)))} for ln in (ocr or {}).get("lines") or []]
+
+
+def label_of(ln: dict, edits: dict | None) -> str:
+    """A packet line's label with a reviewer's label:B<n> applied (one of LINE_LABELS; anything else leaves it as it was)."""
+    v = (edits or {}).get(f"label:B{ln.get('n')}")
+    return v if v in LINE_LABELS else ln.get("label") or ""
+
+
+def label_problems(edits: dict, ocr: dict) -> list[str]:
+    """Why a reviewer's label:B<n> edits can't be applied, in words ([] when they can): a line the packet doesn't
+    have, a line a header was read from (it has no label of its own: the header says what it is), a line the packet
+    records no keep for (the page would keep or discard it by the new label, the import by nothing recorded), or a
+    value that is neither one of LINE_LABELS nor one SAID_LABELS keeps as the reviewer's note."""
+    out, lines = [], {ln.get("n"): ln for ln in (ocr or {}).get("lines") or []}
+    evidence = {n for n in ((ocr or {}).get("evidence") or {}).values() if isinstance(n, int)}
+    for k, v in edits.items():
+        if not k.startswith("label:"):
+            continue
+        n = int(k.partition(":B")[2])
+        if v not in LINE_LABELS + SAID_LABELS:
+            out.append(f"{k}: {str(v)[:40]!r} is not a label of a printed line ({', '.join(LINE_LABELS)})")
+        elif n not in lines:
+            out.append(f"{k}: the packet has no such printed line")
+        elif n in evidence:
+            out.append(f"{k}: the line is where a header was read from, so it has no label of its own")
+        elif "keep" not in lines[n] and f"keep:B{n}" not in edits:
+            out.append(f"{k}: the packet records no keep for the line, so nothing says whether the new label keeps it")
+    return out
 
 
 def block_lines(lines) -> list[str]:
@@ -1208,20 +1276,37 @@ def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict |
             edits.update({k: v for k, v in mine.items() if k not in edits})
             if mine:
                 sources.append(r.get("by", ""))
-        # incomplete: what the ship check found that no Ready makes whole. The one thing a Ready reviewer's edits do
-        # make whole is a key square the packet left unread, when each such square has its letter among them
-        # ...and only when a person's decision ships it (the owner's, or a helper's Ready): an AI reviewer's Ready never
-        # lifts it with its own letter, whatever ai_ready says
-        filled = filled_by(ship, edits) if st["rule"] in ("owner", "people") else []
+        # incomplete: what the ship check found that no Ready makes whole. What the edits do make whole, and only when a
+        # person's decision ships it (the owner's, or a helper's Ready; never an AI's Ready, whatever ai_ready says):
+        # a key square the packet left unread, when each such square has its letter among the edits that ship (since
+        # 2026-11-12); a clue the packet has no text for, when each such clue has its text in the own edits of someone
+        # whose typed clue counts (Rule.typed_clues: the owner by default), never from an AI's edit (since 2026-11-13)
+        people, typists = {}, {}  # the people's own clue edits; the record behind each typed clue
+        for r in st["apply"]:
+            kd = kind_of(r, rule)
+            for k, v in (((r.get("proof") or {}).get("review") or {}).get("edits") or {}).items():
+                if kd in ("owner", "helper") and k.startswith("clue:"):
+                    people.setdefault(k, v)
+                if k.startswith("clue:") and (kd == "owner" or (kd == "helper" and rule.typed_clues == "people")):
+                    typists.setdefault(k, r)
+        typed_by = {k: ((r.get("proof") or {}).get("review") or {}).get("edits", {}).get(k) for k, r in typists.items()}
+        filled = filled_by(ship, edits, typed_by) if st["rule"] in ("owner", "people") else []
         if [x for x in ship.get("incomplete") or [] if x not in filled]:
-            hold("incomplete", "Ready, but incomplete: " + "; ".join(map(str, ship["incomplete"])))
+            # a clue a helper typed, which would have made it whole on the owner's word: said, so the card shows why
+            waiting = [k for k in typed_clues(ship, filled_by(ship, {}, people))
+                       if k not in typists] if st["rule"] in ("owner", "people") else []
+            hold("incomplete", "Ready, but incomplete: " + "; ".join(map(str, ship["incomplete"])) + (
+                f" ({', '.join(w[5:] for w in waiting)} typed by a helper: a clue typed where none was read makes the puzzle "
+                "whole only on the owner's word, the ship rule's typed_clues)" if waiting else ""))
             continue
+        typed = {k: typists[k] for k in typed_clues(ship, filled)}
         if filled:
-            st = {**st, "why": st["why"] + f"; the ship check's \"{'; '.join(filled)}\" is filled by the edits applied"}
+            st = {**st, "why": st["why"] + f"; the ship check's \"{'; '.join(filled)}\" is filled by the edits applied"
+                  + (f" ({', '.join(k[5:] for k in typed)} typed by a person: no text was read for it)" if typed else "")}
         if differ:
             hold("edits-differ", "reviewers' edits differ: " + ", ".join(sorted(differ)[:6]))
             continue
-        bad = refused(edits, pk["xd"])
+        bad = refused(edits, pk["xd"]) or label_problems(edits, pk["ocr"])
         if bad:
             hold("edits-unapplied", "proof-page edits the import can't apply yet: " + ", ".join(bad[:6]))
             continue
@@ -1245,12 +1330,16 @@ def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict |
                 continue
         else:
             text, done = apply_edits(text, edits)
-        if filled and "." in text.split("\n\n\n")[1]:  # the letters were given, and a square is still unread in what would ship
+        squares = any(isinstance(f, dict) and f.get("code") == "grid-unsolved" and f.get("detail") in filled for f in ship.get("findings") or [])
+        if squares and "." in text.split("\n\n\n")[1]:  # the letters were given, and a square is still unread in what would ship
             hold("incomplete", "Ready, but incomplete: " + "; ".join(map(str, ship["incomplete"])) + " (the edits don't fill every square)")
             continue
-        done = cdone + done
+        if [k for k in typed if _read(text)[2].get(k[5:]) != typed_by[k]]:  # a typed clue that doesn't ship as it was typed
+            hold("incomplete", "Ready, but incomplete: " + "; ".join(map(str, ship["incomplete"])) + " (a typed clue doesn't ship as typed)")
+            continue
+        done = cdone + done + sorted(k for k in edits if k.startswith("label:"))  # a label isn't in the xd's text: it is applied to `printed`
         passing[pid] = {"text": text, "edits": done, "edit_values": edits, "edit_sources": sources, "standing": st, "row": row,
-                        "packet": f"{rel}/{pid}", "xd_fp": review.get("xd_fp", "")}
+                        "packet": f"{rel}/{pid}", "xd_fp": review.get("xd_fp", ""), "typed": typed}
     _record_edits(passing, packs, rule)  # each one's record of every edit, its misprint notes; none without (edit-unrecorded)
     ids, pins = assign_ids(list(passing), places, repo)
     for pid, x in sorted(passing.items()):
@@ -1271,7 +1360,7 @@ def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict |
             row.update(xdid=p["xdid"], why=row["why"] + f" (already in xd/ as {p['xdid']})")
     groups = queues(rows)
     return {"groups": groups, "pub": pub or re.match(r"[a-z]+", repo.name)[0], "batch": batch or run, "run": run, "packets": rel, "rule": {"ai_ready": rule.ai_ready, "hold_codes": list(rule.hold_codes),
-            "ignore": list(rule.ignore), "owner": list(rule.owner)}, "rows": rows, "passing": passing, "pins": [p for p in pins if p["xdid"] in {x["xdid"] for x in passing.values()}],
+            "ignore": list(rule.ignore), "owner": list(rule.owner), "typed_clues": rule.typed_clues}, "rows": rows, "passing": passing, "pins": [p for p in pins if p["xdid"] in {x["xdid"] for x in passing.values()}],
             "site": new_site, "packs": packs}
 
 
@@ -1287,6 +1376,8 @@ def counts(rows: list[dict]) -> dict:
             out["held_by"][r["reason"]] = out["held_by"].get(r["reason"], 0) + 1
         if r["status"] != "out" and r.get("ships_with"):
             out["ships_with"][r["ships_with"]] = out["ships_with"].get(r["ships_with"], 0) + 1
+        if r.get("typed") and r["status"] in ("shipped", "shippable"):  # clues typed by a person where none was read
+            out["typed"] = out.get("typed", 0) + len(r["typed"])
     return out
 
 
@@ -1310,6 +1401,8 @@ def counts(rows: list[dict]) -> dict:
 NOTES_HEAD = "Answer key corrected:"  # the xd notes block ship writes: one line per corrected key letter
 EDIT_STAGE = "proof review"
 READING, UNCLASSED, DECISION, KEY_FIX = "reading", "unclassed", "decision", "key correction"  # an applied edit's class
+TYPED = "typed"  # a clue a person typed where the packet had no text for it (filled_by): nothing was read, so not a reading fix
+TYPED_HEAD = "Typed by hand:"  # the xd notes block ship writes: one line per clue a person typed where none was read
 # Whose misprint marks take effect (the owner's rule, 2026-11-13, "Owner only for now"): a typos or key_corrections
 # entry from the owner (rule.owner on the review site, or their own tools) or from the AI proof reviewer (2026-11-11).
 # Anyone else's is a proposal: kept in the ledger, shown on the proof page and in the xd as it will ship as "proposed
@@ -1429,7 +1522,7 @@ def _pairs(text: str) -> dict:
 
 
 def edit_records(packet_xd: str, applied: str, apply: list[dict], rule: Rule = Rule(), pid: str = "", ocr: dict | None = None,
-                 packet_review: dict | None = None) -> dict:
+                 packet_review: dict | None = None, typed: dict | None = None) -> dict:
     """The xd that ships, the record of every edit between the packet's xd and it, and the corrections of the
     print that travel beside it.
 
@@ -1473,7 +1566,7 @@ def edit_records(packet_xd: str, applied: str, apply: list[dict], rule: Rule = R
     a printed line's text (line:B4, what "printed line") and whether it is kept (keep:B3, what "printed line
     kept": a decision, with the line's text). Its clues are keyed by their words' standard labels, as the proof
     page keys them, with the printed pair in `pair`."""
-    ocr = ocr or {}
+    ocr, typed = ocr or {}, typed or {}
     is_linked = linked(packet_xd)
     outside, pairs = (OUTSIDE if is_linked else "#"), _pairs(packet_xd)
     was_h, was_c, was_q = _read(packet_xd)
@@ -1615,7 +1708,8 @@ def edit_records(packet_xd: str, applied: str, apply: list[dict], rule: Rule = R
         why = _why(r, more.get("decided_by") or k) or (_why(r, "line:" + k[5:]) if k.startswith("keep:") else "")
         # a mark on the row says which words are the print's mistake, nothing about the rest of the edit: that is
         # classed on its own evidence (a comment on the row: a reading fix; none: unclassed, listed for the owner)
-        cls = (DECISION if what in ("decision", "printed line kept") or more.get("decided_by") else KEY_FIX if k in key_fix
+        cls = (TYPED if k in typed else DECISION if what in ("decision", "printed line kept", "printed line label") or more.get("decided_by")
+               else KEY_FIX if k in key_fix
                else UNCLASSED if k in back or not why else READING)
         have[k] = {"key": k, "what": what, "class": cls, "before": before, "after": after, **who(r), "stage": EDIT_STAGE,
                    **({"why": why} if why else {}), "evidence": evidence(k), **more,
@@ -1633,9 +1727,10 @@ def edit_records(packet_xd: str, applied: str, apply: list[dict], rule: Rule = R
             add(k, "grid square" if k.startswith("grid:") else "key square", was_c[i][j], s["to"], owner[k],
                 words={lab: [a0.get(lab, ""), a1.get(lab, "")] for lab in {**a0, **a1} if a0.get(lab) != a1.get(lab)},
                 **({"with": s["keys"][1:]} if s["keys"][1:] else {}))
-        lines0 = {ln["n"]: ln for ln in printed_lines(ocr, packet_review or {})}
+    lines0 = {ln["n"]: ln for ln in printed_lines(ocr, packet_review or {})}
     for k, r in owner.items():
         v = value[k]
+        r = typed.get(k, r)  # a typed clue is recorded as the person's who typed it, whoever's Ready came first with the same text
         if is_linked and k.startswith(("grid:", "cell:")):
             if not any(k in (h["key"], *h.get("with", [])) for h in records) and not _square(was_c, "cell:" + k.partition(":")[2]):
                 missing.append(f"{k}: the packet's grid has no such square")
@@ -1654,6 +1749,18 @@ def edit_records(packet_xd: str, applied: str, apply: list[dict], rule: Rule = R
             else:
                 add(k, "printed line kept", "kept" if ln["keep"] else "not kept", "kept" if v else "not kept", r,
                     line=value.get("line:" + k[5:]) or ln["text"])
+        elif k.startswith("label:"):  # what the line is: not in the xd's text; the row's printed carries it (any puzzle)
+            ln = lines0.get(int(k.partition(":B")[2]))
+            if ln is None:
+                missing.append(f"{k}: the packet has no such printed line")
+            elif v in SAID_LABELS:  # not a label: said of the line, kept on its record; the line keeps its label
+                records.append({"key": k, "what": "printed line label", "class": DECISION, "before": ln["label"], "after": ln["label"], **who(r),
+                                "stage": EDIT_STAGE, "said": v, "line": value.get("line:" + k[6:]) or ln["text"],
+                                "note": f"called the line the {v}: a {v} is a header (the proof page's headers table), not a line's label, "
+                                        "so the line keeps its label and no header is made from it", "evidence": evidence(k)})
+            else:
+                add(k, "printed line label", ln["label"], v, r, line=value.get("line:" + k[6:]) or ln["text"],
+                    kept=bool(value.get("keep:" + k[6:], ln["keep"])))
         elif k.startswith("clue:"):
             wrote = next((c for c in lists if "^" in k and c[len("candidate:"):][:1] == k[5:6]
                           and _meta_key(str(value[c]).partition(":")[2]) == k.partition("^")[2]), None) if k[5:] not in was_q else None
@@ -1739,7 +1846,19 @@ def edit_records(packet_xd: str, applied: str, apply: list[dict], rule: Rule = R
     if invalid:
         return {"text": applied, "records": [], "corrections": [], "notes": [], "missing": [], "invalid": invalid, "misedit": [],
                 "proposals": proposals, "waits": []}
-    return {"text": with_notes(text, notes), "records": records, "corrections": corrections, "notes": notes, "missing": missing,
+    # a clue a person typed where nothing was read: said in the xd's notes, by whom and with their comment, and on its record
+    typed_notes = []
+    for k in typed:
+        if k in have:
+            h, alias = have[k], {"owner": "the owner", "helper": "a helper"}.get(have[k]["kind"], have[k]["kind"])
+            note = (f"{_label(k, pairs)} was typed by {alias} on the proof page{' (' + h['at'][:10] + ')' if h.get('at') else ''}: "
+                    "no text for it was read from the scan" + (f'. Their comment: "{h["why"]}"' if h.get("why") else "."))
+            h["note"] = note
+            typed_notes.append(note)
+        else:
+            missing.append(f"{k}: typed by a person, and no record of it made")
+    return {"text": with_notes(with_notes(text, notes), typed_notes, TYPED_HEAD), "records": records, "corrections": corrections, "notes": notes,
+            "typed": typed_notes, "missing": missing,
             "invalid": invalid, "misedit": misedit, "proposals": proposals, "waits": waits}
 
 
@@ -1770,12 +1889,13 @@ def corrected(text: str, corrections: list[dict]) -> tuple[str, list[str], list[
     return text, notes, rows
 
 
-def with_notes(text: str, lines: list[str]) -> str:
-    """The xd with the corrected key letters said in its notes: a block of its own, after the notes it has."""
+def with_notes(text: str, lines: list[str], head: str = NOTES_HEAD) -> str:
+    """The xd with a block of ship's own in its notes, after the notes it has: the corrected key letters (NOTES_HEAD),
+    the clues a person typed where none was read (TYPED_HEAD)."""
     if not lines:
         return text
     body = text.replace("\r\n", "\n").rstrip("\n")
-    return body + ("\n\n" if len(body.split("\n\n\n")) > 3 else "\n\n\n") + NOTES_HEAD + "\n" + "\n".join(lines) + "\n"
+    return body + ("\n\n" if len(body.split("\n\n\n")) > 3 else "\n\n\n") + head + "\n" + "\n".join(lines) + "\n"
 
 
 def packet_edits(ocr: dict, review: dict) -> list[dict]:
@@ -1836,7 +1956,7 @@ def _record_edits(passing: dict, packs: dict, rule: Rule) -> None:
     corrected and noted), its edit records and its corrections; a puzzle with an edit that has no whole record
     leaves `passing`, held as edit-unrecorded (the import's: broken)."""
     for pid, x in list(passing.items()):
-        e = edit_records(packs[pid]["xd"], x["text"], x["standing"]["apply"], rule, pid, packs[pid]["ocr"], packs[pid]["review"])
+        e = edit_records(packs[pid]["xd"], x["text"], x["standing"]["apply"], rule, pid, packs[pid]["ocr"], packs[pid]["review"], x.get("typed"))
         if e.get("cant"):  # a correction the review names that the import can't make: held, and nothing says it was made
             why = "proof-page edits the import can't apply: " + "; ".join(e["cant"])
             x["row"].update(reason="edits-unapplied", why=why, broken=[{"what": why, "stage": "import", "code": "edits-unapplied", "detail": ""}])
@@ -1887,6 +2007,10 @@ def _record_edits(passing: dict, packs: dict, rule: Rule) -> None:
             x["row"]["notes"] = e["notes"]  # added to the shipped xd's notes
         if e["corrections"]:
             x["row"]["corrections"] = [{k: c[k] for k in ("key", "printed", "meant", "fits", "says")} for c in e["corrections"]]  # proposed, not applied
+        # the clues a person typed where none was read: in the xd's notes (TYPED_HEAD), and counted (the record's counts.typed)
+        x["typed"] = [{k: h[k] for k in ("key", "by", "kind", "at", "note") if k in h} for h in x["edit_records"] if h["class"] == TYPED]
+        if x["typed"]:
+            x["row"]["typed"] = [{"key": h["key"], "kind": h["kind"], "note": h["note"]} for h in x["typed"]]
 
 
 def _edits_of(x: dict, pk: dict) -> dict:
@@ -1932,9 +2056,9 @@ def _printed(ocr: dict, review: dict, edits: dict | None = None) -> list[dict]:
     """The lines printed with the puzzle that the packet keeps, with the text step's label for each
     (the export's Notes rule picks among them by label), as the text step corrected them (line:B<n>), and
     then as the reviewers' applied edits have them (line:B<n> the text, keep:B<n> kept or not: today a
-    linked-ends puzzle's only, any other puzzle being held on such an edit)."""
+    linked-ends puzzle's only, any other puzzle being held on such an edit; label:B<n> its label, any puzzle's)."""
     fixed, edits = review.get("corrections") or {}, edits or {}
-    return [{"label": ln.get("label") or "", "text": edits.get(f"line:B{ln.get('n')}") or fixed.get(f"line:B{ln.get('n')}") or ln["text"]}
+    return [{"label": label_of(ln, edits), "text": edits.get(f"line:B{ln.get('n')}") or fixed.get(f"line:B{ln.get('n')}") or ln["text"]}
             for ln in ocr.get("lines") or []
             if edits.get(f"keep:B{ln.get('n')}", ln.get("keep", True)) and ln.get("label") and (ln.get("text") or "").strip()]
 
@@ -1959,7 +2083,8 @@ def write(repo: Path, p: dict, today: str = "") -> dict:
                "xd": fingerprint(x["text"]),
                "shipped": {"at": today, "rule": st["rule"], "ai_ready": p["rule"]["ai_ready"], "by": st["by"], "why": st["why"]},
                "said": st["said"], "edits": _edits_of(x, pk), "corrections": x.get("corrections", []), "notes": x.get("notes", []),
-               **({"proposals": x["proposals"]} if x.get("proposals") else {}),  # waiting for the owner; the export never reads them
+               **({"proposals": x["proposals"]} if x.get("proposals") else {}),
+               **({"typed": x["typed"]} if x.get("typed") else {}),  # clues typed by a person where none was read  # waiting for the owner; the export never reads them
                "check": x["row"]["check"], "codes": x["row"]["codes"],
                "sources": {k: _header(x["text"], h) for k, h in (("grid", "Source"), ("clues", "Clue-Source"), ("key", "Solution-Source"))
                            if _header(x["text"], h)},
@@ -2052,7 +2177,7 @@ def record(p: dict, public: bool = True) -> dict:
             "at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "counts": counts(p["rows"]),
             "groups": p["groups"], "spot": {"one_in": SPOT_ONE_IN, "of": "puzzles shipped on someone else's word than the owner's",
                                             "by": "sha1 of the puzzle's id"},
-            "puzzles": [{**row, **{k: r[k] for k in ("notes", "corrections", "proposals") if r.get(k)}, **_recorded_more(p, r)} for row, r in zip(rows, p["rows"])]}
+            "puzzles": [{**row, **{k: r[k] for k in ("notes", "corrections", "proposals", "typed") if r.get(k)}, **_recorded_more(p, r)} for row, r in zip(rows, p["rows"])]}
 
 
 def _recorded_more(p: dict, r: dict) -> dict:
@@ -2104,6 +2229,8 @@ def as_shipped(p: dict, rec: dict, public: bool = True) -> dict[str, dict]:
             "corrections": [pub(c) for c in x.get("corrections", [])], "notes": x.get("notes", []),
             # marks by someone whose marks don't take effect (MARKS_COUNT): shown, waiting for the owner, never applied
             "proposals": [pub(q) for q in x.get("proposals", [])],
+            # clues a person typed where no text was read: in the xd's notes too (TYPED_HEAD)
+            "typed": [pub(t) for t in x.get("typed") or []],
             "printed": _printed(pk["ocr"], pk["review"], {k: v for k, v in (x.get("edit_values") or {}).items() if k in x["edits"]})}
     return out
 

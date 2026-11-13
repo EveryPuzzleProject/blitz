@@ -59,17 +59,18 @@ counted).
 | `hold_codes` | `["clue-typed"]` | triage reason codes that hold a puzzle whoever said Ready. `clue-typed` (a clue the text step supplied with no OCR reading) doesn't exist in triage yet; when it does, such puzzles are held with no change here. |
 | `owner` | `[]` | the owner's own accounts on the review site. Who the owner is isn't in the code: it is this list in the publication's `fixes/ship-rule.json` (GAMES: `oops6498`, confirmed by the owner 2026-11-10). The site's copy of the ship record shows such a decision as "the owner", a helper's as "a helper". |
 | `ignore` | `[]` | review-site accounts whose decisions don't count (GAMES: `walkthrough test`, a scripted usability test that left a Ready and a Not ready on the live site). |
+| `typed_clues` | `owner` | whose clue typed on the proof page, where the packet has no text for it, makes the puzzle whole (`incomplete`, below): `owner` (the owner's own Ready only, as for grid fixes and misprint marks) or `people` (a helper's too). Never an AI's. Since 2026-11-13; the default is a proposal for the owner to confirm. |
 
 A puzzle the rule passes can still be held by the import, each with its own reason:
 
 | reason | meaning |
 |---|---|
 | `edit-unrecorded` | an edit with no whole record of what it changed (The record of every edit, below) |
-| `incomplete` | the ship check found missing or empty clues, an unsolved grid, a partial second clue set: no Ready makes it whole. One exception since 2026-11-12 (`ship.filled_by`): an unsolved grid, when the edits that ship with the Ready give every square the check named its letter (a key square the packet left unread, read by a reviewer: a reading fix with its record), and only when a person's decision ships the puzzle (rule `owner` or `people`): an AI's Ready never lifts it with its own letter, under any `ai_ready`. The reason it shipped says so. An empty or missing clue is never made whole by an edit. It needs the finding's `cells`, which records made before xword-ocr named them don't have (GAMES run15-restart), so it takes effect for a batch at its next triage run |
+| `incomplete` | the ship check found missing or empty clues, an unsolved grid, a partial second clue set: no Ready makes it whole. One exception since 2026-11-12 (`ship.filled_by`): an unsolved grid, when the edits that ship with the Ready give every square the check named its letter (a key square the packet left unread, read by a reviewer: a reading fix with its record), and only when a person's decision ships the puzzle (rule `owner` or `people`): an AI's Ready never lifts it with its own letter, under any `ai_ready`. The reason it shipped says so. It needs the finding's `cells`, which records made before xword-ocr named them don't have (GAMES run15-restart), so it takes effect for a batch at its next triage run. A second exception since 2026-11-13: clues with no text (`clue-empty`, which names them in `items`), when each one has its text in the own edits of a person whose typed clue counts (the rule's `typed_clues`: the owner by default), in a decision of a person's that ships the puzzle. An AI's edit never counts, not even beside the owner's Ready (the AI's Ready on No. 11 carries a D23; the owner's empty Ready beside it doesn't make D23 typed). Such a clue is typed by hand, not read: it ships with class `typed` (The record of every edit), in the xd's `Typed by hand:` block, and in the row's `typed`. A helper's typed clue under `owner` leaves the puzzle held, and the reason says so. A missing clue (no line for it in the xd), an extra one or a second set is never made whole by an edit |
 | `packet-stale` | the proof packet doesn't show its xd: rebuild the packet |
 | `proof-stale` | all that was said (a Ready, or an AI's Not ready) was on an earlier version of the puzzle |
 | `edits-differ` | two reviewers changed the same thing two ways |
-| `edits-unapplied` | a proof-page edit the import doesn't apply: a line's label or keep (`line:B3`), a header's evidence line (`ev:title`), a fill-in blank, a rebus square; in a linked-ends puzzle, an edit that can't be applied safely (Linked ends, below) |
+| `edits-unapplied` | a proof-page edit the import doesn't apply: a line's keep or text in a puzzle that isn't linked-ends (`keep:B3`, `line:B3`), a header's evidence line (`ev:title`), a fill-in blank, a rebus square; a line's label it can't hold (A printed line's label, below); in a linked-ends puzzle, an edit that can't be applied safely (Linked ends, below) |
 | `xd-exists` | `xd/` already has another file under its id |
 | `candidate-undecided` | the packet records a candidate clue list and no reviewer who said Ready has decided it (next section but one). A question, not a breakage |
 | `candidate-partial` | a candidate was taken into the puzzle (as the clues, or as a second set) and doesn't cover its slots |
@@ -96,7 +97,8 @@ proofread it. What was said stays in `said`, marked `stale`, and in the reason.
 - `provenance.jsonl`, append-only, the last row for an xdid stands:
   `{xdid, pid, batch, run, packet, packet_xd, xd, shipped: {at, rule, ai_ready, by, why}, said:
   [{who, kind, answer, at, stale}], edits: {applied, from, records, packet}, corrections, notes,
-  check, codes, sources: {grid, clues, key}, printed: [{label, text}]}`. `kind` is owner, helper,
+  check, codes, sources: {grid, clues, key}, printed: [{label, text}], typed}` (`typed` only when a person typed a
+  clue where none was read: The record of every edit). `kind` is owner, helper,
   ai or check; `printed` is the kept printed lines with the text step's labels, which the
   export's Notes rule picks from; `edits`, `corrections` and `notes` are the next section.
 - `gxd-exports.tsv`: judge's columns (`gxd_id xdid date number gxd_mr exported proof_url
@@ -161,7 +163,18 @@ leaves the value as it was makes no record.
 - `reading`: the reviewer commented on the row. The comment is the evidence that the page shows
   the new text; it is quoted in `why`, not parsed.
 - `key correction`: a `typos` entry names the square (case 3).
-- `decision`: not a value of the xd (a candidate list's decision, and the clues it wrote).
+- `decision`: not a value of the xd (a candidate list's decision, and the clues it wrote; a printed line kept or
+  dropped; a printed line's label, `label:B1`, what "printed line label": what the line is, not a reading of it).
+- `typed`: a clue a person typed where the packet had no text for it (the ship check's `clue-empty`; the
+  `incomplete` row above). Nothing was read, so it is not a reading fix, whatever the comment says. The record is
+  the typist's (their `by`, their comment as `why`), and its `note` is the line of the xd's `Typed by hand:` block:
+  `The clue for 33-34 was typed by the owner on the proof page (2026-11-13): no text for it was read from the scan.
+  Their comment: "That's what the scan says."` (a helper is "a helper"; no account is named in the xd). The block
+  is ship's own, after the xd's other notes, like `Answer key corrected:`; it is not in the row's `notes`, so the
+  gxd export never takes it (gxd's Notes are the printed text and misprint notes; this is provenance). The
+  provenance row, the ship record's row and the as-shipped file carry it as `typed` (`[{key, by, kind, at,
+  note}]`; the record's row `[{key, kind, note}]`), the record's `counts.typed` counts such clues in what ships
+  (absent when none), and the batch card, the as-shipped view and the proof page's "Notes in the xd file" show it.
 - `unclassed`: no comment on the row and no `typos` entry, so nothing says whether the reviewer
   fixed a reading or corrected the print. It is applied, and reported: `blitz ship` lists each one
   ("unclassed <pid> <key> by <reviewer>"), and the record says `unclassed`. Holding these instead
@@ -351,6 +364,36 @@ published (no packet is rebuilt for it), and because what the import does with t
 to say. With no record of it, the page says so and shows the packet's notes. A kept printed line
 over 300 characters is flagged on its row and in the preview.
 
+### A printed line's label (since 2026-11-13)
+
+Each printed line the text step didn't take a header from has a label saying what it is (xword-ocr textstep:
+`instructions`, `test-solver`, `intro`, `credit`, `kind`, `answers`, `section`, `furniture`, `other-puzzle`,
+`other`; `ship.LINE_LABELS`). The label is not in the xd's text: the `Printed with puzzle:` block holds the kept
+lines' text only. It is in the provenance row's `printed`, `[{label, text}]`, which the gxd export's Notes rule
+picks from (`intro` and `instructions` unless the owner set the rule on the batch page), and it is what the text
+step's keep went by (`section`, `furniture`, `other-puzzle` discarded; the packet records the keep it made). The
+proof page's "the text step says it's …" menu on a line's row writes `label:B<n>`.
+
+The import applies it to any puzzle, linked-ends or not: the line's label in `printed` (and so in the as-shipped
+file) is the reviewer's, with a record of class `decision` (`before` the text step's label, `after` the
+reviewer's, `line`, `kept`). It is a decision about what the line is, not a reading fix: nothing in the line was
+read differently. It changes no keep: the line is in the block when it is kept (the packet's keep, or the
+reviewer's `keep:B<n>`), as the page's preview of the block shows. It is refused (`edits-unapplied`,
+`ship.label_problems`) when the value isn't one of the labels, the packet has no such line, the line is one a
+header was read from (it has no label of its own), or the packet records no keep for the line (the page would
+then keep or discard it by the new label, the import by nothing recorded).
+
+**"This line is the title."** The menu has no title, and the import makes no header from a label. A title is a
+header, given in the headers table (its value, `meta:title`, applied in any puzzle; or its line, `ev:title`, which
+the import still refuses). So a `label:B<n>` of `title` (`ship.SAID_LABELS`) is taken as what the reviewer said of
+the line, not as its label: the line keeps the text step's label, its keep is applied as any other, no `Title:` is
+written, and the record (`printed line label`, `before` = `after`, `said: "title"`, a `note` saying so) keeps the
+reviewer's word. That leaves the "no title printed" gap a publication rule records (the World's chain C1) as it
+was, and a misprint mark on the Title row as it was: with no `Title:` in the xd, a mark there names words the row
+doesn't have (`mark-invalid`). A printed line takes no misprint mark (a mark's key is a clue's, a header's or a
+square's). New York World No. 7: the owner relabelled B1 ("CROSS-WORD PUZZLE NO. 5", the text step's `section`,
+discarded) as `intro` and kept it, which is a label: it ships first in the block, labelled `intro`.
+
 A printed line's text may hold line breaks (a paragraph break: Shift+Enter, or "new line", on the
 proof page). Each is a line of the block (`ship.block_lines`); an empty line is refused (the block
 ends at one). A clue's or a header's text is one line of the xd, and the page refuses a break there,
@@ -375,6 +418,7 @@ and so do the records (`clue:A6`, with the printed pair in `pair`).
 | `num:r3c5` (a number, a letter, or empty) | the Numbering section is written again; a line whose word's end it touches takes the pair the ends then give, or its slot's own label when an end has no number | `square number`, with `pairs` (the lines relabelled) |
 | `line:B4` | the line's text in the xd's `Printed with puzzle:` block, and in the row's `printed` (which the export's Notes rule reads) | `printed line` |
 | `keep:B3` | the line joins or leaves that block and `printed` | `printed line kept`, class `decision`, with the line's text |
+| `label:B3` | the line's label in `printed`; nothing in the xd's text (A printed line's label, below) | `printed line label`, class `decision` |
 | `meta:title` and the other headers | as in any xd | `header` |
 
 A key correction's note names the words by their pairs ("The printed answer key gave 5-6 as ...");
@@ -414,7 +458,7 @@ assembly's.
   still listed as applied with its `printed line` record (`kept: false`).
 - `label:`, `ev:`, `candidate:`, a fill-in blank: as for any puzzle.
 
-`line:` and `keep:` are applied to linked-ends puzzles only. Any other puzzle is still held on
+`line:` and `keep:` are applied to linked-ends puzzles only (`label:` to any puzzle, since 2026-11-13). Any other puzzle is still held on
 them (GAMES 1977-79 has three such), though nothing in how they are applied is particular to
 linked ends: lifting that is a change to `refused()` and a look at those three.
 
