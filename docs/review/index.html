@@ -1402,7 +1402,7 @@ function legend() {
 // else's is a proposal, waiting for the owner.
 const marksCount = r => !!r.ai || !SITE || ((SHIP || {}).rule || {}).marks === 'people'
   || ((SHIP || {}).rule || {}).owner?.includes(r === cur ? cur.who : r.who);
-const markFate = (r, said) => marksCount(r) ? said : 'Proposed: waiting for the owner, who decides whether it is corrected. Nothing is changed until then.';
+const markFate = (r, said, declined) => markFateText(marksCount(r), !!declined, said);
 const markKeys = key => /^meta:/.test(key) ? [key, 'ev:' + (key.slice(5) === 'puzzle_number' ? 'number' : key.slice(5))] : [key];
 const marksAt = key => rounds.flatMap(r => (r.typos || []).filter(t => markKeys(key).includes(t.key)).map(t => [r, t]));
 // The owner's "not a misprint" on someone else's mark (blitz ship: the review's declines [{key, printed, meant, by}]):
@@ -1413,18 +1413,23 @@ const ownerRound = r => !r.ai && (!SITE || !!((SHIP || {}).rule || {}).owner?.in
 const sameMark = (d, t) => d.key === t.key && d.printed === t.printed && (d.meant ?? '') === (t.meant ?? t.corrected ?? '');
 const declinedBy = t => rounds.filter(r => ownerRound(r) && (r.declines || []).some(d => sameMark(d, t)));
 const wordCount = (text, w) => (String(text || '').match(new RegExp('(?<![\\w])' + w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![\\w])', 'g')) || []).length;
+// declined by an owner's review, or by the owner's own edit on the row (this page's reviewer, when they are the owner)
+function byOwnersEdit(r, t, editKey) {
+  return r !== cur && !r.ai && ownerRound(cur) && !declinedBy(t).length && !!editKey && typeof cur.edits[editKey] === 'string'
+    && wordCount(cur.edits[editKey], t.printed) === 1 && !(cur.typos || []).some(m => m.key === t.key && m.printed === t.printed);
+}
+const isDeclined = (r, t, editKey) => r !== cur && (declinedBy(t).length > 0 || byOwnersEdit(r, t, editKey));
 function declineHtml(r, t, editKey) {
   if (r === cur) return '';
   const by = declinedBy(t), mine = by.includes(cur), owner = ownerRound(cur);
-  const byEdit = !r.ai && owner && !by.length && editKey && typeof cur.edits[editKey] === 'string' && wordCount(cur.edits[editKey], t.printed) === 1
-    && !(cur.typos || []).some(m => m.key === t.key && m.printed === t.printed);
+  const byEdit = byOwnersEdit(r, t, editKey);
   return (by.length ? ` <b class="declined">Declined by the owner${by.some(x => x !== cur) ? ` (${esc(by.filter(x => x !== cur).map(x => x.who).join(', '))})` : ''}: not a misprint.</b> <span class="hint">Not taken: not corrected at the gxd export${t.key.startsWith('cell:') ? ', and the letter stays as the key printed it' : ''}.</span>` : '')
     + (byEdit ? ` <span class="hint"><b>Your edit on this row keeps the printed “${esc(t.printed)}”: it declines this mark</b> (not corrected at the gxd export).</span>` : '')
     + (owner && !byEdit ? ` <button class="linkbtn decline" data-k="${esc(t.key)}" data-p="${esc(t.printed)}" data-m="${esc(t.meant ?? t.corrected ?? '')}" data-by="${esc(r.who)}">${mine ? 'take the decline back' : 'not a misprint'}</button>` : '');
 }
 function marksHtml(key) {
   return marksAt(key).map(([r, t]) => `<div class="mark"><b>Printed this way, but wrong</b> <span class="by" style="color:${r.color}">${esc(r.who)}</span>:
-    printed “${esc(t.printed)}”, meant “${esc(t.meant)}”. <span class="hint">${esc(markFate(r, `Stays as printed here; corrected to “${t.meant}” at the gxd export, with a note.`))}</span>
+    printed “${esc(t.printed)}”, meant “${esc(t.meant)}”. <span class="hint">${esc(markFate(r, `Stays as printed here; corrected to “${t.meant}” at the gxd export, with a note.`, isDeclined(r, t, key)))}</span>
     ${declineHtml(r, t, key)}
     ${r === cur ? `<button class="linkbtn unmark" data-k="${esc(t.key)}" data-p="${esc(t.printed)}">take it back</button>` : ''}</div>`).join('');
 }
@@ -1512,6 +1517,13 @@ function misprintCheck(now, printed, meant) {
     : `“${printed}” isn't in the text as it stands: copy the words as printed.`};
 }
 const LONG_LINE = 300;  // a kept printed line longer than this is flagged on its row and in the notes' preview
+// What a mark's row says will happen to it (blitz ship's rule): a mark the owner declined is not taken, whoever made it,
+// so the decline's own line says what happens and the row says nothing else about it; otherwise one that takes effect
+// says `said`, and one that doesn't is a proposal waiting for the owner. markVerb: the key letter's word for its fate.
+function markFateText(counts, declined, said) {
+  return declined ? '' : counts ? said : 'Proposed: waiting for the owner, who decides whether it is corrected. Nothing is changed until then.';
+}
+const markVerb = (counts, declined) => declined ? 'proposed, then declined' : counts ? 'corrected' : 'proposed';
 // </edit-rules>
 
 // the parts of a puzzle, how to talk about them, and which fields belong to each
@@ -3150,7 +3162,7 @@ function keyMisprints(host) {
   if (!host) return;
   const all = rounds.flatMap(r => (r.key_corrections || []).map(t => [r, t]));
   host.innerHTML = all.map(([r, t]) => `<div class="mark"><b>The key printed ${esc(t.printed)} at ${esc(String(t.key).slice(5))}</b> <span class="by" style="color:${r.color}">${esc(r.who)}</span>:
-      ${marksCount(r) ? 'corrected' : 'proposed'}: ${esc(t.corrected)}. <span class="hint">${esc(markFate(r, `Corrected in the xd blitz ships, with a note saying the key printed ${t.printed}.`))}</span>
+      ${markVerb(marksCount(r), isDeclined(r, t, ''))}: ${esc(t.corrected)}. <span class="hint">${esc(markFate(r, `Corrected in the xd blitz ships, with a note saying the key printed ${t.printed}.`, isDeclined(r, t, '')))}</span>
       ${declineHtml(r, t, '')}
       ${r === cur ? `<button class="linkbtn unkey" data-k="${esc(t.key)}">take it back</button>` : ''}</div>`).join('')
     + `<button class="linkbtn" id="keymisbtn" title="The printed key has a wrong letter: the clue and the crossing words call for another">✎ A letter the printed key got wrong…</button>`;

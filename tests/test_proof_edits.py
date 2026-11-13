@@ -66,3 +66,15 @@ def test_a_misprint_mark_is_the_printed_words_once_and_puts_a_typed_correction_b
     assert not r[2]["ok"] and "more than once" in r[2]["msg"]
     assert not r[3]["ok"]                                                                     # whole words, as ship matches them
     assert not r[4]["ok"]
+
+
+@node
+def test_a_declined_mark_says_only_that_it_was_declined():
+    """Seen in the browser, 2026-11-13: a guest's mark the owner declined still read "corrected to 'untie' at the gxd
+    export" beside "Declined by the owner: not taken" (and a key letter "corrected: M"). Ship never takes a declined mark,
+    so the row says nothing else about it."""
+    said = "Stays as printed here; corrected to “untie” at the gxd export, with a note."
+    assert run(f"return [markFateText(true, true, {said!r}), markFateText(true, false, {said!r}), markFateText(false, false, {said!r}),"
+               " markVerb(true, true), markVerb(true, false), markVerb(false, false)]") == [
+        "", said, "Proposed: waiting for the owner, who decides whether it is corrected. Nothing is changed until then.",
+        "proposed, then declined", "corrected", "proposed"]
