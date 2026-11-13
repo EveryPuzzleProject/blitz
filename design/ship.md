@@ -391,8 +391,15 @@ written, and the record (`printed line label`, `before` = `after`, `said: "title
 reviewer's word. That leaves the "no title printed" gap a publication rule records (the World's chain C1) as it
 was, and a misprint mark on the Title row as it was: with no `Title:` in the xd, a mark there names words the row
 doesn't have (`mark-invalid`). A printed line takes no misprint mark (a mark's key is a clue's, a header's or a
-square's). New York World No. 7: the owner relabelled B1 ("CROSS-WORD PUZZLE NO. 5", the text step's `section`,
-discarded) as `intro` and kept it, which is a label: it ships first in the block, labelled `intro`.
+square's).
+
+Why a line like this should not become the title, even when a reviewer calls it one: New York World No. 7 is read
+from the Minneapolis Journal's reprint, whose heading is "CROSS-WORD PUZZLE NO. 5". That is the reprinting paper's
+own series label, not the puzzle's title: the canonical number is the FUN series' 7 (`Number: 7`), and the owner
+(2026-11-13) takes the Journal's "No. 5" as a misprint to discard, not a title ("it'd be a little bit weird to title
+the puzzle number 5"). The owner's first Ready had kept B1 and relabelled it `intro` (a label, which the import
+applies: it would ship first in the block); the owner discards B1 instead, and No. 7 ships with no `Title:` and
+B1 out of the block.
 
 A printed line's text may hold line breaks (a paragraph break: Shift+Enter, or "new line", on the
 proof page). Each is a line of the block (`ship.block_lines`); an empty line is refused (the block
