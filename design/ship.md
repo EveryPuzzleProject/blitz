@@ -89,6 +89,7 @@ A puzzle the rule passes can still be held by the import, each with its own reas
 | `mark-invalid` | a misprint mark (`typos`, `key_corrections`) that can't be taken: malformed, or naming words the row doesn't have (The record of every edit) |
 | `misprint-edit` | a row marked as a misprint whose edit would ship it other than as printed |
 | `proposal-waits` | under `marks: owner`, a helper's or a guest's key correction, with their own edit to the square: a question for the owner |
+| `fixes-disputed` | a linked-ends packet whose re-place found reviewers' grid fixes disagreeing on a square with none of them the owner's (xword-ocr `reviewer_fixes.undecided`): neither was read in; a question for the owner at each square (since 2026-11-13) |
 | `mark-disputed` | a misprint mark on a row another person edited, disagreeing with the edit (an AI reviewer's mark on anyone's edit; a helper's or a guest's on another helper's), or two people's marks on one row or square that say different things, neither the owner's: a question for the owner |
 
 The rule's own reasons: `owner-hold`, `not-ready`, `no-ready`, `needs-work` (no Ready that
@@ -509,7 +510,7 @@ draws these fields and works none of them out.
 
 | `queue` | from | who it is for |
 |---|---|---|
-| `question` | held as `not-ready`, `owner-hold`, `edits-differ`, `candidate-undecided`, `proposal-waits` or `mark-disputed` | a person: answer on the proof page, and it can ship. The page's default list and its walk. |
+| `question` | held as `not-ready`, `owner-hold`, `edits-differ`, `candidate-undecided`, `proposal-waits`, `mark-disputed` or `fixes-disputed` | a person: answer on the proof page, and it can ship. The page's default list and its walk. |
 | `unchecked` | held as `no-ready` or `proof-stale` | a person: nobody's Ready counts for it yet, so it wants a whole proofread. No question to lead with. |
 | `broken` | every other hold: `needs-work`, `incomplete`, `sent-back`, `awaits-replace`, `edits-unapplied`, `packet-stale`, `no-packet`, `xd-exists`, a hold code | agents (as kinds of failure) and the maintainer (a diagnosis of the stage). Shown with its reason; no proofreading ask. |
 | `shippable` | passes, not written | nobody: `--write` ships it |

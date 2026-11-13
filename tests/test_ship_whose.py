@@ -98,3 +98,18 @@ def test_two_peoples_key_letters_that_disagree(tmp_path):
     x = ships(p)
     assert "\nCXE\n" in x["text"] and x["edit_records"][0]["by"] == OWNER and x["proposals"][0]["status"] == "not taken"
     assert XD.count("CDE")  # the packet's letter was D
+
+
+def test_peoples_grid_fixes_that_disagree_hold_the_puzzle_for_the_owner(tmp_path):
+    import json
+    from test_ship_linked import NO11, RULE, batch, row, said as said_l
+    from blitz.ship import plan
+    repo, proofs = batch(tmp_path, {NO11: [said_l(f"oops6498 ({SITE})", SITE, {})]})
+    o = json.loads((proofs / NO11 / "ocr.json").read_text(encoding="utf-8"))
+    o["reviewer_fixes"] = {"undecided": [{"key": "grid:r5c7", "values": [
+        {"value": "_", "by": PERSON, "at": "2026-11-12T10:00:00Z", "kind": "helper"},
+        {"value": ".", "by": GUEST, "at": "2026-11-12T11:00:00Z", "kind": "helper"}]}]}
+    (proofs / NO11 / "ocr.json").write_text(json.dumps(o), encoding="utf-8")
+    r = row(plan(repo, proofs, RULE, "b"), NO11)
+    assert (r["status"], r["reason"], r["queue"]) == ("held", "fixes-disputed", "question")
+    assert [(a["who"], a["row"]) for a in r["asks"]] == [(PERSON, "grid:r5c7"), (GUEST, "grid:r5c7")]

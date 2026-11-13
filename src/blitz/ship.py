@@ -206,7 +206,7 @@ def standing(batch: dict, proofs: list[dict], *, check_ok: bool = False, codes: 
 QUEUES = ("question", "unchecked", "broken", "shippable", "shipped", "set-aside", "not-a-crossword")
 # a held puzzle's queue, by its reason; every reason not named here is the pipeline's (broken)
 QUEUE_OF = {"not-ready": "question", "owner-hold": "question", "edits-differ": "question", "candidate-undecided": "question",
-            "proposal-waits": "question", "mark-disputed": "question",
+            "proposal-waits": "question", "mark-disputed": "question", "fixes-disputed": "question",
             "no-ready": "unchecked", "proof-stale": "unchecked"}
 # the stage a broken puzzle's reason points to, where triage recorded none (triage's blocking names its own)
 STAGE_OF = {"mark-invalid": "proof review", "misprint-edit": "proof review", "packet-stale": "proof packet", "no-packet": "proof packet", "edits-unapplied": "import", "xd-exists": "import",
@@ -1287,6 +1287,16 @@ def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict |
         # and nothing else says the two agree (a packet that doesn't record it is not taken as agreeing)
         if not review.get("matches_xd", not linked(pk["xd"])):
             hold("packet-stale", "its proof packet doesn't show its xd: rebuild the packet")
+            continue
+        # people other than the owner gave a square of the grid different values: the re-place used neither (xword-ocr
+        # linkedends.hint, reviewer_fixes.undecided), so the packet is as the stage read it there. The owner decides
+        undecided = ((pk["ocr"].get("reviewer_fixes") or {}).get("undecided")) or []
+        if undecided:
+            row.update(reason="fixes-disputed", why="reviewers' fixes to the grid disagree, and none is the owner's: "
+                       + ", ".join(u["key"] for u in undecided[:6]) + "; neither was read in, the owner decides",
+                       asks=[{"who": v.get("by", ""), "kind": v.get("kind", "helper"), "at": str(v.get("at", ""))[:10], "row": u["key"], "group": "",
+                              "text": f"Gave {u['key'].partition(':')[2]} the value “{v.get('value', '')}”. Another reviewer gave it another: "
+                                      "which is right? Your own fix on the square settles it."} for u in undecided for v in u.get("values") or []])
             continue
         edits, differ, sources = {}, set(), []
         for r in st["apply"]:
