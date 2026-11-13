@@ -262,20 +262,31 @@ as-shipped file and the provenance row, shown on the proof page and in the as-sh
 key letter is not corrected in blitz. A helper who also changed the square to their proposed letter
 holds the puzzle as `proposal-waits` (a question for the owner, at the square's row), since shipping
 their edit would correct the letter on their word; on the page a helper's key mark leaves the square
-alone. An account on the rule's `ignore` list counts for nothing, not even a proposal. A proposal's row still ships as
-printed (the next paragraph): a mark says the print has a mistake there, and blitz never ships a clue's or a
-header's misprint corrected, whoever marks it. A helper's or a guest's malformed mark holds nothing: it is dropped,
-shown among the proposals as "not taken" with the reason; the owner's or the AI's still holds the puzzle. (Later, not
+alone. An account on the rule's `ignore` list counts for nothing, not even a proposal. (Later, not
 built: an Accept button beside a proposal on the proof page, shown to the owner only, that writes the
 proposal into the owner's own review as their mark; the batch page would list proposals per puzzle.)
 
-**A marked row ships as printed** (fix A of the cold review, 2026-11-13). Beside any mark, a proposal too,
-the reviewer's edit to the same row stands when it keeps the printed words once; when it has
-the words meant once instead (and not the printed ones), those go back as printed. Any other edit
-(the words meant typed twice or in another case, the printed words gone) is held as `misprint-edit`:
-nothing can tell which words are the misprint, and the row would ship other than as printed. The mark
-says nothing about the rest of the edit: that is classed on its own evidence (a comment on the row: a
-reading fix; none: unclassed, listed for the owner).
+**A marked row ships as printed** (the cold review, 2026-11-13, three passes). "The row check", below,
+is: the edit to the row stands when it keeps the printed words once; when it has the words meant once
+instead (and not the printed ones), those go back as printed; any other edit (the words meant typed
+twice or in another case, the printed words gone) holds the puzzle as `misprint-edit`, since nothing
+can tell which words are the misprint and the row would ship other than as printed. A mark says nothing
+about the rest of an edit: that is classed on its own evidence (a comment on the row: a reading fix;
+none: unclassed, listed for the owner). The whole rule, for a clue's or a header's mark; "own edit" is
+an edit to the marked row by the marker, "another's edit" one by another reviewer whose Ready counts:
+
+| who marked | mark | own edit on the row | another's edit on the row | no edit on the row |
+|---|---|---|---|---|
+| owner, AI reviewer | valid | the row check; the correction is proposed for the export | the row check (the owner's or the AI's mark governs the row, whoever edited it) | the correction is proposed for the export (`fits` printed, or already); the printed words and the words meant both absent: `mark-invalid` |
+| owner, AI reviewer | malformed | `mark-invalid` | `mark-invalid` | `mark-invalid` |
+| helper, guest | valid | the row check; a proposal waiting for the owner, never applied at the export | the other's edit ships as it is, with its own records; a proposal waiting for the owner | a proposal waiting for the owner; nothing changes (also when its words aren't in the row) |
+| helper, guest | malformed | dropped, shown "not taken"; when it still names a clue or header and printed words: the edit stands only if it keeps them once, else `misprint-edit` | dropped, shown "not taken"; the other's edit ships as it is | dropped, shown "not taken"; nothing changes |
+| ignored account | either | nothing (its Ready doesn't count, so its edits aren't applied) | nothing | nothing |
+
+A key letter's mark (`key_corrections`, or a `typos` entry for a square): the owner's or the AI's is
+corrected here with its note (case 3), or held `edit-unrecorded` when it doesn't match the square; a
+malformed one is `mark-invalid`. A helper's or a guest's is a proposal; with their own edit of the square
+to that letter it holds as `proposal-waits`; another person's edit of the square ships as it is.
 
 **What a mark may hold** (fix B). Ship takes a mark only when its key names a clue, a header or (a key
 letter) a square; its printed and meant (corrected) words are text of one line, with no tab or
