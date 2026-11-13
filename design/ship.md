@@ -76,6 +76,7 @@ A puzzle the rule passes can still be held by the import, each with its own reas
 | `mark-invalid` | a misprint mark (`typos`, `key_corrections`) that can't be taken: malformed, or naming words the row doesn't have (The record of every edit) |
 | `misprint-edit` | a row marked as a misprint whose edit would ship it other than as printed |
 | `proposal-waits` | a helper's or a guest's key correction, with their own edit to the square: a question for the owner |
+| `mark-disputed` | an AI reviewer's misprint mark on a row a person edited, disagreeing with the edit: a question for the owner |
 
 The rule's own reasons: `owner-hold`, `not-ready`, `no-ready`, `needs-work` (no Ready that
 counts, and triage's disposition isn't ready), and each hold code. `needs-work` takes the place of
@@ -277,7 +278,8 @@ an edit to the marked row by the marker, "another's edit" one by another reviewe
 
 | who marked | mark | own edit on the row | another's edit on the row | no edit on the row |
 |---|---|---|---|---|
-| owner, AI reviewer | valid | the row check; the correction is proposed for the export | the row check (the owner's or the AI's mark governs the row, whoever edited it) | the correction is proposed for the export (`fits` printed, or already); the printed words and the words meant both absent: `mark-invalid` |
+| owner | valid | the row check; the correction is proposed for the export | the row check (the owner's mark governs the row, whoever edited it) | the correction is proposed for the export (`fits` printed, or already); the printed words and the words meant both absent: `mark-invalid` |
+| AI reviewer | valid | the row check; the correction is proposed for the export | a person's edit is never changed, dropped or overridden by the AI's mark: where the edit keeps the printed words once, it ships as it is and the correction is proposed; otherwise held `mark-disputed`, a question for the owner showing the person's edit (with its comment) and the AI's mark (fourth pass, 2026-11-13) | as the owner's |
 | owner, AI reviewer | malformed | `mark-invalid` | `mark-invalid` | `mark-invalid` |
 | helper, guest | valid | the row check; a proposal waiting for the owner, never applied at the export | the other's edit ships as it is, with its own records; a proposal waiting for the owner | a proposal waiting for the owner; nothing changes (also when its words aren't in the row) |
 | helper, guest | malformed | dropped, shown "not taken"; when it still names a clue or header and printed words: the edit stands only if it keeps them once, else `misprint-edit` | dropped, shown "not taken"; the other's edit ships as it is | dropped, shown "not taken"; nothing changes |
@@ -433,7 +435,7 @@ draws these fields and works none of them out.
 
 | `queue` | from | who it is for |
 |---|---|---|
-| `question` | held as `not-ready`, `owner-hold`, `edits-differ`, `candidate-undecided` or `proposal-waits` | a person: answer on the proof page, and it can ship. The page's default list and its walk. |
+| `question` | held as `not-ready`, `owner-hold`, `edits-differ`, `candidate-undecided`, `proposal-waits` or `mark-disputed` | a person: answer on the proof page, and it can ship. The page's default list and its walk. |
 | `unchecked` | held as `no-ready` or `proof-stale` | a person: nobody's Ready counts for it yet, so it wants a whole proofread. No question to lead with. |
 | `broken` | every other hold: `needs-work`, `incomplete`, `sent-back`, `awaits-replace`, `edits-unapplied`, `packet-stale`, `no-packet`, `xd-exists`, a hold code | agents (as kinds of failure) and the maintainer (a diagnosis of the stage). Shown with its reason; no proofreading ask. |
 | `shippable` | passes, not written | nobody: `--write` ships it |

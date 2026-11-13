@@ -63,6 +63,25 @@ def test_owner_valid_anothers_edit_the_row_check_governs_it(tmp_path):
     assert a3(p) == "A3. Cockail party ~ CDE" and ships(p)["corrections"][0]["kind"] == "owner"
 
 
+def test_ai_valid_on_a_persons_edit_never_overrides_it(tmp_path):
+    # the fourth pass's probe: a person reads "Tow" as "Two" and says why; the AI's later mark says "Tow" is printed
+    tow = XD.replace("A3. Two ~", "A3. Tow ~")
+    ai = said(AI_BY, AGENT, {}, typos=[{"key": "clue:A3", "printed": "Tow", "meant": "Two"}], at=LATE)
+    for i, who in enumerate((PERSON, GUEST, OWNER)):                                            # a helper, a guest, the owner
+        person = (owner if who == OWNER else lambda e, **k: site(who, e, **k))(
+            {"clue:A3": "Two"}, comments=[("clue:A3", "The crop reads Two.")], at=EARLY)
+        _, _, p = shipped(tmp_path / str(i), person, ai, CHECK, xd=tow)
+        row = p["rows"][0]
+        assert (row["status"], row["reason"], row["queue"]) == ("held", "mark-disputed", "question") and not p["passing"], who
+        assert [a["row"] for a in row["asks"]] == ["clue:A3", "clue:A3"]
+        assert "The crop reads Two." in row["asks"][0]["text"] and "“Tow” as printed" in row["asks"][1]["text"]
+    # where they agree (the person's edit keeps the printed words once), the edit ships as it is and the correction is proposed
+    _, _, p = shipped(tmp_path / "agree", site(PERSON, {"clue:A3": "Tow of them"}, comments=[("clue:A3", "Read again.")], at=EARLY),
+                      ai, CHECK, xd=tow)
+    x = ships(p)
+    assert a3(p) == "A3. Tow of them ~ CDE" and x["edit_records"][0]["class"] == "reading" and x["corrections"][0]["fits"] == "printed"
+
+
 def test_owner_valid_no_edit_proposed_for_the_export_or_invalid_when_its_words_are_absent(tmp_path):
     repo, _, p = shipped(tmp_path, owner({}, MARK), xd=COCK)
     c = ships(p)["corrections"][0]

@@ -179,7 +179,7 @@ def standing(batch: dict, proofs: list[dict], *, check_ok: bool = False, codes: 
 QUEUES = ("question", "unchecked", "broken", "shippable", "shipped", "set-aside", "not-a-crossword")
 # a held puzzle's queue, by its reason; every reason not named here is the pipeline's (broken)
 QUEUE_OF = {"not-ready": "question", "owner-hold": "question", "edits-differ": "question", "candidate-undecided": "question",
-            "proposal-waits": "question",
+            "proposal-waits": "question", "mark-disputed": "question",
             "no-ready": "unchecked", "proof-stale": "unchecked"}
 # the stage a broken puzzle's reason points to, where triage recorded none (triage's blocking names its own)
 STAGE_OF = {"mark-invalid": "proof review", "misprint-edit": "proof review", "packet-stale": "proof packet", "no-packet": "proof packet", "edits-unapplied": "import", "xd-exists": "import",
@@ -1525,7 +1525,7 @@ def edit_records(packet_xd: str, applied: str, apply: list[dict], rule: Rule = R
                 typos.append((*t3, r))
                 key_said.setdefault(t3[0], {"text": str(t.get("text") or "").strip(), "crop": t.get("crop") or ""})
     whole = lambda key, printed, meant: bool(printed and meant and printed != meant and _TYPO_KEY.fullmatch(key))
-    records, missing, have, more_edits, back, key_fix, said, misedit = [], [], {}, {}, set(), {}, {}, []
+    records, missing, have, more_edits, back, key_fix, said, misedit, disputes = [], [], {}, {}, set(), {}, {}, [], []
     edit_key = lambda key: f"meta:{_field(key)}" if _field(key) else key  # the edit a misprint's key sits beside
     # the candidate lists a reviewer took in (as the clues, or as a second set): their decision wrote those lines
     lists = [k for k in owner if k.startswith("candidate:") and (value[k] == "clues" or str(value[k]).startswith("second:"))]
@@ -1562,6 +1562,16 @@ def edit_records(packet_xd: str, applied: str, apply: list[dict], rule: Rule = R
                 key_fix[key], said[key] = (printed.upper(), meant.upper()), r
             else:
                 missing.append(f"{key}: a key correction to {meant.upper()} that doesn't match the square ({cur})")
+        elif edit_key(key) in owner and kind_of(r, rule) == "ai" and owner[edit_key(key)] is not r \
+                and kind_of(owner[edit_key(key)], rule) in ("owner", "helper"):
+            # An AI's mark on a row a person edited (the fourth pass, 2026-11-13): it never changes, drops or overrides a
+            # person's edit or its record. Where the two agree (the edit keeps the printed words once) the correction is
+            # proposed as usual; where they disagree, the puzzle is a question for the owner, showing both.
+            ek = edit_key(key)
+            if _count(value[ek] or "", printed) != 1:
+                pr = owner[ek]
+                disputes.append({"key": ek, "edit": value[ek], "edit_by": pr.get("by", ""), "edit_kind": kind_of(pr, rule),
+                                 "edit_why": _why(pr, ek), "printed": printed, "meant": meant, "mark_by": r.get("by", "")})
         elif edit_key(key) in owner:  # case 2 on a clue or header the reviewer also edited
             marked_row(key, printed, meant)
     # a helper's or a guest's mark (design/ship.md, the table under "A marked row ships as printed"): it checks only the
@@ -1579,9 +1589,9 @@ def edit_records(packet_xd: str, applied: str, apply: list[dict], rule: Rule = R
                            f"reviewer's mark (dropped: malformed) that it is printed so: the row would ship other than as printed")
     # the follow-on edits (a key letter corrected from its entry alone, a misprint taken back out of an edit) are
     # applied here, and one that isn't applied is never recorded or noted as if it were: the puzzle is held for it
-    if invalid or misedit:  # held before anything is made of them
+    if invalid or misedit or disputes:  # held before anything is made of them
         return {"text": applied, "records": [], "corrections": [], "notes": [], "missing": [], "invalid": invalid, "misedit": misedit,
-                "proposals": proposals, "waits": []}
+                "proposals": proposals, "waits": [], "disputes": disputes}
     if more_edits:
         text, did, cant = apply_linked(applied, more_edits) if is_linked else (*apply_edits(applied, more_edits), [])
         cant = cant or [f"{k}: the xd has no such clue, square or header to change" for k in more_edits if k not in did]
@@ -1839,6 +1849,18 @@ def _record_edits(passing: dict, packs: dict, rule: Rule) -> None:
                 x["row"].update(reason=code, why=why, broken=[{"what": why, "stage": stage, "code": code, "detail": ""}])
                 del passing[pid]
         if pid not in passing:
+            continue
+        if e.get("disputes") and pid in passing:  # an AI's mark against a person's edit on the same words: the owner's question
+            d = e["disputes"]
+            x["row"].update(reason="mark-disputed", why="an AI reviewer's misprint mark disagrees with a person's edit on the same row: "
+                            + ", ".join(sorted({q["key"] for q in d})) + "; the owner decides",
+                            asks=[a for q in d for a in (
+                                {"who": q["edit_by"], "kind": q["edit_kind"], "at": "", "row": q["key"], "group": "",
+                                 "text": f"Edited the row to “{q['edit'][:120]}”" + (f", saying: {q['edit_why']}" if q["edit_why"] else ", with no comment")},
+                                {"who": q["mark_by"], "kind": "ai", "at": "", "row": q["key"], "group": "",
+                                 "text": f"Marks “{q['printed']}” as printed and “{q['meant']}” as meant: a misprint, which would ship as "
+                                         "printed. Which is right: the person's reading, or the AI's misprint?"})])
+            del passing[pid]
             continue
         if e.get("waits"):
             w = e["waits"]
