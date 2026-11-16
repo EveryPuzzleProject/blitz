@@ -356,17 +356,20 @@ These were the open questions for Saul. The owner is now primary on gxd and answ
 - **AI-Ready puzzles may ship**, into gxd too. What's needed is a process for working backwards when a
   problem is found after the fact: correct it in EPP, re-publish the edition, and gxd's re-import picks it
   up (the update-in-place path, held for review when it touches the grid or answers). To be written.
-- **Notes in the xd.** The only editorial notes that belong in an xd file are ones about correcting a
-  **misprint in the printed text**; never notes about correcting OCR or reading errors. Notes about the
-  process (reading fixes, typed-by-hand clues, who decided what) belong in a **sidecar** outside the xd,
-  not in it (blitz already keeps `provenance.jsonl` and the as-shipped records, a starting point). gxd
-  strips EPP's other correction notes on import.
+- **Notes stay in EPP; gxd's xd files get none.** EPP produces two flavors of note:
+  - *editorial notes*: EPP's decision to correct what was printed (an obviously wrong letter in the answer
+    key, a typo in a clue). These are what make EPP's files critical digital editions.
+  - *reviewer notes*: the process (corrected x, y and z for an OCR smudge; made a guess).
+
+  The line between them is fuzzy: a reconstructed passage where part of the page is unreadable could be
+  either. So for now all of these notes stay in EPP (its edition, transcription, `provenance.jsonl` and
+  records), open to anyone who wants to check them, and none appear in the xd files gxd takes in. gxd's
+  converter strips them. gxd's own rule (a publisher's typo fixed in git only, no note) applies to EPP
+  puzzles as to any other source. A sidecar file that travels with the xd is a possible later step,
+  not part of this.
 
 Still open:
 
-- Whether gxd keeps EPP's misprint-correction notes, or follows its own rule (a publisher's clue typo
-  fixed in git only, no note). The owner's answer reads both ways: "strip EPP's correction notes" and
-  "the only notes in the xd concern misprints in the text".
 - Linked-ends files: drop `Clues:` and `Numbering:` to match the 1913 files (the recommendation), or carry
   the numbering map in xdformat.
 - Withdrawals: always a review MR in gxd, never an automatic delete (the recommendation).
