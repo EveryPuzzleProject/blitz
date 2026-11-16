@@ -214,7 +214,7 @@ QUEUE_OF = {"not-ready": "question", "owner-hold": "question", "edits-differ": "
             "no-ready": "unchecked", "proof-stale": "unchecked"}
 # the stage a broken puzzle's reason points to, where triage recorded none (triage's blocking names its own)
 STAGE_OF = {"mark-invalid": "proof review", "misprint-edit": "proof review", "packet-stale": "proof packet", "no-packet": "proof packet", "edits-unapplied": "import", "xd-exists": "import",
-            "clue-typed": "text step", "awaits-replace": "assembly"}
+            "clue-typed": "text step", "awaits-replace": "assembly", "pair-unread": "proof review"}
 # A Not ready that waits on the pipeline, not on a person's answer (its own reason, in the broken queue, with what
 # was said kept on the row as `asked`):
 #   awaits-replace: the owner's Not ready on a linked-ends puzzle carries fixes to the grid (its shape, its squares'
@@ -225,8 +225,9 @@ STAGE_OF = {"mark-invalid": "proof review", "misprint-edit": "proof review", "pa
 # only a person can decide. The cold review of 2026-11-12 found 9 such among the Collegian's 18.)
 WAITS = ("awaits-replace",)
 # triage codes that need a person's Ready, whatever ai_ready says: an AI's Ready and the ship check never ship them.
-# clue-by-sequence: a clue placed by the list's sequence on a linked-ends puzzle (xword-ocr linkedends). Not a hold on
-# a person's Ready: the doubt shows on the clue's proof row.
+# clue-by-sequence: a clue placed by the list's sequence on a linked-ends puzzle (xword-ocr linkedends). On a person's
+# Ready it ships only once every clue line carries its printed pair: a line still labelled by its slot (A4) holds the
+# puzzle as pair-unread, whoever said Ready (unread_pairs; the owner's rule, 2026-11-16).
 PERSON_CODES = ("clue-by-sequence",)
 GRID_FIX = re.compile(r"(grid|num|cell):r\d+c\d+")  # the edits the re-place stage reads
 # the ship check's findings that make a puzzle incomplete, and the stage each points to
@@ -669,6 +670,23 @@ _NUM = {v: k for k, v in _SYM.items()}
 def linked(text: str) -> bool:
     """The xd is in the linked-ends style: its header says so."""
     return "\nClues: linked ends" in "\n" + text.replace("\r\n", "\n").split("\n\n\n")[0]
+
+
+def unread_pairs(text: str) -> list[str]:
+    """The labels of a linked-ends xd's clue lines whose printed pair isn't known: labelled by the slot ("A4.") or
+    with a "?" for an end. Such a clue's place wasn't read from the paper, so the puzzle doesn't ship (the owner's
+    rule, 2026-11-16): a person gives the end squares' printed numbers on the proof page, or moves the clue to the
+    word its pair names, and the re-place labels it by the pair."""
+    parts = text.replace("\r\n", "\n").rstrip("\n").split("\n\n\n")
+    out = []
+    for ln in "\n\n\n".join(parts[2:]).split("\n"):
+        m = PAIR_LINE.match(ln)
+        if m:
+            if re.fullmatch(r"[AD]\d+", m[1]) or "?" in m[1]:
+                out.append(m[1])
+        elif ln.strip():
+            break
+    return out
 
 
 def _numbers(lines: list[str]) -> dict[tuple[int, int], str]:
@@ -1377,6 +1395,12 @@ def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict |
             if cant:
                 hold("edits-unapplied", "proof-page edits the import can't apply to this linked-ends puzzle as it stands: "
                      + "; ".join(cant[:3]) + (f" (+{len(cant) - 3})" if len(cant) > 3 else ""))
+                continue
+            unread = unread_pairs(text)
+            if unread:  # whoever said Ready (the owner's rule, 2026-11-16)
+                hold("pair-unread", f"Ready, but {len(unread)} clue(s) with no printed pair ({', '.join(unread[:6])}"
+                     + (f" +{len(unread) - 6}" if len(unread) > 6 else "") + "): their places weren't read from the paper. "
+                     "Give the end squares' printed numbers on the proof page, or move each clue to the word its pair names")
                 continue
         else:
             text, done = apply_edits(text, edits)
