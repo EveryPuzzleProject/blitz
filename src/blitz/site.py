@@ -144,7 +144,8 @@ def build(root: Path) -> Path:
     page = (Path(__file__).parent / "batch.html").read_text(encoding="utf-8")
     old = "<script>\nconst $"
     assert old in page
-    page = page.replace(old, '<script src="../config.js"></script>\n' + old)
+    # supabase-js: the owner's "Release to gxd" records a decision on the site, signed in as on the proof page
+    page = page.replace(old, '<script src="../config.js"></script>\n' f'<script src="{SUPABASE_JS}"></script>\n' + old)
     page = page.replace("<title>Batch</title>", BATCH_HEAD)
     (bt / "index.html").write_text(page, encoding="utf-8", newline="\n")
 

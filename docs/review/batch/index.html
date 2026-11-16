@@ -152,6 +152,11 @@ table.mh details img { max-height: 44px; }
 @media (max-width: 560px) { .row, .row.withpage { grid-template-columns: 76px minmax(0, 1fr); } img.pg, .maps { width: 76px; }
   .maps .leaves { font-size: 11px; line-height: 1.6; } header { position: static; } .mini { width: 48px; height: 48px; } .side { grid-column: 2; flex-direction: row; flex-wrap: wrap; align-items: center; } }
 pre.shipxd { background: var(--paper); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; white-space: pre-wrap; font-size: 12.5px; }
+.edheld { border-left: 3px solid #b3412f; padding: 4px 10px; margin: 6px 0; }
+pre.edline { margin: 0; white-space: pre-wrap; font: inherit; }
+.release { margin: 8px 0; padding: 8px 12px; border: 1px solid var(--line); border-radius: 6px; }
+.release.on { border-color: #2e7d4f; } .release .btn { margin-left: 8px; }
+.edline-held { color: var(--person); }
 .shipview { padding: 12px 16px; } .shipview h3 { font-size: 14px; margin: 12px 0 4px; } .shiprecs { font-size: 13px; padding-left: 18px; } .shipxdlink { font-size: 13px; }
 .feat { font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: #6a5a2a; }
 </style></head>
@@ -161,6 +166,7 @@ pre.shipxd { background: var(--paper); border: 1px solid var(--line); border-rad
   <h1><span id="h1">Batch</span> <select id="runsel" title="Which run of the batch"></select></h1>
   <div class="sub" id="runnote"></div>
   <div class="sub" id="about">Each puzzle sorted by where it stands. <b>Needs work</b>: a big part (a clue list, the key, a page) is missing or broken in a way the proof page can't fix; the card says which part, the stage to restart it from, and the link that starts it. <b>Ready for review</b>: every part is there, or a gap is confirmed and labelled; doubts the proof page can settle are listed, and a missing title or byline is asked of the reviewer. <b>Reviewed</b>: a person said Ready or Not ready (only Ready puzzles are imported). <b>Set aside</b>: in scope, but a person decided it isn't a priority now (the card says why); it keeps what it was waiting on, and stays listed so what's missing is visible. Next on the proof page walks the list shown here.</div>
+  <div class="release" id="release" hidden></div>
   <div class="bar" id="bar"></div>
   <div class="chips" id="chips"></div>
   <div class="chips" id="causechips"></div>
@@ -184,6 +190,7 @@ pre.shipxd { background: var(--paper); border: 1px solid var(--line); border-rad
 </details>
 </div>
 <script src="../config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -305,8 +312,12 @@ function standsHtmlQ(p, x, q) {
   // clues a person typed where none was read (the record's typed): said on the card, as the xd's notes say it
   const typed = (q === 'shippable' || q === 'shipped') && (x.typed || []).length
     ? `<br><span class="meta" title="no text was read for these: a person typed them on the proof page">Typed by hand: ${x.typed.map(t => esc(t.key.replace(/^clue:/, '')) + ' (' + esc(t.kind === 'owner' ? 'the owner' : 'a helper') + ')').join(', ')}</span>` : '';
+  // its edition (the record's edition: design/ship.md, "The edition"): made, or held with the codes that hold it
+  const ed = (q === 'shippable' || q === 'shipped') && x.edition
+    ? (x.edition.status === 'held' ? `<br><span class="meta edline-held" title="no edition is made while a mark can't be placed: see the xd as it will ship">Edition held: ${x.edition.held.map(esc).join(', ')}</span>`
+      : `<br><span class="meta">Edition made${x.edition.corrections ? `, ${x.edition.corrections} misprint${x.edition.corrections > 1 ? 's' : ''} corrected` : ''}</span>`) : '';
   return `<div class="shipline ${q === 'broken' ? 'held' : esc(q)}" title="${esc(x.reason || x.rule || '')}: blitz ship, ${esc((SHIP.at || '').slice(0, 10))}"><b>${head}</b>`
-    + (why ? `<br><span class="meta">${why}</span>` : '') + wont + typed + (said ? `<br><span class="meta">${x.reviewed ? 'Reviewed by a person. ' : ''}${said}</span>` : '') + xdlink + `</div>`;
+    + (why ? `<br><span class="meta">${why}</span>` : '') + wont + typed + ed + (said ? `<br><span class="meta">${x.reviewed ? 'Reviewed by a person. ' : ''}${said}</span>` : '') + xdlink + `</div>`;
 }
 const U = u => u && DATA ? new URL(u, new URL(DATA, location.href)).href : u;
 // ---- the xd as it will ship (?ship=<pid>): blitz ship's file beside the record, as-shipped/<pid>.json, drawn as
@@ -320,22 +331,39 @@ const proofAt = (pid, k) => `${SITE ? '../' : params.get('proof') || '/proof/'}?
 function shippedHtml(d) {
   const recs = (d.edits || {}).records || [], fixes = d.corrections || [], pk = (d.edits || {}).packet || [];
   const one = v => `“${esc(String(v ?? '').length > 120 ? String(v).slice(0, 117) + '…' : v)}”`;
-  return `<pre class="shipxd">${esc(d.xd)}</pre>
+  return `<h3>The transcription (xd/${esc(d.xdid)}.xd): the puzzle as printed</h3><pre class="shipxd">${esc(d.xd)}</pre>
     <div class="meta">xd ${esc(d.xd_fp)} · made from the packet ${esc(d.packet)} (xd ${esc(d.packet_xd)}) · ${esc((d.decision || {}).why || '')}</div>
     <h3>${recs.length ? recs.length + ' edit' + (recs.length > 1 ? 's' : '') + ' by reviewers, each recorded' : 'No edit by a reviewer'}</h3>
     <ul class="shiprecs">${recs.map(e => `<li><a href="${proofAt(d.pid, e.key)}">${esc(e.key)}</a> ${esc(e.what)}: ${one(e.before)} → ${one(e.after)}
       <span class="meta">${esc(e.by)}${e.at ? ', ' + esc(String(e.at).slice(0, 10)) : ''} · ${esc(CLASS_SAYS[e.class] || e.class)}${e.why ? ' · “' + esc(e.why) + '”' : ''}${e.note ? ' · note: ' + esc(e.note) : ''}</span></li>`).join('')}</ul>
-    ${fixes.length ? `<h3>Misprints kept as printed here</h3><ul class="shiprecs">${fixes.map(c => `<li>${esc(c.says)} <b>Stays as printed here; corrected to “${esc(c.meant)}” at the gxd export</b>, with its note
-      <span class="meta">${esc(c.by)}${c.fits === 'already' ? ' · the text already has the words meant: the export writes the note only' : c.fits === 'unplaced' ? " · the export can't place it in the text and leaves it alone" : ''}</span></li>`).join('')}</ul>` : ''}
+    ${fixes.length ? `<h3>Misprints kept as printed here</h3><ul class="shiprecs">${fixes.map(c => `<li>${esc(c.says)} <b>Stays as printed here; corrected to “${esc(c.meant)}” in the edition</b>, with its note
+      <span class="meta">${esc(c.by)}${c.fits === 'already' ? ' · the text already has the words meant: the edition writes the note only' : c.fits === 'unplaced' ? " · the edition can't place it in the text: its edition is held" : ''}</span></li>`).join('')}</ul>` : ''}
     ${(d.typed || []).length ? `<h3>Typed by hand</h3><ul class="shiprecs">${d.typed.map(t => `<li>${esc(t.note)}</li>`).join('')}</ul>` : ''}
-    ${(d.printed || []).length ? `<h3>Printed lines it keeps, and what each is</h3><ul class="shiprecs">${d.printed.map(q => `<li>${one(q.text)} <span class="meta">${esc(q.label)}: the gxd export's Notes rule picks the lines it takes by this</span></li>`).join('')}</ul>` : ''}
+    ${(d.printed || []).length ? `<h3>Printed lines it keeps, and what each is</h3><ul class="shiprecs">${d.printed.map(q => `<li>${one(q.text)} <span class="meta">${esc(q.label)}: the Notes rule picks the edition's puzzle notes by this</span></li>`).join('')}</ul>` : ''}
     ${(d.proposals || []).filter(q => q.status === 'waiting for the owner').length ? `<h3>Proposed, waiting for the owner</h3><ul class="shiprecs">${d.proposals.filter(q => q.status === 'waiting for the owner').map(q => `<li>${esc(q.says)} <b>Not applied: the owner decides</b>
       <span class="meta">${esc(q.by)}</span></li>`).join('')}</ul>` : ''}
-    ${(d.proposals || []).filter(q => q.status === 'declined by the owner').length ? `<h3>Declined by the owner</h3><ul class="shiprecs">${d.proposals.filter(q => q.status === 'declined by the owner').map(q => `<li>${esc(q.says)} <b>Not taken: not corrected at the gxd export</b>
+    ${(d.proposals || []).filter(q => q.status === 'declined by the owner').length ? `<h3>Declined by the owner</h3><ul class="shiprecs">${d.proposals.filter(q => q.status === 'declined by the owner').map(q => `<li>${esc(q.says)} <b>Not taken: not corrected in the edition</b>
       <span class="meta">marked by ${esc(q.by)}</span></li>`).join('')}</ul>` : ''}
     ${(d.proposals || []).filter(q => q.status === 'not taken').length ? `<h3>Marks not taken</h3><ul class="shiprecs">${d.proposals.filter(q => q.status === 'not taken').map(q => `<li>${esc(q.says)}
       <span class="meta">${esc(q.by)}</span></li>`).join('')}</ul>` : ''}
-    ${pk.length ? `<details><summary>${pk.length} change${pk.length > 1 ? 's' : ''} the text review made before any reviewer saw it</summary><ul class="shiprecs">${pk.map(e => `<li>${esc(e.key)}: ${one(e.before)} → ${one(e.after)}${e.why ? ` <span class="meta">${esc(e.why)}</span>` : ''}</li>`).join('')}</ul></details>` : ''}`;
+    ${pk.length ? `<details><summary>${pk.length} change${pk.length > 1 ? 's' : ''} the text review made before any reviewer saw it</summary><ul class="shiprecs">${pk.map(e => `<li>${esc(e.key)}: ${one(e.before)} → ${one(e.after)}${e.why ? ` <span class="meta">${esc(e.why)}</span>` : ''}</li>`).join('')}</ul></details>` : ''}`
+    + editionHtml(d);
+}
+const editionRow = (pid, k) => proofAt(pid, k);
+// the edition made from that xd (the file's edition: design/ship.md, "The edition"): what gxd is offered, drawn as
+// recorded, with the corrections of the print it made, the marks the owner declined, and the notes the Notes rule took
+const ED_DONE = {applied: 'corrected, with its note', noted: 'the note only: the text already had the words meant', 'not applied': 'not placed: it holds the edition'};
+const ED_KIND = {misprint: 'misprints corrected', notes: 'the puzzle notes'};
+function editionHtml(d) {
+  const e = d.edition;
+  if (!e) return `<h3>The edition</h3><p class="meta">Not recorded: this file is from before blitz ship made editions. Making the record again adds it.</p>`;
+  return `<h3>The edition (${esc(e.path)}): what gxd is offered</h3>`
+    + (e.status === 'held' ? `<div class="edheld"><b>Held: no edition is made until this is settled.</b>${(e.held || []).map(h => `<br>${esc(h.code)}: ${esc(h.why)}`).join('')}</div>`
+      : `<pre class="shipxd">${esc(e.xd)}</pre><div class="meta">edition ${esc(e.xd_fp)} · ${(e.kinds || []).length ? 'differs from the transcription by ' + e.kinds.map(k => ED_KIND[k] || k).join(' and ') : 'the same text as the transcription'} · ${esc(e.notes_from || '')}</div>`)
+    + ((e.corrections || []).length ? `<h3>Corrections of the print in the edition</h3><ul class="shiprecs">${e.corrections.map(c => `<li><a href="${editionRow(d.pid, c.key)}">${esc(c.key)}</a> printed “${esc(c.printed)}”, meant “${esc(c.meant)}”: <b>${esc(ED_DONE[c.done] || c.done)}</b>${c.note ? ` <span class="meta">note: ${esc(c.note)}</span>` : ''} <span class="meta">marked by ${esc(c.by)}</span></li>`).join('')}</ul>`
+      : `<p class="meta">No correction of the print in the edition.</p>`)
+    + ((e.declined || []).length ? `<h3>Declined by the owner: not in the edition</h3><ul class="shiprecs">${e.declined.map(c => `<li>${esc(c.key)} printed “${esc(c.printed)}”, meant “${esc(c.meant)}” <span class="meta">marked by ${esc(c.by)}</span></li>`).join('')}</ul>` : '')
+    + ((e.notes || []).length ? `<h3>Puzzle notes: the printed lines the Notes rule takes</h3><ul class="shiprecs">${e.notes.map(t => `<li><pre class="edline">${esc(t)}</pre></li>`).join('')}</ul>` : '');
 }
 async function shipView(pid) {
   const x = SHIPBY[pid];
@@ -373,6 +401,7 @@ async function load() {
   SHIPBY = Object.fromEntries(((SHIP || {}).puzzles || []).map(x => [x.pid, x]));
   if (params.get('ship')) return shipView(params.get('ship'));  // one puzzle's xd as it will ship
   await liveVotes();
+  await liveRelease();
   // a snapshot opens on the puzzles held on a question (with none, on the ones not checked yet, when there are any);
   // with no record of the queues, on all of them
   const opens = () => !SHIP.counts.queues.question && SHIP.counts.queues.unchecked ? 'unchecked' : 'question';
@@ -885,7 +914,64 @@ function wirePics(rows) {
   });
 }
 // ---- a snapshot (the review site): the queues blitz ship recorded, their counts adding up to the batch ----
+// ---- the release to gxd (design/ship.md, "The edition"; design/gxd-pull.md §6) ----
+// The record's release and its count of puzzles available to gxd, drawn as recorded. The owner (a name on the ship
+// rule's owner list: the name the proof page signed in with) gets a button that records the decision on the site
+// (releases, site/schema-8-releases.sql); blitz ship takes it into the publication's ledger as release:<batch>, and
+// only then do the record and the manifest gxd reads say released. A release given since the record is shown as
+// given and not yet in the record, as the live tally shows answers.
+let RELEASE_LIVE = null, SB = null;
+const myName = () => { try { return localStorage.getItem('proof-who') || ''; } catch (e) { return ''; } };
+const owners = () => ((SHIP || {}).rule || {}).owner || [];
+async function liveRelease() {
+  RELEASE_LIVE = null;
+  if (!SITE || !DATA || !SHIP || !SHIP.batch) return;
+  const rows = await siteRows(`releases?select=batch,who,released,at&batch=eq.${encodeURIComponent(SHIP.batch)}&order=at,who`, {cache: 'no-cache'}).catch(() => null);
+  RELEASE_LIVE = (rows || []).filter(r => owners().includes(r.who)).pop() || null;  // the owner's latest: a helper's does nothing
+}
+function drawRelease() {
+  const el = $('#release');
+  if (!el) return;
+  el.hidden = !DATA || !SHIP;
+  if (el.hidden) return;
+  if (!('release' in SHIP)) {
+    el.className = 'release';
+    el.innerHTML = '<b>Release to gxd: not recorded.</b> <span class="meta">This ship record is from before the release mark; <code>blitz ship</code> makes it again with one.</span>';
+    return;
+  }
+  const r = SHIP.release || {}, ps = SHIP.puzzles || [], shipped = ps.filter(x => x.status === 'shipped');
+  const held = shipped.filter(x => (x.edition || {}).status === 'held'), made = shipped.filter(x => (x.edition || {}).status === 'made');
+  const at = (r.at || '').slice(0, 10), rec = (SHIP.at || '').slice(0, 10);
+  const live = RELEASE_LIVE && RELEASE_LIVE.at > (r.at || '') && !!RELEASE_LIVE.released !== !!r.released ? RELEASE_LIVE : null;
+  const now = live ? !!live.released : !!r.released, mine = SITE && owners().includes(myName());
+  el.className = 'release' + (r.released ? ' on' : '');
+  el.innerHTML = (r.released
+      ? `<b>Released to gxd</b> on ${esc(at)} by ${esc(r.by || 'the owner')}: <b>${SHIP.available ?? 0} puzzle${SHIP.available === 1 ? '' : 's'} available to gxd</b>`
+      : `<b>Not released to gxd</b>: gxd takes nothing from this batch until the owner releases it`)
+    + ` <span class="meta">· ${shipped.length} shipped, ${made.length} edition${made.length === 1 ? '' : 's'} made`
+    + (held.length ? `, <span class="edline-held">${held.length} held: ${held.map(x => `<a href="${shipViewUrl(x.pid)}">${esc(x.xdid || x.pid)}</a> (${x.edition.held.map(esc).join(', ')})`).join('; ')}</span>` : '')
+    + ` · blitz ship, ${esc(rec)}</span>`
+    + (live ? `<br><span class="meta">Since the record: the owner ${live.released ? 'released it' : 'took the release back'} on the site, ${esc((live.at || '').slice(0, 10))}. <code>blitz ship</code> takes it into the record and the manifest.</span>` : '')
+    + (mine ? ` <button class="btn${now ? '' : ' go'}" id="releasebtn">${now ? 'Take the release back' : 'Release to gxd'}</button>` : '');
+  const b = $('#releasebtn');
+  if (b) b.onclick = async () => {
+    const on = !now;
+    if (on && !confirm(`Release ${SHIP.batch} to gxd? Its shipped puzzles with an edition become available to gxd when blitz ship next records the batch.`)) return;
+    b.disabled = true;
+    try {
+      SB ||= window.supabase ? window.supabase.createClient(SITE.supabaseUrl, SITE.supabaseAnonKey) : null;
+      if (!SB) throw new Error("the site's sign-in library did not load");
+      let {data: {session}} = await SB.auth.getSession();
+      if (!session) { const x = await SB.auth.signInAnonymously(); if (x.error) throw x.error; session = x.data.session; }
+      const w = await SB.from('releases').upsert({batch: SHIP.batch, user_id: session.user.id, who: myName().slice(0, 40), released: on,
+                                                  note: on ? 'released on the batch page' : 'taken back on the batch page', at: new Date().toISOString()});
+      if (w.error) throw w.error;
+      await liveRelease(); drawRelease();
+    } catch (e) { b.disabled = false; b.insertAdjacentHTML('afterend', `<span class="err"> not recorded: ${esc(e.message || e)}</span>`); }
+  };
+}
 function drawQueues() {
+  drawRelease();
   const rec = recorded(), n = q => D.puzzles.filter(p => queueOf(p) === q).length, none = n('');
   const rows = shown(), walk = WALKED.includes(filter) ? rows : [];
   $('#bar').innerHTML = rec ? QORDER.map(q => `<span style="width:${100 * n(q) / D.puzzles.length}%;background:${QUEUE[q][2]}${q === 'shipped' ? ';opacity:.45' : ''}" title="${QUEUE[q][0]}: ${n(q)}"></span>`).join('') : '';
