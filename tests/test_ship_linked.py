@@ -14,7 +14,7 @@ import shutil
 from pathlib import Path
 
 from blitz.ship import (AGENT, LINE_LABELS, NOTES_HEAD, SITE, Rule, _printed, apply_edits, apply_linked, corrected, edit_records, linked, plan,
-                        provenance, read_linked, record, refused, write)
+                        provenance, read_linked, record, refused, unread_pairs, write)
 from test_ship import proof
 
 DATA = Path(__file__).parent / "data" / "linked"
@@ -303,6 +303,23 @@ def test_no_11_ships_on_a_persons_ready_with_the_ais_edit_applied_and_recorded(t
     assert prov["edits"]["records"][0]["by"] == LEDGER[NO11]["by"] and prov["shipped"]["rule"] == "people"
     assert [x["text"] for x in prov["printed"]][0] == "SOLUTION NEXT WEEK."
     assert row(plan(repo, proofs, RULE, "nyw-1914-c1"), NO11)["status"] == "shipped"             # written once
+
+
+def test_unread_pairs_names_the_clue_lines_labelled_by_their_slot_or_with_an_unread_end():
+    assert unread_pairs(SMALL) == [] and unread_pairs(packet(NO11)[0]) == []
+    assert unread_pairs(SMALL.replace("1-2. An", "A2. An").replace("2-6.", "?-6.")) == ["A2", "?-6"]
+    assert unread_pairs(packet(NO9)[0])[:3] == ["A2", "A6", "A15"]
+    assert unread_pairs("Title: T\n\n\nAB\n\n\nA1. not a linked xd's line? read all the same ~ AB\n") == ["A1"]
+
+
+def test_a_clue_with_no_printed_pair_holds_the_puzzle_on_anyones_ready(tmp_path):
+    # the owner's rule, 2026-11-16: a clue whose place wasn't read from the paper doesn't ship, the owner's Ready or not
+    repo, proofs = batch(tmp_path, {NO11: [said("oops6498 (review site)", SITE, {})]})
+    xd = proofs / NO11 / "puzzle.xd"
+    xd.write_text(xd.read_text(encoding="utf-8").replace("\n1-2. To unite", "\nA2. To unite"), encoding="utf-8")
+    r = row(plan(repo, proofs, RULE, "b"), NO11)
+    assert (r["status"], r["reason"], r["queue"], r["rule"]) == ("held", "pair-unread", "broken", "owner")
+    assert "1 clue(s) with no printed pair (A2)" in r["why"] and r["broken"][0]["stage"] == "proof review"
 
 
 def test_an_edit_the_import_cannot_apply_holds_a_linked_ends_puzzle_as_broken(tmp_path):

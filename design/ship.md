@@ -772,7 +772,12 @@ misprinted), a number with `before_recorded: false` (what stood there was not re
 owner gave that the stage already had is no change and no record.
 
 **A clue placed by sequence** (triage's `clue-by-sequence`, xword-ocr) needs a person's Ready under
-any `ai_ready` (`PERSON_CODES`); it is a doubt on the clue's row, not a hold on a person's Ready.
+any `ai_ready` (`PERSON_CODES`); it is a doubt on the clue's row. **A clue with no printed pair**
+holds the puzzle whoever said Ready, the owner included (`pair-unread`, broken, stage proof review;
+the owner's rule, 2026-11-16): a clue line in what would ship still labelled by its slot (`A4.`) or
+with a `?` end (`unread_pairs`). Its place wasn't read from the paper, and the original numbering
+can't be shown for it. A reviewer gives the end squares' printed numbers on the proof page, or moves
+the clue to the word its pair names; once every line carries its pair, the hold lifts.
 
 ### Proofreads a Ready ships come first
 
