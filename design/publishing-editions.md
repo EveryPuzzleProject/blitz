@@ -370,8 +370,12 @@ These were the open questions for Saul. The owner is now primary on gxd and answ
 
 Still open:
 
-- Linked-ends files: drop `Clues:` and `Numbering:` to match the 1913 files (the recommendation), or carry
-  the numbering map in xdformat.
+- Linked-ends files. Correction (checked 2026-11-16): Saul's 2016 `nyw1913-12-21.xd` already ends with a
+  `Numbering: a=10 x=34` section (a grid of which square bears which number), and `nyw1913-12-28.xd` has
+  one too, so "The linked-ends xd in gxd" above is wrong to call the Numbering section a difference. Keep
+  it. What really differs: the `Clues:` header (drop it, a blitz-only header), the slot labels (`A4.`) where
+  an end number wasn't read, and how a square with a printed letter is labelled (gxd writes `F-7.`, using
+  the letter itself).
 - Withdrawals: always a review MR in gxd, never an automatic delete (the recommendation).
 
 
