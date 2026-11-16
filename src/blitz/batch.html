@@ -902,18 +902,28 @@ function wirePics(rows) {
 // ---- publishing the edition (design/ship.md, "The edition"; design/publishing-editions.md) ----
 // The last step of a publication's process: the owner publishes the batch's edition. Not the review site's "publish"
 // (site-publish, ship --publish), which puts packets and records on this site. The record's edition_published and its
-// count are drawn as recorded. The owner (a name on the ship rule's owner list: the name the proof page signed in with)
-// gets a button that records the decision on the site (edition_publish, site/schema-8-edition-publish.sql); blitz ship
+// count are drawn as recorded. The owner gets a button that records the decision on the site (edition_publish,
+// site/schema-8-edition-publish.sql), shown only when the signed-in account is one the site lists as able to publish an
+// edition (edition_publishers: the owner's own account ids; the table's policy refuses anyone else's row, and blitz
+// ship counts a row only from the ship rule's owner_ids, never by the name typed on the proof page); blitz ship
 // takes it into the publication's ledger as publish-edition:<batch>, and only then do the record and the manifest
 // (shipped.tsv) say published. One given since the record is shown as given, not yet counted, as the live tally shows answers.
-let EDPUB_LIVE = null, SB = null;
+let EDPUB_LIVE = null, SB = null, AM_PUBLISHER = false;
 const myName = () => { try { return localStorage.getItem('proof-who') || ''; } catch (e) { return ''; } };
-const owners = () => ((SHIP || {}).rule || {}).owner || [];
 async function liveEditionPublish() {
   EDPUB_LIVE = null;
   if (!SITE || !DATA || !SHIP || !SHIP.batch) return;
   const rows = await siteRows(`edition_publish?select=batch,who,published,at&batch=eq.${encodeURIComponent(SHIP.batch)}&order=at,who`, {cache: 'no-cache'}).catch(() => null);
-  EDPUB_LIVE = (rows || []).filter(r => owners().includes(r.who)).pop() || null;  // the owner's latest: a helper's does nothing
+  EDPUB_LIVE = (rows || []).pop() || null;  // the latest: the table takes rows only from the owner's accounts
+  AM_PUBLISHER = false;  // whether this browser's signed-in account may publish the edition (edition_publishers)
+  try {
+    SB ||= window.supabase ? window.supabase.createClient(SITE.supabaseUrl, SITE.supabaseAnonKey) : null;
+    const {data: {session}} = SB ? await SB.auth.getSession() : {data: {}};
+    if (session && session.user) {
+      const r = await SB.from('edition_publishers').select('user_id').eq('user_id', session.user.id);
+      AM_PUBLISHER = !r.error && (r.data || []).length > 0;
+    }
+  } catch (e) { AM_PUBLISHER = false; }
 }
 function drawEditionPublish() {
   const el = $('#edpub');
@@ -929,7 +939,7 @@ function drawEditionPublish() {
   const held = shipped.filter(x => (x.edition || {}).status === 'held'), made = shipped.filter(x => (x.edition || {}).status === 'made');
   const at = (r.at || '').slice(0, 10), rec = (SHIP.at || '').slice(0, 10), n = SHIP.editions_published ?? 0;
   const live = EDPUB_LIVE && EDPUB_LIVE.at > (r.at || '') && !!EDPUB_LIVE.published !== !!r.published ? EDPUB_LIVE : null;
-  const now = live ? !!live.published : !!r.published, mine = SITE && owners().includes(myName());
+  const now = live ? !!live.published : !!r.published, mine = SITE && AM_PUBLISHER;
   el.className = 'edpub' + (r.published ? ' on' : '');
   el.innerHTML = (r.published
       ? `<b>Edition published</b> on ${esc(at)} by ${esc(r.by || 'the owner')}: the editions of <b>${n} puzzle${n === 1 ? '' : 's'}</b>`
@@ -943,6 +953,7 @@ function drawEditionPublish() {
   if (b) b.onclick = async () => {
     const on = !now;
     if (on && !confirm(`Publish the edition of ${SHIP.batch}? Its shipped puzzles' editions are listed as published when blitz ship next records the batch.`)) return;
+    if (!on && !confirm(`Take the edition of ${SHIP.batch} back? Its rows go back to held. This recalls nothing a reader already took.`)) return;
     b.disabled = true;
     try {
       SB ||= window.supabase ? window.supabase.createClient(SITE.supabaseUrl, SITE.supabaseAnonKey) : null;

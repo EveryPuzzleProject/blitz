@@ -455,7 +455,9 @@ def fetch_decisions(agreed_only: bool = False) -> dict:
         marks = []
     edition_publish: dict[str, dict] = {}
     for r in marks:
-        edition_publish.setdefault(r["batch"], {})[r.get("who") or who(r)] = {"published": bool(r.get("published")), "note": r.get("note", ""), "at": r["at"]}
+        # keyed by the account id: that is what counts (the ship rule's owner_ids), never the name typed
+        edition_publish.setdefault(r["batch"], {})[r["user_id"]] = {"who": r.get("who") or who(r), "published": bool(r.get("published")),
+                                                                     "note": r.get("note", ""), "at": r["at"]}
     for x, sq in fetch_squares().items():
         get(x)["squares"] = sq
     for x, p in out.items():

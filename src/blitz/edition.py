@@ -29,7 +29,12 @@ from pathlib import Path
 EDITION = "edition"  # edition/<xdid>.xd beside xd/
 MANIFEST = "shipped.tsv"
 RECORD = ("pipeline", "edition.json")
-VERSION = 1  # the edition's rules: a change here makes every edition again
+NOTED_NEEDS_EVIDENCE = True  # a mark whose words meant are already in the row gets its note only when a record shows the
+#   printed words were there (the packet's text review, or an edit, swapped them); otherwise the edition is held
+#   (mark-unplaced). The project manager's default of 2026-11-16, pending the owner's word: False writes the note anyway.
+CODES = {  # triage codes the edition step publishes with a word in `why` (the edition's own list, not ship-export's)
+    "cryptic-no-key": "a cryptic with no key grid: published with this code, pending the owner",
+}
 NOTES_HEAD = "Puzzle notes:"  # the printed lines the Notes rule takes: the puzzle's notes
 FIXED_HEAD = "Misprints corrected:"  # one line per clue or header misprint the edition corrected, saying what was printed
 COLS = ("xdid", "date", "number", "status", "why", "transcription", "transcription_sha256", "edition", "edition_sha256",
@@ -72,7 +77,8 @@ def corrected(text: str, corrections: list[dict]) -> tuple[str, list[str], list[
             note = f"{_label(key, _pairs(text))} is printed '{printed}'; corrected to '{meant}'." if done != "not applied" else ""
         if note:
             notes.append(note)
-        rows.append({"key": key, "printed": printed, "meant": meant, "by": c.get("by", ""), "done": done, "note": note})
+        rows.append({"key": key, "printed": printed, "meant": meant, "by": c.get("by", ""), "done": done, "note": note,
+                     **({"kind": c["kind"]} if c.get("kind") else {})})  # whose: the public copies name people by it
     return text, notes, rows
 
 
@@ -97,19 +103,37 @@ def _one_block_line(text: str) -> str:
     return re.sub(r"\n\s*\n", "\n", str(text).replace("\r\n", "\n")).strip()
 
 
+def _norm(key: str) -> str:
+    """A mark's or an edit's key, with a header under either name (ev:title, meta:title) as meta:<field>."""
+    from .ship import _field
+    return f"meta:{_field(key)}" if _field(key) else key
+
+
+def evidenced(c: dict, evidence: list[dict]) -> bool:
+    """Whether a record shows the mark's printed words were in its row and were swapped for the words meant: a change
+    the packet's text review made, or an edit record, on the same row, whose before has the printed words and whose
+    after has the words meant."""
+    from .ship import _count
+    k, printed, meant = _norm(c.get("key", "")), str(c.get("printed", "")), str(c.get("meant", ""))
+    return any(_norm(e.get("key", "")) == k and _count(str(e.get("before", "")), printed) and _count(str(e.get("after", "")), meant)
+               for e in evidence or [])
+
+
 def make(text: str, marks: list[dict] = (), declines=(), labels=NOTE_LABELS, printed: list[dict] = (),
-         records: list[dict] = ()) -> dict:
+         records: list[dict] = (), evidence: list[dict] = ()) -> dict:
     """One puzzle's edition from its transcription (`text`, the file in xd/) and what ship recorded: `marks`, the
     corrections of the print that count under the ship rule (provenance's `corrections`); `declines`, the owner's
     "not a misprint" as (key, printed, meant); `labels`, the Notes rule; `printed`, the kept printed lines with their
     labels; `records`, the transcription's edit records (a key-letter correction the owner has since declined holds
-    the edition: the transcription itself is wrong until it is shipped again).
+    the edition: the transcription itself is wrong until it is shipped again); `evidence`, the changes that show a
+    row's printed words were swapped before it shipped (the packet's text-review changes and the edit records: see
+    NOTED_NEEDS_EVIDENCE). Marks are applied in a fixed order (key, printed, meant).
 
     Returns {text (None when held), held: [{code, why}], corrections: [{key, printed, meant, by, done, note}],
     declined: [{key, printed, meant, by}], notes: [the Puzzle notes lines]}. Same inputs, same bytes."""
     from .ship import _TYPO_KEY, mark_problem, with_notes
     no = {(k, p, m) for k, p, m in declines}
-    live = [c for c in marks or [] if _mark(c) not in no]
+    live = sorted((c for c in marks or [] if _mark(c) not in no), key=_mark)
     declined = [{k: c.get(k, "") for k in ("key", "printed", "meant", "by")} for c in marks or [] if _mark(c) in no]
     held = []
     undone = [e for e in records or [] if e.get("class") == "key correction" and e.get("misprint")
@@ -120,7 +144,13 @@ def make(text: str, marks: list[dict] = (), declines=(), labels=NOTE_LABELS, pri
                      + " that the transcription carries: blitz ship --write ships it again with the letter as printed"})
     out, fixed, rows = corrected(text, live)
     for c, r in zip(live, rows):
-        if r["done"] != "not applied":  # applied, or noted: an earlier step had already put the words meant in (ship's fits "already")
+        if r["done"] == "applied":
+            continue
+        if r["done"] == "noted":  # the row has the words meant, not the printed ones: an earlier step swapped them, if a record says so
+            if not NOTED_NEEDS_EVIDENCE or evidenced(c, evidence):
+                continue
+            held.append({"code": "mark-unplaced", "why": f"{r['key']}: '{r['printed']}' -> '{r['meant']}': the row reads the words meant "
+                         "and nothing records the printed words being there (no text-review change or edit swapped them)"})
             continue
         bad = mark_problem(c) or not _TYPO_KEY.fullmatch(r["key"]) or r["key"].startswith("cell:")
         say = (f"{r['key']}: '{r['printed']}' -> '{r['meant']}': "
@@ -128,13 +158,29 @@ def make(text: str, marks: list[dict] = (), declines=(), labels=NOTE_LABELS, pri
                   else "neither the printed words (exactly once) nor the words meant are in the row"))
         held.append({"code": "mark-invalid" if bad else "mark-unplaced", "why": say})
     lines = [_one_block_line(p.get("text", "")) for p in printed or [] if p.get("label") in labels and str(p.get("text", "")).strip()]
+    heads = [t for t in lines if {ln.strip() for ln in t.split("\n")} & {NOTES_HEAD, FIXED_HEAD}]
+    if heads:  # a printed line that reads as one of the edition's block heads would split its notes wrongly
+        held.append({"code": "notes-head", "why": f"a printed line the Notes rule takes reads as a block head of the edition: {heads[0][:80]!r}"})
     if not held:
         out = with_notes(with_notes(out, lines, NOTES_HEAD), fixed, FIXED_HEAD)
     return {"text": None if held else out, "held": held, "corrections": rows, "declined": declined, "notes": lines}
 
 
 def sha256(data: str | bytes) -> str:
-    return hashlib.sha256(data.encode("utf-8") if isinstance(data, str) else data).hexdigest()
+    """sha256 of text with LF line ends, so a fingerprint doesn't depend on a checkout's core.autocrlf."""
+    b = data.encode("utf-8") if isinstance(data, str) else data
+    return hashlib.sha256(b.replace(b"\r\n", b"\n")).hexdigest()
+
+
+def code_version() -> str:
+    """A fingerprint of the code that makes an edition's text, in place of a version bumped by hand: a change to any of
+    it makes every edition again (run once, re-run only when invalidated)."""
+    import inspect
+
+    from . import ship
+    parts = [inspect.getsource(f) for f in (make, corrected, evidenced, _norm, _one_block_line, ship.with_notes, ship._swap, ship._word,
+                                            ship._count, ship.apply_edits, ship.apply_linked)]
+    return sha256("\n".join(parts + [NOTES_HEAD, FIXED_HEAD, repr(NOTED_NEEDS_EVIDENCE)]))[:16]
 
 
 def kinds(transcription: str, ed: dict) -> list[str]:
@@ -149,13 +195,17 @@ def kinds(transcription: str, ed: dict) -> list[str]:
 
 def publications(records: list[dict], rule) -> dict[str, dict]:
     """{batch: {at, by}} for every batch whose edition the owner has published and not taken back: each batch's
-    latest publish-edition:<batch> record by the owner (the ship rule's `owner` on the review site, or the owner's own
-    tools), whose answer is publish. A helper's or a guest's record does nothing."""
-    from .ship import _name, kind_of
+    latest publish-edition:<batch> record by the owner, whose answer is publish. A record from the review site counts
+    only when its `account` (the site's user_id) is one of the ship rule's `owner_ids`: the name typed on the proof
+    page is never enough, since anyone can type it. A record from the owner's own tools (not via the review site or an
+    agent) counts. Anyone else's does nothing."""
+    from .ship import AGENT, SITE, _name
     latest = {}
     for r in records:
         rid = str(r.get("id", ""))
-        if rid.startswith(PUBLISH) and kind_of(r, rule) == "owner" and _name(r) not in rule.ignore:
+        via = r.get("via")
+        mine = bool(r.get("account")) and r.get("account") in rule.owner_ids if via == SITE else via != AGENT
+        if rid.startswith(PUBLISH) and mine and _name(r) not in rule.ignore:
             if r.get("at", "") >= latest.get(rid[len(PUBLISH):], {}).get("at", ""):
                 latest[rid[len(PUBLISH):]] = r
     return {b: {"at": r.get("at", ""), "by": r.get("by", "")} for b, r in sorted(latest.items()) if r.get("answer") == "publish"}
@@ -223,32 +273,38 @@ def inputs(repo: Path, row: dict, text: str, plan: dict | None = None) -> dict:
     from .ship import _printed, fingerprint
     fp = fingerprint(text)
     x = ((plan or {}).get("passing") or {}).get(row.get("pid", ""))
+    from .ship import packet_edits
     if x and fingerprint(x["text"]) == fp:
         pk = plan["packs"][row["pid"]]
         return {"from": "the ship plan", "marks": x.get("corrections", []), "records": x.get("edit_records", []),
+                "packet": packet_edits(pk["ocr"], pk["review"]),
                 "printed": _printed(pk["ocr"], pk["review"], {k: v for k, v in (x.get("edit_values") or {}).items() if k in x["edits"]})}
     doc = _as_shipped(repo, row)
     if doc and doc.get("xd_fp") == fp:
         return {"from": "the as-shipped file", "marks": doc.get("corrections", []), "records": (doc.get("edits") or {}).get("records", []),
-                "printed": doc.get("printed", [])}
-    return {"from": "provenance.jsonl", "marks": row.get("corrections", []), "records": (row.get("edits") or {}).get("records", []),
-            "printed": row.get("printed", [])}
+                "packet": (doc.get("edits") or {}).get("packet", []), "printed": doc.get("printed", [])}
+    if row.get("xd") == fp:
+        return {"from": "provenance.jsonl", "marks": row.get("corrections", []), "records": (row.get("edits") or {}).get("records", []),
+                "packet": (row.get("edits") or {}).get("packet", []), "printed": row.get("printed", [])}
+    return {"from": "", "marks": [], "records": [], "packet": [], "printed": []}  # nothing recorded describes this transcription
 
 
 def _key(ins: dict) -> str:
     return sha256(json.dumps(ins, sort_keys=True, ensure_ascii=False))
 
 
-def run(repo: Path, pub: str, plan: dict | None = None, site: list[dict] = (), today: str = "") -> dict:
-    """Every shipped puzzle's edition, the record of what each was made from, and the manifest. `plan`: the ship plan
-    being made (its marks are the freshest); `site`: the review site's records not in the ledger yet (the publish
-    mark, the owner's declines). Returns a summary: {made, remade, unchanged, held, differ, kinds, holds, rows}."""
+def run(repo: Path, pub: str, plan: dict | None = None, today: str = "") -> dict:
+    """Every shipped puzzle's edition, the record of what each was made from, and the manifest, from the repo alone:
+    xd/, provenance, the ledger (the publish mark, the owner's declines) and the as-shipped files. `plan`: the ship plan
+    being made, whose marks are the freshest (blitz ship takes the review site's records into the ledger before it
+    calls this, so nothing here rests on data the repo doesn't hold). Returns a summary: {made, remade, unchanged, held,
+    differ, kinds, holds, removed, sources, published_by_batch, rows}."""
     from .ship import PROOF_PAGE, _header, fingerprint, ledger, provenance, rule_of
     repo, today = Path(repo), today or date.today().isoformat()
     if not (repo / "provenance.jsonl").exists():
         raise ValueError(f"{repo} has no provenance.jsonl: nothing here was shipped by blitz ship. A publication that came by "
                          "the older path (Judge) gets its manifest from its own list of what it published: blitz edition <pub> --older-path")
-    rule, records = rule_of(repo), ledger(repo) + list(site or [])
+    rule, records = rule_of(repo), ledger(repo)
     labels, labels_from = notes_labels(repo, pub, records)
     published = publications(records, rule)
     rec_file = repo.joinpath(*RECORD)
@@ -258,24 +314,33 @@ def run(repo: Path, pub: str, plan: dict | None = None, site: list[dict] = (), t
     files = {f.stem: f for f in sorted((repo / "xd").glob("*.xd"))}
     out_dir = repo / EDITION
     summary = {"made": 0, "remade": 0, "unchanged": 0, "held": 0, "differ": 0, "kinds": {}, "holds": {}, "puzzles": len(files),
-               "notes_from": labels_from, "published": published}
-    made, rows = {}, {}
+               "notes_from": labels_from, "published": published, "removed": [], "sources": [], "published_by_batch": {}}
+    made, rows, before = {}, {}, read_manifest(repo)
+    version = code_version()
     for xdid in sorted(set(files) | set(prov)):
         row, f = prov.get(xdid), files.get(xdid)
         mrow = {"xdid": xdid, "batch": (row or {}).get("batch", ""), "shipped_at": ((row or {}).get("shipped") or {}).get("at", ""),
                 "proof_url": PROOF_PAGE + row["pid"] if row and row.get("pid") else "", "record_url": pages.get(xdid, "")}
-        if not f:
-            rows[xdid] = {**mrow, "status": "withdrawn", "why": "not in xd/: shipped, then taken out"}
+        if not f:  # withdrawn: the row keeps its last values; its edition file goes
+            last = before.get(xdid) or {}
+            rows[xdid] = {**mrow, **{k: v for k, v in last.items() if v}, "status": "withdrawn",
+                          "why": last["why"] if last.get("status") == "withdrawn" else "not in xd/: shipped, then taken out"}
+            if (out_dir / f"{xdid}.xd").exists():
+                (out_dir / f"{xdid}.xd").unlink()
+                summary["removed"].append(xdid)
             continue
         text = f.read_text(encoding="utf-8")
         mrow.update(date=_header(text, "Date"), number=_header(text, "Number"), transcription=f"xd/{xdid}.xd",
-                    transcription_sha256=sha256(f.read_bytes()))
+                    transcription_sha256=sha256(f.read_bytes()))  # LF line ends
         if not row:
             rows[xdid] = {**mrow, "status": "held", "why": "no-provenance: in xd/ with no provenance row (not shipped by blitz ship)"}
             continue
         src = inputs(repo, row, text, plan)
-        ins = {"version": VERSION, "transcription_sha256": mrow["transcription_sha256"],
-               "marks": sorted([list(_mark(c)) + [str(c.get("by", ""))] for c in src["marks"] or []]),
+        ev = [e for e in list(src["packet"] or []) + list(src["records"] or []) if str(e.get("before", "")) != str(e.get("after", ""))]
+        ins = {"version": version, "transcription_sha256": mrow["transcription_sha256"],
+               "marks": sorted(list(_mark(c)) for c in src["marks"] or []),  # who marked it isn't hashed: copies name people differently
+               "evidence": sorted([_norm(e.get("key", "")), str(e.get("before", "")), str(e.get("after", ""))] for e in ev),
+               "unrecorded": not src["from"],
                "declines": sorted(list(d) for d in owner_declines(records, row.get("pid", ""), rule)),
                "notes_rule": list(labels), "printed": [[p.get("label", ""), p.get("text", "")] for p in src["printed"] or []],
                "key_corrections": sorted([e.get("key", ""), str(e["misprint"].get("printed", "")).strip(), str(e["misprint"].get("meant", "")).strip()]
@@ -289,7 +354,12 @@ def run(repo: Path, pub: str, plan: dict | None = None, site: list[dict] = (), t
             ed_entry = prior
             summary["unchanged"] += 1
         else:
-            ed = make(text, src["marks"], {tuple(d) for d in ins["declines"]}, labels, src["printed"], src["records"])
+            ed = make(text, src["marks"], {tuple(d) for d in ins["declines"]}, labels, src["printed"], src["records"], ev)
+            if not src["from"]:
+                ed = {**ed, "text": None, "held": [{"code": "marks-stale", "why": "no record of its marks describes this transcription "
+                                                    "(the ship plan, its as-shipped file and its provenance row all have another fingerprint)"}]}
+            if prior and prior.get("marks_from") != src["from"]:
+                summary["sources"].append({"xdid": xdid, "was": prior.get("marks_from", ""), "now": src["from"] or "nothing"})
             ed_entry = {"status": "held" if ed["held"] else "made", "inputs_sha256": key, "inputs": ins, "marks_from": src["from"],
                         "notes_from": labels_from, "made_at": today, "held": ed["held"], "corrections": ed["corrections"],
                         "declined": ed["declined"], "notes": ed["notes"], "kinds": kinds(text, ed),
@@ -314,13 +384,14 @@ def run(repo: Path, pub: str, plan: dict | None = None, site: list[dict] = (), t
         elif not pub_mark:
             status, why = "held", f"not-published: the edition of the batch {row.get('batch', '')} has not been published"
         else:
-            status, why = "published", ""
+            status, why = "published", "; ".join(f"{c}: {CODES[c]}" for c in row.get("codes") or [] if c in CODES)
+            summary["published_by_batch"][row.get("batch", "")] = summary["published_by_batch"].get(row.get("batch", ""), 0) + 1
         rows[xdid] = {**mrow, "status": status, "why": why, "published": (pub_mark or {}).get("at", "")[:10],
                       **({"edition": f"{EDITION}/{xdid}.xd", "edition_sha256": ed_entry["edition_sha256"]} if ed_entry["status"] == "made" else {})}
     rec_file.parent.mkdir(parents=True, exist_ok=True)
     rec_file.write_text(json.dumps({"_about": "blitz edition: what each puzzle's edition (edition/<xdid>.xd) was made from, so it is made "
                                               "again only when that changes. Format: blitz design/ship.md, \"The edition\".",
-                                    "version": VERSION, "puzzles": dict(sorted(made.items()))}, ensure_ascii=False, indent=1, sort_keys=False) + "\n",
+                                    "version": version, "puzzles": dict(sorted(made.items()))}, ensure_ascii=False, indent=1, sort_keys=False) + "\n",
                         encoding="utf-8", newline="\n")
     write_manifest(repo, rows)
     summary["rows"] = {s: sum(r["status"] == s for r in read_manifest(repo).values()) for s in STATUSES}
@@ -328,10 +399,11 @@ def run(repo: Path, pub: str, plan: dict | None = None, site: list[dict] = (), t
 
 
 def older_path(repo: Path) -> dict:
-    """The one-off manifest of a publication shipped and published by the older path, before the edition step (Judge):
-    its xd/ files are its published editions (no transcription column), listed from xd/ and the publication's list of
-    what it sent out then (gxd-exports.tsv, a file of the older path). A row that list dates (`exported`) is published
-    on that date; any other is held. record_url and proof_url are copied from the list. No edition/ is written."""
+    """The one-off manifest of a publication shipped by the older path, before the edition step (Judge). Its xd/ files
+    are transcriptions (they carry Source:, Provenance: and the OCR's flags), not editions: each row lists its
+    transcription and no edition, held, with a `why` saying its edition went out by the older path and not through this
+    manifest. The list the older path kept (gxd-exports.tsv) gives record_url and proof_url, and a row it lists that
+    xd/ lacks is withdrawn. No edition/ is written."""
     from .ship import _header
     repo = Path(repo)
     if (repo / "provenance.jsonl").exists():
@@ -342,12 +414,10 @@ def older_path(repo: Path) -> dict:
     rows = {}
     for f in sorted((repo / "xd").glob("*.xd")):
         text, e = f.read_text(encoding="utf-8"), exp.get(f.stem) or {}
-        when = (e.get("exported") or "")[:10]
-        rows[f.stem] = {"xdid": f.stem, "date": _header(text, "Date"), "number": _header(text, "Number"),
-                        "status": "published" if when else "held",
-                        "why": (f"older-path: published on {when} by the path before the edition step; this file is the edition"
-                                if when else "not-published: the older path's list doesn't date it"),
-                        "edition": f"xd/{f.stem}.xd", "edition_sha256": sha256(f.read_bytes()), "published": when,
+        rows[f.stem] = {"xdid": f.stem, "date": _header(text, "Date"), "number": _header(text, "Number"), "status": "held",
+                        "why": "older-path: shipped before the edition step; its edition went out by the older path, not through "
+                               "this manifest, which lists the transcription only",
+                        "transcription": f"xd/{f.stem}.xd", "transcription_sha256": sha256(f.read_bytes()),
                         "record_url": e.get("record_url", ""), "proof_url": e.get("proof_url", "")}
     for x, e in exp.items():
         if x not in rows:
@@ -363,13 +433,14 @@ def preview(repo: Path, pub: str, p: dict, records: list[dict], rule) -> dict[st
     """{pid: the edition of the xd as it will ship} for every puzzle the plan passes, made by make() from what the
     plan recorded, for the ship record and the as-shipped files: {status (made | held), path, xd (None when held),
     xd_fp, sha256, held, corrections, declined, notes, kinds, notes_from}. The step itself (run) writes the file."""
-    from .ship import _printed, fingerprint
+    from .ship import _printed, fingerprint, packet_edits
     labels, labels_from = notes_labels(repo, pub, records)
     out = {}
     for pid, x in sorted((p.get("passing") or {}).items()):
         pk = p["packs"][pid]
         printed = _printed(pk["ocr"], pk["review"], {k: v for k, v in (x.get("edit_values") or {}).items() if k in x["edits"]})
-        ed = make(x["text"], x.get("corrections", []), owner_declines(records, pid, rule), labels, printed, x.get("edit_records", []))
+        ev = [e for e in packet_edits(pk["ocr"], pk["review"]) + list(x.get("edit_records", [])) if str(e.get("before", "")) != str(e.get("after", ""))]
+        ed = make(x["text"], x.get("corrections", []), owner_declines(records, pid, rule), labels, printed, x.get("edit_records", []), ev)
         out[pid] = {"status": "held" if ed["held"] else "made", "path": f"{EDITION}/{x['xdid']}.xd", "xd": ed["text"],
                     "xd_fp": fingerprint(ed["text"]) if ed["text"] is not None else "", "sha256": sha256(ed["text"]) if ed["text"] is not None else "",
                     "held": ed["held"], "corrections": ed["corrections"], "declined": ed["declined"], "notes": ed["notes"],

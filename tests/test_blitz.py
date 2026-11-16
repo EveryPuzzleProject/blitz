@@ -147,7 +147,7 @@ def test_site_import_combines_helpers(monkeypatch):
     monkeypatch.setattr(site, "_rest", lambda method, path, *a, **k: data[path.split("&limit=")[0]]
                         if "offset=0" in path or "&limit=" not in path else [])
     got = site.fetch_decisions()
-    assert got["edition_publish"] == {"games-1977-79": {"Bo": {"published": True, "note": "", "at": "t"}}}
+    assert got["edition_publish"] == {"games-1977-79": {uid["b"]: {"who": "Bo", "published": True, "note": "", "at": "t"}}}  # by account id
     p = got["puzzles"]["p1"]
     assert p["squares"]["open"] == ["r1c1"] and p["squares"]["cards"]["r2c2"]["suggest"] == "O"
     assert p["squares"]["checks"]["r1c1"] == {"a helper u1aaaa": {"was": "I", "value": "T", "at": "t1"},

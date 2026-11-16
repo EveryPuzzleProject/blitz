@@ -469,7 +469,8 @@ def cmd_ship(a) -> None:
               f"gxd-exports.tsv and {repo / 'pipeline' / 'ship' / (p['batch'] + '.json')}")
         _edition_line(p.get("edition_run"), repo)
     elif a.record:
-        print(f"status only: wrote {ship.write_record(repo, p)}; nothing shipped")
+        print(f"status only: wrote {ship.write_record(repo, p)}; nothing shipped; {p.get('site_taken_in', 0)} review-site record(s) "
+              "it used taken into the ledger, so the editions and the manifest rest on the repo alone")
         _edition_line(p.get("edition_run"), repo)
     else:
         print("dry run: --write writes the shippable puzzles and the batch's ship record; --record the record alone")
@@ -505,6 +506,10 @@ def _edition_line(r: dict | None, repo: Path) -> None:
           f"transcription (" + (", ".join(f"{k} {n}" for k, n in sorted(r["kinds"].items())) or "none") + f"); {r['held']} held"
           + (" (" + ", ".join(f"{k} {n}" for k, n in sorted(r["holds"].items())) + ")" if r["holds"] else "")
           + f"; {repo / 'shipped.tsv'}: " + ", ".join(f"{k} {n}" for k, n in r["rows"].items()) + f"; notes: {r['notes_from']}")
+    for c in r.get("sources") or []:
+        print(f"  {c['xdid']}: made again from {c['now']} (was {c['was'] or 'nothing'})")
+    if r.get("removed"):
+        print(f"  withdrawn, edition file removed: {', '.join(r['removed'])}")
 
 
 def cmd_edition(a) -> None:
@@ -517,12 +522,7 @@ def cmd_edition(a) -> None:
             print(f"{repo / edition.MANIFEST}: " + ", ".join(f"{k} {n}" for k, n in rows.items()) + " (xd/ as the published editions, "
                   "dated from the older path's list; no edition/ written)")
             return
-        site = []
-        if a.decisions or not a.no_site:
-            from .site import fetch_decisions
-            data = json.loads(Path(a.decisions).read_text(encoding="utf-8")) if a.decisions else fetch_decisions(False)
-            site = ship.from_site(data, ship.ledger(repo), {r["pid"] for r in ship.provenance(repo)})
-        r = edition.run(repo, a.pub, site=site)
+        r = edition.run(repo, a.pub)  # the repo alone: the review site's records come in through blitz ship
     except ValueError as e:
         raise SystemExit(f"blitz edition: {e}")
     if a.json:
@@ -714,9 +714,6 @@ def main(argv=None) -> None:
     q.add_argument("--older-path", action="store_true",
                    help="the one-off manifest of a publication shipped and published before the edition step (Judge): its xd/ "
                         "files are its published editions")
-    q.add_argument("--decisions", help="a site-import file instead of fetching the review site (the owner's Publish the edition, "
-                                       "the owner's declines)")
-    q.add_argument("--no-site", action="store_true", help="the ledger only: don't read the review site")
     q.add_argument("--json", action="store_true")
     q.set_defaults(fn=cmd_edition)
     q = sub.add_parser("records", help="the public record page of each transcribed puzzle (everypuzzleproject.org/<pub>/<date>/)")

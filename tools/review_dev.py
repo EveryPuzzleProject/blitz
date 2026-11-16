@@ -45,7 +45,7 @@ WATCH = [SRC / "proof.html", SRC / "batch.html", Path(__file__)]
 BUCKET = "https://pub-52ac4a15c4ba43fe8e4af5a496733fb5.r2.dev"
 MAX_ROWS = 1000  # as the site's database: no more rows than this to one request, and no word that it stopped
 KEYS = {"proofs": ("xdid", "user_id"), "verdicts": ("xdid", "user_id"), "restores": ("xdid", "user_id"),
-        "edition_publish": ("batch", "user_id")}  # the batch page's Publish the edition (site/schema-8-edition-publish.sql)
+        "edition_publish": ("batch", "user_id"), "edition_publishers": ("user_id",)}  # the batch page's Publish the edition (site/schema-8-edition-publish.sql)
 
 # supabase-js, as much of it as the pages use: a session in localStorage, and table reads and upserts
 # against this server's /sb/rest/v1/

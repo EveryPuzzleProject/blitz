@@ -73,7 +73,9 @@ class Rule:
     marks: a misprint mark or a key correction (typos, key_corrections): it takes effect (case 2 or 3).
     grid_fixes: a Not ready's fixes to a linked-ends grid (grid:, num:, cell:) that the re-place stage reads in.
     typed_clues: a clue typed on the proof page where the packet has no text for it (the ship check's clue-empty)
-      makes the puzzle whole (filled_by)."""
+      makes the puzzle whole (filled_by).
+    owner_ids: the owner's own review-site account ids (Supabase user_id). Publishing the edition is an owner-only
+      gate, so the review site's "Publish the edition" counts only from these ids, never by a typed name (edition.py)."""
     ai_ready: str = "off"
     hold_codes: tuple = ("clue-typed",)
     ignore: tuple = ()
@@ -81,6 +83,7 @@ class Rule:
     marks: str = "people"
     grid_fixes: str = "people"
     typed_clues: str = "people"
+    owner_ids: tuple = ()
 
 
 def rule_of(repo: Path, **over) -> Rule:
@@ -469,7 +472,7 @@ def ledger(repo: Path) -> list[dict]:
     return [json.loads(line) for line in f.read_text(encoding="utf-8").splitlines() if line.strip()] if f.exists() else []
 
 
-def from_site(decisions: dict, have: list[dict], pids: set) -> list[dict]:
+def from_site(decisions: dict, have: list[dict], pids: set, batches=frozenset()) -> list[dict]:
     """Helpers' Ready / Not ready from the review site (blitz site-import's file) as ledger records,
     in the shape xword-ocr's batchpage.take_decisions writes: proof:<pid> by "<helper> (review site)".
     One already in the ledger as it stands (same answer, same time) isn't made again."""
@@ -492,15 +495,19 @@ def from_site(decisions: dict, have: list[dict], pids: set) -> list[dict]:
                         "at": p.get("at", ""), "via": SITE, "proof": {"xdid": pid, "review": review, "at": p.get("at", "")}})
     # the batch page's "Publish the edition" (site/schema-8-edition-publish.sql): publish-edition:<batch> by "<name> (review
     # site)", answer publish, or unpublish when taken back. Whether it counts (the owner's only) is edition.publications' to say.
-    olds = {(r["id"], r.get("by")): r for r in have if str(r.get("id", "")).startswith("publish-edition:")}
-    for batch, by_name in sorted((decisions.get("edition_publish") or {}).items()):
-        for name, d in sorted(by_name.items(), key=lambda kv: kv[1].get("at", "")):
-            by, answer = f"{name} ({SITE})", "publish" if d.get("published") else "unpublish"
-            o = olds.get((f"publish-edition:{batch}", by)) or {}
+    # Only this publication's batches (`batches`): a row for any other batch name is dropped. Each record keeps the
+    # account id (`account`), which is what counts, not the name typed.
+    olds = {(r["id"], r.get("account")): r for r in have if str(r.get("id", "")).startswith("publish-edition:")}
+    for batch, by_account in sorted((decisions.get("edition_publish") or {}).items()):
+        if batch not in batches:
+            continue
+        for account, d in sorted(by_account.items(), key=lambda kv: kv[1].get("at", "")):
+            by, answer = f"{d.get('who') or 'a helper'} ({SITE})", "publish" if d.get("published") else "unpublish"
+            o = olds.get((f"publish-edition:{batch}", account)) or {}
             if o.get("answer") == answer and o.get("at") == d.get("at", ""):
                 continue
             out.append({"id": f"publish-edition:{batch}", "answer": answer, "note": str(d.get("note") or "").strip()[:500], "by": by,
-                        "at": d.get("at", ""), "via": SITE})
+                        "account": account, "at": d.get("at", ""), "via": SITE})
     return out
 
 
@@ -1186,7 +1193,7 @@ def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict |
         raise Stop(f"No triage record for {run} at {harvest / 'triage' / run}: run xword-ocr triage --proof first.")
     recs = ledger(repo)
     pids = [p["pid"] for p in tri["puzzles"]]
-    new_site = from_site(site, recs, set(pids)) if site else []
+    new_site = from_site(site, recs, set(pids), {batch or run}) if site else []
     recs += new_site
     latest, proofs = {}, {}
     for r in recs:
@@ -2211,14 +2218,29 @@ def _printed(ocr: dict, review: dict, edits: dict | None = None) -> list[dict]:
             if edits.get(f"keep:B{ln.get('n')}", ln.get("keep", True)) and ln.get("label") and (ln.get("text") or "").strip()]
 
 
+def take_in_site(repo: Path, rows: list[dict]) -> int:
+    """The review site's records a run used, appended to the ledger (fixes/decisions.jsonl) unless it already holds
+    them (same id, by, account, answer and time), so whatever the run writes from them can be made again from the repo
+    alone. Returns how many were appended."""
+    if not rows:
+        return 0
+    key = lambda r: (r.get("id"), r.get("by"), r.get("account", ""), r.get("answer"), r.get("at"))
+    have = {key(r) for r in ledger(repo)}
+    new = [r for r in rows if key(r) not in have]
+    if new:
+        f = Path(repo) / "fixes" / "decisions.jsonl"
+        f.parent.mkdir(parents=True, exist_ok=True)
+        with f.open("a", encoding="utf-8", newline="\n") as fh:
+            fh.writelines(json.dumps(r, ensure_ascii=False) + "\n" for r in new)
+    return len(new)
+
+
 def write(repo: Path, p: dict, today: str = "") -> dict:
     """plan()'s result into the publication's repo: the review site's decisions into the ledger, the
     passing puzzles' xd files and pins, their provenance rows, gxd-exports.tsv, and the batch's ship
     record. Returns {written: [xdid], ledger: n}."""
     repo, today = Path(repo), today or date.today().isoformat()
-    if p["site"]:
-        with (repo / "fixes" / "decisions.jsonl").open("a", encoding="utf-8", newline="\n") as fh:
-            fh.writelines(json.dumps(r, ensure_ascii=False) + "\n" for r in p["site"])
+    take_in_site(repo, p["site"])
     written = []
     for pid, x in sorted(p["passing"].items()):
         if x["row"]["status"] == "shipped":
@@ -2335,6 +2357,8 @@ def record(p: dict, public: bool = True) -> dict:
 def editions_published(p: dict) -> int:
     """How many of the plan's puzzles the manifest lists as published: shipped (in xd/), with its edition made, in a
     batch whose edition the owner has published."""
+    if p.get("edition_run"):  # the step ran with this record: the manifest's count, so the two agree
+        return p["edition_run"]["published_by_batch"].get(p["batch"], 0)
     if not (p.get("edition_published") or {}).get("published"):
         return 0
     eds = p.get("editions") or {}
@@ -2436,14 +2460,18 @@ def write_as_shipped(folder: Path, p: dict, rec: dict, public: bool = True) -> l
 
 
 def write_record(repo: Path, p: dict) -> Path:
+    """The batch's ship record and its as-shipped files into the publication repo, and the editions and the manifest.
+    The review site's records the plan used go into the ledger first (take_in_site), so the record, the editions and
+    the manifest all rest on what the repo holds, and blitz edition alone makes the same ones again."""
     f = Path(repo) / "pipeline" / "ship" / f"{p['batch']}.json"
     f.parent.mkdir(parents=True, exist_ok=True)
+    p["site_taken_in"] = take_in_site(repo, p.get("site") or [])
+    if (Path(repo) / "provenance.jsonl").exists():  # the editions and the manifest, from what is shipped (design/ship.md, "The edition")
+        from . import edition
+        p["edition_run"] = edition.run(repo, p["pub"], plan=p)
     rec = record(p)
     f.write_text(json.dumps(rec, ensure_ascii=False, indent=1) + "\n", encoding="utf-8", newline="\n")
     write_as_shipped(f.parent / p["batch"], p, rec)
-    if (Path(repo) / "provenance.jsonl").exists():  # the editions and the manifest, from what is shipped (design/ship.md, "The edition")
-        from . import edition
-        p["edition_run"] = edition.run(repo, p["pub"], plan=p, site=p.get("site") or [])
     return f
 
 

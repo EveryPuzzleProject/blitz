@@ -11,7 +11,7 @@ import pytest
 
 from blitz import edition
 from blitz.edition import FIXED_HEAD, NOTES_HEAD, make, older_path, read_manifest, run
-from blitz.ship import AGENT, SITE, Rule, as_shipped, export, from_site, plan, record, write
+from blitz.ship import AGENT, SITE, Rule, as_shipped, export, from_site, ledger, plan, record, write, write_record
 from test_ship import CHECK, XD
 from test_ship_edits import AI_BY, BOTH, P, said, shipped, xd_of
 from test_ship_linked import LEDGER, NO11, PERSON, RULE, SMALL, batch
@@ -20,13 +20,15 @@ X = "games1978-03-01"
 TOW = XD.replace("A3. Two ~", "A3. Tow ~")
 TYPO = [{"key": "clue:A3", "printed": "Tow", "meant": "Two"}]
 OWNER = "oops6498"
+ACCT = "0000-owner-account"  # the owner's review-site account id (Supabase user_id): what counts, not the name
+RULE_JSON = {"ai_ready": "both", "owner": [OWNER], "owner_ids": [ACCT]}
 
 
 def ship_one(tmp_path, typos=TYPO, xd=TOW, owner=True):
     repo, proofs, p = shipped(tmp_path, said(AI_BY, AGENT, {}, typos=typos), CHECK, xd=xd)
     if owner:
         (repo / "fixes").mkdir(exist_ok=True)
-        (repo / "fixes" / "ship-rule.json").write_text(json.dumps({"ai_ready": "both", "owner": [OWNER]}), encoding="utf-8")
+        (repo / "fixes" / "ship-rule.json").write_text(json.dumps(RULE_JSON), encoding="utf-8")
     write(repo, p, "2026-11-16")
     return repo, proofs
 
@@ -36,8 +38,9 @@ def ledger_add(repo, *recs):
         fh.writelines(json.dumps(r) + "\n" for r in recs)
 
 
-def publish(answer="publish", by=f"{OWNER} ({SITE})", at="2026-11-16T10:00:00Z", batch="b"):
-    return {"id": f"publish-edition:{batch}", "answer": answer, "by": by, "at": at, "via": SITE if SITE in by else "watch", "note": ""}
+def publish(answer="publish", by=f"{OWNER} ({SITE})", at="2026-11-16T10:00:00Z", batch="b", account=ACCT):
+    return {"id": f"publish-edition:{batch}", "answer": answer, "by": by, "at": at, "via": SITE if SITE in by else "watch", "note": "",
+            **({"account": account} if SITE in by else {})}
 
 
 def decline(key="clue:A3", printed="Tow", meant="Two", at="2026-11-16T11:00:00Z"):
@@ -73,9 +76,17 @@ def test_a_mark_it_cant_place_holds_the_edition_and_it_never_guesses():
     assert ed["text"] is None and ed["held"][0]["code"] == "mark-invalid"
     ed = make(TOW, [{"key": "cell:r1c1", "printed": "A", "meant": "B"}])                     # a key letter is ship's, not the edition's
     assert ed["held"][0]["code"] == "mark-invalid"
-    # the text review had already put the word right (ship's fits "already"): the note alone, not a hold
+    # the row already reads the words meant: the note alone only when a record shows the printed words were swapped
+    # (the reviewer's probe: printed "ZZQX", meant a word the row happens to have, wrote a false note)
     ed = make(XD, [{"key": "clue:A3", "printed": "Tow", "meant": "Two"}])
+    assert ed["text"] is None and ed["held"][0]["code"] == "mark-unplaced" and "nothing records" in ed["held"][0]["why"]
+    review = [{"key": "clue:A3", "before": "Tow", "after": "Two"}]                           # the text review's change
+    ed = make(XD, [{"key": "clue:A3", "printed": "Tow", "meant": "Two"}], evidence=review)
     assert ed["held"] == [] and ed["corrections"][0]["done"] == "noted" and "A3 is printed 'Tow'; corrected to 'Two'." in ed["text"]
+    assert make(XD, [{"key": "clue:A3", "printed": "ZZQX", "meant": "Two"}], evidence=review)["held"][0]["code"] == "mark-unplaced"
+    hdr = make(XD.replace("Title: T", "Title: The"), [{"key": "ev:title", "printed": "Teh", "meant": "The"}],
+               evidence=[{"key": "meta:title", "before": "Teh", "after": "The"}])           # a header under either name
+    assert hdr["held"] == []
 
 
 def test_a_key_correction_the_owner_declined_since_holds_the_edition():
@@ -102,7 +113,7 @@ def test_ship_writes_the_edition_its_record_and_the_manifest_and_leaves_xd_alone
     assert "A3. Two ~ CDE" in ed and ed.endswith("A3 is printed 'Tow'; corrected to 'Two'.\n")
     rec = json.loads((repo / "pipeline" / "edition.json").read_text(encoding="utf-8"))["puzzles"][X]
     assert rec["status"] == "made" and rec["inputs"]["transcription_sha256"] == edition.sha256(text.encode())
-    assert rec["inputs"]["marks"] == [["clue:A3", "Tow", "Two", AI_BY]] and rec["marks_from"] == "the ship plan"
+    assert rec["inputs"]["marks"] == [["clue:A3", "Tow", "Two"]] and rec["marks_from"] == "the ship plan"  # who isn't hashed
     (row,) = read_manifest(repo).values()
     assert list(row) == list(edition.COLS)
     assert (row["status"], row["why"], row["published"], row["record_url"]) == ("held", "not-published: the edition of the batch b has not been published", "", "")
@@ -134,7 +145,7 @@ def test_a_decline_remakes_exactly_that_edition_and_its_row_and_taking_it_back_r
 
 def test_only_the_owners_publish_mark_publishes_rows_and_taking_it_back_holds_them_again(tmp_path):
     repo, _ = ship_one(tmp_path)
-    ledger_add(repo, publish(by=f"pat ({SITE})"))                                          # a helper's: nothing
+    ledger_add(repo, publish(by=f"pat ({SITE})", account="helper-1"))                                          # a helper's: nothing
     assert run(repo, "games")["published"] == {} and read_manifest(repo)[X]["status"] == "held"
     ledger_add(repo, publish())
     run(repo, "games")
@@ -150,12 +161,14 @@ def test_a_held_edition_has_no_file_and_its_row_says_why(tmp_path):
     ledger_add(repo, publish())
     run(repo, "games")
     assert (repo / "edition" / f"{X}.xd").exists()
-    # the transcription changes under it (a re-ship) so the mark no longer finds its printed word once
+    # the transcription changes under it by hand: no record of its marks describes it any more, so nothing is guessed
     (repo / "xd" / f"{X}.xd").write_text(xd_of(repo).replace("A3. Tow ~", "A3. Tow or Tow ~"), encoding="utf-8")
     r = run(repo, "games")
-    assert r["holds"] == {"mark-unplaced": 1} and not (repo / "edition" / f"{X}.xd").exists()
+    assert r["holds"] == {"marks-stale": 1} and not (repo / "edition" / f"{X}.xd").exists()
+    assert r["sources"] == [{"xdid": X, "was": "the ship plan", "now": "nothing"}]           # said, not silent
     row = read_manifest(repo)[X]
-    assert row["status"] == "held" and row["why"].startswith("mark-unplaced: clue:A3") and row["edition"] == ""
+    assert row["status"] == "held" and row["why"].startswith("marks-stale") and row["edition"] == ""
+    # with its record's fingerprint, a mark it can't place holds as mark-unplaced (make(), above)
 
 
 def test_rows_are_never_dropped_a_puzzle_gone_from_xd_is_withdrawn(tmp_path):
@@ -187,17 +200,19 @@ def test_refusals(tmp_path):
         older_path(repo)
 
 
-def test_judges_one_off_manifest_lists_its_xd_as_editions_published_by_the_older_path(tmp_path):
+def test_judges_one_off_manifest_lists_its_xd_as_transcriptions_with_no_edition(tmp_path):
     (tmp_path / "xd").mkdir()
     for x in ("judge1924-11-01", "judge1924-11-08"):
         (tmp_path / "xd" / f"{x}.xd").write_text(XD.replace("Title: T\n", f"Title: T\nDate: {x[5:]}\nNumber: 1\n"), encoding="utf-8")
     cols = "gxd_id\txdid\tdate\tnumber\tgxd_mr\texported\tproof_url\trecord_url\n"
     (tmp_path / "gxd-exports.tsv").write_text(cols + "judge-001\tjudge1924-11-01\t1924-11-01\t1\trabidrat/gxd!198\t2026-10-12\tP\tR\n"
                                               "judge-002\tjudge1924-11-08\t1924-11-08\t2\t\t\tP2\t\n", encoding="utf-8")
-    assert older_path(tmp_path) == {"published": 1, "held": 1, "withdrawn": 0}
+    assert older_path(tmp_path) == {"published": 0, "held": 2, "withdrawn": 0}
     a, b = read_manifest(tmp_path).values()
-    assert (a["status"], a["published"], a["edition"], a["transcription"], a["record_url"], a["proof_url"]) == ("published", "2026-10-12", "xd/judge1924-11-01.xd", "", "R", "P")
-    assert a["why"].startswith("older-path: published on 2026-10-12") and b["why"].startswith("not-published")
+    assert (a["status"], a["published"], a["edition"], a["edition_sha256"], a["transcription"], a["record_url"], a["proof_url"]) == (
+        "held", "", "", "", "xd/judge1924-11-01.xd", "R", "P")
+    assert a["transcription_sha256"] == edition.sha256((tmp_path / "xd" / "judge1924-11-01.xd").read_bytes())
+    assert a["why"].startswith("older-path: shipped before the edition step") and b["why"] == a["why"]  # nothing to take
     assert not any("gxd" in v for r in (a, b) for v in r.values())                         # the manifest knows no downstream reader
     assert not (tmp_path / "edition").exists()
 
@@ -207,7 +222,7 @@ def test_judges_one_off_manifest_lists_its_xd_as_editions_published_by_the_older
 def test_the_record_and_the_as_shipped_file_carry_the_edition_and_whether_it_is_published(tmp_path):
     repo, proofs = ship_one(tmp_path)
     ledger_add(repo, publish())
-    p = plan(repo, proofs, Rule(ai_ready="both", owner=(OWNER,)), "b")
+    p = plan(repo, proofs, Rule(ai_ready="both", owner=(OWNER,), owner_ids=(ACCT,)), "b")
     rec = record(p)
     assert rec["edition_published"] == {"published": True, "at": "2026-11-16T10:00:00Z", "by": "the owner"} and rec["editions_published"] == 1
     assert record(p, public=False)["edition_published"]["by"] == f"{OWNER} ({SITE})"
@@ -217,12 +232,79 @@ def test_the_record_and_the_as_shipped_file_carry_the_edition_and_whether_it_is_
     assert doc["edition"]["corrections"][0]["note"] == "A3 is printed 'Tow'; corrected to 'Two'."
 
 
-def test_the_publish_mark_comes_in_from_the_site_as_a_ledger_record():
-    site = {"puzzles": {}, "edition_publish": {"b": {OWNER: {"published": True, "note": "", "at": "t1"}, "pat": {"published": False, "note": "", "at": "t2"}}}}
-    rows = from_site(site, [], set())
-    assert [(r["id"], r["answer"], r["by"], r["via"]) for r in rows] == [("publish-edition:b", "publish", f"{OWNER} ({SITE})", SITE),
-                                                                         ("publish-edition:b", "unpublish", f"pat ({SITE})", SITE)]
-    assert from_site(site, rows, set()) == []                                               # already in the ledger: not made again
+def test_the_publish_mark_comes_in_from_the_site_by_account_and_only_for_this_publications_batch():
+    site = {"puzzles": {}, "edition_publish": {
+        "b": {ACCT: {"who": OWNER, "published": True, "note": "", "at": "t1"}, "guest-1": {"who": "pat", "published": False, "note": "", "at": "t2"}},
+        "made-up-batch": {"guest-2": {"who": OWNER, "published": True, "note": "", "at": "t3"}}}}
+    rows = from_site(site, [], set(), {"b"})
+    assert [(r["id"], r["answer"], r["by"], r["account"], r["via"]) for r in rows] == [
+        ("publish-edition:b", "publish", f"{OWNER} ({SITE})", ACCT, SITE), ("publish-edition:b", "unpublish", f"pat ({SITE})", "guest-1", SITE)]
+    assert from_site(site, rows, set(), {"b"}) == []                                        # already in the ledger: not made again
+    assert from_site(site, [], set()) == []                                                 # no batch named: none taken
+
+
+def test_another_account_under_the_owners_name_publishes_nothing(tmp_path):
+    repo, _ = ship_one(tmp_path)
+    ledger_add(repo, publish(account="guest-impersonating"))                                # typed "oops6498" on the proof page
+    assert run(repo, "games")["published"] == {} and read_manifest(repo)[X]["status"] == "held"
+    ledger_add(repo, publish(account=""))                                                   # no account at all
+    assert run(repo, "games")["published"] == {}
+    ledger_add(repo, publish(by="Alex", at="2026-11-16T11:00:00Z"))                         # the owner's own tools (not via the site)
+    assert run(repo, "games")["published"] == {"b": {"at": "2026-11-16T11:00:00Z", "by": "Alex"}}
+
+
+def test_a_site_publish_mark_reaches_the_ledger_and_the_repo_alone_gives_the_same_manifest(tmp_path):
+    repo, proofs = ship_one(tmp_path)
+    site = {"puzzles": {}, "edition_publish": {"b": {ACCT: {"who": OWNER, "published": True, "note": "", "at": "2026-11-16T10:00:00Z"}}}}
+    p = plan(repo, proofs, Rule(ai_ready="both", owner=(OWNER,), owner_ids=(ACCT,)), "b", site)
+    write_record(repo, p)                                                                   # blitz ship --record
+    assert [r["id"] for r in ledger(repo)][-1] == "publish-edition:b"                       # taken into the ledger
+    files = {f: f.read_bytes() for f in (repo / "shipped.tsv", repo / "edition" / f"{X}.xd")}
+    assert read_manifest(repo)[X]["status"] == "published"
+    rec = json.loads((repo / "pipeline" / "ship" / "b.json").read_text(encoding="utf-8"))
+    assert rec["edition_published"]["published"] and rec["editions_published"] == 1         # the record agrees with the manifest
+    run(repo, "games")                                                                      # blitz edition: the repo alone
+    assert all(f.read_bytes() == b for f, b in files.items())
+    write_record(repo, plan(repo, proofs, Rule(ai_ready="both", owner=(OWNER,), owner_ids=(ACCT,)), "b", site))
+    assert sum(r["id"] == "publish-edition:b" for r in ledger(repo)) == 1                   # not taken in twice
+
+
+def test_the_public_as_shipped_copy_names_no_reviewer_and_record_and_edition_dont_churn(tmp_path):
+    repo, proofs, p = shipped(tmp_path, said(f"{OWNER} ({SITE})", SITE, {}, typos=TYPO), xd=TOW,
+                              rule=Rule(ai_ready="both", owner=(OWNER,), owner_ids=(ACCT,)))
+    (repo / "fixes" / "ship-rule.json").write_text(json.dumps(RULE_JSON), encoding="utf-8")
+    write(repo, p, "2026-11-16")
+    doc = as_shipped(p, record(p))[P]
+    assert [c["by"] for c in doc["edition"]["corrections"]] == ["the owner"] and OWNER not in json.dumps(doc["edition"])
+    write_record(repo, p)                                                                   # --record writes the public as-shipped copy
+    r = run(repo, "games")                                                                  # blitz edition reads that copy
+    assert (r["unchanged"], r["remade"]) == (1, 0)
+
+
+def test_a_withdrawn_puzzle_keeps_its_rows_values_and_loses_its_edition_file(tmp_path):
+    repo, _ = ship_one(tmp_path)
+    ledger_add(repo, publish())
+    run(repo, "games")
+    last = read_manifest(repo)[X]
+    (repo / "xd" / f"{X}.xd").unlink()
+    r = run(repo, "games")
+    row = read_manifest(repo)[X]
+    assert r["removed"] == [X] and not (repo / "edition" / f"{X}.xd").exists()
+    assert row["status"] == "withdrawn" and row["why"].startswith("not in xd/")
+    assert {k: row[k] for k in ("date", "number", "transcription", "transcription_sha256", "edition", "edition_sha256", "published")} == \
+           {k: last[k] for k in ("date", "number", "transcription", "transcription_sha256", "edition", "edition_sha256", "published")}
+
+
+def test_marks_apply_in_a_fixed_order_and_fingerprints_ignore_line_ends():
+    chain = [{"key": "clue:A3", "printed": "Foo", "meant": "Bar"}, {"key": "clue:A3", "printed": "Tow", "meant": "Foo"}]
+    assert make(TOW, chain)["text"] == make(TOW, chain[::-1])["text"]
+    assert edition.sha256(b"a\r\nb\n") == edition.sha256("a\nb\n")
+    assert len(edition.code_version()) == 16
+
+
+def test_a_printed_line_that_reads_as_a_block_head_holds_the_edition():
+    ed = make(XD, [], set(), ("instructions",), [{"label": "instructions", "text": NOTES_HEAD}])
+    assert ed["text"] is None and ed["held"][0]["code"] == "notes-head"
 
 
 def test_ship_export_is_unchanged_by_the_edition_step(tmp_path):
@@ -256,4 +338,5 @@ def test_the_exports_holds_are_not_the_editions_a_cryptic_with_no_key_is_publish
     (repo / "provenance.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
     ledger_add(repo, publish())
     run(repo, "games")
-    assert read_manifest(repo)[X]["status"] == "published"
+    row = read_manifest(repo)[X]
+    assert row["status"] == "published" and row["why"].startswith("cryptic-no-key: a cryptic with no key grid")
