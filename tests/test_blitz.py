@@ -133,6 +133,8 @@ def test_site_import_combines_helpers(monkeypatch):
                                       "review": {"edits": {"clue:A1": "Feline.", "line:B2": "One.\nTwo."}, "status": {"A": {"v": "ok"}},
                                                  "typos": [{"key": "meta:title", "printed": "No. 5", "meant": "No. 7"}]}}],
         "restores?select=*&order=at": [],  # dropped puzzles a helper put back (schema-7)
+        # the batch page's "Release to gxd" (schema-8): per batch, per account
+        "releases?select=*&order=batch,at": [{"batch": "games-1977-79", "user_id": uid["b"], "who": "Bo", "released": True, "note": "", "at": "t"}],
     }
     # the key-squares page: two guests who gave no name are told apart
     data["flags?select=xdid,sq,source,open,card&page=eq.key-squares&order=xdid,sq"] = [
@@ -144,7 +146,9 @@ def test_site_import_combines_helpers(monkeypatch):
         {"xdid": "p1", "sq": "r1c1", "user_id": "u3", "who": "Cy", "was": "I", "value": "T", "at": "t3"}]
     monkeypatch.setattr(site, "_rest", lambda method, path, *a, **k: data[path.split("&limit=")[0]]
                         if "offset=0" in path or "&limit=" not in path else [])
-    p = site.fetch_decisions()["puzzles"]["p1"]
+    got = site.fetch_decisions()
+    assert got["releases"] == {"games-1977-79": {"Bo": {"released": True, "note": "", "at": "t"}}}
+    p = got["puzzles"]["p1"]
     assert p["squares"]["open"] == ["r1c1"] and p["squares"]["cards"]["r2c2"]["suggest"] == "O"
     assert p["squares"]["checks"]["r1c1"] == {"a helper u1aaaa": {"was": "I", "value": "T", "at": "t1"},
                                               "a helper u2bbbb": {"was": "I", "value": "I", "at": "t2"},

@@ -35,6 +35,7 @@ from dataclasses import dataclass, replace
 from datetime import date, datetime, timezone
 from pathlib import Path
 
+from .edition import NOTE_LABELS, corrected, notes_labels  # noqa: F401 (the edition step's; ship-export uses them)
 from .work import Stop
 
 SITE, AGENT = "review site", "agent review"  # a ledger record's via: a helper's (the hosted proof page), an AI's
@@ -489,6 +490,17 @@ def from_site(decisions: dict, have: list[dict], pids: set) -> list[dict]:
                       **({k: p[k] for k in ("typos", "key_corrections", "declines") if p.get(k)})}
             out.append({"id": f"proof:{pid}", "answer": p["decision"], "note": (p.get("note") or "").strip(), "fix": "", "by": by,
                         "at": p.get("at", ""), "via": SITE, "proof": {"xdid": pid, "review": review, "at": p.get("at", "")}})
+    # the batch page's "Release to gxd" (site/schema-8-releases.sql): release:<batch> by "<name> (review site)", answer
+    # release, or undo when taken back. Whether it counts (the owner's only) is edition.releases' to say.
+    olds = {(r["id"], r.get("by")): r for r in have if str(r.get("id", "")).startswith("release:")}
+    for batch, by_name in sorted((decisions.get("releases") or {}).items()):
+        for name, d in sorted(by_name.items(), key=lambda kv: kv[1].get("at", "")):
+            by, answer = f"{name} ({SITE})", "release" if d.get("released") else "undo"
+            o = olds.get((f"release:{batch}", by)) or {}
+            if o.get("answer") == answer and o.get("at") == d.get("at", ""):
+                continue
+            out.append({"id": f"release:{batch}", "answer": answer, "note": str(d.get("note") or "").strip()[:500], "by": by,
+                        "at": d.get("at", ""), "via": SITE})
     return out
 
 
@@ -1390,9 +1402,13 @@ def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict |
         if row["status"] == "held" and p and (repo / "xd" / f"{p['xdid']}.xd").exists():
             row.update(xdid=p["xdid"], why=row["why"] + f" (already in xd/ as {p['xdid']})")
     groups = queues(rows)
-    return {"groups": groups, "pub": pub or re.match(r"[a-z]+", repo.name)[0], "batch": batch or run, "run": run, "packets": rel, "rule": {"ai_ready": rule.ai_ready, "hold_codes": list(rule.hold_codes),
+    out = {"groups": groups, "pub": pub or re.match(r"[a-z]+", repo.name)[0], "batch": batch or run, "run": run, "packets": rel, "rule": {"ai_ready": rule.ai_ready, "hold_codes": list(rule.hold_codes),
             "ignore": list(rule.ignore), "owner": list(rule.owner), **{k: getattr(rule, k) for k in WHOSE_INPUT}}, "rows": rows, "passing": passing, "pins": [p for p in pins if p["xdid"] in {x["xdid"] for x in passing.values()}],
             "site": new_site, "packs": packs}
+    from . import edition  # the edition of each passing puzzle and the batch's release mark (design/ship.md, "The edition")
+    out["editions"] = edition.preview(repo, out["pub"], out, recs, rule)
+    out["release"] = edition.release_of(recs, rule, out["batch"])
+    return out
 
 
 def counts(rows: list[dict]) -> dict:
@@ -2024,31 +2040,7 @@ def owner_declines(repo: Path, pid: str, rule: Rule) -> set:
             for r in latest.values() for d in ((r.get("proof") or {}).get("review") or {}).get("declines") or [] if isinstance(d, dict)}
 
 
-def corrected(text: str, corrections: list[dict]) -> tuple[str, list[str], list[dict]]:
-    """A shipped xd with its corrections of the print (a clue's, a header's) applied, for the gxd export: (the
-    text, the editorial notes for the xd's notes, what became of each: [{key, printed, meant, by, done, note}]).
-    done: applied (the printed word was there once, and the word meant is in its place), noted (the xd already
-    had the word meant: the note alone), not applied (neither is there, or it can't be placed: nothing is
-    changed, and nothing is said in the notes)."""
-    notes, rows = [], []
-    for c in corrections or []:
-        key, printed, meant = c.get("key") or "", c.get("printed") or "", c.get("meant") or ""
-        heads, _, clues = _read(text)
-        done, note = "not applied", ""
-        if not mark_problem(c) and _TYPO_KEY.fullmatch(key) and not key.startswith("cell:"):
-            cur = clues.get(key[5:]) if key.startswith("clue:") else heads.get(HEADER[_field(key)])
-            if cur is not None and _count(cur, printed) == 1:  # the printed word, whole, once: the word meant takes its place
-                ek = key if key.startswith("clue:") else f"meta:{_field(key)}"
-                new, did = apply_edits(text, {ek: _swap(cur, printed, meant)})
-                if ek in did:  # said to be applied only when it was (a linked-ends xd can refuse an edit)
-                    text, done = new, "applied"
-            elif cur is not None and not _count(cur, printed) and _count(cur, meant):
-                done = "noted"
-            note = f"{_label(key, _pairs(text))} is printed '{printed}'; corrected to '{meant}'." if done != "not applied" else ""
-        if note:
-            notes.append(note)
-        rows.append({"key": key, "printed": printed, "meant": meant, "by": c.get("by", ""), "done": done, "note": note})
-    return text, notes, rows
+# corrected(), the correction of the print, lives in edition.py since 2026-11-16 (the edition step); imported above.
 
 
 def with_notes(text: str, lines: list[str], head: str = NOTES_HEAD) -> str:
@@ -2333,7 +2325,28 @@ def record(p: dict, public: bool = True) -> dict:
             "at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "counts": counts(p["rows"]),
             "groups": p["groups"], "spot": {"one_in": SPOT_ONE_IN, "of": "puzzles shipped on someone else's word than the owner's",
                                             "by": "sha1 of the puzzle's id"},
-            "puzzles": [{**row, **{k: r[k] for k in ("notes", "corrections", "proposals", "typed") if r.get(k)}, **_recorded_more(p, r)} for row, r in zip(rows, p["rows"])]}
+            "puzzles": [{**row, **{k: r[k] for k in ("notes", "corrections", "proposals", "typed") if r.get(k)}, **_recorded_more(p, r)} for row, r in zip(rows, p["rows"])],
+            # the owner's "Release to gxd" for the batch (the ledger's release:<batch>) and how many puzzles are available
+            # to gxd: shipped (in xd/), its edition made, the batch released (design/ship.md, "The edition")
+            "release": _release_public(p.get("release") or {"released": False, "at": "", "by": ""}, public),
+            "available": available(p)}
+
+
+def available(p: dict) -> int:
+    """How many of the plan's puzzles the manifest makes available to gxd: shipped (in xd/), with its edition made,
+    no NOT_EXPORTED code, in a released batch."""
+    if not (p.get("release") or {}).get("released"):
+        return 0
+    eds, passing = p.get("editions") or {}, p.get("passing") or {}
+    return sum(1 for r in p["rows"] if r["status"] == "shipped" and (eds.get(r["pid"]) or {}).get("status") == "made"
+               and not set((passing.get(r["pid"]) or {}).get("row", {}).get("codes") or []) & set(NOT_EXPORTED))
+
+
+def _release_public(rel: dict, public: bool) -> dict:
+    """The release state as the record shows it: the owner's review-site account is "the owner" in the public copy."""
+    if public and str(rel.get("by", "")).endswith(f"({SITE})"):
+        return {**rel, "by": "the owner"}
+    return dict(rel)
 
 
 def _recorded_more(p: dict, r: dict) -> dict:
@@ -2343,7 +2356,11 @@ def _recorded_more(p: dict, r: dict) -> dict:
     pk = (p.get("packs") or {}).get(r["pid"]) or {}
     place = printed_place(pk.get("xd", ""), pk.get("ocr") or {}, pk.get("review") or {})
     x = (p.get("passing") or {}).get(r["pid"])
-    return {**({"printed": place} if place else {}), **({"as_shipped": fingerprint(x["text"])} if x else {})}
+    ed = (p.get("editions") or {}).get(r["pid"])
+    return {**({"printed": place} if place else {}), **({"as_shipped": fingerprint(x["text"])} if x else {}),
+            # its edition (edition/<xdid>.xd): made, with its fingerprint, or held, with the codes that hold it
+            **({"edition": {"status": ed["status"], "xd_fp": ed["xd_fp"], "held": [h["code"] for h in ed["held"]],
+                            "corrections": sum(c["done"] != "not applied" for c in ed["corrections"])}} if ed else {})}
 
 
 # ---- the xd as it will ship: one file per passing puzzle, beside the ship record ----------------
@@ -2387,7 +2404,11 @@ def as_shipped(p: dict, rec: dict, public: bool = True) -> dict[str, dict]:
             "proposals": [pub(q) for q in x.get("proposals", [])],
             # clues a person typed where no text was read: in the xd's notes too (TYPED_HEAD)
             "typed": [pub(t) for t in x.get("typed") or []],
-            "printed": _printed(pk["ocr"], pk["review"], {k: v for k, v in (x.get("edit_values") or {}).items() if k in x["edits"]})}
+            "printed": _printed(pk["ocr"], pk["review"], {k: v for k, v in (x.get("edit_values") or {}).items() if k in x["edits"]}),
+            # the edition made from this xd (design/ship.md, "The edition"): what gxd is offered, the corrections it made
+            # and the notes it took; held (no text) when a mark can't be placed
+            **({"edition": {**ed, "corrections": [pub(c) for c in ed["corrections"]], "declined": [pub(c) for c in ed["declined"]]}}
+               if (ed := (p.get("editions") or {}).get(pid)) else {})}
     return out
 
 
@@ -2420,6 +2441,9 @@ def write_record(repo: Path, p: dict) -> Path:
     rec = record(p)
     f.write_text(json.dumps(rec, ensure_ascii=False, indent=1) + "\n", encoding="utf-8", newline="\n")
     write_as_shipped(f.parent / p["batch"], p, rec)
+    if (Path(repo) / "provenance.jsonl").exists():  # the editions and the manifest, from what is shipped (design/ship.md, "The edition")
+        from . import edition
+        p["edition_run"] = edition.run(repo, p["pub"], plan=p, site=p.get("site") or [])
     return f
 
 
@@ -2427,7 +2451,6 @@ def write_record(repo: Path, p: dict) -> Path:
 
 KEEP = ("Title", "Author", "Editor", "Date", "Number", "Byline", "Rebus", "Special", "Notes")
 FLATTEN = str.maketrans({"“": '"', "”": '"', "‘": "'", "’": "'"})  # gxd's lint wants plain quotes
-NOTE_LABELS = ("intro", "instructions")  # the printed lines that go in gxd's notes when the publication has no Notes rule
 NOT_EXPORTED = {"cryptic-no-key": "a cryptic with no key grid: kept in xd/, not exported"}  # triage codes the export holds back
 
 
@@ -2459,13 +2482,7 @@ def to_gxd(text: str, notes: list[str] = (), feature_as: str | None = None) -> s
     return out
 
 
-def notes_labels(repo: Path, pub: str) -> tuple[tuple, str]:
-    """The line labels whose kept lines go in gxd's notes: the owner's Notes rule in the ledger
-    (notes-rule:<pubid>, set on the batch page), else NOTE_LABELS. Returns (labels, where it came from)."""
-    rec = next((r for r in reversed(ledger(repo)) if r["id"] == f"notes-rule:{pub}"), None)
-    if rec and rec.get("answer") is not None:
-        return tuple((rec.get("notes_rule") or {}).get("labels") or []), f"the Notes rule of {rec.get('at', '')[:10]} by {rec.get('by', '')}"
-    return NOTE_LABELS, "no Notes rule recorded: the default (intro, instructions)"
+# notes_labels() and NOTE_LABELS, the Notes rule, live in edition.py since 2026-11-16 (the edition step); imported above.
 
 
 COMMANDS = """# {pub}: {n} puzzles to gxd (a dry run: none of this has been run)
