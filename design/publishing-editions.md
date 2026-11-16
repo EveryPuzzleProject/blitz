@@ -283,7 +283,7 @@ Three normalizations exist, in different places, and nothing says which side own
 
 gxd's own rule for a publisher's clue typo is to fix it in git only, with no note (`CONTRIBUTING.md`,
 "Editing puzzles already in the corpus"). EPP's edition carries a note for each correction; whether
-gxd keeps those notes or strips them is house style, and Saul's to say.
+gxd keeps those notes or strips them is house style (see "Decided by the owner" below).
 
 
 ### The linked-ends xd in gxd
@@ -340,17 +340,36 @@ Freeze `ship-export` now (no linked-ends support, no new features). Then:
 5. **Collegian, then GAMES** once each series' edition is published, each as one pull and one MR.
 
 
-### Open questions for Saul
+### Decided by the owner (2026-11-16)
 
-- No hand edits to EPP puzzles in gxd: fixes go back to EPP and come in as re-imports. Acceptable?
-- EPP's edition carries a note for each clue or header misprint it corrected. Does gxd keep those
-  notes, or strip them as its own rule (typo fixes in git only) would?
-- Receipts `ExternalSource` per puzzle (the record page) and a package folder as `SourceFilename`
-  (holding the edition, the transcription and the page crops).
-- Linked-ends files: drop `Clues:` and `Numbering:` to match his 1913 files, or does xdformat want
-  the numbering map?
-- Puzzles whose only Ready is an AI reviewer's (the Collegian): in, held, or marked?
-- Withdrawals: always a review MR, never automatic?
+These were the open questions for Saul. The owner is now primary on gxd and answered them:
+
+- **Errors vs editorial changes.** An error found in an EPP puzzle in gxd (a wrong letter, a misread
+  clue) is fixed in EPP and comes back into gxd as a re-import: errors go upstream. An editorial change
+  that is gxd's own convention (a header, house style) may be made on gxd's side and is not upstreamed:
+  EPP and gxd may have different editorial conventions.
+- **Receipts stay simple.** `ExternalSource` is the EPP project URL, as elsewhere (Judge's 531 rows point
+  at `https://github.com/EveryPuzzleProject/judge`), not a per-puzzle record page. The detailed URLs (record
+  page, proof page, page crops, transcription) go in the source archive (its `MANIFEST.tsv` / package
+  folder), not in receipts. This changes "Provenance and credit in gxd" above: crossref's per-puzzle credit
+  link can't come from `ExternalSource` alone.
+- **AI-Ready puzzles may ship**, into gxd too. What's needed is a process for working backwards when a
+  problem is found after the fact: correct it in EPP, re-publish the edition, and gxd's re-import picks it
+  up (the update-in-place path, held for review when it touches the grid or answers). To be written.
+- **Notes in the xd.** The only editorial notes that belong in an xd file are ones about correcting a
+  **misprint in the printed text**; never notes about correcting OCR or reading errors. Notes about the
+  process (reading fixes, typed-by-hand clues, who decided what) belong in a **sidecar** outside the xd,
+  not in it (blitz already keeps `provenance.jsonl` and the as-shipped records, a starting point). gxd
+  strips EPP's other correction notes on import.
+
+Still open:
+
+- Whether gxd keeps EPP's misprint-correction notes, or follows its own rule (a publisher's clue typo
+  fixed in git only, no note). The owner's answer reads both ways: "strip EPP's correction notes" and
+  "the only notes in the xd concern misprints in the text".
+- Linked-ends files: drop `Clues:` and `Numbering:` to match the 1913 files (the recommendation), or carry
+  the numbering map in xdformat.
+- Withdrawals: always a review MR in gxd, never an automatic delete (the recommendation).
 
 
 ### What I could not determine from the repos
