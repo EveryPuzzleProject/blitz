@@ -436,8 +436,8 @@ def cmd_ship(a) -> None:
     print(f"edits in what ships: {len(recs)} in {sum(bool(x.get('edit_records')) for x in p['passing'].values())} puzzle(s)"
           + (" (" + ", ".join(f"{w} {n}" for w, n in kinds.items()) + ")" if kinds else "") + ", each with its record in provenance.jsonl; "
           f"{sum(len(x.get('notes', [])) for x in p['passing'].values())} corrected key letter(s) noted in the xd; "
-          f"{len(fixes)} correction(s) of the print proposed for the gxd export, not applied here"
-          + (f" ({sum(c['fits'] != 'printed' for c in fixes)} the export can't place or finds already made)" if fixes else ""))
+          f"{len(fixes)} correction(s) of the print proposed for the edition, not applied here"
+          + (f" ({sum(c['fits'] != 'printed' for c in fixes)} the edition can't place or finds already made)" if fixes else ""))
     for pid, x in sorted(p["passing"].items()):  # nothing says whether these fix a reading or correct the print: said, not guessed
         for e in x.get("edit_records", []):
             if e["class"] == "unclassed":
@@ -678,7 +678,9 @@ def main(argv=None) -> None:
     q.add_argument("--proof", required=True, help="the run's proof packets, e.g. ../xword-ocr/harvests/games-7779/proof/run15-restart")
     q.add_argument("--batch", help="the batch's name on the review site (default: the run's name)")
     q.add_argument("--repo", help="the publication's checkout (default ../<pub>)")
-    q.add_argument("--decisions", help="a site-import file instead of fetching helpers' decisions from the review site")
+    q.add_argument("--decisions", help="a site-import file instead of fetching helpers' decisions from the review site. With "
+                                       "--record or --write its records are written into the publication's ledger: point a "
+                                       "hand-made file only at a scratch copy")
     q.add_argument("--no-site", action="store_true", help="the ledger only: don't read the review site")
     q.add_argument("--ai-ready", choices=("off", "both", "either"),
                    help="let an AI count as the one Ready: both (the AI reviewer's Ready and a passing ship check) or either; "
@@ -692,7 +694,8 @@ def main(argv=None) -> None:
     q.add_argument("--record", action="store_true", help="status only: write the batch's ship record (pipeline/ship/<batch>.json) "
                                                          "and ship nothing")
     q.add_argument("--snapshot", action="append", help="also write ship.json into this batch snapshot folder (repeatable)")
-    q.add_argument("--publish", action="store_true", help="put ship.json on the review site, beside the batch's batch.json")
+    q.add_argument("--publish", action="store_true", help="put the ship record (ship.json) and its as-shipped files on the review site, beside the batch's batch.json; "
+                                                         "this does not publish the edition (the owner's Publish the edition on the batch page does)")
     q.add_argument("--json", action="store_true")
     q.set_defaults(fn=cmd_ship)
     q = sub.add_parser("ship-export", help="the gxd export of the publication's shipped puzzles, as files: nothing is sent")

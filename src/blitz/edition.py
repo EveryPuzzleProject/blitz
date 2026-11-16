@@ -151,6 +151,7 @@ def make(text: str, marks: list[dict] = (), declines=(), labels=NOTE_LABELS, pri
                 continue
             held.append({"code": "mark-unplaced", "why": f"{r['key']}: '{r['printed']}' -> '{r['meant']}': the row reads the words meant "
                          "and nothing records the printed words being there (no text-review change or edit swapped them)"})
+            rows[rows.index(r)] = {**r, "done": "holds", "note": ""}  # its own state: the mark that holds the edition, no note
             continue
         bad = mark_problem(c) or not _TYPO_KEY.fullmatch(r["key"]) or r["key"].startswith("cell:")
         say = (f"{r['key']}: '{r['printed']}' -> '{r['meant']}': "
@@ -188,7 +189,7 @@ def kinds(transcription: str, ed: dict) -> list[str]:
     (the Notes rule's block); [] when they are the same."""
     if not ed.get("text") or ed["text"] == transcription:
         return []
-    return [k for k, on in (("misprint", any(r["done"] != "not applied" for r in ed["corrections"])), ("notes", bool(ed["notes"]))) if on]
+    return [k for k, on in (("misprint", any(r["done"] in ("applied", "noted") for r in ed["corrections"])), ("notes", bool(ed["notes"]))) if on]
 
 
 # ---- the mark that publishes the edition ---------------------------------------------------------------------------------------------
@@ -386,7 +387,7 @@ def run(repo: Path, pub: str, plan: dict | None = None, today: str = "") -> dict
         else:
             status, why = "published", "; ".join(f"{c}: {CODES[c]}" for c in row.get("codes") or [] if c in CODES)
             summary["published_by_batch"][row.get("batch", "")] = summary["published_by_batch"].get(row.get("batch", ""), 0) + 1
-        rows[xdid] = {**mrow, "status": status, "why": why, "published": (pub_mark or {}).get("at", "")[:10],
+        rows[xdid] = {**mrow, "status": status, "why": why, "published": (pub_mark or {}).get("at", "")[:10] if status == "published" else "",
                       **({"edition": f"{EDITION}/{xdid}.xd", "edition_sha256": ed_entry["edition_sha256"]} if ed_entry["status"] == "made" else {})}
     rec_file.parent.mkdir(parents=True, exist_ok=True)
     rec_file.write_text(json.dumps({"_about": "blitz edition: what each puzzle's edition (edition/<xdid>.xd) was made from, so it is made "

@@ -352,7 +352,7 @@ function shippedHtml(d) {
 const editionRow = (pid, k) => proofAt(pid, k);
 // the edition made from that xd (the file's edition: design/ship.md, "The edition"): what the publication publishes, drawn as
 // recorded, with the corrections of the print it made, the marks the owner declined, and the notes the Notes rule took
-const ED_DONE = {applied: 'corrected, with its note', noted: 'the note only: the text already had the words meant', 'not applied': 'not placed: it holds the edition'};
+const ED_DONE = {applied: 'corrected, with its note', noted: 'the note only: the text already had the words meant', 'not applied': 'not placed: the mark that holds the edition', holds: 'the mark that holds the edition: the row reads the words meant, and nothing records the printed words being there'};
 const ED_KIND = {misprint: 'misprints corrected', notes: 'the puzzle notes'};
 function editionHtml(d) {
   const e = d.edition;

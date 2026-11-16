@@ -10,10 +10,12 @@
 --   each publication's fixes/ship-rule.json `owner_ids`: the accounts blitz ship counts a row from.
 -- One row per account per batch: published or not, a note, when. blitz ship takes each into the publication's ledger
 -- as publish-edition:<batch>, with the account id, and only for that publication's batch.
--- Run once in the Supabase SQL editor. Safe to run again. Then, once, add the owner's account id (Authentication ->
--- Users in the Supabase dashboard, the account the proof page signs in with):
+-- Run once in the Supabase SQL editor. Safe to run again. Then the owner's account id, once (blitz design/ship.md,
+-- "Publishing the edition: one-time setup"). The site signs people in anonymously, so the id belongs to one browser:
+-- submit a review once in the browser you will publish from, take its user_id (the proofs row you just made, or
+-- Authentication -> Users), and add it here and to `owner_ids` in each publication's fixes/ship-rule.json:
 --   insert into edition_publishers (user_id) values ('<the owner''s user_id>') on conflict do nothing;
--- An anonymous sign-in's id belongs to one browser: publish from an account signed in with a provider, or add each id.
+-- Repeat if that browser's site data is cleared. (A provider sign-in, one id everywhere, is a follow-up.)
 
 create table if not exists edition_publishers (
   user_id uuid primary key references auth.users on delete cascade
@@ -36,9 +38,17 @@ create table if not exists edition_publish (
 alter table edition_publish enable row level security;
 drop policy if exists "read edition_publish" on edition_publish;
 create policy "read edition_publish" on edition_publish for select to anon, authenticated using (true);
+-- Rows are added and changed only by a listed account, and never deleted (taking the edition back is a row with
+-- published false): a delete before blitz ship takes the row in would make a publish vanish, and an account
+-- removed from edition_publishers could still delete its old rows.
 drop policy if exists "own edition_publish" on edition_publish;
-create policy "own edition_publish" on edition_publish for all to authenticated
-  using (user_id = auth.uid())
+drop policy if exists "publisher inserts" on edition_publish;
+drop policy if exists "publisher updates" on edition_publish;
+create policy "publisher inserts" on edition_publish for insert to authenticated
+  with check (user_id = auth.uid() and exists (select 1 from edition_publishers p where p.user_id = auth.uid()));
+create policy "publisher updates" on edition_publish for update to authenticated
+  using (user_id = auth.uid() and exists (select 1 from edition_publishers p where p.user_id = auth.uid()))
   with check (user_id = auth.uid() and exists (select 1 from edition_publishers p where p.user_id = auth.uid()));
 grant select on edition_publish to anon, authenticated;
-grant insert, update, delete on edition_publish to authenticated;
+revoke delete on edition_publish from anon, authenticated;
+grant insert, update on edition_publish to authenticated;

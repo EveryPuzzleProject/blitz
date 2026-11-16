@@ -1351,7 +1351,7 @@ function xdNotesSection() {
 }
 
 // ---- the xd as it will ship: blitz ship's file beside the batch's record (as-shipped/<pid>.json), drawn as recorded:
-// the exact text --write writes, which decision ships it, every edit's record, and what the gxd export will do ----
+// the exact text --write writes, which decision ships it, every edit's record, and the edition made from it ----
 const CLASS_SAYS = {reading: 'a reading fix', unclassed: 'unclassed: nothing says whether it fixes a reading or the print',
   'key correction': "the key's misprint, corrected with a note", decision: 'a decision',
   typed: 'typed by hand: no text for it was read, so not a reading fix'};
@@ -1379,7 +1379,7 @@ function shippedHtml(d) {
 const editionRow = (pid, k) => `?p=${encodeURIComponent(pid)}&k=${encodeURIComponent(k)}`;
 // the edition made from that xd (the file's edition: design/ship.md, "The edition"): what the publication publishes, drawn as
 // recorded, with the corrections of the print it made, the marks the owner declined, and the notes the Notes rule took
-const ED_DONE = {applied: 'corrected, with its note', noted: 'the note only: the text already had the words meant', 'not applied': 'not placed: it holds the edition'};
+const ED_DONE = {applied: 'corrected, with its note', noted: 'the note only: the text already had the words meant', 'not applied': 'not placed: the mark that holds the edition', holds: 'the mark that holds the edition: the row reads the words meant, and nothing records the printed words being there'};
 const ED_KIND = {misprint: 'misprints corrected', notes: 'the puzzle notes'};
 function editionHtml(d) {
   const e = d.edition;
@@ -1425,7 +1425,7 @@ const markFate = (r, said, declined) => markFateText(marksCount(r), !!declined, 
 const markKeys = key => /^meta:/.test(key) ? [key, 'ev:' + (key.slice(5) === 'puzzle_number' ? 'number' : key.slice(5))] : [key];
 const marksAt = key => rounds.flatMap(r => (r.typos || []).filter(t => markKeys(key).includes(t.key)).map(t => [r, t]));
 // The owner's "not a misprint" on someone else's mark (blitz ship: the review's declines [{key, printed, meant, by}]):
-// the mark is not taken, never reaches the gxd export, and a key letter stays as printed. The owner's own edit on the
+// the mark is not taken, never reaches the edition, and a key letter stays as printed. The owner's own edit on the
 // row that keeps the printed words declines another person's mark as well, and the row says so. The owner can take a
 // decline back. Drawn from the reviews; ship's record decides.
 const ownerRound = r => !r.ai && (!SITE || !!((SHIP || {}).rule || {}).owner?.includes(r === cur ? cur.who : r.who));
@@ -1443,12 +1443,12 @@ function declineHtml(r, t, editKey) {
   const by = declinedBy(t), mine = by.includes(cur), owner = ownerRound(cur);
   const byEdit = byOwnersEdit(r, t, editKey);
   return (by.length ? ` <b class="declined">Declined by the owner${by.some(x => x !== cur) ? ` (${esc(by.filter(x => x !== cur).map(x => x.who).join(', '))})` : ''}: not a misprint.</b> <span class="hint">Not taken: not corrected at the gxd export${t.key.startsWith('cell:') ? ', and the letter stays as the key printed it' : ''}.</span>` : '')
-    + (byEdit ? ` <span class="hint"><b>Your edit on this row keeps the printed “${esc(t.printed)}”: it declines this mark</b> (not corrected at the gxd export).</span>` : '')
+    + (byEdit ? ` <span class="hint"><b>Your edit on this row keeps the printed “${esc(t.printed)}”: it declines this mark</b> (not corrected in the edition).</span>` : '')
     + (owner && !byEdit ? ` <button class="linkbtn decline" data-k="${esc(t.key)}" data-p="${esc(t.printed)}" data-m="${esc(t.meant ?? t.corrected ?? '')}" data-by="${esc(r.who)}">${mine ? 'take the decline back' : 'not a misprint'}</button>` : '');
 }
 function marksHtml(key) {
   return marksAt(key).map(([r, t]) => `<div class="mark"><b>Printed this way, but wrong</b> <span class="by" style="color:${r.color}">${esc(r.who)}</span>:
-    printed “${esc(t.printed)}”, meant “${esc(t.meant)}”. <span class="hint">${esc(markFate(r, `Stays as printed here; corrected to “${t.meant}” at the gxd export, with a note.`, isDeclined(r, t, key)))}</span>
+    printed “${esc(t.printed)}”, meant “${esc(t.meant)}”. <span class="hint">${esc(markFate(r, `Stays as printed here; corrected to “${t.meant}” in the edition, with a note.`, isDeclined(r, t, key)))}</span>
     ${declineHtml(r, t, key)}
     ${r === cur ? `<button class="linkbtn unmark" data-k="${esc(t.key)}" data-p="${esc(t.printed)}">take it back</button>` : ''}</div>`).join('');
 }
@@ -1466,7 +1466,7 @@ function markForm(host, key, now) {
   host.querySelector('.markform')?.remove();
   const box = document.createElement('div');
   box.className = 'compose markform';
-  box.innerHTML = `<div class="q">Printed this way, but wrong: the scan is good and the original has a mistake. blitz keeps it as printed; the gxd export corrects it, with a note.</div>
+  box.innerHTML = `<div class="q">Printed this way, but wrong: the scan is good and the original has a mistake. blitz keeps it as printed; the edition corrects it, with a note.</div>
     <label>Printed: <input class="mp" value="${esc(now)}"></label> <label>Meant: <input class="mm"></label>
     <div class="hint">Narrow “Printed” to the words that are wrong (“No. 5”), and give what was meant (“No. 7”).</div><div class="edhint bad" hidden></div>
     <div class="acts"><button class="skip">Cancel</button><button class="save">Save</button></div>`;
@@ -2679,7 +2679,7 @@ function headerSection(hs) {
     // anchors from the text step's list (#Title) land here too
     tr.innerHTML = `<th id="${esc(name)}">${esc(name)}</th>
       <td class="hv"><span class="v" contenteditable="true" spellcheck="false"></span>
-        ${marksHtml(k)}<button class="linkbtn markh" title="The scan is good and the original has a mistake: kept as printed here, corrected at the gxd export">✎ printed this way, but wrong…</button>
+        ${marksHtml(k)}<button class="linkbtn markh" title="The scan is good and the original has a mistake: kept as printed here, corrected in the edition, with a note">✎ printed this way, but wrong…</button>
         ${own ? `<div class="ovr" style="color:${last.color}">${esc(last.who)}'s value; the rule gives “${esc(derived)}” <button class="undo">use the rule's</button></div>` : ''}
         ${ask ? `<div class="askline"><b>${esc(ask.says)}</b> If it's printed, type it here as printed; if not, say so in a comment.</div>`
           : !derived && !own && gapOf(f) ? `<div class="askline">None printed: confirmed by ${esc(gapOf(f).by)}${gapOf(f).note ? ` (${esc(gapOf(f).note)})` : ''}. If you see a ${f} on the scan, type it here as printed.</div>`
@@ -2910,7 +2910,7 @@ function addRow(s, key, label, box, flags = [], src = null) {
     const cellNotes = isClue && (!meta || solo) ? entryCells(cl).flatMap(([r, c]) => [`cell:r${r+1}c${c+1}`, spKey(r, c)].flatMap(k => commentsFor(k).map(x => [...x, `r${r+1}c${c+1}`]))) : [];
     m.innerHTML = (isClue ? marksHtml(key) : '') + commentsFor(key).map(([r, c]) => noteHtml(r, c.text, c.why, c)).join('') +
       cellNotes.map(([r, c, at]) => noteHtml(r, `(square ${at}) ${c.text}`, c.why, c)).join('') + '<button class="addc">💬 Comment</button> <button class="addc flagc" title="You can’t settle this one from the scan: the next reviewer takes a second look. The rest of the part can still look good.">⚑ Not sure</button>'
-      + (isClue ? ' <button class="addc markc" title="The scan is good and the original has a mistake: kept as printed here, corrected at the gxd export">✎ Printed this way, but wrong…</button>' : '')
+      + (isClue ? ' <button class="addc markc" title="The scan is good and the original has a mistake: kept as printed here, corrected in the edition, with a note">✎ Printed this way, but wrong…</button>' : '')
       // with printed pairs, a text on the wrong word is moved by its pair, or every text from here on shifts a word
       + (isClue && linkedEnds() && !meta ? ` <span class="mv"><button class="addc mvb" title="This text belongs to another word: give that word's printed pair (the two numbers in its end squares). The texts swap.">⇄ Move text to…</button><button class="addc shb" data-d="1" title="The texts from this word to the end of the list each belong one word later (a clue was lost before this one): this word's clue becomes missing.">⇣ Shift texts later</button><button class="addc shb" data-d="-1" title="The texts from this word on each belong one word earlier (a line that isn't a clue was counted as one).">⇡ Shift texts earlier</button></span>` : '');
     if (open) m.prepend(open);

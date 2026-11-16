@@ -80,6 +80,7 @@ def test_a_mark_it_cant_place_holds_the_edition_and_it_never_guesses():
     # (the reviewer's probe: printed "ZZQX", meant a word the row happens to have, wrote a false note)
     ed = make(XD, [{"key": "clue:A3", "printed": "Tow", "meant": "Two"}])
     assert ed["text"] is None and ed["held"][0]["code"] == "mark-unplaced" and "nothing records" in ed["held"][0]["why"]
+    assert (ed["corrections"][0]["done"], ed["corrections"][0]["note"]) == ("holds", "")      # its own state, no note
     review = [{"key": "clue:A3", "before": "Tow", "after": "Two"}]                           # the text review's change
     ed = make(XD, [{"key": "clue:A3", "printed": "Tow", "meant": "Two"}], evidence=review)
     assert ed["held"] == [] and ed["corrections"][0]["done"] == "noted" and "A3 is printed 'Tow'; corrected to 'Two'." in ed["text"]
@@ -154,6 +155,11 @@ def test_only_the_owners_publish_mark_publishes_rows_and_taking_it_back_holds_th
     ledger_add(repo, publish("unpublish", at="2026-11-16T12:00:00Z"))
     run(repo, "games")
     assert read_manifest(repo)[X]["status"] == "held" and read_manifest(repo)[X]["published"] == ""
+    ledger_add(repo, publish(at="2026-11-16T13:00:00Z"))                                    # published again, then the edition held:
+    (repo / "xd" / f"{X}.xd").write_text(xd_of(repo) + chr(10), encoding="utf-8")              # no record describes the file now
+    run(repo, "games")
+    row = read_manifest(repo)[X]
+    assert (row["status"], row["published"]) == ("held", "")                                # a held row carries no published date
 
 
 def test_a_held_edition_has_no_file_and_its_row_says_why(tmp_path):

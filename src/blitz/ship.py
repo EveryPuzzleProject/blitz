@@ -2384,7 +2384,7 @@ def _recorded_more(p: dict, r: dict) -> dict:
     return {**({"printed": place} if place else {}), **({"as_shipped": fingerprint(x["text"])} if x else {}),
             # its edition (edition/<xdid>.xd): made, with its fingerprint, or held, with the codes that hold it
             **({"edition": {"status": ed["status"], "xd_fp": ed["xd_fp"], "held": [h["code"] for h in ed["held"]],
-                            "corrections": sum(c["done"] != "not applied" for c in ed["corrections"])}} if ed else {})}
+                            "corrections": sum(c["done"] in ("applied", "noted") for c in ed["corrections"])}} if ed else {})}
 
 
 # ---- the xd as it will ship: one file per passing puzzle, beside the ship record ----------------

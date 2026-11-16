@@ -443,7 +443,8 @@ What it does, in this order:
    linked-ends xd: "The clue for 1-2 is ..."). Where the row already reads the words meant (ship's `fits:
    already`), the note alone, but only when a record shows the printed words were there and were swapped (a
    text-review change or an edit record on that row, its before with the printed words and its after with the
-   words meant); otherwise the edition is held (`NOTED_NEEDS_EVIDENCE`, the project manager's default pending the
+   words meant); otherwise the edition is held, and that mark's row in `corrections` says `done: holds`, with no note
+   (`NOTED_NEEDS_EVIDENCE`, the project manager's default pending the
    owner: the reviewer's probe, printed "ZZQX" meant "insect", wrote a false note without it). A malformed mark,
    or one naming a key square, is never applied.
 2. The notes are added at the end of the xd's notes, after the transcription's own blocks (which all stay for
@@ -474,12 +475,25 @@ text: a change to it makes every edition again.
 undoes it (with a confirm: it recalls nothing a reader already took). It is an owner-only gate, and it goes by
 account id, never by the name typed on the proof page:
 
-- the site's `edition_publish` table (`site/schema-8-edition-publish.sql`) takes a row only from an account listed
-  in `edition_publishers`, and the batch page shows the button only to such an account;
+- the site's `edition_publish` table (`site/schema-8-edition-publish.sql`) takes and changes a row only from an
+  account listed in `edition_publishers`, and never deletes one (taking the edition back is a row with `published`
+  false; a delete before `blitz ship` takes a row in would make a publish vanish); the batch page shows the button
+  only to such an account;
 - `blitz ship` takes a row into the ledger only for the batch it is shipping, as `{id: "publish-edition:<batch>",
   answer: publish | unpublish, by: "<name> (review site)", account: <user_id>, via: "review site", at}`
   (`from_site`), and it counts only when `account` is one of the ship rule's `owner_ids` (`edition.publications`).
   A record from the owner's own tools (not via the review site or an agent) counts too.
+
+**One-time setup** (the owner's). The site signs people in anonymously only, so the owner's account id belongs to
+one browser: submit a review once on the proof page in the browser you will publish from; take that account's
+`user_id` (its row in the site's `proofs` table, or Authentication -> Users in the Supabase dashboard); run
+`site/schema-8-edition-publish.sql` once in the Supabase SQL editor; add the id to `edition_publishers` (the insert
+line in that file) and to `owner_ids` in each publication's `fixes/ship-rule.json`. Repeat if that browser's site
+data is cleared. A sign-in with a provider, one id on every browser, is a follow-up.
+
+**Careful with `--decisions <file>`.** `blitz ship --record` and `--write` write the records they use into the
+publication's ledger, including those from a file given with `--decisions`. Point a hand-made decisions file only at
+a scratch copy of a publication repo.
 
 The ship record carries `edition_published: {published, at, by}` ("the owner" in the public copy) and
 `editions_published`, the manifest's count of this batch's published rows. The batch page draws both above the
@@ -497,8 +511,8 @@ with any downstream reader (design/publishing-editions.md). It names no reader. 
 - `date`, `number`: the transcription's `Date:` and `Number:` headers as they are. `transcription`,
   `edition`: paths in the repo (`xd/<xdid>.xd`, `edition/<xdid>.xd`); empty when there is no such file.
   `*_sha256`: the full sha256 of the file's text with LF line ends, lowercase hex. `shipped_at`, `batch`: the
-  provenance row's. `published`: the date (YYYY-MM-DD) the owner published the edition of the row's batch, else
-  empty. `proof_url`: the proof page. `record_url`: only a page recorded as published, in
+  provenance row's. `published`: on a published row, the date (YYYY-MM-DD) the owner published the edition of its
+  batch; empty on any row that is not published (a held row in a published batch included). `proof_url`: the proof page. `record_url`: only a page recorded as published, in
   `pipeline/record-pages.tsv` (`xdid url`), never made from the URL pattern; today no publication has that file, so
   it is empty everywhere but Judge's one-off manifest, which copies Judge's live pages from its older list
   (`gxd-exports.tsv`). The World's list names record pages that were never published (404), and they are not copied.
