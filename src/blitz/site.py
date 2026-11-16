@@ -144,7 +144,7 @@ def build(root: Path) -> Path:
     page = (Path(__file__).parent / "batch.html").read_text(encoding="utf-8")
     old = "<script>\nconst $"
     assert old in page
-    # supabase-js: the owner's "Release to gxd" records a decision on the site, signed in as on the proof page
+    # supabase-js: the owner's "Publish the edition" records a decision on the site, signed in as on the proof page
     page = page.replace(old, '<script src="../config.js"></script>\n' f'<script src="{SUPABASE_JS}"></script>\n' + old)
     page = page.replace("<title>Batch</title>", BATCH_HEAD)
     (bt / "index.html").write_text(page, encoding="utf-8", newline="\n")
@@ -447,22 +447,22 @@ def fetch_decisions(agreed_only: bool = False) -> dict:
         restores = []
     for r in restores:
         get(r["xdid"]).setdefault("restores", {})[r.get("who") or who(r)] = {"note": r.get("note", ""), "at": r["at"]}
-    # the batch page's "Release to gxd" (site/schema-8-releases.sql): per batch, per account, released or taken back;
-    # blitz ship takes each into the publication's ledger as release:<batch>, and only the owner's counts
+    # the batch page's "Publish the edition" (site/schema-8-edition-publish.sql): per batch, per account, published or
+    # taken back; blitz ship takes each into the publication's ledger as publish-edition:<batch>, and only the owner's counts
     try:
-        rels = _rest_all("releases?select=*&order=batch,at")
-    except urllib.error.HTTPError:  # no releases table yet
-        rels = []
-    releases: dict[str, dict] = {}
-    for r in rels:
-        releases.setdefault(r["batch"], {})[r.get("who") or who(r)] = {"released": bool(r.get("released")), "note": r.get("note", ""), "at": r["at"]}
+        marks = _rest_all("edition_publish?select=*&order=batch,at")
+    except urllib.error.HTTPError:  # no edition_publish table yet
+        marks = []
+    edition_publish: dict[str, dict] = {}
+    for r in marks:
+        edition_publish.setdefault(r["batch"], {})[r.get("who") or who(r)] = {"published": bool(r.get("published")), "note": r.get("note", ""), "at": r["at"]}
     for x, sq in fetch_squares().items():
         get(x)["squares"] = sq
     for x, p in out.items():
         p.update(consensus(said.get(x, {}), votes.get(x, {})))
     if agreed_only:
         out = {x: p for x, p in out.items() if p["agreement"] == "agreed"}
-    return {"puzzles": out, "releases": releases}
+    return {"puzzles": out, "edition_publish": edition_publish}
 
 
 def fetch_squares(page: str = "key-squares") -> dict[str, dict]:

@@ -490,16 +490,16 @@ def from_site(decisions: dict, have: list[dict], pids: set) -> list[dict]:
                       **({k: p[k] for k in ("typos", "key_corrections", "declines") if p.get(k)})}
             out.append({"id": f"proof:{pid}", "answer": p["decision"], "note": (p.get("note") or "").strip(), "fix": "", "by": by,
                         "at": p.get("at", ""), "via": SITE, "proof": {"xdid": pid, "review": review, "at": p.get("at", "")}})
-    # the batch page's "Release to gxd" (site/schema-8-releases.sql): release:<batch> by "<name> (review site)", answer
-    # release, or undo when taken back. Whether it counts (the owner's only) is edition.releases' to say.
-    olds = {(r["id"], r.get("by")): r for r in have if str(r.get("id", "")).startswith("release:")}
-    for batch, by_name in sorted((decisions.get("releases") or {}).items()):
+    # the batch page's "Publish the edition" (site/schema-8-edition-publish.sql): publish-edition:<batch> by "<name> (review
+    # site)", answer publish, or unpublish when taken back. Whether it counts (the owner's only) is edition.publications' to say.
+    olds = {(r["id"], r.get("by")): r for r in have if str(r.get("id", "")).startswith("publish-edition:")}
+    for batch, by_name in sorted((decisions.get("edition_publish") or {}).items()):
         for name, d in sorted(by_name.items(), key=lambda kv: kv[1].get("at", "")):
-            by, answer = f"{name} ({SITE})", "release" if d.get("released") else "undo"
-            o = olds.get((f"release:{batch}", by)) or {}
+            by, answer = f"{name} ({SITE})", "publish" if d.get("published") else "unpublish"
+            o = olds.get((f"publish-edition:{batch}", by)) or {}
             if o.get("answer") == answer and o.get("at") == d.get("at", ""):
                 continue
-            out.append({"id": f"release:{batch}", "answer": answer, "note": str(d.get("note") or "").strip()[:500], "by": by,
+            out.append({"id": f"publish-edition:{batch}", "answer": answer, "note": str(d.get("note") or "").strip()[:500], "by": by,
                         "at": d.get("at", ""), "via": SITE})
     return out
 
@@ -1405,9 +1405,9 @@ def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict |
     out = {"groups": groups, "pub": pub or re.match(r"[a-z]+", repo.name)[0], "batch": batch or run, "run": run, "packets": rel, "rule": {"ai_ready": rule.ai_ready, "hold_codes": list(rule.hold_codes),
             "ignore": list(rule.ignore), "owner": list(rule.owner), **{k: getattr(rule, k) for k in WHOSE_INPUT}}, "rows": rows, "passing": passing, "pins": [p for p in pins if p["xdid"] in {x["xdid"] for x in passing.values()}],
             "site": new_site, "packs": packs}
-    from . import edition  # the edition of each passing puzzle and the batch's release mark (design/ship.md, "The edition")
+    from . import edition  # the edition of each passing puzzle, and whether the batch's edition is published (design/ship.md, "The edition")
     out["editions"] = edition.preview(repo, out["pub"], out, recs, rule)
-    out["release"] = edition.release_of(recs, rule, out["batch"])
+    out["edition_published"] = edition.published_of(recs, rule, out["batch"])
     return out
 
 
@@ -2326,24 +2326,24 @@ def record(p: dict, public: bool = True) -> dict:
             "groups": p["groups"], "spot": {"one_in": SPOT_ONE_IN, "of": "puzzles shipped on someone else's word than the owner's",
                                             "by": "sha1 of the puzzle's id"},
             "puzzles": [{**row, **{k: r[k] for k in ("notes", "corrections", "proposals", "typed") if r.get(k)}, **_recorded_more(p, r)} for row, r in zip(rows, p["rows"])],
-            # the owner's "Release to gxd" for the batch (the ledger's release:<batch>) and how many puzzles are available
-            # to gxd: shipped (in xd/), its edition made, the batch released (design/ship.md, "The edition")
-            "release": _release_public(p.get("release") or {"released": False, "at": "", "by": ""}, public),
-            "available": available(p)}
+            # the owner's "Publish the edition" for the batch (the ledger's publish-edition:<batch>) and how many of its
+            # puzzles' editions that publishes: shipped (in xd/), the edition made (design/ship.md, "The edition")
+            "edition_published": _published_public(p.get("edition_published") or {"published": False, "at": "", "by": ""}, public),
+            "editions_published": editions_published(p)}
 
 
-def available(p: dict) -> int:
-    """How many of the plan's puzzles the manifest makes available to gxd: shipped (in xd/), with its edition made,
-    no NOT_EXPORTED code, in a released batch."""
-    if not (p.get("release") or {}).get("released"):
+def editions_published(p: dict) -> int:
+    """How many of the plan's puzzles the manifest lists as published: shipped (in xd/), with its edition made, in a
+    batch whose edition the owner has published."""
+    if not (p.get("edition_published") or {}).get("published"):
         return 0
-    eds, passing = p.get("editions") or {}, p.get("passing") or {}
-    return sum(1 for r in p["rows"] if r["status"] == "shipped" and (eds.get(r["pid"]) or {}).get("status") == "made"
-               and not set((passing.get(r["pid"]) or {}).get("row", {}).get("codes") or []) & set(NOT_EXPORTED))
+    eds = p.get("editions") or {}
+    return sum(1 for r in p["rows"] if r["status"] == "shipped" and (eds.get(r["pid"]) or {}).get("status") == "made")
 
 
-def _release_public(rel: dict, public: bool) -> dict:
-    """The release state as the record shows it: the owner's review-site account is "the owner" in the public copy."""
+def _published_public(rel: dict, public: bool) -> dict:
+    """Whether the edition is published, as the record shows it: the owner's review-site account is "the owner" in
+    the public copy."""
     if public and str(rel.get("by", "")).endswith(f"({SITE})"):
         return {**rel, "by": "the owner"}
     return dict(rel)
@@ -2405,7 +2405,7 @@ def as_shipped(p: dict, rec: dict, public: bool = True) -> dict[str, dict]:
             # clues a person typed where no text was read: in the xd's notes too (TYPED_HEAD)
             "typed": [pub(t) for t in x.get("typed") or []],
             "printed": _printed(pk["ocr"], pk["review"], {k: v for k, v in (x.get("edit_values") or {}).items() if k in x["edits"]}),
-            # the edition made from this xd (design/ship.md, "The edition"): what gxd is offered, the corrections it made
+            # the edition made from this xd (design/ship.md, "The edition"): what the publication publishes, the corrections it made
             # and the notes it took; held (no text) when a mark can't be placed
             **({"edition": {**ed, "corrections": [pub(c) for c in ed["corrections"]], "declined": [pub(c) for c in ed["declined"]]}}
                if (ed := (p.get("editions") or {}).get(pid)) else {})}

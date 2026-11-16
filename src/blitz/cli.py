@@ -34,10 +34,12 @@ Shipping a batch (design/ship.md):
                                          --backfill-records: edit records for puzzles shipped before ship kept them
                                          --record / --snapshot DIR / --publish: the batch's ship record alone (every
                                          puzzle's queue: what the batch page asks of people), shipping nothing
-    blitz ship-export <pub> --dest DIR   the gxd export of what's shipped, as files (nothing is sent anywhere; frozen)
-    blitz edition <pub>                  each shipped puzzle's edition (edition/), and the manifest gxd reads
-                                         (shipped.tsv); blitz ship runs it when it writes or records
-          [--from-gxd-exports]           Judge's one-off manifest: its xd/ is already in gxd
+    blitz ship-export <pub> --dest DIR   the gxd export of what's shipped, as files (nothing is sent anywhere)
+    blitz edition <pub>                  each shipped puzzle's edition (edition/) and the manifest of the editions
+                                         (shipped.tsv): which are published; blitz ship runs it when it writes or
+                                         records. Publishing an edition is the owner's button on the batch page,
+                                         not the review site's publish (site-publish, ship --publish)
+          [--older-path]                 Judge's one-off manifest: its xd/ files were published before this step
 
 A <puzzle> is its id (judge1931-03-14), looked up in ../blitz-work, or a path
 to any puzzle folder. `text` also takes a folder of puzzle folders (a batch).
@@ -456,12 +458,12 @@ def cmd_ship(a) -> None:
     eds = p.get("editions") or {}
     if eds:
         made = [e for e in eds.values() if e["status"] == "made"]
-        rel = p.get("release") or {}
+        rel = p.get("edition_published") or {}
         print(f"editions of what passes: {len(made)} made ({sum(bool(e['kinds']) for e in made)} differ from the transcription), "
               f"{len(eds) - len(made)} held" + "".join(f"; held {pid}: " + ", ".join(h["code"] for h in e["held"])
                                                      for pid, e in sorted(eds.items()) if e["status"] == "held")
-              + f"; release: {'released ' + rel.get('at', '')[:10] if rel.get('released') else 'not released'}, "
-              f"{ship.available(p)} available to gxd")
+              + f"; the edition: {'published ' + rel.get('at', '')[:10] if rel.get('published') else 'not published'} "
+              f"({ship.editions_published(p)} puzzles' editions published)")
     if a.write:
         print(f"wrote {len(res['written'])} xd file(s) to {repo / 'xd'}, {res['ledger']} ledger record(s), provenance.jsonl, "
               f"gxd-exports.tsv and {repo / 'pipeline' / 'ship' / (p['batch'] + '.json')}")
@@ -510,9 +512,10 @@ def cmd_edition(a) -> None:
 
     repo = Path(a.repo or f"../{a.pub}").resolve()
     try:
-        if a.from_gxd_exports:
-            rows = edition.from_gxd_exports(repo)
-            print(f"{repo / edition.MANIFEST}: " + ", ".join(f"{k} {n}" for k, n in rows.items()) + " (from xd/ and gxd-exports.tsv; no edition/ written)")
+        if a.older_path:
+            rows = edition.older_path(repo)
+            print(f"{repo / edition.MANIFEST}: " + ", ".join(f"{k} {n}" for k, n in rows.items()) + " (xd/ as the published editions, "
+                  "dated from the older path's list; no edition/ written)")
             return
         site = []
         if a.decisions or not a.no_site:
@@ -526,7 +529,7 @@ def cmd_edition(a) -> None:
         print(json.dumps(r, ensure_ascii=False, indent=1))
         return
     _edition_line(r, repo)
-    print("released: " + (", ".join(f"{b} ({v['at'][:10]})" for b, v in r["released"].items()) or "no batch"))
+    print("editions published: " + (", ".join(f"{b} ({v['at'][:10]})" for b, v in r["published"].items()) or "no batch's"))
 
 
 def cmd_ship_export(a) -> None:
@@ -708,9 +711,11 @@ def main(argv=None) -> None:
                                         "rule applied, with a note for each) and the manifest shipped.tsv; xd/ is untouched")
     q.add_argument("pub")
     q.add_argument("--repo", help="the publication's checkout (default ../<pub>)")
-    q.add_argument("--from-gxd-exports", action="store_true",
-                   help="the one-off manifest of a publication shipped by the older path and already in gxd (Judge): xd/ as the editions")
-    q.add_argument("--decisions", help="a site-import file instead of fetching the review site (the release mark, the owner's declines)")
+    q.add_argument("--older-path", action="store_true",
+                   help="the one-off manifest of a publication shipped and published before the edition step (Judge): its xd/ "
+                        "files are its published editions")
+    q.add_argument("--decisions", help="a site-import file instead of fetching the review site (the owner's Publish the edition, "
+                                       "the owner's declines)")
     q.add_argument("--no-site", action="store_true", help="the ledger only: don't read the review site")
     q.add_argument("--json", action="store_true")
     q.set_defaults(fn=cmd_edition)

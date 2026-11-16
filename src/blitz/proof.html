@@ -1292,7 +1292,7 @@ function questionSection() {
 // (the proof packet's copy of the xd: review.json's xd_fp is its fingerprint). Each block's first line is its own
 // heading, and says what it is and which stage wrote it (Assembly flags, Text step, Printed with puzzle, Another
 // list that fits the grid, ...). This is not the header table's missing Notes row: which printed lines go into the
-// gxd export's notes is still the run-wide Notes rule (the batch page); this shows what the xd holds now, so
+// edition's puzzle notes is still the run-wide Notes rule (the batch page); this shows what the xd holds now, so
 // nothing in it is hidden, and a question about the notes has somewhere to point (meta:note, notes).
 function xdNotesSection() {
   const s = document.createElement('section');
@@ -1362,14 +1362,14 @@ function shippedHtml(d) {
     + editionHtml(d);
 }
 const editionRow = (pid, k) => `?p=${encodeURIComponent(pid)}&k=${encodeURIComponent(k)}`;
-// the edition made from that xd (the file's edition: design/ship.md, "The edition"): what gxd is offered, drawn as
+// the edition made from that xd (the file's edition: design/ship.md, "The edition"): what the publication publishes, drawn as
 // recorded, with the corrections of the print it made, the marks the owner declined, and the notes the Notes rule took
 const ED_DONE = {applied: 'corrected, with its note', noted: 'the note only: the text already had the words meant', 'not applied': 'not placed: it holds the edition'};
 const ED_KIND = {misprint: 'misprints corrected', notes: 'the puzzle notes'};
 function editionHtml(d) {
   const e = d.edition;
   if (!e) return `<h3>The edition</h3><p class="hint">Not recorded: this file is from before blitz ship made editions. Making the record again adds it.</p>`;
-  return `<h3>The edition (${esc(e.path)}): what gxd is offered</h3>`
+  return `<h3>The edition (${esc(e.path)}): what the publication publishes</h3>`
     + (e.status === 'held' ? `<div class="edheld"><b>Held: no edition is made until this is settled.</b>${(e.held || []).map(h => `<br>${esc(h.code)}: ${esc(h.why)}`).join('')}</div>`
       : `<pre class="shipxd">${esc(e.xd)}</pre><div class="hint">edition ${esc(e.xd_fp)} · ${(e.kinds || []).length ? 'differs from the transcription by ' + e.kinds.map(k => ED_KIND[k] || k).join(' and ') : 'the same text as the transcription'} · ${esc(e.notes_from || '')}</div>`)
     + ((e.corrections || []).length ? `<h3>Corrections of the print in the edition</h3><ul class="shiprecs">${e.corrections.map(c => `<li><a href="${editionRow(d.pid, c.key)}">${esc(c.key)}</a> printed “${esc(c.printed)}”, meant “${esc(c.meant)}”: <b>${esc(ED_DONE[c.done] || c.done)}</b>${c.note ? ` <span class="hint">note: ${esc(c.note)}</span>` : ''} <span class="hint">marked by ${esc(c.by)}</span></li>`).join('')}</ul>`

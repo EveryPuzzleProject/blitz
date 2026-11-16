@@ -1,5 +1,5 @@
-"""The edition: the last EPP step, and the manifest that advertises it (blitz design/gxd-pull.md, design/ship.md
-"The edition").
+"""The edition: the last step of each publication's process, and the manifest that lists what it published (blitz
+design/publishing-editions.md, design/ship.md "The edition").
 
 EPP publishes two layers of every puzzle. The transcription is the puzzle as printed, what `blitz ship` writes to
 `xd/` (reading fixes and key-letter corrections applied, with their note). The edition is derived from it by rule
@@ -13,7 +13,7 @@ step can't place holds that puzzle's edition, with a code; it never guesses.
     shipped.tsv              the manifest: one row per puzzle EPP has ever advertised, with its status
 
 `blitz ship` runs it when it writes or records; `blitz edition <pub>` runs it alone (after a mark is declined, or
-a release given). It never touches `xd/`.
+the owner's "Publish the edition" given). It never touches `xd/`.
 
 Helpers it shares with ship are imported where they are used: ship imports this module at its top (corrected(),
 the Notes rule), so this one can't import ship at its own.
@@ -30,13 +30,14 @@ EDITION = "edition"  # edition/<xdid>.xd beside xd/
 MANIFEST = "shipped.tsv"
 RECORD = ("pipeline", "edition.json")
 VERSION = 1  # the edition's rules: a change here makes every edition again
-NOTES_HEAD = "Puzzle notes:"  # the printed lines the Notes rule takes: the puzzle's notes (what gxd keeps as its notes)
+NOTES_HEAD = "Puzzle notes:"  # the printed lines the Notes rule takes: the puzzle's notes
 FIXED_HEAD = "Misprints corrected:"  # one line per clue or header misprint the edition corrected, saying what was printed
 COLS = ("xdid", "date", "number", "status", "why", "transcription", "transcription_sha256", "edition", "edition_sha256",
-        "shipped_at", "batch", "release", "record_url", "proof_url")
-STATUSES = ("available", "held", "withdrawn")
-RELEASE = "release:"  # the ledger's release:<batch>: the owner's "Release to gxd" on the batch page; answer release or undo
-IN_GXD = "in-gxd"  # the release column of a puzzle gxd already holds from before the pull (Judge)
+        "shipped_at", "batch", "published", "record_url", "proof_url")
+STATUSES = ("published", "held", "withdrawn")
+# the ledger's publish-edition:<batch>: the owner's "Publish the edition" on the batch page, answer publish, or unpublish
+# when taken back. Not the review site's "publish" (site-publish, ship --publish), which puts packets and records on the site.
+PUBLISH = "publish-edition:"
 NOTE_LABELS = ("intro", "instructions")  # the printed lines that are the puzzle's notes when the publication has no Notes rule
 HOLDS = {  # an edition held: no file is written, and the manifest says why
     "mark-unplaced": "a misprint mark the edition can't place",
@@ -144,20 +145,20 @@ def kinds(transcription: str, ed: dict) -> list[str]:
     return [k for k, on in (("misprint", any(r["done"] != "not applied" for r in ed["corrections"])), ("notes", bool(ed["notes"]))) if on]
 
 
-# ---- the release mark ---------------------------------------------------------------------------------------------
+# ---- the mark that publishes the edition ---------------------------------------------------------------------------------------------
 
-def releases(records: list[dict], rule) -> dict[str, dict]:
-    """{batch: {at, by}} for every batch the owner has released to gxd and not taken back: each batch's latest
-    release:<batch> record by the owner (the ship rule's `owner` on the review site, or the owner's own tools), whose
-    answer is release. A helper's or a guest's record does nothing."""
+def publications(records: list[dict], rule) -> dict[str, dict]:
+    """{batch: {at, by}} for every batch whose edition the owner has published and not taken back: each batch's
+    latest publish-edition:<batch> record by the owner (the ship rule's `owner` on the review site, or the owner's own
+    tools), whose answer is publish. A helper's or a guest's record does nothing."""
     from .ship import _name, kind_of
     latest = {}
     for r in records:
         rid = str(r.get("id", ""))
-        if rid.startswith(RELEASE) and kind_of(r, rule) == "owner" and _name(r) not in rule.ignore:
-            if r.get("at", "") >= latest.get(rid[len(RELEASE):], {}).get("at", ""):
-                latest[rid[len(RELEASE):]] = r
-    return {b: {"at": r.get("at", ""), "by": r.get("by", "")} for b, r in sorted(latest.items()) if r.get("answer") == "release"}
+        if rid.startswith(PUBLISH) and kind_of(r, rule) == "owner" and _name(r) not in rule.ignore:
+            if r.get("at", "") >= latest.get(rid[len(PUBLISH):], {}).get("at", ""):
+                latest[rid[len(PUBLISH):]] = r
+    return {b: {"at": r.get("at", ""), "by": r.get("by", "")} for b, r in sorted(latest.items()) if r.get("answer") == "publish"}
 
 
 def owner_declines(records: list[dict], pid: str, rule) -> set:
@@ -240,16 +241,16 @@ def _key(ins: dict) -> str:
 
 def run(repo: Path, pub: str, plan: dict | None = None, site: list[dict] = (), today: str = "") -> dict:
     """Every shipped puzzle's edition, the record of what each was made from, and the manifest. `plan`: the ship plan
-    being made (its marks are the freshest); `site`: the review site's records not in the ledger yet (the release
+    being made (its marks are the freshest); `site`: the review site's records not in the ledger yet (the publish
     mark, the owner's declines). Returns a summary: {made, remade, unchanged, held, differ, kinds, holds, rows}."""
-    from .ship import NOT_EXPORTED, PROOF_PAGE, _header, fingerprint, ledger, provenance, rule_of
+    from .ship import PROOF_PAGE, _header, fingerprint, ledger, provenance, rule_of
     repo, today = Path(repo), today or date.today().isoformat()
     if not (repo / "provenance.jsonl").exists():
         raise ValueError(f"{repo} has no provenance.jsonl: nothing here was shipped by blitz ship. A publication that came by "
-                         "the older path (Judge) gets its manifest from its gxd-exports.tsv: blitz edition <pub> --from-gxd-exports")
+                         "the older path (Judge) gets its manifest from its own list of what it published: blitz edition <pub> --older-path")
     rule, records = rule_of(repo), ledger(repo) + list(site or [])
     labels, labels_from = notes_labels(repo, pub, records)
-    released = releases(records, rule)
+    published = publications(records, rule)
     rec_file = repo.joinpath(*RECORD)
     old = json.loads(rec_file.read_text(encoding="utf-8")).get("puzzles", {}) if rec_file.exists() else {}
     prov = {r["xdid"]: r for r in provenance(repo)}
@@ -257,7 +258,7 @@ def run(repo: Path, pub: str, plan: dict | None = None, site: list[dict] = (), t
     files = {f.stem: f for f in sorted((repo / "xd").glob("*.xd"))}
     out_dir = repo / EDITION
     summary = {"made": 0, "remade": 0, "unchanged": 0, "held": 0, "differ": 0, "kinds": {}, "holds": {}, "puzzles": len(files),
-               "notes_from": labels_from, "released": released}
+               "notes_from": labels_from, "published": published}
     made, rows = {}, {}
     for xdid in sorted(set(files) | set(prov)):
         row, f = prov.get(xdid), files.get(xdid)
@@ -304,20 +305,17 @@ def run(repo: Path, pub: str, plan: dict | None = None, site: list[dict] = (), t
         for k in ed_entry.get("kinds") or []:
             summary["kinds"][k] = summary["kinds"].get(k, 0) + 1
         summary["differ"] += bool(ed_entry.get("kinds"))
-        out_code = next((c for c in row.get("codes") or [] if c in NOT_EXPORTED), "")
-        rel = released.get(row.get("batch", ""))
+        pub_mark = published.get(row.get("batch", ""))
         if ed_entry["status"] == "held":
             summary["held"] += 1
             for h in ed_entry["held"]:
                 summary["holds"][h["code"]] = summary["holds"].get(h["code"], 0) + 1
             status, why = "held", "; ".join(f"{h['code']}: {h['why']}" for h in ed_entry["held"])
-        elif out_code:
-            status, why = "held", f"{out_code}: {NOT_EXPORTED[out_code]}"
-        elif not rel:
-            status, why = "held", f"not-released: the batch {row.get('batch', '')} has no release mark"
+        elif not pub_mark:
+            status, why = "held", f"not-published: the edition of the batch {row.get('batch', '')} has not been published"
         else:
-            status, why = "available", ""
-        rows[xdid] = {**mrow, "status": status, "why": why, "release": (rel or {}).get("at", "")[:10],
+            status, why = "published", ""
+        rows[xdid] = {**mrow, "status": status, "why": why, "published": (pub_mark or {}).get("at", "")[:10],
                       **({"edition": f"{EDITION}/{xdid}.xd", "edition_sha256": ed_entry["edition_sha256"]} if ed_entry["status"] == "made" else {})}
     rec_file.parent.mkdir(parents=True, exist_ok=True)
     rec_file.write_text(json.dumps({"_about": "blitz edition: what each puzzle's edition (edition/<xdid>.xd) was made from, so it is made "
@@ -329,37 +327,37 @@ def run(repo: Path, pub: str, plan: dict | None = None, site: list[dict] = (), t
     return summary
 
 
-def from_gxd_exports(repo: Path) -> dict:
-    """The one-off manifest of a publication shipped by the older path, already in gxd (Judge): its xd/ files are the
-    editions (no transcription column), listed from xd/ and gxd-exports.tsv. A row gxd-exports.tsv shows merged
-    (gxd_mr or exported) is available with release in-gxd; any other is held. record_url and proof_url are copied
-    from gxd-exports.tsv. No edition/ is written."""
+def older_path(repo: Path) -> dict:
+    """The one-off manifest of a publication shipped and published by the older path, before the edition step (Judge):
+    its xd/ files are its published editions (no transcription column), listed from xd/ and the publication's list of
+    what it sent out then (gxd-exports.tsv, a file of the older path). A row that list dates (`exported`) is published
+    on that date; any other is held. record_url and proof_url are copied from the list. No edition/ is written."""
     from .ship import _header
     repo = Path(repo)
     if (repo / "provenance.jsonl").exists():
-        raise ValueError(f"{repo} has provenance.jsonl: its manifest comes from blitz ship (blitz edition <pub>), not gxd-exports.tsv")
+        raise ValueError(f"{repo} has provenance.jsonl: its manifest comes from blitz ship (blitz edition <pub>), not the older path")
     exp = {r["xdid"]: r for r in _tsv(repo / "gxd-exports.tsv")}
     if not exp:
-        raise ValueError(f"{repo} has no gxd-exports.tsv rows: nothing says which puzzles gxd already holds")
+        raise ValueError(f"{repo} has no gxd-exports.tsv rows: nothing says which puzzles the older path published")
     rows = {}
     for f in sorted((repo / "xd").glob("*.xd")):
         text, e = f.read_text(encoding="utf-8"), exp.get(f.stem) or {}
-        merged = bool(e.get("gxd_mr") or e.get("exported"))
+        when = (e.get("exported") or "")[:10]
         rows[f.stem] = {"xdid": f.stem, "date": _header(text, "Date"), "number": _header(text, "Number"),
-                        "status": "available" if merged else "held",
-                        "why": (f"already in gxd as {e.get('gxd_id') or f.stem} ({', '.join(x for x in (e.get('gxd_mr'), e.get('exported')) if x)})"
-                                if merged else "not-in-gxd: gxd-exports.tsv doesn't show it merged"),
-                        "edition": f"xd/{f.stem}.xd", "edition_sha256": sha256(f.read_bytes()), "release": IN_GXD if merged else "",
+                        "status": "published" if when else "held",
+                        "why": (f"older-path: published on {when} by the path before the edition step; this file is the edition"
+                                if when else "not-published: the older path's list doesn't date it"),
+                        "edition": f"xd/{f.stem}.xd", "edition_sha256": sha256(f.read_bytes()), "published": when,
                         "record_url": e.get("record_url", ""), "proof_url": e.get("proof_url", "")}
     for x, e in exp.items():
         if x not in rows:
             rows[x] = {"xdid": x, "date": e.get("date", ""), "number": e.get("number", ""), "status": "withdrawn",
-                       "why": "in gxd-exports.tsv, not in xd/", "record_url": e.get("record_url", ""), "proof_url": e.get("proof_url", "")}
+                       "why": "in the older path's list, not in xd/", "record_url": e.get("record_url", ""), "proof_url": e.get("proof_url", "")}
     write_manifest(repo, rows)
     return {s: sum(r["status"] == s for r in read_manifest(repo).values()) for s in STATUSES}
 
 
-# ---- what the ship plan shows: each passing puzzle's edition, and the batch's release ----------------------------
+# ---- what the ship plan shows: each passing puzzle's edition, and whether the batch's edition is published ----------------------------
 
 def preview(repo: Path, pub: str, p: dict, records: list[dict], rule) -> dict[str, dict]:
     """{pid: the edition of the xd as it will ship} for every puzzle the plan passes, made by make() from what the
@@ -379,7 +377,7 @@ def preview(repo: Path, pub: str, p: dict, records: list[dict], rule) -> dict[st
     return out
 
 
-def release_of(records: list[dict], rule, batch: str) -> dict:
-    """The batch's release state for the ship record: {released: bool, at, by} (by: the owner's record's by)."""
-    r = releases(records, rule).get(batch)
-    return {"released": True, **r} if r else {"released": False, "at": "", "by": ""}
+def published_of(records: list[dict], rule, batch: str) -> dict:
+    """Whether the batch's edition is published, for the ship record: {published: bool, at, by} (by: the owner's record's by)."""
+    r = publications(records, rule).get(batch)
+    return {"published": True, **r} if r else {"published": False, "at": "", "by": ""}
