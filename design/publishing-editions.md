@@ -1,7 +1,7 @@
 # Publishing the edition: the last step of every publication
 
-Status: decided points and slice 1 built (2026-11-16, blitz branch `claude/gxd-pull-slice1`); visibility, typography and
-shared guidelines open. This note was `design/gxd-pull.md` ("gxd pulls from EPP", 2026-11-13); the owner reframed it on
+Status: decided points and slice 1 built (2026-11-16, blitz branch `claude/gxd-pull-slice1`, after a cold review);
+the owner's open decisions are listed near the end. This note was `design/gxd-pull.md` ("gxd pulls from EPP", 2026-11-13); the owner reframed it on
 2026-11-16:
 
 > every puzzle project [is] an independent project, meaning the last step in its process is publishing the digital
@@ -48,7 +48,7 @@ In each publication repo:
 `xd/` stays the transcription: its readers (`records.py` for the record pages, `sync.py`, provenance's `xd`
 fingerprint, the proof page's checks against the scan) all mean the transcription. The editions of puzzles shipped
 before the step existed (Collegian 69, GAMES 35, World 2) are made the first time it runs, with no re-ship. Judge came
-by the older path: its `xd/` files are its published editions (below).
+by the older path: its `xd/` files are transcriptions, and its manifest lists them with no edition (below).
 
 **The manifest is the contract** with any downstream reader: which puzzles exist, which are published, where each file
 is and its sha256, and why one is held or withdrawn. Its exact format is in `design/ship.md`, "The edition". A reader
@@ -122,43 +122,72 @@ is, so a fetch could catch a repo mid-push.
 
 The edition step, the manifest and the mark that publishes the edition are in blitz (`src/blitz/edition.py`;
 `blitz edition <pub>`; run by `blitz ship --write` and `--record`), documented in `design/ship.md`, "The edition", which
-holds the manifest's exact format. Nothing on gxd's side changed. Decided in building it:
+holds the manifest's exact format. Nothing on gxd's side changed. A cold review (blitz-work
+`reviews/2026-11-16-gxd-pull-slice1-review.md`) led to fixes A to G, folded in below. Decided in building it:
 
 - **Names.** The mark: "Publish the edition" / "Take the edition back" on the batch page; the ledger's
-  `publish-edition:<batch>` (answers `publish`, `unpublish`); the review site's table `edition_publish`
-  (`site/schema-8-edition-publish.sql`, not run yet); the ship record's `edition_published` and `editions_published`.
-  The manifest: column `published` (the date the batch's edition was published), statuses `published`, `held`,
-  `withdrawn`.
-- **The manifest's format** is the 2026-11-13 proposal's columns in that order (`release` renamed `published`), full
-  sha256 of each file's bytes, rows in xdid order, `why` starting with a code (`not-published`, `mark-unplaced`,
-  `mark-invalid`, `key-declined`, `no-provenance`, `older-path`).
+  `publish-edition:<batch>` (answers `publish`, `unpublish`); the review site's tables `edition_publish` and
+  `edition_publishers` (`site/schema-8-edition-publish.sql`, not run yet); the ship record's `edition_published` and
+  `editions_published`. The manifest: column `published` (the date the batch's edition was published), statuses
+  `published`, `held`, `withdrawn`.
+- **Who can publish.** Only the owner, by account id: the site's table takes a row only from an account in
+  `edition_publishers`, the button shows only to such an account, and `blitz ship` counts a row only when its account
+  is in the publication's ship rule `owner_ids`. A name typed on the proof page never counts (the review showed a guest
+  typing the owner's name could publish). `blitz ship` takes in only rows for the batch it ships.
+- **The repo holds everything the step used.** `blitz ship` (`--record` as well as `--write`) appends the site's
+  records its plan used to the ledger before it makes the editions, the manifest and the record; `blitz edition` reads
+  the repo alone and makes the same files again. A mark or a decline given on the site reaches the edition at the next
+  `blitz ship --record` or `--write` for its batch.
+- **The manifest's format** is the 2026-11-13 proposal's columns in that order (`release` renamed `published`), sha256
+  of each file's text with LF line ends, rows in xdid order, `why` starting with a code for a held row.
 - **record_url** is written only for a page recorded as published (`pipeline/record-pages.tsv` in the publication repo,
   which nothing writes yet), never made from the URL pattern: the World's older list (`gxd-exports.tsv`) names record
   pages that return 404. Judge's one-off manifest copies its live pages' URLs.
-- **Judge**: `blitz edition judge --older-path` (refused for a repo with provenance rows) lists `xd/<xdid>.xd` as each
-  puzzle's edition (no copy in `edition/`, no transcription column), `published` on the date its older list
-  (`gxd-exports.tsv`, a file of the older path) gives, with `why` "older-path: published on <date> by the path before
-  the edition step".
+- **Judge** (`blitz edition judge --older-path`, refused for a repo with provenance rows): its `xd/` files are
+  transcriptions (they carry `Source:`, `Provenance:` and OCR flags), so each row lists the transcription and no
+  edition, `held`, with `why` "older-path: ... its edition went out by the older path, not through this manifest". A
+  reader has nothing to take from it until Judge's editions are made by the step (which needs provenance rows for it).
 - **A file in `xd/` with no provenance row** (GAMES's `games1977-09-01`) is listed, `held: no-provenance`.
-- **The export's holds are not the edition's.** `cryptic-no-key` held a puzzle back from the gxd export
-  (`NOT_EXPORTED`); it was a downstream reader's rule, so it doesn't hold an edition. A reader that wants it needs the
-  puzzle's kind, which the manifest doesn't carry yet.
-- **The notes in the edition** are two blocks added after the transcription's own: `Puzzle notes:` (the printed lines
-  the Notes rule takes) and `Misprints corrected:` (one line per correction). Every other block stays, so the edition
-  is the transcription plus what the step did.
-- **A mark already applied upstream** (ship's `fits: already`) gets the note alone, and doesn't hold the edition.
-- **A mark added after shipping** reaches the edition at the next `blitz ship --record` or `--write` for the batch; a
-  decline reaches it at the next `blitz edition`.
+- **The edition's own code list** (`edition.CODES`), not the frozen gxd export's `NOT_EXPORTED`: a cryptic with no key
+  is published, with `cryptic-no-key` in `why`, pending the owner.
+- **Taking the edition back** puts the batch's rows back to `held: not-published`; `withdrawn` is for a puzzle no
+  longer in `xd/`, whose row keeps its last values and whose edition file is removed.
+- **A mark whose words meant are already in its row** gets its note alone only when a record shows the swap (the
+  packet's text-review change, or an edit record, on that row); otherwise the edition is held (`mark-unplaced`). The
+  project manager's default pending the owner (`NOTED_NEEDS_EVIDENCE`).
+- **Run once**: what each edition was made from is in `pipeline/edition.json`; who marked a correction isn't hashed;
+  the version is a fingerprint of the code that makes the text; an edition whose record of marks doesn't describe its
+  transcription is held (`marks-stale`), and a change of source is reported, not silent.
 
 ## Decisions for the owner
 
 1. **Visibility** (above): are a publication's published editions public, and could one publication's be restricted?
-2. **Who owns typography** (blanks to `___`, dashes to `--`, quotes straight): the edition, as part of what the puzzle
+   Related: **the publication repos are public, so committing `edition/` and `shipped.tsv` there is itself publishing**
+   them, whatever a row's status says. Held and not-yet-published editions sit beside the published ones, and anyone
+   can read them. Either that is fine (status is advice to readers, and these puzzles' transcriptions are public
+   already), or unpublished editions stay out of the commit (the step writes them somewhere private, or the commit
+   leaves out rows that aren't published), or editions live in a private place until published.
+2. **What a published edition contains.** As built, the edition is the transcription plus the step's changes, so it
+   keeps every blitz working header and block (`Source:`, `Assembly:`, `Text-Review:`, `Text step, unsure:`, `OCR
+   review flags:` and the rest), which made sense while gxd's converter was to drop them. If the edition is the
+   publication's finished file, it would hold the puzzle's own headers, the grid, the clues, `Puzzle notes:`,
+   `Misprints corrected:`, `Answer key corrected:`, `Typed by hand:` and, for linked ends, `Numbering:`, with the
+   transcription in `xd/` as the evidence. Not changed in this slice.
+3. **The default Notes rule** (intro and instructions) picks lines that only make sense in the paper: the World's
+   "SOLUTION NEXT WEEK.", the Collegian's eight "Answers in tomorrow's (Collegian) classifieds", and GAMES's "Fold this
+   page! You are approaching" beside its real theme text. Set a Notes rule per publication on the batch page, or give
+   such lines their own label in the text step, before any edition is published. Not changed in this slice.
+4. **"Already applied" marks**: note only with a record of the swap, otherwise held (as built), or the note whenever
+   the row reads the words meant.
+5. **A cryptic with no key**: published with its code (as built), or held.
+6. **A key correction the owner declines after publishing**: the edition is held (`key-declined`, as built) until a
+   re-ship, or the row is withdrawn.
+7. **Who owns typography** (blanks to `___`, dashes to `--`, quotes straight): the edition, as part of what the puzzle
    says in a usable form, or each reader's house style. Today it is promised in one place and done, for quotes only, in
    the frozen gxd export.
-3. **One shared set of editorial guidelines** for EPP and its readers, starting from the Collegian's `editorial.md`, or
+8. **One shared set of editorial guidelines** for EPP and its readers, starting from the Collegian's `editorial.md`, or
    EPP's own, with each reader's alongside.
-4. **The puzzle's kind in the manifest** (a cryptic, a puzzle with no key), for readers that treat kinds differently.
+9. **The puzzle's kind in the manifest** (a cryptic, a puzzle with no key), for readers that treat kinds differently.
 
 ## gxd as one downstream reader
 

@@ -39,7 +39,7 @@ Shipping a batch (design/ship.md):
                                          (shipped.tsv): which are published; blitz ship runs it when it writes or
                                          records. Publishing an edition is the owner's button on the batch page,
                                          not the review site's publish (site-publish, ship --publish)
-          [--older-path]                 Judge's one-off manifest: its xd/ files were published before this step
+          [--older-path]                 Judge's one-off manifest: its xd/ as transcriptions, no editions
 
 A <puzzle> is its id (judge1931-03-14), looked up in ../blitz-work, or a path
 to any puzzle folder. `text` also takes a folder of puzzle folders (a batch).
@@ -519,8 +519,8 @@ def cmd_edition(a) -> None:
     try:
         if a.older_path:
             rows = edition.older_path(repo)
-            print(f"{repo / edition.MANIFEST}: " + ", ".join(f"{k} {n}" for k, n in rows.items()) + " (xd/ as the published editions, "
-                  "dated from the older path's list; no edition/ written)")
+            print(f"{repo / edition.MANIFEST}: " + ", ".join(f"{k} {n}" for k, n in rows.items()) + " (xd/ as transcriptions, no editions: "
+                  "Judge's edition went out by the older path; no edition/ written)")
             return
         r = edition.run(repo, a.pub)  # the repo alone: the review site's records come in through blitz ship
     except ValueError as e:
@@ -712,8 +712,8 @@ def main(argv=None) -> None:
     q.add_argument("pub")
     q.add_argument("--repo", help="the publication's checkout (default ../<pub>)")
     q.add_argument("--older-path", action="store_true",
-                   help="the one-off manifest of a publication shipped and published before the edition step (Judge): its xd/ "
-                        "files are its published editions")
+                   help="the one-off manifest of a publication shipped before the edition step (Judge): its xd/ files listed as "
+                        "transcriptions with no edition")
     q.add_argument("--json", action="store_true")
     q.set_defaults(fn=cmd_edition)
     q = sub.add_parser("records", help="the public record page of each transcribed puzzle (everypuzzleproject.org/<pub>/<date>/)")
