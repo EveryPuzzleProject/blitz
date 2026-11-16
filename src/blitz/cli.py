@@ -35,6 +35,11 @@ Shipping a batch (design/ship.md):
                                          --record / --snapshot DIR / --publish: the batch's ship record alone (every
                                          puzzle's queue: what the batch page asks of people), shipping nothing
     blitz ship-export <pub> --dest DIR   the gxd export of what's shipped, as files (nothing is sent anywhere)
+    blitz edition <pub>                  each shipped puzzle's edition (edition/) and the manifest of the editions
+                                         (shipped.tsv): which are published; blitz ship runs it when it writes or
+                                         records. Publishing an edition is the owner's button on the batch page,
+                                         not the review site's publish (site-publish, ship --publish)
+          [--older-path]                 Judge's one-off manifest: its xd/ as transcriptions, no editions
 
 A <puzzle> is its id (judge1931-03-14), looked up in ../blitz-work, or a path
 to any puzzle folder. `text` also takes a folder of puzzle folders (a batch).
@@ -431,8 +436,8 @@ def cmd_ship(a) -> None:
     print(f"edits in what ships: {len(recs)} in {sum(bool(x.get('edit_records')) for x in p['passing'].values())} puzzle(s)"
           + (" (" + ", ".join(f"{w} {n}" for w, n in kinds.items()) + ")" if kinds else "") + ", each with its record in provenance.jsonl; "
           f"{sum(len(x.get('notes', [])) for x in p['passing'].values())} corrected key letter(s) noted in the xd; "
-          f"{len(fixes)} correction(s) of the print proposed for the gxd export, not applied here"
-          + (f" ({sum(c['fits'] != 'printed' for c in fixes)} the export can't place or finds already made)" if fixes else ""))
+          f"{len(fixes)} correction(s) of the print proposed for the edition, not applied here"
+          + (f" ({sum(c['fits'] != 'printed' for c in fixes)} the edition can't place or finds already made)" if fixes else ""))
     for pid, x in sorted(p["passing"].items()):  # nothing says whether these fix a reading or correct the print: said, not guessed
         for e in x.get("edit_records", []):
             if e["class"] == "unclassed":
@@ -450,11 +455,23 @@ def cmd_ship(a) -> None:
         for r in rec["puzzles"]:
             if r["status"] == "held" and r["reason"] == reason:
                 print(f"  {r['pid']}  {r['why'][:160]}" + (f"  [ships with --ai-ready {r['ships_with']}]" if r["ships_with"] not in ("", "off") else ""))
+    eds = p.get("editions") or {}
+    if eds:
+        made = [e for e in eds.values() if e["status"] == "made"]
+        rel = p.get("edition_published") or {}
+        print(f"editions of what passes: {len(made)} made ({sum(bool(e['kinds']) for e in made)} differ from the transcription), "
+              f"{len(eds) - len(made)} held" + "".join(f"; held {pid}: " + ", ".join(h["code"] for h in e["held"])
+                                                     for pid, e in sorted(eds.items()) if e["status"] == "held")
+              + f"; the edition: {'published ' + rel.get('at', '')[:10] if rel.get('published') else 'not published'} "
+              f"({ship.editions_published(p)} puzzles' editions published)")
     if a.write:
         print(f"wrote {len(res['written'])} xd file(s) to {repo / 'xd'}, {res['ledger']} ledger record(s), provenance.jsonl, "
               f"gxd-exports.tsv and {repo / 'pipeline' / 'ship' / (p['batch'] + '.json')}")
+        _edition_line(p.get("edition_run"), repo)
     elif a.record:
-        print(f"status only: wrote {ship.write_record(repo, p)}; nothing shipped")
+        print(f"status only: wrote {ship.write_record(repo, p)}; nothing shipped; {p.get('site_taken_in', 0)} review-site record(s) "
+              "it used taken into the ledger, so the editions and the manifest rest on the repo alone")
+        _edition_line(p.get("edition_run"), repo)
     else:
         print("dry run: --write writes the shippable puzzles and the batch's ship record; --record the record alone")
     for d in a.snapshot or []:
@@ -480,6 +497,39 @@ def cmd_ship(a) -> None:
             s3.delete_object(Bucket=bucket, Key=k)
         print(f"published {key} and {len(docs)} as-shipped file(s)" + (f", removed {len(gone)} stale one(s)" if gone else "")
               + f": https://blitz.xwordapp.com/review/batch/?b={p['batch']}")
+
+
+def _edition_line(r: dict | None, repo: Path) -> None:
+    if not r:
+        return
+    print(f"editions: {r['made']} made, {r['remade']} made again, {r['unchanged']} unchanged; {r['differ']} differ from their "
+          f"transcription (" + (", ".join(f"{k} {n}" for k, n in sorted(r["kinds"].items())) or "none") + f"); {r['held']} held"
+          + (" (" + ", ".join(f"{k} {n}" for k, n in sorted(r["holds"].items())) + ")" if r["holds"] else "")
+          + f"; {repo / 'shipped.tsv'}: " + ", ".join(f"{k} {n}" for k, n in r["rows"].items()) + f"; notes: {r['notes_from']}")
+    for c in r.get("sources") or []:
+        print(f"  {c['xdid']}: made again from {c['now']} (was {c['was'] or 'nothing'})")
+    if r.get("removed"):
+        print(f"  withdrawn, edition file removed: {', '.join(r['removed'])}")
+
+
+def cmd_edition(a) -> None:
+    from . import edition, ship
+
+    repo = Path(a.repo or f"../{a.pub}").resolve()
+    try:
+        if a.older_path:
+            rows = edition.older_path(repo)
+            print(f"{repo / edition.MANIFEST}: " + ", ".join(f"{k} {n}" for k, n in rows.items()) + " (xd/ as transcriptions, no editions: "
+                  "Judge's edition went out by the older path; no edition/ written)")
+            return
+        r = edition.run(repo, a.pub)  # the repo alone: the review site's records come in through blitz ship
+    except ValueError as e:
+        raise SystemExit(f"blitz edition: {e}")
+    if a.json:
+        print(json.dumps(r, ensure_ascii=False, indent=1))
+        return
+    _edition_line(r, repo)
+    print("editions published: " + (", ".join(f"{b} ({v['at'][:10]})" for b, v in r["published"].items()) or "no batch's"))
 
 
 def cmd_ship_export(a) -> None:
@@ -628,7 +678,9 @@ def main(argv=None) -> None:
     q.add_argument("--proof", required=True, help="the run's proof packets, e.g. ../xword-ocr/harvests/games-7779/proof/run15-restart")
     q.add_argument("--batch", help="the batch's name on the review site (default: the run's name)")
     q.add_argument("--repo", help="the publication's checkout (default ../<pub>)")
-    q.add_argument("--decisions", help="a site-import file instead of fetching helpers' decisions from the review site")
+    q.add_argument("--decisions", help="a site-import file instead of fetching helpers' decisions from the review site. With "
+                                       "--record or --write its records are written into the publication's ledger: point a "
+                                       "hand-made file only at a scratch copy")
     q.add_argument("--no-site", action="store_true", help="the ledger only: don't read the review site")
     q.add_argument("--ai-ready", choices=("off", "both", "either"),
                    help="let an AI count as the one Ready: both (the AI reviewer's Ready and a passing ship check) or either; "
@@ -642,7 +694,8 @@ def main(argv=None) -> None:
     q.add_argument("--record", action="store_true", help="status only: write the batch's ship record (pipeline/ship/<batch>.json) "
                                                          "and ship nothing")
     q.add_argument("--snapshot", action="append", help="also write ship.json into this batch snapshot folder (repeatable)")
-    q.add_argument("--publish", action="store_true", help="put ship.json on the review site, beside the batch's batch.json")
+    q.add_argument("--publish", action="store_true", help="put the ship record (ship.json) and its as-shipped files on the review site, beside the batch's batch.json; "
+                                                         "this does not publish the edition (the owner's Publish the edition on the batch page does)")
     q.add_argument("--json", action="store_true")
     q.set_defaults(fn=cmd_ship)
     q = sub.add_parser("ship-export", help="the gxd export of the publication's shipped puzzles, as files: nothing is sent")
@@ -657,6 +710,15 @@ def main(argv=None) -> None:
     q.add_argument("--pages", action="store_true", help="also copy the source pages into <dest>/source/")
     q.add_argument("--name", help="the publication's name for gxd's publications.tsv (default: the pubid in capitals)")
     q.set_defaults(fn=cmd_ship_export)
+    q = sub.add_parser("edition", help="each shipped puzzle's edition (edition/<xdid>.xd: the misprint corrections and the Notes "
+                                        "rule applied, with a note for each) and the manifest shipped.tsv; xd/ is untouched")
+    q.add_argument("pub")
+    q.add_argument("--repo", help="the publication's checkout (default ../<pub>)")
+    q.add_argument("--older-path", action="store_true",
+                   help="the one-off manifest of a publication shipped before the edition step (Judge): its xd/ files listed as "
+                        "transcriptions with no edition")
+    q.add_argument("--json", action="store_true")
+    q.set_defaults(fn=cmd_edition)
     q = sub.add_parser("records", help="the public record page of each transcribed puzzle (everypuzzleproject.org/<pub>/<date>/)")
     q.add_argument("pub_repo", help="the publication's repo, e.g. ../judge")
     q.add_argument("--pub", help="the publication (default: the repo folder's name)")

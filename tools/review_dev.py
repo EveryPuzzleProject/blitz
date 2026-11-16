@@ -5,7 +5,7 @@ batch.html shows in the open tab within a second, with no `blitz site-build`.
 
 It serves the pages the way the site does (docs/review/, docs/review/batch/), so what you see is a
 volunteer's view: config.js points the pages at this server instead of Supabase and R2, and a small
-stand-in for supabase-js keeps the site's tables (puzzles, proofs, verdicts, restores) as JSON files
+stand-in for supabase-js keeps the site's tables (puzzles, proofs, verdicts, restores, edition_publish) as JSON files
 in <folder>/db/. Ready, Not ready, edits and comments save there; nothing touches the real site, the
 harvest or a ledger.
 
@@ -44,7 +44,8 @@ SRC = ROOT / "src" / "blitz"
 WATCH = [SRC / "proof.html", SRC / "batch.html", Path(__file__)]
 BUCKET = "https://pub-52ac4a15c4ba43fe8e4af5a496733fb5.r2.dev"
 MAX_ROWS = 1000  # as the site's database: no more rows than this to one request, and no word that it stopped
-KEYS = {"proofs": ("xdid", "user_id"), "verdicts": ("xdid", "user_id"), "restores": ("xdid", "user_id")}
+KEYS = {"proofs": ("xdid", "user_id"), "verdicts": ("xdid", "user_id"), "restores": ("xdid", "user_id"),
+        "edition_publish": ("batch", "user_id"), "edition_publishers": ("user_id",)}  # the batch page's Publish the edition (site/schema-8-edition-publish.sql)
 
 # supabase-js, as much of it as the pages use: a session in localStorage, and table reads and upserts
 # against this server's /sb/rest/v1/
@@ -190,7 +191,7 @@ def main():
             p = p.replace("<script>\nconst params", f'<script src="config.js"></script>\n<script src="shim.js"></script>\n<script>\nconst params')
             p = p.replace("<title>Proof a puzzle</title>", site.REVIEW_HEAD)
         else:
-            p = p.replace("<script>\nconst $", '<script src="../config.js"></script>\n<script>\nconst $')
+            p = p.replace("<script>\nconst $", '<script src="../config.js"></script>\n<script src="../shim.js"></script>\n<script>\nconst $')
             p = p.replace("<title>Batch</title>", site.BATCH_HEAD)
         return p.replace("</body>", RELOAD + "</body>").encode()
 
@@ -303,7 +304,7 @@ def main():
                     key = tuple(row.get(k) for k in KEYS[t])
                     tables[t] = [r for r in tables[t] if tuple(r.get(k) for k in KEYS[t]) != key] + [row]
                 (db / f"{t}.json").write_text(json.dumps(tables[t], indent=1), encoding="utf-8")
-            print(f"  saved to {t}: {body.get('xdid') if isinstance(body, dict) else len(body)}")
+            print(f"  saved to {t}: {(body.get('xdid') or body.get('batch')) if isinstance(body, dict) else len(body)}")
             self.out(b"", "application/json", 201)
 
     print(f"The review site, from {SRC}, data from {data}: {len(tables['puzzles'])} puzzles")
