@@ -1442,7 +1442,7 @@ function declineHtml(r, t, editKey) {
   if (r === cur) return '';
   const by = declinedBy(t), mine = by.includes(cur), owner = ownerRound(cur);
   const byEdit = byOwnersEdit(r, t, editKey);
-  return (by.length ? ` <b class="declined">Declined by the owner${by.some(x => x !== cur) ? ` (${esc(by.filter(x => x !== cur).map(x => x.who).join(', '))})` : ''}: not a misprint.</b> <span class="hint">Not taken: not corrected at the gxd export${t.key.startsWith('cell:') ? ', and the letter stays as the key printed it' : ''}.</span>` : '')
+  return (by.length ? ` <b class="declined">Declined by the owner${by.some(x => x !== cur) ? ` (${esc(by.filter(x => x !== cur).map(x => x.who).join(', '))})` : ''}: not a misprint.</b> <span class="hint">Not taken: not corrected in the edition${t.key.startsWith('cell:') ? ', and the letter stays as the key printed it' : ''}.</span>` : '')
     + (byEdit ? ` <span class="hint"><b>Your edit on this row keeps the printed “${esc(t.printed)}”: it declines this mark</b> (not corrected in the edition).</span>` : '')
     + (owner && !byEdit ? ` <button class="linkbtn decline" data-k="${esc(t.key)}" data-p="${esc(t.printed)}" data-m="${esc(t.meant ?? t.corrected ?? '')}" data-by="${esc(r.who)}">${mine ? 'take the decline back' : 'not a misprint'}</button>` : '');
 }
