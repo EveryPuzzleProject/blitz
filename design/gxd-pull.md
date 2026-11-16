@@ -1,6 +1,9 @@
 # gxd pulls from EPP: reversing the export
 
-Status: proposal, 2026-11-13. Nothing here is built. The owner's direction of 2026-11-13: instead
+Status: proposal, 2026-11-13. Slice 1 (§7) built 2026-11-16 on blitz branch `claude/gxd-pull-slice1`, with the owner's
+acceptance of the recommendations in §1 (a manifest per publication repo, the edition in `edition/`) and §6 (a release
+mark per batch): "As built: slice 1" at the end says what was decided and where it departs from this note. Before that
+nothing here was built. The owner's direction of 2026-11-13: instead
 of EPP pushing to gxd, EPP advertises what it has, and gxd downloads and imports it the way it
 does every other outlet, with its own import code and its own editorial. Nothing from the v2
 pipeline has gone to gxd yet (GAMES 1977-79: 35 shipped; Collegian: 69; New York World 1914: 2),
@@ -296,3 +299,37 @@ Freeze `ship-export` now (no linked-ends support, no new features). Then:
 - Whether gxd's xdlint accepts a slot label (`A4.`) in a pair-labelled clue list.
 - How gxd counts a puzzle reached through EPP's repo whose underlying page is also in a gxd source
   archive already (Judge's `judge-scans-*.zip`): one receipts row or two.
+
+## As built: slice 1 (2026-11-16)
+
+The edition step, the manifest and the release mark are in blitz (`src/blitz/edition.py`; `blitz edition <pub>`;
+run by `blitz ship --write` and `--record`), documented in `design/ship.md`, "The edition", which holds the exact
+manifest format. Nothing on the gxd side changed. What was decided in building it, and where it departs from the
+note above:
+
+- **The manifest's format** is as §1 proposed (the same columns, in that order), with: full sha256 of the file's
+  bytes; rows in xdid order; `release` is the release's date, or `in-gxd` for Judge; `why` starts with a code
+  (`not-released`, `mark-unplaced`, `mark-invalid`, `key-declined`, `cryptic-no-key`, `no-provenance`,
+  `not-in-gxd`). §3's `kind=cryptic-no-key` became `status=held` with that code in `why`, not a column of its own.
+- **record_url** is written only for a page recorded as published (`pipeline/record-pages.tsv` in the publication
+  repo, which nothing writes yet), never made from the URL pattern: the World's `gxd-exports.tsv` names pages that
+  return 404. Judge's one-off manifest copies its live pages' URLs from its `gxd-exports.tsv`. Writing
+  `record-pages.tsv` belongs to whatever publishes record pages for a publication.
+- **Judge**: the manifest lists `xd/<xdid>.xd` as the edition (no copy in `edition/`), by a separate one-off command
+  (`blitz edition judge --from-gxd-exports`), refused for a repo with provenance rows.
+- **A file in `xd/` with no provenance row** (GAMES's `games1977-09-01`, the 37th file §"What EPP already
+  publishes" couldn't explain) is listed, `held: no-provenance`, rather than left out.
+- **A release taken back** puts the batch's rows back to `held: not-released`; `withdrawn` is kept for a puzzle no
+  longer in `xd/`. Whether gxd treats an available row turning held as anything is gxd's to say.
+- **The notes in the edition** are two blocks added after the transcription's own: `Puzzle notes:` (the printed
+  lines the Notes rule takes) and `Misprints corrected:` (one line per correction). Every other block stays, so the
+  edition is the transcription plus what the step did; gxd's converter keeps those two blocks and `Answer key
+  corrected:` as its notes and drops the rest as house style (slice 2).
+- **A mark already applied upstream** (the text review had put the words meant in: ship's `fits: already`) gets the
+  note alone, as at the export, and doesn't hold the edition.
+- **A mark added after shipping** reaches the edition at the next `blitz ship --record` or `--write` for the batch
+  (which is when the site's answers come into the ledger); a decline reaches it at the next `blitz edition`.
+
+Left for slice 2 and later: the gxd converter and adapter; who owns typography (blanks, dashes, quotes: not done
+in the edition); `gxd-exports.tsv`, receipts and the shelves (untouched); making `edition/` and `shipped.tsv` reach
+the publication repos' default branches (nothing was written to them); `record-pages.tsv`.

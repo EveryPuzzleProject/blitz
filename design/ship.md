@@ -117,6 +117,8 @@ proofread it. What was said stays in `said`, marked `stale`, and in the reason.
 - `gxd-exports.tsv`: judge's columns (`gxd_id xdid date number gxd_mr exported proof_url
   package_url scan_url ai_reviewed person_reviewed credit`), rebuilt from provenance.jsonl;
   `gxd_mr` and `exported` are filled by hand after a merge and kept.
+- `edition/<xdid>.xd`, `pipeline/edition.json` and `shipped.tsv`: the edition step (The edition, below), run
+  after the record by `--write` and `--record`.
 - `pipeline/ship/<batch>.json`, the batch's ship record:
   `{batch, run, packets, rule, at, counts: {puzzles, shipped, shippable, held, out, held_by,
   ships_with, queues, reviewed, spot_check}, groups, spot, puzzles: [{pid, xdid, title, date,
@@ -375,8 +377,9 @@ code, with the record of every edit behind it. One JSON file per puzzle beside t
 | the site (`--publish`) | `batch/<batch>/as-shipped/<pid>.json`, beside `ship.json` |
 
 `{_about, pid, xdid, batch, run, at, status, xd, xd_fp, packet, packet_xd, decision: {rule, ai_ready,
-why, said}, edits: {records, packet}, corrections, notes, printed}`: the shape of the puzzle's
-provenance row, with the text. `at` is the record's; `xd_fp` is `fingerprint(xd)`, and the record's
+why, said}, edits: {records, packet}, corrections, notes, printed, edition}`: the shape of the puzzle's
+provenance row, with the text, and the edition made from it (The edition, below: `{status, path, xd, xd_fp,
+sha256, held, corrections, declined, notes, kinds, notes_from}`). `at` is the record's; `xd_fp` is `fingerprint(xd)`, and the record's
 row for the puzzle carries the same value as `as_shipped`, so a page can tell a file from another
 making of the record. A helper is "a helper" and the owner's site account "the owner", as in the
 record's public copy. A puzzle that no longer passes loses its file when the record is made again,
@@ -385,9 +388,109 @@ record's is drawn under a warning.
 
 The batch page's "Ready to ship" and "Shipped" cards link to it (`?b=<batch>&ship=<pid>`): the text,
 which decision ships it, every edit's record (each linking to its row on the proof page), the
-misprints kept as printed with what the export will do, the text review's own changes. The proof
+misprints kept as printed with what the edition does, the text review's own changes, and the edition
+made from the xd, labelled, with its corrections, the marks the owner declined and its puzzle notes (or why it is held). The proof
 page draws the same file under "The xd as it will ship". Both draw only what the file says, and say
 "not recorded" when the record points to a file that isn't there.
+
+## The edition (since 2026-11-16)
+
+EPP publishes two layers of every shipped puzzle (the owner's decision of 2026-11-13, `design/gxd-pull.md`):
+the **transcription**, `xd/<xdid>.xd`, the puzzle as printed (everything above: reading fixes applied,
+key letters corrected with their note); and the **edition**, `edition/<xdid>.xd`, derived from it by
+rule and never edited by hand. gxd is offered the edition; the transcription is its evidence. The code is
+`src/blitz/edition.py`; `corrected()` and the Notes rule (`NOTE_LABELS`, `notes_labels()`, the ledger's
+`notes-rule:<pubid>`) moved there from the gxd export, which imports them back and works as before.
+
+```
+uv run blitz edition games                      # the editions and shipped.tsv, from xd/, provenance and the ledger (+ the review site)
+uv run blitz edition games --no-site            # the ledger only
+uv run blitz edition judge --from-gxd-exports   # Judge's one-off manifest (below)
+```
+
+`blitz ship --write` and `--record` run it too, after the record. It reads, for each puzzle in
+`provenance.jsonl`:
+
+- the transcription in `xd/` (never written by this step);
+- its **marks**: the corrections of the print that count under the ship rule (`marks`, whose marks take
+  effect, as "The record of every edit" says). They are taken from the freshest record that describes this
+  very transcription (same fingerprint): the ship plan being made (under `blitz ship`), else the as-shipped
+  file the last record left (`pipeline/ship/<batch>/as-shipped/<pid>.json`), else the provenance row. A mark
+  added after a puzzle shipped reaches the edition when `blitz ship --record` (or `--write`) runs for the
+  batch again, which is when the review site's answers come into the ledger;
+- the owner's **declines** ("not a misprint"), from each of the owner's accounts' latest proof record in the
+  ledger and the review site's records not in it yet: a decline given after shipping takes effect at the next
+  `blitz edition`, with no re-ship;
+- the **Notes rule** (`notes-rule:<pubid>`, else intro and instructions) and the row's kept printed lines
+  with their labels;
+- the transcription's key-letter corrections, for the hold below.
+
+What it does, in this order:
+
+1. Each mark that counts and wasn't declined is applied by `corrected()` where that is mechanical: the
+   printed words, whole, exactly once in the clue or header the mark names; the words meant take their
+   place, and the note "A3 is printed 'Tow'; corrected to 'Two'." (the pair's label in a linked-ends xd:
+   "The clue for 1-2 is ..."). Where an earlier step already put the words meant in (ship's `fits:
+   already`), the note alone. A malformed mark, or one naming a key square, is never applied.
+2. The notes are added at the end of the xd's notes, after the transcription's own blocks (which all stay,
+   blitz-only ones included: gxd's converter drops those as house style): a `Puzzle notes:` block, the
+   printed lines the Notes rule takes, one entry each, and a `Misprints corrected:` block, one line per
+   correction. Key-letter notes stay where ship wrote them (`Answer key corrected:`).
+3. **A hold** writes no edition file (an old one is removed) and says why, with a code:
+
+| code | when |
+|---|---|
+| `mark-unplaced` | a mark that counts whose printed words aren't in its row exactly once, and whose words meant aren't there either. The step never guesses which words are meant |
+| `mark-invalid` | a mark that is malformed, or names no clue or header (a key square's mark is ship's) |
+| `key-declined` | the transcription carries a key-letter correction the owner has since declined: the transcription itself is wrong until `blitz ship --write` ships it again |
+
+Same inputs, same bytes: nothing in the text depends on the time or the order of the ledger. **What it was
+made from** is in `pipeline/edition.json`, one entry per xdid: `{status (made | held), inputs_sha256,
+inputs: {version, transcription_sha256, marks, declines, notes_rule, printed, key_corrections}, marks_from,
+notes_from, made_at, held, corrections: [{key, printed, meant, by, done, note}], declined, notes, kinds,
+edition_sha256}`. An edition whose inputs hash and file are as recorded is left alone (`made_at` too); any
+change to the transcription, a mark, a decline, the Notes rule or the printed lines makes that one again.
+`edition.VERSION` is the rules' version: raising it makes every edition again.
+
+**The release mark.** The owner presses "Release to gxd" on the batch page (shown only to a name on the
+ship rule's `owner` list, signed in as on the proof page); pressing it again takes it back. The page writes a
+row to the site's `releases` table (`site/schema-8-releases.sql`: run it once in the Supabase SQL editor);
+`blitz ship` and `blitz edition` take it into the ledger as `{id: "release:<batch>", answer: release | undo,
+by: "<name> (review site)", via: "review site", at}` (`from_site`). Only the owner's latest record counts
+(`edition.releases`; a helper's or a guest's does nothing). The ship record carries `release: {released,
+at, by}` ("the owner" in the public copy) and `available`, the batch's puzzles that are shipped, have their
+edition made, carry no `NOT_EXPORTED` code, in a released batch. The batch page draws both above the queues,
+with the editions made and held (each held one linked to its xd as it will ship), and a release given on the
+site since the record as "since the record", not yet counted. Each shipped card says "Edition made" (with
+the corrections) or "Edition held: <code>".
+
+**The manifest**, `shipped.tsv` at the publication repo's root: what gxd reads (design/gxd-pull.md §1). Its
+exact format:
+
+- UTF-8, LF line ends, tab-separated, a header line, then one row per xdid in xdid order; no tab or line
+  break inside a value (`ship.CONTROL` turned to spaces).
+- Columns, in this order: `xdid date number status why transcription transcription_sha256 edition
+  edition_sha256 shipped_at batch release record_url proof_url`.
+- `date`, `number`: the transcription's `Date:` and `Number:` headers as they are. `transcription`,
+  `edition`: paths in the repo (`xd/<xdid>.xd`, `edition/<xdid>.xd`); empty when there is no such file.
+  `*_sha256`: the full sha256 of the file's bytes, lowercase hex. `shipped_at`, `batch`: the provenance
+  row's. `release`: the date (YYYY-MM-DD) of the owner's release of the row's batch, `in-gxd` for a puzzle
+  gxd held before the pull (Judge), else empty. `proof_url`: the proof page. `record_url`: only a page
+  recorded as published, in `pipeline/record-pages.tsv` (`xdid url`), never made from the URL pattern;
+  today no publication has that file, so it is empty everywhere but Judge's one-off manifest, which copies
+  Judge's live pages from its `gxd-exports.tsv`. The World's `gxd-exports.tsv` rows name record pages that
+  were never published (404), and are not copied.
+- `status`: `available` (edition made, batch released, nothing holding it; `why` empty), `held` (`why`
+  starts with a code: an edition hold above; `cryptic-no-key`; `not-released`; `no-provenance` for a file in
+  `xd/` that `blitz ship` didn't ship, as GAMES's `games1977-09-01`), or `withdrawn`. A row is never
+  dropped: a puzzle no longer in `xd/` stays, `withdrawn`, with its last values. A release taken back puts
+  the batch's rows back to `held: not-released` (gxd keeps what it took; it is not a withdrawal).
+
+**Judge** came by the older path and is already in gxd: no provenance rows, no editions to make.
+`blitz edition judge --from-gxd-exports` (a one-off, refused when the repo has `provenance.jsonl`) lists
+every file in `xd/` as its edition (`edition` = `xd/<xdid>.xd`, no transcription column), `available` with
+release `in-gxd` where `gxd-exports.tsv` shows it merged (`gxd_mr` or `exported`), and `why` naming the gxd
+id and MR; any other file is `held: not-in-gxd`. `blitz edition judge` without the flag is refused.
 
 ## Where the printed lines land
 
@@ -777,6 +880,9 @@ the same plan:
   `R2_BUCKET`) and writes one object, `batch/games-1977-79/ship.json`.
 
 ## The gxd export
+
+**Frozen since 2026-11-16** (design/gxd-pull.md §7): nothing is added to it. gxd will pull the edition instead
+(The edition, above); `corrected()` and the Notes rule it uses now live in the edition step.
 
 `blitz ship-export <pub> --dest <folder>` writes files only: `<shelf>/<YYYY>/<gxd id>.xd`,
 `receipts.tsv`, `publications.tsv`, `source-pages.tsv` (every page the puzzles were read from),
