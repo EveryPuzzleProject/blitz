@@ -500,3 +500,34 @@ def close(xdids: list[str]) -> None:
     """Take puzzles off the site (e.g. once imported)."""
     for x in xdids:
         _rest("PATCH", f"puzzles?xdid=eq.{x}", {"open": False}, prefer="return=minimal")
+
+
+def retire_batch(name: str, dry_run: bool = False) -> list[str]:
+    """Take a whole batch off the site (e.g. one replaced by a new reading of the same puzzles): its puzzles
+    closed (open = false, as site-close: helpers' work on them stays in the database for import), and its
+    entry taken out of the batch page's list (batch/batches.json). Its files stay in the bucket, so a link
+    to a closed puzzle still shows what was there. Returns the puzzles closed."""
+    rows = _rest_all(f"puzzles?select=xdid,open&batch=eq.{name}")
+    if not rows:
+        raise Stop(f"No puzzles of batch {name} on the site.")
+    still = [r["xdid"] for r in rows if r.get("open")]
+    print(f"{name}: {len(rows)} puzzles on the site, {len(still)} open")
+    account, key_id, secret, bucket = _env("R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_BUCKET")
+    s3 = r2.client(account, key_id, secret)
+    try:
+        idx = json.loads(s3.get_object(Bucket=bucket, Key="batch/batches.json")["Body"].read())
+    except s3.exceptions.NoSuchKey:
+        idx = {}
+    listed = [b for b in idx.get("batches", []) if b["name"] == name]
+    print(f"  the batch page {'lists it' if listed else 'does not list it'}")
+    if dry_run:
+        return still
+    if still:
+        _rest("PATCH", f"puzzles?batch=eq.{name}", {"open": False}, prefer="return=minimal")
+        print(f"  closed {len(still)} puzzles")
+    if listed:
+        idx["batches"] = [b for b in idx["batches"] if b["name"] != name]
+        s3.put_object(Bucket=bucket, Key="batch/batches.json", Body=json.dumps(idx, indent=1).encode("utf-8"),
+                      ContentType="application/json", CacheControl="no-cache")
+        print("  taken off the batch page's list")
+    return still

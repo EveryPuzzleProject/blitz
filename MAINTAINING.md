@@ -145,6 +145,12 @@ the publication's repo. Pushing, rebuilding packets for the changed puzzles and 
 printed as next steps. A sign-off lapses when the puzzle's xd changes later, so readiness always
 means "a person said this exact version is ready".
 
+**Puzzles read by hand** (an xd and a boxes file each, no OCR draft): `blitz hand-packets <dir> --pages
+<page images> --dest <folder>` makes their proof packets, then `site-publish` as above
+(design/hand-read.md). **Taking a batch off the site** (one replaced by a new reading):
+`blitz site-retire-batch <name>` closes its puzzles and drops it from the batch page's list
+(`--dry-run` first); helpers' work on it stays in the database, and its files stay in the bucket.
+
 ### Shipping a batch
 
 When a batch has been reviewed, `blitz ship` puts the puzzles that pass the ship rule into the

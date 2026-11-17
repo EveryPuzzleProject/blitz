@@ -862,11 +862,15 @@ const READ_IN = '#7a4fb5';
 const readIn = key => ((ocr.reviewer_fixes || {}).squares || []).find(s => s.key === key);
 const readInWho = f => `the owner, ${String(f.at || '').slice(0, 10)} (read in by the pipeline)`;
 const shapeOf = v => v === '_' ? '#' : v;  // the record writes a square outside the puzzle as the xd does
+// who made the reading every review starts from: the OCR, or a person who read the scan by hand (blitz
+// hand-packets: ocr.read_by), as the packet records it
+const BASE = () => ocr.read_by || 'OCR';
+const baseRead = () => BASE() === 'OCR' ? 'OCR read' : BASE().replace(/^./, c => c.toUpperCase()) + ' as';
 function history(key, start = base(key)) {
   const f = readIn(key), was = f && f.was !== undefined ? shapeOf(f.was) : undefined;
   // the stage's own reading first, where the record has it and the owner changed it; then the owner's, which is the base
   const h = f && shapeOf(f.value) === shapeOf(start) && was !== undefined && was !== shapeOf(start)
-    ? [{who: 'OCR', value: was}, {who: readInWho(f), color: READ_IN, value: start}] : [{who: 'OCR', value: start}];
+    ? [{who: BASE(), value: was}, {who: readInWho(f), color: READ_IN, value: start}] : [{who: BASE(), value: start}];
   rounds.forEach(r => { if (key in r.edits && r.edits[key] !== h[h.length - 1].value) h.push({who: r.who, color: r.color, value: r.edits[key]}); });
   return h;
 }
@@ -1294,10 +1298,26 @@ function questionSection() {
 // list that fits the grid, ...). This is not the header table's missing Notes row: which printed lines go into the
 // edition's puzzle notes is still the run-wide Notes rule (the batch page); this shows what the xd holds now, so
 // nothing in it is hidden, and a question about the notes has somewhere to point (meta:note, notes).
+// what an xd carries besides its headers, grid and clues, as written: in gxd's form the blocks after the clues; in
+// the sectioned form (## Metadata, ## Grid, ## Clues, ...) its Notes header and every other section (Design, Labels)
+function xdBlocks(t) {
+  t = t.replace(/\r\n/g, '\n').replace(/\n+$/, '');
+  if (!/^## /m.test(t)) return t.split('\n\n\n').slice(3).join('\n\n').split(/\n\n+/).filter(b => b.trim());
+  const out = [];
+  for (const sec of t.split(/^(?=## )/m)) {
+    const [h, ...rest] = sec.split('\n'), name = h.replace(/^##\s*/, '').trim();
+    if (!h.startsWith('## ')) continue;
+    if (name === 'Metadata') {
+      const n = rest.find(l => /^Notes:/i.test(l));
+      if (n) out.push("Notes (the xd's header)\n" + n.replace(/^Notes:\s*/i, ''));
+    } else if (name !== 'Grid' && name !== 'Clues' && rest.join('').trim()) out.push(name + '\n' + rest.join('\n').replace(/^\n+|\n+$/g, ''));
+  }
+  return out;
+}
 function xdNotesSection() {
   const s = document.createElement('section');
   s.id = 'xdnotes';
-  const blocks = xdText == null ? [] : xdText.replace(/\r\n/g, '\n').replace(/\n+$/, '').split('\n\n\n').slice(3).join('\n\n').split(/\n\n+/).filter(b => b.trim());
+  const blocks = xdText == null ? [] : xdBlocks(xdText);
   const cs = ['meta:note', 'notes', 'ev:note'].flatMap(commentsFor);
   // what ship adds to the notes of the xd that ships (the ship record's notes for this puzzle): drawn as recorded, never worked out here
   const added = ((SHIPBY || {})[ID] || {}).notes || [];
@@ -1977,7 +1997,9 @@ const numAt = (r, c) => final(`num:r${r+1}c${c+1}`);
 // a word printed in the grid as a start (every square given its letter): it has no clue, and the xd lists none
 const givenWord = k => { const cs = entryCells(slotOf(k)); return cs.length > 0 && cs.every(([r, c]) => /^[A-Z]$/.test(numAt(r, c))); };
 function pairOf(k) {
-  if (!linkedEnds()) return '';
+  // modern numbering with the printed pair kept as the clue's metadata (xd "A6 ^Printed: 4-5"; blitz hand-packets
+  // records it as the clue's printed): the pair as printed, misprints and all
+  if (!linkedEnds()) return (ocr.clues[k] || {}).printed || '';
   const cs = entryCells(slotOf(k));
   if (cs.length) {
     const a = numAt(...cs[0]), b = numAt(...cs[cs.length - 1]);
@@ -2869,7 +2891,7 @@ function addRow(s, key, label, box, flags = [], src = null) {
     } else if (document.activeElement !== txt) txt.textContent = fin;
     // the earlier versions, oldest first, so it's clear what was there before
     row.querySelector('.was').innerHTML = h.length > 1 ? h.slice(0, -1).map((v, i) =>
-      `${i ? ' → ' : ''}${v.who === 'OCR' ? `OCR read <q>${esc(v.value) || '(nothing)'}</q>` : nearby && !v.value ? esc(v.who) + ' left it out' : `${esc(v.who)} made it <q>${esc(v.value) || '(nothing)'}</q>`}`).join('') +
+      `${i ? ' → ' : ''}${v.who === BASE() ? `${baseRead()} <q>${esc(v.value) || '(nothing)'}</q>` : nearby && !v.value ? esc(v.who) + ' left it out' : `${esc(v.who)} made it <q>${esc(v.value) || '(nothing)'}</q>`}`).join('') +
       ` → <b style="color:${h[h.length-1].color}">${esc(kind)}</b>`
       + ` <button class="linkbtn chgtog" title="${row.classList.contains('nochg') ? 'Mark the changes in this line again' : 'Just the final text of this line, as the xd file has it'}">${row.classList.contains('nochg') ? 'show changes' : 'hide changes'}</button>` : '';
     const looked = rounds.filter(r => (r.looked || []).includes(key)).map(r => r.who);
