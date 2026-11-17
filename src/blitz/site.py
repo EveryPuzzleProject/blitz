@@ -37,8 +37,11 @@ from .work import Stop
 # checks found (xword-ocr proofreview.checks_record, written by `triage --proof` / `proof-checks`): the proof page
 # opens with it. ai_review.json: the AI proof reviewer's record (proofreview.record / attach), drawn as its own round.
 # puzzle.xd: the xd itself, so the proof page can show the notes it carries after its clues (nothing else records them).
+# _src/answer_page.jpg: the proof page cuts a printed line's crop from _src/<its image>, and a hand-read packet's
+# solution-page lines (blitz hand-packets: a solution caption) are on answer_page.jpg.
 FILES = ("ocr.json", "review.json", "checks.json", "ai_review.json", "puzzle.xd", "sheets/shown.json", "page.jpg", "clue_page.jpg", "continued_page.jpg", "grid.png",
-         "answers.png", "answer_page.jpg", "cover.jpg", "_src/page.jpg", "_src/clue_page.jpg", "_src/continued_page.jpg")
+         "answers.png", "answer_page.jpg", "cover.jpg", "_src/page.jpg", "_src/clue_page.jpg", "_src/continued_page.jpg",
+         "_src/answer_page.jpg")
 
 
 def candidate_pages(packet: Path) -> list[str]:
