@@ -26,6 +26,10 @@ The public review site (helpers check agents' reviews in the browser; see site/R
     blitz site-status                    how many helpers checked each puzzle, and where they disagree
     blitz site-close <puzzle...>         take puzzles off the site
     blitz key-squares <folder> --pub P   the key squares worth a glance, for /review/squares/ (site-publish puts them up)
+    blitz hand-packets <hand-read dir> --pages DIR --dest DIR
+                                         proof packets from puzzles read by hand from the scan (an xd and its
+                                         boxes file each), for site-publish like any other
+    blitz site-retire-batch <name>       take a whole batch off the site: its puzzles closed, the batch page's entry gone
 
 Shipping a batch (design/ship.md):
     blitz ship <pub> --proof <run's proof packets> [--batch NAME] [--write] [--ai-ready off|both|either]
@@ -256,6 +260,25 @@ def cmd_site_publish(a) -> None:
     done = publish(Path(a.folder), a.batch or "", a.dry_run, tuple(a.skip or ()), a.squares_only, a.force)
     print(f"{'would publish' if a.dry_run else 'published'} {len(done)} puzzles"
           + (" (their key squares only)" if a.squares_only else ""))
+
+
+def cmd_hand_packets(a) -> None:
+    from . import handread
+
+    made = handread.build_all(Path(a.src), Path(a.pages), Path(a.dest), a.only or None, a.model or "")
+    for m in made:
+        print(f"  {m['xdid']}: {m['clues']} clues, {m['lines']} printed lines"
+              + (f" ({m['outside']} clues no run can name)" if m['outside'] else "")
+              + (f", {m['givens']} givens" if m['givens'] else "") + ("" if m['key'] else ", no key")
+              + (", the World's own numbering" if m['pair_form'] else "")
+              + (f", {m['flagged']} clues flagged" if m['flagged'] else ""))
+    print(f"{len(made)} proof packets in {a.dest}")
+
+
+def cmd_site_retire_batch(a) -> None:
+    from .site import retire_batch
+
+    retire_batch(a.name, a.dry_run)
 
 
 def cmd_site_publish_batch(a) -> None:
@@ -627,6 +650,18 @@ def main(argv=None) -> None:
                         "review pages aren't opened")
     q.add_argument("--force", action="store_true", help="upload every file, even ones the site already has byte for byte")
     q.set_defaults(fn=cmd_site_publish)
+    q = sub.add_parser("hand-packets", help="proof packets from puzzles read by hand from the scan (xd + boxes file each)")
+    q.add_argument("src", help="the folder of hand-read <xdid>.xd, <xdid>.boxes.json and doubts-<xdid>.md")
+    q.add_argument("--pages", required=True, help="the folder of page images the boxes files name")
+    q.add_argument("--dest", required=True, help="where to write the packets (one folder per xdid)")
+    q.add_argument("--only", nargs="+", metavar="XDID", help="just these puzzles")
+    q.add_argument("--model", help="who read them, for the packet's record (e.g. claude-opus-5-5)")
+    q.set_defaults(fn=cmd_hand_packets)
+    q = sub.add_parser("site-retire-batch", help="take a whole batch off the review site (its puzzles closed, "
+                                                 "its batch page entry removed); the files stay in the bucket")
+    q.add_argument("name")
+    q.add_argument("--dry-run", action="store_true")
+    q.set_defaults(fn=cmd_site_retire_batch)
     q = sub.add_parser("site-publish-batch", help="the batch page's records (a snapshot of a running watch's batch) "
                                                   "to the review site's /review/batch/")
     q.add_argument("name", help="the batch's name on the site, e.g. games-1977-79 (as site-publish --batch)")
