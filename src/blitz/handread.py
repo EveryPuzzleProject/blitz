@@ -19,7 +19,8 @@ Nothing here reads the scan for content: the crops are cut where the boxes file 
 key are straightened from the lattice the reader recorded, and every value comes from the xd.
 
 Output, per puzzle: a proof packet (the files `site-publish` puts up: ocr.json, review.json, puzzle.xd,
-page.jpg, answer_page.jpg, grid.png, answers.png, _src/), named by the xdid.
+page.jpg, answer_page.jpg, grid.png, answers.png, _src/), named by the xdid; and for the folder, triage.json, the
+record blitz ship reads (each puzzle's ship check: ship_check).
 """
 
 from __future__ import annotations
@@ -296,9 +297,95 @@ def build(xd_path: Path, pages: Path, dest: Path, model: str = "") -> dict:
             "flagged": bad, "key": bool(bx.get("key")), "pair_form": bool(pair_form)}
 
 
+# ---- the ship check: what keeps a hand-read xd from shipping, recorded with the packets -----------------
+# blitz ship reads a triage record per puzzle (xword-ocr's triage.json for a harvest's run). A hand-read batch has no
+# harvest, so hand-packets writes the record itself, in the packets' folder (triage.json), in the same shape: every
+# puzzle "ready" for review, and its ship check of the xd, the same kinds of finding as xword-ocr shipcheck.check.
+# `incomplete` is what no Ready makes whole (ship holds the puzzle on it), less what a person's edits fill (a key
+# square read on the proof page: ship.filled_by). A run with no clue line, or a clue line with no text, is what the
+# paper printed (the reader's own check, newyorkworld worldxd.py, notes it and passes: FUN left some words unclued,
+# and No. 28 printed no clues at all), so it is a finding the reviewer sees, not a hold; a run whose every square
+# is a given (printed in the grid) wants no clue and isn't one.
+
+INCOMPLETE = ("clue-extra", "grid-unsolved", "answer-differs")
+
+
+def _items(code: str, what: str, items: list[str]) -> dict:
+    return {"code": code, "detail": f"{what}: " + " ".join(items[:8]) + (f" (+{len(items) - 8})" if len(items) > 8 else ""),
+            "items": items}
+
+
+def ship_check(text: str, ocr: dict | None = None) -> dict:
+    """{ok, findings, incomplete, xd_fp} for a hand-read xd (ocr: its packet's, which says which of a pair-form
+    puzzle's clues are on runs). Findings: no-title, no-author; clue-missing (a run of the grid with no clue line),
+    clue-extra (a clue line naming no run), clue-empty, grid-unsolved (squares with no letter: '?' or '.', the key
+    not printed or not read), answer-differs (a clue's answer isn't the grid's letters); in the World's own form,
+    clue-off-grid for each clue no run can name (said, not holding: the xd keeps it under its pair)."""
+    xd = parse_xd(text)
+    grid, h = xd["grid"], xd["headers"]
+    runs = slots(grid)
+    pair_form = bool(xd["labels"]) or bool(h.get("Numbering"))
+    f = []
+    if not h.get("Title"):
+        f.append({"code": "no-title", "detail": "no Title header"})
+    if not (h.get("Author") or h.get("Byline")):
+        f.append({"code": "no-author", "detail": "no Author or Byline header"})
+    order = lambda k: (k[0], int(k[1:])) if re.fullmatch(r"[AD]\d+", k) else ("Z", 0)
+    if pair_form:
+        on = {(c or {}).get("printed"): k for k, c in ((ocr or {}).get("clues") or {}).items()}
+        placed = {on[lab]: lab for lab in xd["order"] if lab in on}
+        off = [lab for lab in xd["order"] if lab not in on]
+        if off:
+            f.append(_items("clue-off-grid", "clues no across or down run can name (kept under their printed pair)", off))
+    else:
+        placed = {lab: lab for lab in xd["order"]}
+        gchars = {ln.split()[0] for ln in xd["styles"] if "given" in ln}
+        given = {(r, c) for r, row in enumerate(xd["design"]) for c, ch in enumerate(row) if ch in gchars}
+        missing = sorted({k for k, sq in runs.items() if not set(sq) <= given} - set(placed), key=order)
+        extra = sorted(set(placed) - set(runs), key=order)
+        if missing:
+            f.append(_items("clue-missing", "runs with no clue line (none printed, as read)", missing))
+        if extra:
+            f.append(_items("clue-extra", "clues the grid has no slot for", extra))
+    empty = [k for k, lab in placed.items() if not xd["clues"][lab]["text"].strip()]
+    if pair_form:
+        empty += [lab for lab in xd["order"] if lab not in placed.values() and not xd["clues"][lab]["text"].strip()]
+    if empty:
+        f.append(_items("clue-empty", "clues with no text (none printed, as read)", sorted(empty, key=order)))
+    cells = [f"r{r + 1}c{c + 1}" for r, row in enumerate(grid) for c, ch in enumerate(row) if not NS(ch) and not ch.isalpha()]
+    if cells:
+        f.append({"code": "grid-unsolved", "detail": f"{len(cells)} square(s) unsolved", "cells": cells})
+    differs = [k for k, lab in placed.items() if k in runs and xd["clues"][lab]["answer"]
+               and "?" not in xd["clues"][lab]["answer"] and not cells
+               and xd["clues"][lab]["answer"] != "".join(grid[r][c] for r, c in runs[k])]
+    if differs:
+        f.append(_items("answer-differs", "clues whose answer isn't the grid's letters", sorted(differs, key=order)))
+    return {"ok": not f, "findings": f, "incomplete": [x["detail"] for x in f if x["code"] in INCOMPLETE],
+            "xd_fp": hashlib.sha1(text.replace("\r\n", "\n").encode("utf-8")).hexdigest()[:12]}
+
+
+def write_triage(dest: Path, xdids: list[str]) -> Path:
+    """dest/triage.json: each built packet's ship check (ship_check), as ship reads a harvest's triage record. Packets
+    built earlier and not rebuilt now keep their rows."""
+    path = dest / "triage.json"
+    have = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    rows = {r["pid"]: r for r in have.get("puzzles") or []}
+    for xdid in xdids:
+        d = dest / xdid
+        ocr = json.loads((d / "ocr.json").read_text(encoding="utf-8"))
+        ship = ship_check((d / "puzzle.xd").read_text(encoding="utf-8"), ocr)
+        rows[xdid] = {"pid": xdid, "decision": "ready", "reasons": [], "blocking": [], "ship": ship}
+    out = {"by": "blitz hand-packets", "about": "puzzles read by hand: each one's ship check of its xd (blitz handread.ship_check)",
+           "puzzles": [rows[k] for k in sorted(rows)]}
+    path.write_text(json.dumps(out, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
+    return path
+
+
 def build_all(src: Path, pages: Path, dest: Path, xdids: list[str] | None = None, model: str = "") -> list[dict]:
     xds = sorted(p for p in src.glob("*.xd") if not xdids or p.stem in xdids)
     if not xds:
         raise Stop(f"No xd files in {src}" + (f" for {', '.join(xdids)}" if xdids else ""))
     dest.mkdir(parents=True, exist_ok=True)
-    return [build(p, pages, dest, model) for p in xds]
+    made = [build(p, pages, dest, model) for p in xds]
+    write_triage(dest, [m["xdid"] for m in made])
+    return made

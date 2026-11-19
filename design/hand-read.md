@@ -44,18 +44,30 @@ never share a name with an OCR batch's packet on the site, in R2 or in the ledge
   No. 13's inner star, No. 27's words run on from FUN) is a printed line of its own, with its crop,
   pair and answer, so it is seen and checked, but the proof page can't put it on the grid.
 
-## What is not done yet: the import and ship
+## Shipping
 
-Helpers' work comes back the usual way (`blitz sync` / `site-import`, then xword-ocr `import-reviews`
-into the publication's `fixes/`, keyed by the xdid). `blitz ship` already applies reviewers' edits to
-the packet's own `puzzle.xd`, which here is the hand-read file, so the hand-read xd stays the version
-the edits apply against. Two gaps before a hand-read batch can ship:
+`blitz ship <pub> --proof <the hand-packets folder> --batch <name>` ships a hand-read batch as any other:
+the same ship rule, helpers' decisions from the site, the record of every edit, `xd/<xdid>.xd`. What differs:
 
-1. `ship.apply_edits` reads gxd's blank-line form (headers, grid, clues split by two blank lines); the
-   hand-read files use `## Metadata` / `## Grid` / `## Clues` sections, `^Printed:` metadata and Design.
-   It needs that form, including writing an edited clue back under its pair label for the three metas.
-2. `ship` reads a harvest's triage record for each puzzle; a hand-read batch has none. Its ship check
-   for these would be `worldxd.py check` (newyorkworld), recorded the same way.
+- **The ship check is recorded by hand-packets.** A hand-read batch has no harvest, so `hand-packets`
+  writes `triage.json` in the packets' folder (ship reads it there when the harvest has none): every
+  puzzle ready for review, and `handread.ship_check` of its xd, in xword-ocr's shape. It holds a puzzle
+  on an unsolved grid (`?` squares: No. 3 has no key; a reviewer's letters for every square fill it), a
+  clue naming no run, or an answer that isn't the grid's letters. A run with no clue line, or a clue line
+  with no text, is what FUN printed (the reader's `worldxd.py check` passes it too): a finding the
+  reviewer sees, not a hold. In the World's own form, each clue no run can name is said (`clue-off-grid`).
+- **The xd's own sections.** ship reads the hand-read xd through `ship.unsection`: its Metadata, Grid and
+  Clues as the blank-line form the rest of ship reads, and back into the file's sections when it ships,
+  every other line (Design, Labels, `^Printed:`) as it was. `_` is outside the puzzle, so a changed key
+  square changes the answers of the right words. A note ship adds after the clues (a corrected key
+  letter's) goes in a `## Notes` section at the end.
+- **The World's own form.** A clue the proof page showed on a run (`ocr.json` clues, `printed`: its pair)
+  is edited as that run's clue and written back under its pair. A key square changed in a puzzle with
+  clues no run can name holds it (`edits-unapplied`): their answers can't follow the square. So does an
+  edit of such a clue (a printed line's text, `line:B<n>`), as for any puzzle that isn't linked-ends.
+- **Ids.** A hand-read packet is named by its xdid, and ships under it: nothing is pinned. Where `xd/`
+  already has that file from another source (Nos. 11 and 12, shipped from the OCR batch as
+  `nyw1914-03-01` and `-03-08`), the puzzle is held as `xd-exists`: which version stands is the owner's call.
 
-Until then the batch can be reviewed (Ready / Not ready, edits, comments, all kept on the site and in
-the ledger), and nothing ships.
+Not done: `ship-export` (the gxd export) reads the blank-line form; a hand-read xd in `xd/` isn't
+exported until it reads sections too.

@@ -611,7 +611,7 @@ def apply_edits(text: str, edits: dict) -> tuple[str, list[str]]:
             head = _set_header(head, k, v)
             done.append(k)
     cell_edits = any(k.startswith("cell:") for k in done)
-    answer = answers(cells) if cell_edits else {}
+    answer = answers(cells, outside_of(cells)) if cell_edits else {}
     lines = []
     for line in (rest[0].split("\n") if rest else []):
         m = re.match(r"([AD]\d+)\. (.*) ~ (.*)$", line)
@@ -630,6 +630,110 @@ def apply_edits(text: str, edits: dict) -> tuple[str, list[str]]:
     if rest[1:]:
         out += "\n\n" + "\n\n\n".join(rest[1:]) + "\n"
     return out, done
+
+
+def outside_of(cells) -> str:
+    """The characters that aren't squares of a grid: '#', and '_' where the grid uses it (xd's mark for a place
+    outside the puzzle's shape, as in the New York World's diamonds read by hand)."""
+    return "#_" if any("_" in "".join(r) for r in cells) else "#"
+
+
+# ---- the ## section form: puzzles read by hand (blitz hand-packets, design/hand-read.md) -------------
+# A hand-read xd is in sections ("## Metadata", "## Grid", "## Clues", and "## Design" or "## Labels"), not split by
+# blank lines. Ship reads it through unsection(): the Metadata, Grid and Clues sections as the blank-line form that
+# the rest of this module reads, with restore() to put the edited text back into the file's own sections, every
+# other line as it was. In the World's own form (Nos. 13, 18, 27: clues named by their end squares' pair, a Labels
+# section) a clue the proof page shows on a run (ocr.json clues {A6: {printed: "1-3"}}) is read as that run's clue,
+# and written back under its pair; a clue no run can name stays as it is (the page shows it as a printed line).
+
+SECTION = re.compile(r"^## (\w+)\s*$")
+
+
+def sectioned(text: str) -> bool:
+    """The xd is in ## sections (the hand-read form), not split by blank lines."""
+    return text.replace("\r\n", "\n").lstrip().startswith("## ")
+
+
+def _sections(text: str) -> list[list]:
+    """[[name, lines]] in the file's order: "\n".join over them, each with its "## name" line, is the text again."""
+    out = []
+    for line in text.replace("\r\n", "\n").split("\n"):
+        m = SECTION.match(line)
+        if m:
+            out.append([m[1], []])
+        elif out:
+            out[-1][1].append(line)
+        else:
+            out.append(["", [line]])
+    return out
+
+
+def _join(secs: list[list]) -> str:
+    return "\n".join(ln for name, lines in secs for ln in ([f"## {name}"] if name else []) + lines)
+
+
+def _body(lines: list[str]) -> tuple[int, int]:
+    """(start, end) of a section's lines less the blank lines before and after them."""
+    i, j = 0, len(lines)
+    while i < j and not lines[i].strip():
+        i += 1
+    while j > i and not lines[j - 1].strip():
+        j -= 1
+    return i, j
+
+
+def unsection(text: str, ocr: dict | None = None):
+    """(the blank-line form of a sectioned xd, restore): restore(plain) is the file again, in its own sections, with
+    whatever was done to the plain text; restore(unsection(text)[0]) == text. Notes ship adds after the clues (a
+    corrected key letter's) go in a "## Notes" section at the end. ocr: the packet's, for the World's own form."""
+    secs = _sections(text)
+    part = lambda name: next((s for s in secs if s[0] == name), None)
+    for name in ("Metadata", "Grid", "Clues"):
+        if not part(name):
+            raise Stop(f"a sectioned xd with no ## {name} section")
+    clues = part("Clues")[1][slice(*_body(part("Clues")[1]))]
+    # the World's own form: the clue the proof page put on a run is that run's clue here, under its pair in the file
+    hr = (ocr or {}).get("hand_read") or {}
+    pmap = {}
+    if hr.get("pair_form"):
+        pmap = {(c or {}).get("printed"): k for k, c in ((ocr or {}).get("clues") or {}).items() if (c or {}).get("printed")}
+    names = {}
+
+    def run_label(m):
+        names[pmap[m[1]]] = m[1]
+        return pmap[m[1]]
+    plain_clues = []
+    for ln in clues:
+        m = re.match(r"^(\S+?)(\. | \^)(.*)$", ln)
+        plain_clues.append(run_label(m) + m[2] + m[3] if m and m[1] in pmap else ln)
+    get = lambda name: part(name)[1][slice(*_body(part(name)[1]))]
+    plain = "\n".join(get("Metadata")) + "\n\n\n" + "\n".join(get("Grid")) + "\n\n\n" + "\n".join(plain_clues) + "\n"
+
+    def restore(new: str) -> str:
+        head, grid, *rest = new.replace("\r\n", "\n").rstrip("\n").split("\n\n\n")
+        back = []
+        for ln in (rest[0].split("\n") if rest else []):
+            m = re.match(r"^([AD]\d+)(\. | \^)(.*)$", ln)
+            back.append(names[m[1]] + m[2] + m[3] if m and m[1] in names else ln)
+        body = {"Metadata": head.split("\n"), "Grid": grid.split("\n"), "Clues": back}
+        out = [[name, list(lines)] for name, lines in secs]
+        for s in out:
+            if s[0] in body:
+                i, j = _body(s[1])
+                s[1][i:j] = body[s[0]]
+        notes = "\n\n\n".join(rest[1:]).strip("\n")
+        if notes:
+            notes_sec = next((s for s in out if s[0] == "Notes"), None)
+            if notes_sec:
+                i, j = _body(notes_sec[1])
+                notes_sec[1][j:j] = ["", *notes.split("\n")] if j > i else notes.split("\n")
+            else:
+                last = out[-1][1]
+                i, j = _body(last)
+                last[j:] = ["", ""]
+                out.append(["Notes", [*notes.split("\n"), ""]])
+        return _join(out)
+    return plain, restore
 
 
 # ---- linked ends: the first crosswords (the New York World's FUN, 1913-14) ---------------------
@@ -1163,11 +1267,12 @@ def _tsv(path: Path) -> list[dict]:
     return list(csv.DictReader(io.StringIO(Path(path).read_text(encoding="utf-8")), delimiter="\t", quoting=csv.QUOTE_NONE))
 
 
-def assign_ids(want: list[str], places: dict[str, tuple], repo: Path) -> tuple[dict[str, str], list[dict]]:
+def assign_ids(want: list[str], places: dict[str, tuple], repo: Path, own: set | frozenset = frozenset()) -> tuple[dict[str, str], list[dict]]:
     """{pid: xdid} for the puzzles to import and the new pins (rows for fixes/xdids.tsv). A puzzle the
     publication already pinned keeps its id (pipeline/ids.tsv's aliases, or fixes/xdids.tsv by its place:
     scan, leaf, grid size, n-th of that size on the page among every puzzle of the run); a new one gets
-    its date's next free letter, in page order. places: {pid: (scan, leaf, size)} for the whole run."""
+    its date's next free letter, in page order. places: {pid: (scan, leaf, size)} for the whole run. own: puzzles
+    whose packet is named by its xdid already (read by hand: blitz hand-packets), which keep it and pin nothing."""
     alias, by_page = _pins(repo)
     used = set(by_page.values()) | set(alias.values()) | {f.stem for f in (repo / "xd").glob("*.xd")}
     seen, nth = {}, {}
@@ -1176,6 +1281,9 @@ def assign_ids(want: list[str], places: dict[str, tuple], repo: Path) -> tuple[d
         seen[places[pid]] = nth[pid] + 1
     out, new = {}, []
     for pid in sorted(want):
+        if pid in own:
+            out[pid] = pid
+            continue
         scan, leaf, size = places[pid]
         spelled = re.sub(r"-L(\d+)([b-h])$", lambda m: f"-L{m[1]}-{ord(m[2]) - ord('a') + 1}", pid)
         x = alias.get(pid) or alias.get(spelled) or by_page.get((scan, str(leaf), size, str(nth[pid])))
@@ -1206,9 +1314,12 @@ def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict |
     edit the import doesn't apply), xd-exists (xd/ has another file under its id)."""
     repo = Path(repo)
     harvest, run, rel = _where(proof_root)
-    tri = _load(harvest / "triage" / run / "triage.json")
+    # a harvest's run has triage's record beside its proof packets; puzzles read by hand have the one blitz hand-packets
+    # wrote with them (its ship check of each xd), in the packets' folder
+    tri = _load(harvest / "triage" / run / "triage.json") or _load(Path(proof_root) / "triage.json")
     if not tri:
-        raise Stop(f"No triage record for {run} at {harvest / 'triage' / run}: run xword-ocr triage --proof first.")
+        raise Stop(f"No triage record for {run} at {harvest / 'triage' / run}: run xword-ocr triage --proof first "
+                   "(or, for puzzles read by hand, blitz hand-packets, which writes it with the packets).")
     recs = ledger(repo)
     pids = [p["pid"] for p in tri["puzzles"]]
     new_site = from_site(site, recs, set(pids), {batch or run}) if site else []
@@ -1224,6 +1335,9 @@ def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict |
         o = _load(folder / "ocr.json") or {}
         xd = (folder / "puzzle.xd").read_text(encoding="utf-8") if (folder / "puzzle.xd").exists() else ""
         packs[pid] = {"folder": folder, "ocr": o, "xd": xd, "review": _load(folder / "review.json") or {}}
+        if xd and sectioned(xd):  # read by hand: read and edited as the blank-line form, shipped in its own sections
+            xd, packs[pid]["restore"] = unsection(xd, o)
+            packs[pid]["xd"] = xd
         page = ((o.get("stages") or {}).get("pages") or {}).get("page.jpg") or ["", ""]
         grid = xd.split("\n\n\n")[1].split("\n") if xd else o.get("grid") or [""]
         places[pid] = (page[0], str(page[1]), f"{len(grid)}x{len(grid[0])}")
@@ -1378,6 +1492,11 @@ def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict |
         if bad:
             hold("edits-unapplied", "proof-page edits the import can't apply yet: " + ", ".join(bad[:6]))
             continue
+        off_runs = ((pk["ocr"].get("hand_read") or {}).get("outside")) or []
+        if off_runs and any(k.startswith("cell:") for k in edits):  # their answers would not follow the square
+            hold("edits-unapplied", "a key square changed in a puzzle with clues no across or down run can name ("
+                 + ", ".join(off_runs[:6]) + "): their answers can't follow it, so the import doesn't apply it yet")
+            continue
         # its candidate clue lists: each decided by a Ready reviewer's edit, or the puzzle waits for that decision
         undecided = [c["id"] for c in cands if f"candidate:{c['id']}" not in edits]
         if undecided:
@@ -1405,7 +1524,7 @@ def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict |
         else:
             text, done = apply_edits(text, edits)
         squares = any(isinstance(f, dict) and f.get("code") == "grid-unsolved" and f.get("detail") in filled for f in ship.get("findings") or [])
-        if squares and "." in text.split("\n\n\n")[1]:  # the letters were given, and a square is still unread in what would ship
+        if squares and any(ch in ".?" for ch in text.split("\n\n\n")[1]):  # the letters were given, and a square is still unread in what would ship
             hold("incomplete", "Ready, but incomplete: " + "; ".join(map(str, ship["incomplete"])) + " (the edits don't fill every square)")
             continue
         if [k for k in typed if _read(text)[2].get(k[5:]) != typed_by[k]]:  # a typed clue that doesn't ship as it was typed
@@ -1415,7 +1534,11 @@ def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict |
         passing[pid] = {"text": text, "edits": done, "edit_values": edits, "edit_sources": sources, "standing": st, "row": row,
                         "packet": f"{rel}/{pid}", "xd_fp": review.get("xd_fp", ""), "typed": typed}
     _record_edits(passing, packs, rule)  # each one's record of every edit, its misprint notes; none without (edit-unrecorded)
-    ids, pins = assign_ids(list(passing), places, repo)
+    for pid, x in passing.items():
+        if packs[pid].get("restore"):  # read by hand: back into the file's own sections
+            x["text"] = packs[pid]["restore"](x["text"])
+    own = {pid for pid in passing if packs[pid].get("restore") and packs[pid]["review"].get("hand_read")}
+    ids, pins = assign_ids(list(passing), places, repo, own)
     for pid, x in sorted(passing.items()):
         row, xdid = x["row"], ids[pid]
         f = repo / "xd" / f"{xdid}.xd"
@@ -1659,8 +1782,8 @@ def edit_records(packet_xd: str, applied: str, apply: list[dict], rule: Rule = R
     page keys them, with the printed pair in `pair`."""
     ocr, typed = ocr or {}, typed or {}
     is_linked = linked(packet_xd)
-    outside, pairs = (OUTSIDE if is_linked else "#"), _pairs(packet_xd)
     was_h, was_c, was_q = _read(packet_xd)
+    outside, pairs = (OUTSIDE if is_linked else outside_of(was_c)), _pairs(packet_xd)
     owner, value, typos, seen, of_key, key_said = {}, {}, [], set(), set(), {}
     invalid, proposals, row_marks = [], [], []  # marks that can't be taken (they hold the puzzle); marks that wait for the owner
     who = lambda r: {"by": r.get("by", ""), "kind": kind_of(r, rule), "via": r.get("via", ""), "at": r.get("at", "")}
@@ -1970,7 +2093,7 @@ def edit_records(packet_xd: str, applied: str, apply: list[dict], rule: Rule = R
                 continue
             one = [row[:] for row in was_c]
             one[at[0]][at[1]] = (v or "").upper()
-            a0, a1 = answers(was_c), answers(one)
+            a0, a1 = answers(was_c, outside), answers(one, outside)
             add(k, "key square", was_c[at[0]][at[1]], (v or "").upper(), r,
                 words={lab: [a0.get(lab, ""), w] for lab, w in a1.items() if a0.get(lab) != w})
         elif k.startswith("meta:") and k[5:] in HEADER:
