@@ -310,6 +310,7 @@ button.qgo { font: inherit; font-weight: 600; font-size: 13px; border: 1px solid
 #xdnotes .xdn { margin: 0 0 10px; border: 1px solid var(--line); border-radius: 6px; background: #fff; }
 #xdnotes .xdn .xdh { font-weight: 600; font-size: 13px; padding: 5px 10px; border-bottom: 1px solid var(--line); }
 #xdnotes .xdn pre { margin: 0; padding: 6px 10px; font: 13px/1.45 var(--serif, Georgia, serif); white-space: pre-wrap; max-height: 260px; overflow: auto; }
+#xdnotes .xdn pre.fixed { font: 13px/1.3 ui-monospace, Consolas, Menlo, monospace; white-space: pre; max-height: none; }
 #xdnotes .xdnone { padding: 6px 10px; border-left: 3px solid var(--bad); background: #fff; font-size: 13px; }
 #xdnotes .margin { margin-top: 8px; max-width: 520px; }
 .note { background: var(--note); border: 1px solid var(--noteborder); border-left-width: 3px; border-radius: 5px; padding: 4px 8px; margin-bottom: 4px; }
@@ -1300,6 +1301,7 @@ function questionSection() {
 // nothing in it is hidden, and a question about the notes has somewhere to point (meta:note, notes).
 // what an xd carries besides its headers, grid and clues, as written: in gxd's form the blocks after the clues; in
 // the sectioned form (## Metadata, ## Grid, ## Clues, ...) its Notes header and every other section (Design, Labels)
+const FIXED_SECTIONS = ['Design', 'Labels'];  // ## sections whose lines are laid out by character
 function xdBlocks(t) {
   t = t.replace(/\r\n/g, '\n').replace(/\n+$/, '');
   if (!/^## /m.test(t)) return t.split('\n\n\n').slice(3).join('\n\n').split(/\n\n+/).filter(b => b.trim());
@@ -1338,7 +1340,8 @@ function xdNotesSection() {
   const blockHtml = (b, i) => {
     const [h, ...rest] = b.split('\n');
     if (showPreview && h === PH) { shown = true; return preview() + `<details class="xdn was"><summary>${esc(h)} as this packet's puzzle.xd has it</summary><pre>${esc(rest.join('\n'))}</pre></details>`; }
-    return `<div class="xdn" id="xdnote-${i + 1}"><div class="xdh">${esc(h)}</div>${rest.length ? `<pre>${esc(rest.join('\n'))}</pre>` : ''}</div>`;
+    // an xd section laid out character by character (Design's grid, Labels' squares): fixed-width, as the file has it
+    return `<div class="xdn" id="xdnote-${i + 1}"><div class="xdh">${esc(h)}</div>${rest.length ? `<pre${FIXED_SECTIONS.includes(h) ? ' class="fixed"' : ''}>${esc(rest.join('\n'))}</pre>` : ''}</div>`;
   };
   const drawn = blocks.map(blockHtml).join('');
   const noPlace = !place && Object.keys(cur.edits).some(k => /^(keep|line):B\d+$/.test(k)) && xdText != null
