@@ -128,3 +128,26 @@ def test_pair_form_names_runs_and_lists_the_rest(tmp_path):
     assert set(ocr["clues"]) == {"A1", "D1", "A3", "D2"} and ocr["hand_read"]["outside"] == ["1-4"]
     line = ocr["lines"][-1]
     assert line["text"] == "1-4. Diagonal. ~ C_W" and line["box"] == [5, 140, 90, 160]
+
+
+def test_lines_headers_and_checks_record(tmp_path):
+    src, pages = _make(tmp_path, "nyw1914-01-04", MODERN, [
+        {"pair": "1-2", "text": "A pet.", "page": "puzzle", "box": [5, 100, 90, 120], "ref": "A1"}])
+    b = json.loads((src / "nyw1914-01-04.boxes.json").read_text(encoding="utf-8"))
+    b["lines"] = [{"label": "heading", "text": "A TEST.", "page": "puzzle", "box": [1, 1, 9, 9]},
+                  {"label": "number", "text": "No. 3", "page": "puzzle", "box": [1, 1, 9, 9]},
+                  {"label": "intro heading", "text": "Number 3 of a test, by Pat.", "page": "puzzle", "box": [1, 1, 9, 9]},
+                  {"label": "solution caption", "text": "Last week's answers.", "page": "solution", "box": [1, 1, 9, 9]}]
+    (src / "nyw1914-01-04.boxes.json").write_text(json.dumps(b), encoding="utf-8")
+    handread.build_all(src, pages, tmp_path / "out")
+    p = tmp_path / "out" / "nyw1914-01-04"
+    ocr = json.loads((p / "ocr.json").read_text(encoding="utf-8"))
+    # the line that is the header is the header's, not a note; one that only holds its words stays a note
+    assert [(L["label"], L["keep"], L.get("header")) for L in ocr["lines"]] == [
+        ("section", False, "title"), ("other", False, "number"), ("intro", True, None), ("answers", False, None)]
+    assert {m["field"]: m["says"] for m in ocr["metadata"]} == {
+        "title": "as printed in line B1", "number": "as printed in line B2", "date": "the date of the issue it's in"}
+    checks = json.loads((p / "checks.json").read_text(encoding="utf-8"))
+    assert checks["xd_fp"] == json.loads((p / "review.json").read_text(encoding="utf-8"))["xd_fp"]
+    assert {i["code"]: (i["key"], i["from"], i["incomplete"]) for i in checks["items"]} == {
+        "no-author": ("meta:author", "hand-read check", False)}

@@ -36,6 +36,36 @@ from .work import Stop
 READ_BY = "read by hand"
 LABELS = {"instructions": "instructions", "intro": "intro", "intro heading": "intro", "credit": "credit",
           "art credit": "credit"}
+KEEP = ("instructions", "intro", "credit", "other")  # kept with the puzzle by default (its notes); the rest discarded
+
+
+def line_label(said: str, page: str = "puzzle") -> str:
+    """The proof page's label (ship.LINE_LABELS) for what the reader called a printed line ("solution caption",
+    "heading (left of grid)", "intro (garbled)"): a line printed with the solution is where its answers are."""
+    said = (said or "").lower()
+    if page == "solution" or said.startswith("solution"):
+        return "answers"
+    head = said.split(" (")[0].strip()
+    if head in LABELS:
+        return LABELS[head]
+    if head in ("heading", "banner"):
+        return "section"
+    if head in ("subheading", "tagline"):
+        return "intro"
+    return "other"
+
+
+def _words(t: str) -> str:
+    return " ".join(re.findall(r"[a-z0-9]+", (t or "").lower()))
+
+
+def header_line(value: str, lines: list[dict]) -> int | None:
+    """The printed line a header was read from: the first whose words are the value's, or hold them."""
+    v = _words(value)
+    if not v:
+        return None
+    return next((L["n"] for L in lines if _words(L["text"]) == v), None) or next(
+        (L["n"] for L in lines if f" {v} " in f" {_words(L['text'])} "), None)
 
 
 def parse_xd(text: str) -> dict:
@@ -227,8 +257,9 @@ def build(xd_path: Path, pages: Path, dest: Path, model: str = "") -> dict:
 
     lines = []
     for i, L in enumerate(bx.get("lines", []), 1):
-        lines.append({"n": i, "text": L.get("text", ""), "box": L.get("box"), "label": LABELS.get(L.get("label", ""), "other"),
-                      "keep": True, "by": "hand-read", "printed_as": L.get("label", ""),
+        lab = line_label(L.get("label", ""), L.get("page", "puzzle"))
+        lines.append({"n": i, "text": L.get("text", ""), "box": L.get("box"), "label": lab,
+                      "keep": lab in KEEP, "by": "hand-read", "printed_as": L.get("label", ""),
                       **({"image": image_of(L.get("page"))} if image_of(L.get("page")) != "page.jpg" else {})})
     # a clue the modern numbering can't name (a diagonal word, a word inside a longer run): a printed line of
     # its own, with its pair and answer, so it is seen and checked beside its crop
@@ -259,16 +290,28 @@ def build(xd_path: Path, pages: Path, dest: Path, model: str = "") -> dict:
                       "note": "The clues' pairs give this square two labels, so the blank grid shows none here: "
                               + "; ".join(f"{v} ({', '.join(ks)})" for v, ks in said.items()) + ". Type the printed one."})
     h = xd["headers"]
+    # the xd's headers as the reader wrote them: the proof page's headers table shows each, named as the reader's, with
+    # the printed line it was read from where one has its words (that line is the header's, not kept as a note)
+    metadata = []
+    for i, (f, x) in enumerate((("title", "Title"), ("number", "Number"), ("date", "Date"), ("author", "Author"),
+                                ("editor", "Editor")), 1):
+        if not h.get(x):
+            continue
+        n = header_line(h[x], lines[:len(bx.get("lines", []))]) if f != "date" else None
+        metadata.append({"id": f"H{i}", "name": f"{f.title()} ({READ_BY})", "value": h[x], "field": f,
+                         "says": f"as printed in line B{n}" if n else "the date of the issue it's in" if f == "date"
+                         else "read by hand; no printed line has these words", **({"line": n} if n else {})})
+        bare = re.sub(r"^(no|number) ", "", _words(lines[n - 1]["text"])) if n and f == "number" else _words(lines[n - 1]["text"]) if n else ""
+        if n and bare == _words(h[x]):  # the line is the header itself ("No 12" for Number: 12): not a note as well
+            lines[n - 1]["keep"] = False
+            lines[n - 1]["header"] = f
     ocr = {"xdid": xdid, "source": "", "title": h.get("Title", ""), "author": h.get("Author", ""), "byline": "",
            "puzzle_number": h.get("Number", ""), "editor": h.get("Editor", ""), "issue_date": h.get("Date", ""),
            "feature": "", "read_by": READ_BY, "grid": blank,
            "answers": grid, "answers_low_confidence": [], "grid_asymmetric_squares": [],
            "clue_image": "page.jpg", "scales": {n: 1.0 for n in files.values() if (out / n).exists()},
            "clues": clues, "lines": lines, "evidence": {},
-           # the xd's headers as the reader wrote them: the proof page's headers table shows each, named as the reader's
-           "metadata": [{"id": f"H{i}", "name": f"{f.title()} ({READ_BY})", "value": h[x], "field": f}
-                        for i, (f, x) in enumerate((("title", "Title"), ("number", "Number"), ("date", "Date"),
-                                                     ("author", "Author"), ("editor", "Editor")), 1) if h.get(x)],
+           "metadata": metadata,
            "square_numbers": square_numbers,
            "numbering": ("as printed (the xd's Labels section)" if pair_form else
                          "from each clue's printed pair (the xd's ^Printed, or ^Fits where the pair was misprinted): its first "
@@ -292,6 +335,7 @@ def build(xd_path: Path, pages: Path, dest: Path, model: str = "") -> dict:
               "xd_fp": hashlib.sha1(raw.replace("\r\n", "\n").encode("utf-8")).hexdigest()[:12],
               "hand_read": True}
     (out / "review.json").write_text(json.dumps(review, indent=1, ensure_ascii=False), encoding="utf-8")
+    (out / "checks.json").write_text(json.dumps(checks_record(raw, ocr), indent=1, ensure_ascii=False), encoding="utf-8")
     bad = sum(1 for c in clues.values() if c.get("flags"))
     return {"xdid": xdid, "clues": len(clues), "outside": len(outside), "lines": len(lines), "givens": len(givens),
             "flagged": bad, "key": bool(bx.get("key")), "pair_form": bool(pair_form)}
@@ -362,6 +406,27 @@ def ship_check(text: str, ocr: dict | None = None) -> dict:
         f.append(_items("answer-differs", "clues whose answer isn't the grid's letters", sorted(differs, key=order)))
     return {"ok": not f, "findings": f, "incomplete": [x["detail"] for x in f if x["code"] in INCOMPLETE],
             "xd_fp": hashlib.sha1(text.replace("\r\n", "\n").encode("utf-8")).hexdigest()[:12]}
+
+
+# a finding's row on the proof page: the header's, the clue's, the printed line's (a clue no run can name)
+FINDING_ROW = {"no-title": ["meta:title"], "no-author": ["meta:author"]}
+
+
+def checks_record(text: str, ocr: dict) -> dict:
+    """The packet's checks.json, what the proof page's "What the checks found" draws: the ship check's findings, each
+    linked to its rows (xword-ocr proofreview.checks_record's shape, from "hand-read check")."""
+    ship = ship_check(text, ocr)
+    off = {ln["text"].split(". ", 1)[0]: ln["n"] for ln in ocr.get("lines") or [] if ln.get("printed_as", "").startswith("a clue no")}
+    items = []
+    for f in ship["findings"]:
+        if f["code"] == "clue-off-grid":
+            keys = [f"line:B{off[x]}" for x in f.get("items") or [] if x in off]
+        else:
+            keys = FINDING_ROW.get(f["code"]) or [f"clue:{x}" for x in f.get("items") or []]
+        items.append({"key": keys[0] if keys else "grid" if f.get("cells") else "notes", **({"keys": keys} if len(keys) > 1 else {}),
+                      **({"cells": f["cells"]} if f.get("cells") else {}), "what": f["detail"], "from": "hand-read check",
+                      "code": f["code"], "incomplete": f["detail"] in ship["incomplete"]})
+    return {"xd_fp": ship["xd_fp"], "decision": "ready", "ship": ship, "items": items}
 
 
 def write_triage(dest: Path, xdids: list[str]) -> Path:
