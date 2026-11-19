@@ -919,7 +919,7 @@ function diff(a, b, who, color) {
 
 // crop a box (clue_image coordinates) from the full-res scan
 function strip(box, im) {
-  if (!box) { const d = document.createElement('span'); d.className = 'nocrop'; d.textContent = 'No crop: the OCR didn\'t find this on the page'; return d; }
+  if (!box) { const d = document.createElement('span'); d.className = 'nocrop'; d.textContent = ocr.read_by ? 'No crop: the reader marked no place on the page for this (nothing printed for it?)' : 'No crop: the OCR didn\'t find this on the page'; return d; }
   const s = scaleOf(im), [x0, y0, x1, y1] = box.map(v => v * s);
   const px = 4 * s, py = -1.5 * s, w = x1 - x0 + 2 * px, h = y1 - y0 + 2 * py;
   const cv = document.createElement('canvas');
@@ -2112,7 +2112,9 @@ function findingsList() {
 let flagged = new Set();  // every row a finding names: shown under "Look here first"
 const SRC_TITLE = {'ship check': 'the ship check (xword-ocr shipcheck): can the puzzle ship with no one reading it? Its findings are in triage.json',
   triage: "triage's doubts (triage.json reasons)", 'text step': "the text step's own notes (review.json: unsure, findings, sic, requests)",
-  gxd: 'the gxd cross-check (gxdcheck.json): a key near miss', 'key reading': "the answer key's reading (ocr.json answers_low_confidence)"};
+  gxd: 'the gxd cross-check (gxdcheck.json): a key near miss',
+  'hand-read check': "the ship check of an xd read by hand (blitz hand-packets: handread.ship_check); a finding marked not whole holds it at ship, whoever says Ready",
+  'key reading': "the answer key's reading (ocr.json answers_low_confidence)"};
 function keyName(k) {
   if (k.startsWith('clue:')) return k.slice(5).replace('^', ' ^');
   if (k.startsWith('line:')) return k.slice(5);
@@ -2145,7 +2147,7 @@ function checksSection() {
     <div class="body">${inc.length ? `<div class="whole"><b>Not whole:</b> ${inc.map(esc).join('; ')}. <b>A Ready can't ship this until it is whole</b> (the ship check holds it: a missing page or block goes back to the stage that lost it).</div>` : ''}
     ${items.length ? `<ul>${items.map(line).join('')}</ul>` : '<p class="hint" style="margin:0">No findings recorded.</p>'}
     ${stale ? `<p class="more">The record was made on an earlier version of this puzzle (${esc(checks.xd_fp)}; this is ${esc(rev.xd_fp)}): a finding may be settled since.</p>` : ''}
-    ${checks?.decision ? `<p class="more">Triage: ${esc(checks.decision)}${checks.ship ? checks.ship.ok ? ' · passed the ship check' : ' · held by the ship check' : ' · no ship check recorded'}.</p>` : ''}</div>`;
+    ${checks?.decision ? `<p class="more">Triage: ${esc(checks.decision)}${checks.ship ? checks.ship.ok ? ' · passed the ship check' : inc.length ? ' · held by the ship check' : " · the ship check has findings, none that holds it: a person's Ready ships it" : ' · no ship check recorded'}.</p>` : ''}</div>`;
   s.querySelectorAll('a[data-go]').forEach(a => a.onclick = e => { e.preventDefault(); goTo(a.dataset.go); });
   return s;
 }
@@ -2660,7 +2662,7 @@ function headerSection(hs) {
     const long = k && len > LONG_LINE ? `<div><b class="m-flag m-long" title="a kept line this long is usually the page's other text: check it belongs to this puzzle">kept: ${len.toLocaleString()} characters</b></div>` : '';
     if (long) row.classList.add('longline');
     ab.innerHTML = `<div class="xdcol">${long}${byDefault ? '<div class="dflt">discarded by default: not part of this puzzle</div>' : ''}<div class="kd"><button class="k1 ${k ? 'on' : ''}">Keep</button> <button class="k0 ${k ? '' : 'on'}">Discard</button></div>
-      <div class="hint">the text step says it's${esc(was)} <select class="lbl">${Object.entries(LABELS).map(([v, d]) => `<option value="${v}" ${v === labelOf(L) ? 'selected' : ''}>${esc(d)}</option>`).join('')}</select></div>
+      <div class="hint">${ocr.read_by ? `${L.header ? `the line the ${esc(L.header)} was read from; ` : ''}the reader says it's` : "the text step says it's"}${esc(was)} <select class="lbl">${Object.entries(LABELS).map(([v, d]) => `<option value="${v}" ${v === labelOf(L) ? 'selected' : ''}>${esc(d)}</option>`).join('')}</select></div>
       ${cur.edits['keep:B' + L.n] !== undefined || cur.edits['label:B' + L.n] !== undefined ? '<div class="hint">(you changed it)</div>' : ''}</div>`;
     const dflt = () => L.keep ?? !DISCARD.includes(labelOf(L));
     ab.querySelector('.k1').onclick = () => hedit('keep:B' + L.n, dflt() ? undefined : true);
@@ -2692,6 +2694,8 @@ function headerSection(hs) {
           : !derived && !own && gapOf(f) ? `<div class="askline">None printed: confirmed by ${esc(gapOf(f).by)}${gapOf(f).note ? ` (${esc(gapOf(f).note)})` : ''}. If you see a ${f} on the scan, type it here as printed.</div>`
           : !derived && !own && (f === 'title' || f === 'byline') ? `<div class="askline">None found. If the puzzle has a ${f} printed, click here and type it as printed.</div>` : ''}</td>
       <td class="hs">${typeof n === 'number' && lineN(n) ? `<a href="#B${n}">from line B${n}</a>${rule ? ` <span class="hint">· ${esc(rule)}</span>` : ''}`
+        // a header read by hand: the printed line it was read from (m.line), or what the reader says of it
+        : m && !m.rule && m.says ? `${esc(m.name)} <span class="hint">(${m.line && lineN(m.line) ? `as printed in <a href="#B${m.line}">line B${m.line}</a>` : esc(m.says)})</span>`
         : m ? `${esc(m.name)} <span class="hint">(${m.rule ? esc(m.says || 'a publication rule, not read from this page') : m.image ? 'printed on another page of the issue' : "the issue's metadata, not printed"})</span>${m.image ? `<img class="metaimg" src="${dir}${esc(m.image)}" alt="${esc(m.name)}, as printed">` : ''}`
         : f === 'date' && derived ? `<span class="hint">${esc(rule)}</span>` : '<span class="hint">not found</span>'}
         ${cur.edits['ev:' + f] !== undefined ? ' <span class="hint">(you chose it)</span>' : ''}
@@ -2755,7 +2759,7 @@ function opsList() {
   const s = document.createElement('section');
   if (!groups.length) return s;
   const one = (n, name) => n === 1 ? name.replace(/^(\w+?)s\b/, '$1') : name;
-  s.innerHTML = `<details class="ops"><summary><b>What the ${esc(a.who)} did</b>${'model_id' in rev ? ` <span class="hint">(${esc(rev.model_id || 'model not recorded')})</span>` : ''} <span class="hint">${groups.map(([n, i]) => `${i.length} ${one(i.length, n)}`).join(' · ')}</span></summary>
+  s.innerHTML = `<details class="ops"><summary><b>${ocr.read_by && a.who.toLowerCase() === ocr.read_by.toLowerCase() ? 'What the reading did' : `What the ${esc(a.who)} did`}</b>${'model_id' in rev ? ` <span class="hint">(${esc(rev.model_id || 'model not recorded')})</span>` : ''} <span class="hint">${groups.map(([n, i]) => `${i.length} ${one(i.length, n)}`).join(' · ')}</span></summary>
     ${groups.map(([n, i]) => `<div class="opg"><div class="opn">${n}</div><ul>${i.map(x => `<li>${x}</li>`).join('')}</ul></div>`).join('')}</details>`;
   return s;
 }

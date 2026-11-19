@@ -15,6 +15,7 @@ puzzle, in the shape `site-publish` and the proof page already take:
 |---|---|
 | `puzzle.xd` | the hand-read xd, byte for byte (its `xd_fp` in review.json) |
 | `ocr.json` | the reading every review starts from: the grid's shape, the letters, each clue's text and printed pair (`^Printed:`), its box on the page, every printed line with its box, the xd's headers as `metadata` (shown in the headers table as "read by hand"); `read_by: "read by hand"` names whose reading it is |
+| `checks.json` | the ship check's findings (`handread.ship_check`), each linked to its row: the page's "What the checks found" |
 | `review.json` | no corrections; the reader's doubts file as a note, each `^Note:` on its clue, each given on its square |
 | `page.jpg`, `answer_page.jpg`, `_src/` | the puzzle and solution pages, whole (boxes are in their pixels; scale 1) |
 | `grid.png`, `answers.png` | the grid and the key straightened from the lattice the reader recorded (corners TL TR BR BL) |
