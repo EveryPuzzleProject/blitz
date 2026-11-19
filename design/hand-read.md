@@ -29,9 +29,15 @@ never share a name with an OCR batch's packet on the site, in R2 or in the ledge
 ## The forms
 
 - **Modern numbering with the printed pair** (`A6. … ~ RECEIPT`, `A6 ^Printed: 4-5`, `A6 ^Note: …`):
-  the proof page numbers the grid as usual and shows each clue's printed pair as its label. Givens
-  (`## Design`, `G { given: true }`) are comments on their squares; the Design section itself shows
-  under "Notes in the xd file".
+  the blank grid shows the numbers the paper printed, worked out from the pairs (`square_numbers`):
+  each clue's `^Fits: a-b` where the pair was misprinted, else its `^Printed: a-b`, puts a on its
+  word's first square and b on its last; a given square (`## Design`, `G { given: true }`) shows its
+  letter, as the paper printed it there. Where two clues (or a clue and a given) label one square
+  differently, the square gets none and a note on it says what each gave. So a clue's label is the
+  pair its end squares give, a misprinted one flagged "printed as 38-39", and a reviewer corrects a
+  number on the blank grid as in any linked-ends puzzle (`num:`; ship doesn't apply that to a
+  hand-read xd yet: it holds the puzzle as edits-unapplied). Givens are also comments on their
+  squares; the Design section itself shows under "Notes in the xd file".
 - **The World's own form, as a meta** (`Numbering: as-printed`, `## Labels`, `1-3. …`; Nos. 13, 18, 27):
   the printed numbers go on the blank grid (`square_numbers` from Labels), and each clue whose two end
   squares bound an across or down run is shown on that run. A clue no run can name (No. 18's diagonals,

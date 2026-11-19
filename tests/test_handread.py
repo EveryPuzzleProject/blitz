@@ -87,7 +87,10 @@ def test_modern_form(tmp_path):
     assert made[0]["clues"] == 2 and made[0]["givens"] == 1 and not made[0]["flagged"]
     p = tmp_path / "out" / "nyw1914-01-04"
     ocr = json.loads((p / "ocr.json").read_text(encoding="utf-8"))
-    assert ocr["read_by"] == handread.READ_BY and "square_numbers" not in ocr  # modern: the page numbers it
+    assert ocr["read_by"] == handread.READ_BY
+    # the printed numbers from the pairs: A1's 1-2 and D1's 1-3 both start on the given C, which shows its letter,
+    # so the pairs and the given clash there: no label, and a note on the square saying what each gave
+    assert ocr["square_numbers"] == {"r1c4": "2", "r3c2": "3"}
     assert ocr["grid"] == ["_...", "_.__", "_.__"] and ocr["answers"][0] == "_CAT"
     assert ocr["clues"]["A1"] == {"text": "A pet.", "printed": "1-2", "box": [5, 100, 90, 120]}
     assert {m["field"]: m["value"] for m in ocr["metadata"]} == {"title": "A test", "number": "3", "date": "1914-01-04"}
@@ -95,10 +98,20 @@ def test_modern_form(tmp_path):
     assert rv["corrections"] == {} and rv["matches_xd"] and not rv["ready"]
     notes = {t["target"]: t["note"] for t in rv["tool_notes"]}
     assert notes["clue:D1"].startswith("Note: misprint") and "cell:r1c2" in notes  # the ^Note, the given C
+    assert "C (a given)" in notes["grid:r1c2"] and "1 (A1, D1)" in notes["grid:r1c2"]
     assert (p / "puzzle.xd").read_text(encoding="utf-8") == MODERN
     for f in ("page.jpg", "answer_page.jpg", "_src/page.jpg", "grid.png", "answers.png"):
         assert (p / f).exists(), f
     assert Image.open(p / "answers.png").size == (4 * 40, 3 * 40)
+
+
+def test_printed_numbers_from_the_pairs():
+    xd = handread.parse_xd(MODERN.replace("1-2", "C-2").replace("D1 ^Printed: 1-3", "D1 ^Printed: C-9\nD1 ^Fits: C-3"))
+    runs = handread.slots(xd["grid"])
+    nums, clashes = handread.printed_numbers(xd, runs, {(0, 1): "C"})
+    assert nums == {(0, 1): "C", (0, 3): "2", (2, 1): "3"} and clashes == []  # ^Fits over ^Printed; the given's letter
+    nums, clashes = handread.printed_numbers(handread.parse_xd(MODERN.replace("D1 ^Printed: 1-3", "D1 ^Printed: 5-3")), runs, {})
+    assert (0, 1) not in nums and clashes == [((0, 1), {"1": ["A1"], "5": ["D1"]})]  # two labels: none, said
 
 
 def test_pair_form_names_runs_and_lists_the_rest(tmp_path):

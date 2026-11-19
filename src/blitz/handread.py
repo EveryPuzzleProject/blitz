@@ -106,6 +106,31 @@ def slots(grid: list[str]) -> dict[str, list[tuple[int, int]]]:
     return out
 
 
+def printed_numbers(xd: dict, runs: dict, givens: dict) -> tuple[dict, list]:
+    """The labels printed in the squares of a modern-form xd, from its clues' pairs: ({(r, c): label}, clashes).
+
+    A clue's `^Fits: a-b` (the pair that fits the grid, where the paper misprinted it), else its `^Printed: a-b`,
+    names its word's first square a and its last b. A given square (givens: {(r, c): its letter}) shows its letter,
+    as the paper printed it there; a pair that labels it otherwise is a clash. clashes: [((r, c), {label: [clues]})]
+    for a square the pairs give two labels: it gets none (the reviewer types the printed one), and nothing guesses."""
+    said: dict = {sq: {v: ["a given"]} for sq, v in givens.items()}
+    for label in xd["order"]:
+        m = xd["meta"].get(label, {})
+        a, sep, b = (m.get("Fits") or m.get("Printed") or "").partition("-")
+        if not sep or label not in runs or not a.strip() or not b.strip():
+            continue
+        cells = runs[label]
+        for sq, v in ((cells[0], a.strip()), (cells[-1], b.strip())):
+            said.setdefault(sq, {}).setdefault(v, []).append(label)
+    nums, clashes = {}, []
+    for sq, vals in sorted(said.items()):
+        if len(vals) == 1:
+            nums[sq] = next(iter(vals))
+        else:
+            clashes.append((sq, vals))
+    return nums, clashes
+
+
 def _quad(im, corners, rows: int, cols: int, cell: int = 40):
     """The lattice straightened: corners TL TR BR BL (page pixels) to a rows x cols image, cell px a square."""
     from PIL import Image
@@ -196,7 +221,7 @@ def build(xd_path: Path, pages: Path, dest: Path, model: str = "") -> dict:
             entry["flags"] = flags
         clues[key] = entry
         for k, v in m.items():
-            if k not in ("Printed",):
+            if k not in ("Printed", "Fits"):  # the pair, and the pair that fits: the label and the grid's numbers show them
                 notes.append({"kind": "source", "target": f"clue:{key}", "note": f"{k}: {v}"})
 
     lines = []
@@ -212,7 +237,6 @@ def build(xd_path: Path, pages: Path, dest: Path, model: str = "") -> dict:
                       "printed_as": "a clue no across or down run can name",
                       **({"image": image_of(b.get("page"))} if b.get("page") and image_of(b.get("page")) != "page.jpg" else {})})
 
-    square_numbers = {f"r{r + 1}c{c + 1}": n for n, (r, c) in xd["labels"].items()} if pair_form else None
     givens = []
     if xd["design"]:
         gchars = {ln.split()[0] for ln in xd["styles"] if "given" in ln}
@@ -223,6 +247,16 @@ def build(xd_path: Path, pages: Path, dest: Path, model: str = "") -> dict:
     for r, c in givens:
         notes.append({"kind": "source", "target": f"cell:r{r + 1}c{c + 1}",
                       "note": f"Given: the letter {grid[r][c]} is printed in this square of the puzzle (the xd's Design section)."})
+    # the numbers printed in the squares, so the blank grid shows the paper's and each clue's label is its pair
+    if pair_form:
+        square_numbers, clashes = {f"r{r + 1}c{c + 1}": n for n, (r, c) in xd["labels"].items()}, []
+    else:
+        nums, clashes = printed_numbers(xd, runs, {sq: grid[sq[0]][sq[1]] for sq in givens})
+        square_numbers = {f"r{r + 1}c{c + 1}": v for (r, c), v in nums.items()}
+    for (r, c), said in clashes:
+        notes.append({"kind": "source", "target": f"grid:r{r + 1}c{c + 1}",
+                      "note": "The clues' pairs give this square two labels, so the blank grid shows none here: "
+                              + "; ".join(f"{v} ({', '.join(ks)})" for v, ks in said.items()) + ". Type the printed one."})
     h = xd["headers"]
     ocr = {"xdid": xdid, "source": "", "title": h.get("Title", ""), "author": h.get("Author", ""), "byline": "",
            "puzzle_number": h.get("Number", ""), "editor": h.get("Editor", ""), "issue_date": h.get("Date", ""),
@@ -234,8 +268,10 @@ def build(xd_path: Path, pages: Path, dest: Path, model: str = "") -> dict:
            "metadata": [{"id": f"H{i}", "name": f"{f.title()} ({READ_BY})", "value": h[x], "field": f}
                         for i, (f, x) in enumerate((("title", "Title"), ("number", "Number"), ("date", "Date"),
                                                      ("author", "Author"), ("editor", "Editor")), 1) if h.get(x)],
-           **({"square_numbers": square_numbers} if square_numbers is not None else {}),
-           **({"numbering": "as printed (the xd's Labels section)"} if pair_form else {}),
+           "square_numbers": square_numbers,
+           "numbering": ("as printed (the xd's Labels section)" if pair_form else
+                         "from each clue's printed pair (the xd's ^Printed, or ^Fits where the pair was misprinted): its first "
+                         "number on the word's first square, its second on the last; a given square shows its letter"),
            "hand_read": {"boxes": boxes_path.name, "pages": bx["pages"], "pair_form": bool(pair_form),
                          "outside": [label for label, _, _ in outside]}}
     (out / "ocr.json").write_text(json.dumps(ocr, indent=1, ensure_ascii=False), encoding="utf-8")

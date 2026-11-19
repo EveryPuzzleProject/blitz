@@ -2899,6 +2899,9 @@ function addRow(s, key, label, box, flags = [], src = null) {
       (isClue && !NUM[slot] ? `<b class="m-flag">no ${esc(slot)} in our grid</b>` : '') +
       (isClue && linkedEnds() && givenWord(label) ? `<b class="m-ok" title="Every square of this word has its letter printed in the grid, so the puzzle gives it as a start and prints no clue for it; the xd lists none.">printed in the grid, not clued</b>` : '') +
       (isClue && NUM[slot] && pn !== slot.slice(1) && !pairOf(label) ? `<b class="m-flag">printed as ${esc(pn)}, sits at ${esc(slot)} in our grid</b>` : '') +
+      // a pair printed other than its word's end squares now say (a misprint the reading kept, or a number corrected since)
+      (isClue && linkedEnds() && !meta && (ocr.clues[label] || {}).printed && pairOf(label) !== ocr.clues[label].printed
+        ? `<b class="m-flag" title="The clue is printed with the pair ${esc(ocr.clues[label].printed)}; the numbers in this word's end squares on the blank grid are ${esc(pairOf(label))}.">printed as ${esc(ocr.clues[label].printed)}</b>` : '') +
       (sup ? `<b class="${sup.sourced ? 'm-src' : 'm-flag m-nosrc'}" title="${esc(sup.sourced ? (sup.box ? 'The crop above is the one the text step named as where it read this text; the OCR read nothing of this clue.' : 'The text step named the crop it read this from, but that crop is on a page this packet doesn’t show.') : 'The text step gave this text and recorded no crop it read it from: check it against the scan.')}">${esc(sup.says)}</b>` : '') +
       (moved ? `<b class="m-flag" title="the reviewer moved this text from where the OCR put it; the scan line came with it">printed line found in ${esc(src.label)}'s crop</b>` : '') +
       flags.filter(f => !f.startsWith('number-corrected') && !f.startsWith('fill-in blank')).map(f => `<b class="m-flag" title="${esc(f)}">${esc(f.split(':')[0])}</b>`).join('') +
