@@ -258,7 +258,7 @@ def scan_figure(fid: str, src: str, size, boxes: dict, caption: str, link: str) 
                       f'width:{100*(x1-x0)/W:.2f}%;height:{100*(y1-y0)/H:.2f}%"></span>')
     ratio = f' style="aspect-ratio:{size[0]}/{size[1]};--ar:{size[0]/size[1]:.4f}"' if size else ""
     ia = f' · <a href="{esc(link)}">this page at the Internet Archive</a>' if link else ""
-    return (f'<figure class="scan" id="{fid}"><div class="page"{ratio}><img src="{esc(src)}" alt="{esc(caption)}" loading="lazy">{marks}</div>'
+    return (f'<figure class="scan" id="{fid}"><div class="page"{ratio}><a class="zoom" href="{esc(src)}" title="Enlarge"><img src="{esc(src)}" alt="{esc(caption)}" loading="lazy"></a>{marks}</div>'
             f'<figcaption>{esc(caption)}{ia}</figcaption></figure>')
 
 
@@ -302,7 +302,7 @@ def render(pub: str, xdid: str, xd: dict, exp: dict, status: dict, ocr: dict, re
     if "answers.png" in img:
         sol = head.get("Solution-Source", "")
         ia = f' · <a href="{esc(sol)}">that page at the Internet Archive</a>' if sol else ""
-        key_fig = (f'<figure class="key"><img src="{esc(img["answers.png"])}" alt="The printed answer key" loading="lazy">'
+        key_fig = (f'<figure class="key"><a class="zoom" href="{esc(img["answers.png"])}" title="Enlarge"><img src="{esc(img["answers.png"])}" alt="The printed answer key" loading="lazy"></a>'
                    f'<figcaption>The answer key, printed in a later issue{ia}</figcaption></figure>')
 
     # The transcription.
@@ -457,6 +457,16 @@ figure {{ margin: 0; }} figcaption {{ font-size: 13px; color: var(--muted); marg
 .key img {{ border: 1px solid var(--line); background: #fff; max-width: 420px; }}
 .mark {{ position: absolute; border: 2px solid var(--cur); background: rgba(240, 200, 74, .28); border-radius: 3px; opacity: 0; transition: opacity .12s; pointer-events: none; }}
 .mark.on {{ opacity: 1; }}
+.zoom {{ display: block; cursor: zoom-in; }}
+.viewer {{ position: fixed; inset: 0; z-index: 50; background: rgba(20, 19, 17, .94); display: none; }}
+.viewer.open {{ display: block; }}
+.viewer .pane {{ position: absolute; inset: 0; overflow: auto; display: grid; overscroll-behavior: contain; }}
+.viewer img {{ margin: auto; max-width: 100vw; max-height: 100vh; max-height: 100dvh; background: #fff; cursor: zoom-in; user-select: none; -webkit-user-drag: none; }}
+.viewer.full img {{ max-width: none; max-height: none; cursor: grab; }}
+.viewer.full.drag img {{ cursor: grabbing; }}
+.viewer .bar {{ position: absolute; top: 10px; right: 18px; display: flex; gap: 8px; }}
+.viewer .bar button, .viewer .bar a {{ font: 600 13px var(--sans); color: #fff; background: rgba(0, 0, 0, .6); border: 1px solid rgba(255, 255, 255, .35);
+  border-radius: 6px; padding: 6px 10px; cursor: pointer; text-decoration: none; }}
 .compare {{ display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 38%); gap: 28px; align-items: start; }}
 .beside {{ position: sticky; top: 12px; }}
 .beside .page {{ width: min(100%, calc((100vh - 70px) * var(--ar, .75))); margin: 0 auto; }}
@@ -525,6 +535,10 @@ del {{ color: var(--bad); }} ins {{ color: var(--good); text-decoration: none; }
 
 <nav class="nav">{prev_a}<a href="/{pub}/">All {esc(name)} puzzles</a>{next_a}</nav>
 </main>
+<div class="viewer" role="dialog" aria-modal="true" aria-label="The scan, enlarged">
+  <div class="pane"><img alt=""></div>
+  <div class="bar"><button type="button" class="size">Full size</button><a class="orig" target="_blank" rel="noopener">Open image</a><button type="button" class="close" aria-label="Close">Close ✕</button></div>
+</div>
 <script>
 // Point at a clue: light its word in the grid and its box on the scan.
 const on = k => {{
@@ -538,6 +552,58 @@ document.querySelectorAll('.lists li').forEach(li => {{
   li.addEventListener('click', () => on(li.dataset.k));
 }});
 document.querySelector('.lists')?.addEventListener('mouseleave', () => on(null));
+
+// Click a scan: see it enlarged. Fitted to the window first; click (or "Full size") for
+// every pixel of the scan, at the point clicked; drag or scroll to move around.
+const viewer = document.querySelector('.viewer'), pane = viewer.querySelector('.pane'), big = pane.querySelector('img'),
+  sizeBtn = viewer.querySelector('.size');
+let opener = null, moved = false;
+const setFull = (full, fx = .5, fy = .5) => {{
+  viewer.classList.toggle('full', full);
+  sizeBtn.textContent = full ? 'Fit to window' : 'Full size';
+  if (full) {{  // keep the point clicked under the pointer's place in the window
+    pane.scrollLeft = fx * big.offsetWidth - pane.clientWidth / 2;
+    pane.scrollTop = fy * big.offsetHeight - pane.clientHeight / 2;
+  }}
+}};
+const closeViewer = () => {{
+  viewer.classList.remove('open');
+  document.documentElement.style.overflow = '';
+  opener?.focus();
+}};
+document.querySelectorAll('a.zoom').forEach(a => a.addEventListener('click', e => {{
+  if (e.ctrlKey || e.metaKey || e.shiftKey || e.button) return;  // a new tab, as asked
+  e.preventDefault();
+  opener = a;
+  big.src = a.href;
+  big.alt = a.querySelector('img')?.alt || '';
+  viewer.querySelector('.orig').href = a.href;
+  viewer.classList.add('open');
+  document.documentElement.style.overflow = 'hidden';
+  setFull(false);
+  viewer.querySelector('.close').focus();
+}}));
+big.addEventListener('click', e => {{
+  if (moved) return;
+  const r = big.getBoundingClientRect();
+  setFull(!viewer.classList.contains('full'), (e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height);
+}});
+sizeBtn.addEventListener('click', () => setFull(!viewer.classList.contains('full')));
+viewer.querySelector('.close').addEventListener('click', closeViewer);
+pane.addEventListener('click', e => {{ if (e.target === pane) closeViewer(); }});
+document.addEventListener('keydown', e => {{ if (e.key === 'Escape' && viewer.classList.contains('open')) closeViewer(); }});
+pane.addEventListener('pointerdown', e => {{
+  moved = false;
+  if (!viewer.classList.contains('full') || e.pointerType !== 'mouse' || e.target !== big) return;
+  const x = e.clientX, y = e.clientY, l = pane.scrollLeft, t = pane.scrollTop;
+  const move = m => {{
+    if (Math.abs(m.clientX - x) + Math.abs(m.clientY - y) > 4) {{ moved = true; viewer.classList.add('drag'); }}
+    pane.scrollLeft = l - (m.clientX - x); pane.scrollTop = t - (m.clientY - y);
+  }};
+  const up = () => {{ viewer.classList.remove('drag'); removeEventListener('pointermove', move); removeEventListener('pointerup', up); }};
+  addEventListener('pointermove', move); addEventListener('pointerup', up);
+  e.preventDefault();
+}});
 </script>
 </body>
 </html>
