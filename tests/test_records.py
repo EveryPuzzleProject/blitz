@@ -75,3 +75,9 @@ def test_build_writes_a_page_with_share_tags(tmp_path):
     assert "TRY THIS!" in html and "OCR review flags" not in html
     assert 'title="Meant: Whoops"' in html  # the kept misprint, marked on its clue
     assert "<del>Tw0 letters</del>" in html and "Claude Opus 5.5" in html
+
+
+def test_a_scan_links_to_its_full_image():
+    from blitz.records import scan_figure
+    fig = scan_figure("scan-page", "https://x/page.jpg", (1217, 1600), {}, "The puzzle as printed", "")
+    assert '<a class="zoom" href="https://x/page.jpg"' in fig  # opens the viewer; the full image without script
