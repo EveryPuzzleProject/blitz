@@ -440,6 +440,8 @@ def fetch_decisions(agreed_only: bool = False) -> dict:
             "xd": rv.get("xd", ""),  # the xd version the page showed (packet xd_fp); "" before 2026-10-13
             # sent back: a Not ready with what's wrong (xword-ocr problems.py: kind, part, note)
             **({"sendback": rv["sendback"]} if rv.get("sendback") and r["decision"] == "notready" else {}),
+            # ready to ship as it stands: the ship check's gaps the reviewer saw, and why we stop there (ship.partial_of)
+            **({"partial": rv["partial"]} if isinstance(rv.get("partial"), dict) and r["decision"] == "ready" else {}),
             # what the reviewer marked "printed this way, but wrong" (a clue's or a header's misprint; a key letter)
             **{k: rv[k] for k in ("typos", "key_corrections", "declines") if rv.get(k)}}  # declines: the owner's "not a misprint"
     # puts back of puzzles dropped as not crosswords (site/schema-7-drops.sql): per helper, a note and when;

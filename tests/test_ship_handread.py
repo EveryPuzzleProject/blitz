@@ -5,7 +5,7 @@ the proof page showed it on, written back under its pair; the record ship reads 
 import json
 
 from blitz import handread
-from blitz.ship import SITE, Rule, plan, sectioned, unsection, write
+from blitz.ship import AGENT, SITE, Rule, plan, sectioned, unsection, write
 from test_handread import MODERN, PAIRS, _make
 from test_ship import proof
 
@@ -104,3 +104,50 @@ def test_what_the_import_cant_apply_to_a_hand_read_puzzle_holds_it(tmp_path):
     assert _row(p, P)["reason"] == "edits-unapplied" and "1-4" in _row(p, P)["why"]
     # xd/ already has another file under its id (the OCR batch shipped it): the owner replaces it, not the import
     assert _row(p, M)["reason"] == "xd-exists"
+
+
+U = "nyw1914-01-11"
+UNSOLVED = MODERN.replace("_CAT\n_A__\n_B__", "_???\n_?__\n_?__").replace("~ CAT", "~ ???").replace("~ CAB", "~ ???")
+
+
+def _unsolved(tmp_path):
+    src, pages = _make(tmp_path, U, UNSOLVED, [
+        {"pair": "1-2", "text": "A pet.", "page": "puzzle", "box": [5, 100, 90, 120], "ref": "A1"}])
+    root = tmp_path / "hand" / "nyw-1914-s1"
+    handread.build_all(src, pages, root)
+    gap = json.loads((root / "triage.json").read_text(encoding="utf-8"))["puzzles"][0]["ship"]["incomplete"]
+    assert gap == ["5 square(s) unsolved"]
+    return root, gap
+
+
+def _partial(root, by, via, missing, note="no printed key found"):
+    r = _said(root, U, {})
+    r["by"], r["via"] = by, via
+    r["proof"]["review"]["partial"] = {"missing": missing, "note": note}
+    return r
+
+
+def test_a_persons_ready_to_ship_as_it_stands_ships_the_gaps_it_names(tmp_path):
+    root, gap = _unsolved(tmp_path)
+    repo = _repo(tmp_path, [_partial(root, f"pat ({SITE})", SITE, gap)])
+    p = plan(repo, root, Rule())
+    row = _row(p, U)
+    assert row["status"] == "shippable", row["why"]
+    assert "shipped as it stands" in row["why"] and "no printed key found" in row["why"]
+    assert row["partial"] == {"missing": gap, "note": "no printed key found"}
+    assert p["passing"][U]["text"] == UNSOLVED                      # the unknown squares ship as unknown
+    write(repo, p)
+    prov = json.loads((repo / "provenance.jsonl").read_text(encoding="utf-8").splitlines()[-1])
+    assert prov["partial"]["missing"] == gap and prov["partial"]["by"] == f"pat ({SITE})"
+
+
+def test_only_a_person_and_only_the_gaps_named(tmp_path):
+    root, gap = _unsolved(tmp_path)
+    # a plain Ready: held as before
+    assert _row(plan(_repo(tmp_path, [_said(root, U, {})]), root, Rule()), U)["reason"] == "incomplete"
+    # an AI's Ready to ship as it stands never waives a gap (the owner's rule, 2026-11-23)
+    ai = _partial(root, "Claude (AI proof reviewer, m)", AGENT, gap)
+    assert _row(plan(_repo(tmp_path, [ai]), root, Rule(ai_ready="either")), U)["reason"] == "incomplete"
+    # a person's that named another gap (the check found more since): held
+    other = _partial(root, f"pat ({SITE})", SITE, ["2 square(s) unsolved"])
+    assert _row(plan(_repo(tmp_path, [other]), root, Rule()), U)["reason"] == "incomplete"

@@ -396,6 +396,24 @@ def filled_by(ship: dict, edits: dict, typed: dict | None = None) -> list[str]:
     return out
 
 
+def partial_of(apply: list[dict], rule: "Rule", gaps: list[str]) -> dict | None:
+    """A person's "Ready to ship as it stands" that waives every gap the ship check left (gaps: its incomplete lines
+    nothing else made whole), or None. The owner's rule (2026-11-23): an incomplete puzzle ships only on a human
+    review, so only a person's Ready counts (the owner's or a helper's, never an AI's, never an ignored account's),
+    and only the gaps it names: its review's partial {missing: the ship check's lines it was shown, note: why we stop
+    here}. A gap it doesn't name (another one found since, or the puzzle changed) still holds the puzzle.
+    Returns {missing, note, by, kind, at} of the first such Ready."""
+    if not gaps:
+        return None
+    for r in apply:
+        p = ((r.get("proof") or {}).get("review") or {}).get("partial")
+        if (kind_of(r, rule) in ("owner", "helper") and _name(r) not in rule.ignore and isinstance(p, dict)
+                and isinstance(p.get("missing"), list) and set(gaps) <= set(p["missing"])):
+            return {"missing": list(gaps), "note": str(p.get("note") or "").strip()[:500], "by": r.get("by", ""),
+                    "kind": kind_of(r, rule), "at": r.get("at", "")}
+    return None
+
+
 def typed_clues(ship: dict, filled: list[str]) -> list[str]:
     """The clues (clue:D1) a person's typed text makes whole: the items of each clue-empty finding filled_by() filled."""
     return [f"clue:{c}" for f in ship.get("findings") or [] if isinstance(f, dict) and f.get("code") == "clue-empty"
@@ -489,6 +507,7 @@ def from_site(decisions: dict, have: list[dict], pids: set, batches=frozenset())
                 continue
             review = {"edits": p.get("edits") or {}, "comments": p.get("comments") or [], "status": p.get("parts") or {},
                       "note": p.get("note", ""), "xd": p.get("xd", ""), **({"sendback": p["sendback"]} if p.get("sendback") else {}),
+                      **({"partial": p["partial"]} if p.get("partial") else {}),  # ready to ship as it stands
                       # what the reviewer marked as printed wrong (the proof page's control): a clue's or a header's
                       # misprint, a misprinted key letter; the shape the AI reviewer's review has them in
                       **({k: p[k] for k in ("typos", "key_corrections", "declines") if p.get(k)})}
@@ -1473,7 +1492,13 @@ def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict |
                     typists.setdefault(k, r)
         typed_by = {k: ((r.get("proof") or {}).get("review") or {}).get("edits", {}).get(k) for k, r in typists.items()}
         filled = filled_by(ship, edits, typed_by) if st["rule"] in ("owner", "people") else []
-        if [x for x in ship.get("incomplete") or [] if x not in filled]:
+        # what a person's "Ready to ship as it stands" waives: the gaps it names, and only on a person's word
+        part = partial_of(st["apply"], rule, [x for x in ship.get("incomplete") or [] if x not in filled])
+        waived = part["missing"] if part else []  # not filled: the gaps stay in what ships, and are said
+        if part:
+            st = {**st, "why": st["why"] + f"; shipped as it stands, on {part['by']}'s word: {'; '.join(part['missing'])}"
+                  + (f" ({part['note']})" if part["note"] else "")}
+        if [x for x in ship.get("incomplete") or [] if x not in filled and x not in waived]:
             # a clue a helper typed, which would have made it whole on the owner's word: said, so the card shows why
             waiting = [k for k in typed_clues(ship, filled_by(ship, {}, people))
                        if k not in typists] if st["rule"] in ("owner", "people") else []
@@ -1531,7 +1556,10 @@ def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict |
             hold("incomplete", "Ready, but incomplete: " + "; ".join(map(str, ship["incomplete"])) + " (a typed clue doesn't ship as typed)")
             continue
         done = cdone + done + sorted(k for k in edits if k.startswith("label:"))  # a label isn't in the xd's text: it is applied to `printed`
+        if part:
+            row["partial"] = {"missing": part["missing"], "note": part["note"]}
         passing[pid] = {"text": text, "edits": done, "edit_values": edits, "edit_sources": sources, "standing": st, "row": row,
+                        **({"partial": part} if part else {}),
                         "packet": f"{rel}/{pid}", "xd_fp": review.get("xd_fp", ""), "typed": typed}
     _record_edits(passing, packs, rule)  # each one's record of every edit, its misprint notes; none without (edit-unrecorded)
     for pid, x in passing.items():
@@ -2401,7 +2429,8 @@ def write(repo: Path, p: dict, today: str = "") -> dict:
                "shipped": {"at": today, "rule": st["rule"], "ai_ready": p["rule"]["ai_ready"], "by": st["by"], "why": st["why"]},
                "said": st["said"], "edits": _edits_of(x, pk), "corrections": x.get("corrections", []), "notes": x.get("notes", []),
                **({"proposals": x["proposals"]} if x.get("proposals") else {}),
-               **({"typed": x["typed"]} if x.get("typed") else {}),  # clues typed by a person where none was read  # waiting for the owner; the export never reads them
+               **({"typed": x["typed"]} if x.get("typed") else {}),  # clues typed by a person where none was read
+               **({"partial": x["partial"]} if x.get("partial") else {}),  # shipped as it stands: the gaps a person waived, and why  # waiting for the owner; the export never reads them
                "check": x["row"]["check"], "codes": x["row"]["codes"],
                "sources": {k: _header(x["text"], h) for k, h in (("grid", "Source"), ("clues", "Clue-Source"), ("key", "Solution-Source"))
                            if _header(x["text"], h)},
@@ -2486,7 +2515,9 @@ def record(p: dict, public: bool = True) -> dict:
              # a Not ready that waits on the pipeline (WAITS): what was said, shown on its card with nothing to answer
              **({"asked": asks({**r, "asks": r["asked"]})} if r.get("asked") else {}),
              # its candidate clue lists and what a person decided for each ("" undecided): the packet's, and the ledger's
-             **({"candidates": r["candidates"]} if r.get("candidates") else {})} for r in p["rows"]]
+             **({"candidates": r["candidates"]} if r.get("candidates") else {}),
+             # shipped as it stands: what is missing, and the reviewer's word on why we stop here
+             **({"partial": r["partial"]} if r.get("partial") else {})} for r in p["rows"]]
     return {"_about": "blitz ship: which puzzles of the batch are shipped (in the publication repo's xd/), shippable (pass the "
                       "ship rule, not written yet) or held, with the reason, and the queue each is in: what the batch page asks "
                       "of people. Format: blitz design/ship.md.",
