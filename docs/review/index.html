@@ -130,6 +130,9 @@ h2 .quick { margin-left: 8px; font-size: 12px; padding: 2px 10px; }
 #sendback label { display: block; margin: 3px 0; } #sendback select, #sendback textarea { font: inherit; font-size: 13px; }
 #sendback textarea { width: 100%; min-height: 40px; margin: 6px 0; }
 #sendback .sent { color: var(--bad); }
+#partial { margin: 2px 0 10px; font-size: 13px; } #partial > a { color: var(--muted); cursor: pointer; text-decoration: underline; }
+#partial .sbform { margin-top: 6px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+#partial textarea { width: 100%; min-height: 40px; margin: 6px 0; font: inherit; font-size: 13px; } #partial .sent { color: var(--good, #2b7a3d); }
 .ask { border: 1px solid #d9cfa8; background: #fffbea; border-radius: 8px; padding: 10px 14px; margin: -2px 0 10px; font-size: 13px; }
 .ask p { margin: 0 0 8px; }
 .ask .acts { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
@@ -1643,6 +1646,7 @@ function summarySection() {
     <textarea id="overall"></textarea>
     <div class="decide"><button class="ready"></button><div id="askready"></div><button class="notready"></button></div>
     <div id="sendback"></div>
+    <div id="partial"></div>
     <div id="dropit"></div>
     <div style="display:flex;justify-content:flex-end"><button class="good" id="submit">Submit my review</button></div>
     <div id="after"></div></div>`;
@@ -1650,7 +1654,7 @@ function summarySection() {
   ta.value = cur.note || '';
   ta.oninput = () => { cur.note = ta.value; save(); };
   s.querySelector('.ready').onclick = readyClicked;
-  s.querySelector('.notready').onclick = () => { cur.decision = 'notready'; askDone(); save(); paintSummary(); };
+  s.querySelector('.notready').onclick = () => { cur.decision = 'notready'; delete cur.partial; askDone(); save(); paintSummary(); };
   s.querySelector('#submit').onclick = async () => {
     const btn = s.querySelector('#submit'), after = s.querySelector('#after'), d = decision();
     const counts = `${d === 'ready' ? 'ready' : 'not ready'}, ${plural(Object.keys(cur.edits).length, 'edit')}, ${plural(cur.comments.length, 'comment')}`;
@@ -1680,7 +1684,7 @@ function summarySection() {
 // the same review, to a local server (?save=): plain text, so the browser sends it without asking first
 async function saveLocal(d) {
   const review = {edits: cur.edits, comments: cur.comments, status: cur.status, note: cur.note || '', xd: rev?.xd_fp || '', ...((cur.typos || []).length ? {typos: cur.typos} : {}), ...((cur.key_corrections || []).length ? {key_corrections: cur.key_corrections} : {}), ...((cur.declines || []).length ? {declines: cur.declines} : {}),
-                  ...(d === 'notready' && cur.sendback ? {sendback: cur.sendback} : {})};
+                  ...(d === 'notready' && cur.sendback ? {sendback: cur.sendback} : {}), ...(d === 'ready' && cur.partial ? {partial: cur.partial} : {})};
   const who = (cur.who === 'You' ? '' : cur.who || '').slice(0, 40);
   const r = await fetch(SAVE, {method: 'POST', headers: {'Content-Type': 'text/plain'},
     body: JSON.stringify({xdid: ID, who, decision: d, review, at: new Date().toISOString()})});
@@ -1698,7 +1702,7 @@ async function submitReview(d) {
   // xd: the version of the puzzle this page showed (the packet's fingerprint of its .xd), so the import knows
   // exactly what was proofed and a later change to the puzzle lapses the proof
   const review = {edits: cur.edits, comments: cur.comments, status: cur.status, note: cur.note || '', xd: rev?.xd_fp || '', ...((cur.typos || []).length ? {typos: cur.typos} : {}), ...((cur.key_corrections || []).length ? {key_corrections: cur.key_corrections} : {}), ...((cur.declines || []).length ? {declines: cur.declines} : {}),
-                  ...(d === 'notready' && cur.sendback ? {sendback: cur.sendback} : {})};
+                  ...(d === 'notready' && cur.sendback ? {sendback: cur.sendback} : {}), ...(d === 'ready' && cur.partial ? {partial: cur.partial} : {})};
   const p = await sb.from('proofs').upsert({xdid: ID, user_id: uid, who, decision: d, review, at});
   if (p.error) throw p.error;
   const bad = Object.entries(cur.status).filter(([, x]) => x.v === 'bad').map(([id, x]) => `${PART[id]?.name || id}: ${x.note || 'a problem'}`);
@@ -1836,6 +1840,36 @@ function paintSendBack(s) {
     cur.decision = 'notready'; delete el.dataset.open; askDone(); save(); paintSummary();
   });
 }
+// Ready to ship as it stands: when the ship check says the puzzle isn't whole (no answer key found, say), a person
+// can say we got as far as we could: a Ready carrying partial {missing: the ship check's lines shown here, note:
+// why we stop}. Ship takes it only from a person (the owner's rule, 2026-11-23: an incomplete puzzle ships only on
+// a human review), waives just those gaps, and records the note with the puzzle (design/ship.md).
+function paintPartial(s) {
+  const el = s.querySelector('#partial'), inc = checks?.ship?.incomplete || [];
+  if (!el) return;
+  if (!inc.length) { el.innerHTML = ''; if (cur.partial) { delete cur.partial; save(); } return; }
+  if (cur.partial && !el.dataset.open) {
+    el.innerHTML = `<span class="sent">Ready to ship as it stands, missing ${esc(cur.partial.missing.join('; '))}: ${esc(cur.partial.note)}</span>
+      <a data-a="edit">change</a> · <a data-a="undo">don't ship it incomplete</a>`;
+  } else if (!el.dataset.open) {
+    el.innerHTML = `<a data-a="open">This puzzle isn't whole (${esc(inc.join('; '))}), so a plain Ready won't ship it. Got as far as anyone can? Ready to ship it as it stands…</a>`;
+  } else {
+    el.innerHTML = `<div class="sbform"><div><b>Ship it as it stands, without:</b> ${esc(inc.join('; '))}.</div>
+      <div class="hint">Only a person's word ships an incomplete puzzle, and it ships with what's missing said beside it. Say why we stop here, and where the rest might be found.</div>
+      <textarea placeholder="e.g. no printed answer key found; the World's FUN of 1914-01-11, p. 15 would have it">${esc(cur.partial?.note || '')}</textarea>
+      <div class="acts"><button class="plain" data-a="cancel">Cancel</button> <button class="good solid" data-a="ship">Ready to ship as it stands</button></div></div>`;
+  }
+  el.querySelectorAll('a[data-a], button[data-a]').forEach(b => b.onclick = () => {
+    const a = b.dataset.a;
+    if (a === 'open' || a === 'edit') { el.dataset.open = '1'; return paintPartial(s); }
+    if (a === 'cancel') { delete el.dataset.open; return paintPartial(s); }
+    if (a === 'undo') { delete cur.partial; if (cur.decision === 'ready') delete cur.decision; save(); return paintSummary(); }
+    const note = el.querySelector('textarea').value.trim();
+    if (!note) return alert('Say why we stop here.');
+    cur.partial = {missing: inc, note};
+    delete el.dataset.open; delete cur.sendback; readyClicked();
+  });
+}
 // On the local watch only (?save=): the maintainer drops a page that isn't a crossword, as on the batch
 // page (its /api/batch: a person's drop, the shared vocabulary's not-a-puzzle; Restore on the batch page
 // undoes it). A volunteer on the site sends it back instead (Send it back: This isn't a crossword).
@@ -1906,9 +1940,11 @@ function paintSummary() {
   const n = Object.keys(cur.edits).length, imp = implied(), d = decision();
   const todo = reviewIds().filter(id => !cur.status[id]).length, bad = parts.filter(p => cur.status[p.dataset.sec]?.v === 'bad').length;
   paintSendBack(s);
+  paintPartial(s);
   paintDrop(s);
   const r = s.querySelector('.ready'), nr = s.querySelector('.notready');
-  r.innerHTML = `✓ Ready: the puzzle matches the scan${n ? ' as edited' : ''}<small>${bad ? `not while ${bad > 1 ? 'parts are' : 'a part is'} marked with a problem (✗ above)` : `${n ? `with my ${plural(n, 'edit')}` : 'no edits needed'}${todo ? ` · ${todo} not marked yet` : ''}`}</small>`;
+  if (cur.partial && d === 'ready') r.innerHTML = `✓ Ready to ship as it stands<small>missing: ${esc(cur.partial.missing.join('; '))}</small>`;
+  else r.innerHTML = `✓ Ready: the puzzle matches the scan${n ? ' as edited' : ''}<small>${bad ? `not while ${bad > 1 ? 'parts are' : 'a part is'} marked with a problem (✗ above)` : `${n ? `with my ${plural(n, 'edit')}` : 'no edits needed'}${todo ? ` · ${todo} not marked yet` : ''}`}</small>`;
   r.classList.toggle('dim', !!bad);  // a part with a problem makes it Not ready: Ready is drawn out of reach
   nr.innerHTML = `✗ Not ready: something's wrong I couldn't fix<small>${bad ? `you marked ${plural(bad, 'part')} with a problem` : 'say what in the box above'}</small>`;
   r.classList.toggle('sel', d === 'ready');
