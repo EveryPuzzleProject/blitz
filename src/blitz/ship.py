@@ -2786,6 +2786,110 @@ def to_gxd(text: str, notes: list[str] = (), feature_as: str | None = None) -> s
     return out
 
 
+# ---- the gxd edition of an xd in EPP's field form (blitz design/xd-fields.md, "Decided" 2026-11-25) --------------
+# gxd takes the old blank-line form, "fairly minimal", linking back to EPP: the full file, with every field, is EPP's.
+# What the old form can carry, and what it can't:
+# - headers: the puzzle's own (KEEP: Title, Author, Editor, Date, Number, Byline), Author tidied; EPP's own fields
+#   (Description, Source, Solution-Source) stay with EPP, and the record page the link goes to shows them;
+# - the grid, as printed ('_' outside the puzzle, '?' a square nobody knows the letter of: No. 3);
+# - the clues as printed, in modern numbering; clue metadata lines (^Printed, ^Fits, ^Note, ^Correction,
+#   ^Answer-Correction) are left out of the clue list;
+# - the notes, after the clues: the printed lines the Notes rule takes (## Printed, by label), then one plain line per
+#   correction (the clue stays as printed, as the field form keeps it; the note says what was meant), an Incomplete:
+#   statement, a line saying the printed numbers differ, and the link to the puzzle's EPP record;
+# - ## Design (givens) and ## Labels (a meta's printed numbers) have no place: left out. A meta in the World's own
+#   numbering (Numbering: as-printed) has each clue whose two end squares bound an across or down word written under
+#   that word's modern number; a clue no word can carry (No. 18's diagonals) goes into the notes as printed, with its
+#   answer, so nothing printed is lost.
+
+def _field_sections(text: str) -> dict[str, list[str]]:
+    out = {}
+    for name, lines in _sections(text):
+        i, j = _body(lines)
+        out[name] = lines[i:j]
+    return out
+
+
+def to_gxd_fields(text: str, labels=NOTE_LABELS, link: str = "") -> str:
+    """A field-form xd (sectioned: ## Metadata, ## Printed, ## Grid, ## Clues, ## Design, ## Labels) as gxd's minimal
+    blank-line edition (above). link: the puzzle's EPP record page."""
+    from .handread import line_label
+    secs = _field_sections(text.replace("\r\n", "\n").translate(FLATTEN))
+    heads = {}
+    for line in secs.get("Metadata", []):
+        k, sep, v = line.partition(":")
+        if sep and v.strip():
+            heads[k.strip()] = v.strip()
+    grid = [r.replace("?", ".") for r in secs.get("Grid", []) if r.strip()]  # gxd's mark for a square whose letter is unknown
+    clue_lines, meta, order = {}, {}, []
+    for line in secs.get("Clues", []):
+        m = re.match(r"^(\S+?) \^([\w-]+): ?(.*)$", line)
+        if m:
+            meta.setdefault(m[1], {})[m[2]] = m[3].strip()
+            continue
+        m = re.match(r"^(\S+?)\. ?(.*?) ~ (.*)$", line)
+        if m:
+            clue_lines[m[1]] = (m[2], m[3])
+            order.append(m[1])
+    labels_sec = {}
+    for line in secs.get("Labels", []):
+        m = re.match(r"^(\S+) r(\d+)c(\d+)$", line.strip())
+        if m:
+            labels_sec[m[1]] = (int(m[2]) - 1, int(m[3]) - 1)
+    cells = [list(r) for r in grid]
+    runs = words(cells, "#_")
+    by_cells = {tuple(sq): lab for lab, sq in runs.items()}
+    out_clues, off_grid, name = {}, [], {}  # name: how a note names the clue (its modern label, or the printed pair)
+    pair_form = bool(labels_sec) or heads.get("Numbering", "").startswith("as-printed")
+    for lab in order:
+        t, a = clue_lines[lab]
+        key = lab
+        if pair_form:
+            ends = [labels_sec.get(e) for e in lab.split("-")]
+            key = None
+            if len(ends) == 2 and all(ends):
+                (r0, c0), (r1, c1) = ends
+                sq = ([(r0, c) for c in range(c0, c1 + 1)] if r0 == r1 and c1 > c0 else
+                      [(r, c0) for r in range(r0, r1 + 1)] if c0 == c1 and r1 > r0 else [])
+                key = by_cells.get(tuple(sq))
+            if not key or key in out_clues:
+                off_grid.append(f"{lab}. {t} ~ {a}")
+                name[lab] = lab
+                continue
+        out_clues[key] = (t, a)
+        name[lab] = key
+    ordered = sorted(out_clues, key=lambda k: (k[0], int(k[1:])) if re.fullmatch(r"[AD]\d+", k) else ("Z", 0))
+    keep = [(k, normalize_author(heads[k]) if k == "Author" else heads[k]) for k in KEEP if k != "Notes" and heads.get(k)]
+    notes = []
+    for line in secs.get("Printed", []):
+        lab, sep, t = line.partition(": ")
+        if sep and t.strip() and line_label(lab) in labels:
+            notes.append(t.strip())
+    for k in ("Title", "Author", "Byline", "Editor", "Number", "Date"):
+        if heads.get(f"{k}-Correction"):
+            notes.append(f"The {k.lower()} is printed '{heads.get(k, '')}'; meant: '{heads[f'{k}-Correction']}'.")
+    for lab in order:
+        m = meta.get(lab) or {}
+        if m.get("Correction"):
+            notes.append(f"{name.get(lab, lab)} is printed '{clue_lines[lab][0]}'; meant: '{m['Correction']}'.")
+        if m.get("Answer-Correction"):
+            notes.append(f"{name.get(lab, lab)}: the printed key gives {clue_lines[lab][1]}; probably meant: {m['Answer-Correction']}.")
+    if off_grid:
+        notes.append("Printed clues no across or down word can carry (the paper's own numbering): " + " / ".join(off_grid))
+    if any(m.get("Printed") for m in meta.values()) or pair_form:
+        notes.append("The paper named each clue by the numbers printed in its word's two end squares; the clues here are "
+                     "numbered in the modern way.")
+    if heads.get("Incomplete"):
+        notes.append(f"Incomplete: {heads['Incomplete']}")
+    if link:
+        notes.append(f"Transcribed by the Every Puzzle Project, with the scans and every note: {link}")
+    out = ("\n".join(f"{k}: {v}" for k, v in keep) + "\n\n\n" + "\n".join(grid) + "\n\n\n"
+           + "\n".join(f"{k}. {t} ~ {a}" if t else f"{k}. ~ {a}" for k, (t, a) in ((k, out_clues[k]) for k in ordered)) + "\n")
+    if notes:
+        out += "\n\n" + "\n\n".join(notes) + "\n"
+    return out
+
+
 # notes_labels() and NOTE_LABELS, the Notes rule, live in edition.py since 2026-11-16 (the edition step); imported above.
 
 
@@ -2866,6 +2970,7 @@ def export(repo: Path, dest: Path, pub: str, scans: Path | None = None, shelf: s
             shutil.rmtree(old)
     dest.mkdir(parents=True, exist_ok=True)
     receipts, held, pages, done, days, corrections = [], [], {}, [], [], []
+    hand_pages = {}  # a hand-read puzzle's pages, by file name in the scans repo's pages/: what uses each
     rule = rule_of(repo)  # whose decline of a mark counts: the owner's
     for r in sorted(provenance(repo), key=lambda r: r["xdid"]):
         f = repo / "xd" / f"{r['xdid']}.xd"
@@ -2888,6 +2993,28 @@ def export(repo: Path, dest: Path, pub: str, scans: Path | None = None, shelf: s
                          + " since it shipped: re-ship it first (blitz ship --write), then export"))
             continue
         gid = next((o["gxd_id"] for o in _tsv(repo / "gxd-exports.tsv") if o["xdid"] == r["xdid"] and o.get("gxd_id")), r["xdid"])
+        if sectioned(text):  # EPP's field form (read by hand): gxd's minimal edition, linking back; its pages from its boxes file
+            from .records import record_url
+            xd = to_gxd_fields(text, labels, record_url(pub, r["xdid"]))
+            if not re.search(r"(?m)^[AD]\d+\. ", xd):  # gxd's form needs a clues section (No. 28 printed no clue list)
+                held.append((r["xdid"], "no clue list printed: gxd's form needs a clues section; the puzzle stays in xd/ and on EPP"))
+                continue
+            day = _header(xd, "Date") or r["xdid"][len(pub):len(pub) + 10]
+            bx = repo / "hand-read" / f"{r['xdid']}.boxes.json"
+            files = (json.loads(bx.read_text(encoding="utf-8")).get("pages") or {}) if bx.exists() else {}
+            if not files.get("puzzle"):
+                held.append((r["xdid"], "no page recorded for its grid (hand-read/<xdid>.boxes.json)"))
+                continue
+            out = dest / shelf / day[:4] / f"{gid}.xd"
+            out.parent.mkdir(parents=True, exist_ok=True)
+            out.write_text(xd, encoding="utf-8", newline="\n")
+            receipts.append(["", received, f"https://github.com/EveryPuzzleProject/{pub}", archive, f"pages/{files['puzzle']}", gid])
+            for role, part in (("grid", "puzzle"), ("key", "solution")):
+                if files.get(part):
+                    hand_pages.setdefault(files[part], []).append(f"{role}:{gid}")
+            done.append(gid)
+            days.append(day)
+            continue
         text, fixed_notes, fixed = corrected(text, [c for c in r.get("corrections") or [] if (c.get("key"), c.get("printed"), c.get("meant")) not in no])
         corrections += [{"xdid": r["xdid"], **c} for c in fixed]
         xd = to_gxd(text, [p["text"] for p in r.get("printed") or [] if p["label"] in labels] + list(r.get("notes") or []) + fixed_notes, feature_as)
@@ -2926,6 +3053,14 @@ def export(repo: Path, dest: Path, pub: str, scans: Path | None = None, shelf: s
             target = dest / "source" / item / "page" / f"n{leaf}.jpg"
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(Path(scans) / row["path"], target)
+    for fname, used_by in sorted(hand_pages.items()):  # pages of puzzles read by hand: in the scans repo's pages/
+        have = bool(scans) and (Path(scans) / "pages" / fname).exists()
+        missing += not have
+        lines.append("\t".join([f"pages/{fname}", "", f"pages/{fname}" if have else "", "", "", " ".join(used_by)]))
+        if copy_pages and have:
+            target = dest / "source" / "pages" / fname
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(Path(scans) / "pages" / fname, target)
     (dest / "source-pages.tsv").write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
     days = sorted(d for d in days if d)
     row = [pub, pub, name or pub.upper(), "", days[0] if days else "", days[-1] if days else "", str(len(done)), "",
@@ -2935,6 +3070,6 @@ def export(repo: Path, dest: Path, pub: str, scans: Path | None = None, shelf: s
                                                       years=" ".join(sorted({f"{shelf}/{d[:4]}" for d in days})),
                                                       branch=f"import-{pub}-{days[0][:4]}-{days[-1][2:4]}" if days else f"import-{pub}"),
                                       encoding="utf-8", newline=chr(10))
-    return {"exported": done, "held": held, "pages": len(pages), "pages_not_in_scans": missing, "no_capture_date": sum(not r[0] for r in receipts),
+    return {"exported": done, "held": held, "pages": len(pages) + len(hand_pages), "pages_not_in_scans": missing, "no_capture_date": sum(not r[0] for r in receipts),
             "corrections": {d: sum(c["done"] == d for c in corrections) for d in ("applied", "noted", "not applied")},
             "notes_from": labels_from, "shelf": shelf, "archive": archive, "dest": str(dest)}

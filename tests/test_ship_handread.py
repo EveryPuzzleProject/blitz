@@ -211,3 +211,24 @@ def test_owner_stale_lapse_lets_an_ai_ready_on_the_current_version_ship(tmp_path
     assert standing({}, [no, ai], current=("new",), rule=replace(rule, owner_stale="lapse"))["status"] == "hold"
     helper_no = proof(f"pat ({SITE})", "notready", "2026-11-21T00:00:00Z", SITE, xd="old")
     assert standing({}, [old, helper_no, ai], current=("new",), rule=replace(rule, owner_stale="lapse"))["reason"] == "not-ready"
+
+
+def test_the_gxd_edition_of_the_field_form_is_minimal_and_links_back():
+    from blitz.edition import make
+    from blitz.ship import to_gxd_fields
+    xd = (MODERN.replace("Notes: Read by hand.\n", "Description: A tiny grid.\nSource: The Paper, p. 1\n")
+          .replace("D1 ^Note: misprint: the pair that fits is 1-4\n", "D1 ^Correction: A cab!\nD1 ^Answer-Correction: CAT\n")
+          .replace("## Grid", "## Printed\nheading: A TEST.\nintro: Fill in the squares.\n\n\n## Grid"))
+    g = to_gxd_fields(xd, link="https://example.org/p/")
+    head, grid, clues, notes = g.split("\n\n\n", 3)                       # the old form: four blocks
+    assert head == "Title: A test\nDate: 1914-01-04\nNumber: 3"            # the puzzle's headers; EPP's fields stay with EPP
+    assert grid == "_CAT\n_A__\n_B__" and clues == "A1. A pet. ~ CAT\nD1. A taxi. ~ CAB"   # as printed, no ^ lines
+    assert "Fill in the squares." in notes and "A TEST." not in notes      # the Notes rule: intro yes, heading no
+    assert "D1 is printed 'A taxi.'; meant: 'A cab!'." in notes and "the printed key gives CAB; probably meant: CAT" in notes
+    assert notes.rstrip().endswith("https://example.org/p/") and "## " not in g
+    # the World's own numbering: a pair on a word goes under its modern number, the rest into the notes as printed
+    p = to_gxd_fields(PAIRS)
+    assert "A1. A pet. ~ CAT" in p and "D2. A pull. ~ TOW" in p and "1-4. Diagonal. ~ C_W" in p.split("\n\n\n", 3)[3]
+    # the edition leaves a field-form transcription as it is: no Puzzle notes block
+    ed = make(xd, printed=[{"label": "intro", "text": "Fill in the squares."}])
+    assert ed["text"] == xd and ed["held"] == []
