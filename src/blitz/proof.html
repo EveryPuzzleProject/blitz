@@ -813,6 +813,9 @@ async function load() {
   // (a question's row that this packet doesn't have: the page stays at the top, where the question says so)
   const k = params.get('k');
   if (k && !(asksOf(ID).some(a => a.row === k) && !rowTarget(k))) { setTimeout(() => goTo(params.get('k')), 0); setTimeout(() => goTo(params.get('k')), 900); }
+  // #A15 (or #B4, #Title, a World pair #19-33) opens the page at that row: the rows are drawn after the fetch, so the
+  // browser's own jump to the anchor finds nothing; once drawn, the page jumps there itself (again when images settle)
+  else if (location.hash.length > 1) { setTimeout(() => jumpToHash(true), 0); setTimeout(() => jumpToHash(false), 900); }
 }
 
 // The AI proof reviewer's round: the ledger's proof:<pid> record (xword-ocr proofreview.record: edits keyed
@@ -2807,10 +2810,38 @@ function opsList() {
 let listY = null;
 addEventListener('click', e => { if (e.target.closest('.ops a[href^="#"]')) listY = window.scrollY; }, true);
 addEventListener('hashchange', () => {
-  const row = location.hash.length > 1 && document.getElementById(decodeURIComponent(location.hash.slice(1)));
-  if (row && row.classList.contains('row')) requestAnimationFrame(() => row.scrollIntoView({block: 'center'}));
+  const row = location.hash.length > 1 && hashTarget(decodeURIComponent(location.hash.slice(1)));
+  if (row && row.closest('.row')) requestAnimationFrame(() => jumpToHash(true));  // shown, centred, lit
   else if (listY !== null) requestAnimationFrame(() => window.scrollTo({top: listY}));
 });
+// the element a link's #hash names: a row's id (#A15, #B4), a header's (#Title), or a pair the paper printed a clue
+// under (#19-33 in the World's FUN: the clue row whose end squares carry that pair, or else the printed line of a
+// clue no across or down word can name, which starts with it)
+function hashTarget(h) {
+  if (!h) return null;
+  const el = document.getElementById(h);
+  if (el || !/^[\w?]+-[\w?]+$/.test(h)) return el;
+  const k = wordByPair(h);
+  if (k) return document.getElementById(k);
+  const L = (ocr.lines || []).find(L => (L.text || '').startsWith(h + '. '));
+  return L ? document.getElementById('B' + L.n) : null;
+}
+// the first load's jump to the hash's row: shown (a row "Look here first" hides comes back, as goTo does it),
+// centred clear of the sticky header, and lit for a moment (the first time only)
+function jumpToHash(lit) {
+  let el = hashTarget(decodeURIComponent(location.hash.slice(1)));
+  if (!el) return;
+  const row = el.closest('.row'), all = document.querySelector('[data-show=all]');
+  if (row && row.offsetParent === null && all && !all.classList.contains('on')) {
+    all.click();  // drawn again: find it again
+    el = hashTarget(decodeURIComponent(location.hash.slice(1)));
+    if (!el) return;
+  }
+  const target = el.closest('.row, tr') || el, i = rows.indexOf(target);
+  if (i >= 0) setFocus(i);
+  target.scrollIntoView({block: 'center'});
+  if (lit) flash([target]);
+}
 
 function addRow(s, key, label, box, flags = [], src = null) {
   const row = document.createElement('div');
