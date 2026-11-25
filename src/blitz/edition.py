@@ -131,7 +131,20 @@ def make(text: str, marks: list[dict] = (), declines=(), labels=NOTE_LABELS, pri
 
     Returns {text (None when held), held: [{code, why}], corrections: [{key, printed, meant, by, done, note}],
     declined: [{key, printed, meant, by}], notes: [the Puzzle notes lines]}. Same inputs, same bytes."""
-    from .ship import _TYPO_KEY, mark_problem, with_notes
+    from .ship import _TYPO_KEY, mark_problem, sectioned, with_notes
+    if sectioned(text):
+        # EPP's field form (blitz design/xd-fields.md): the paper's other words are in its ## Printed and each correction
+        # is a field beside the print (^Correction, ^Answer-Correction), so the edition rewrites nothing and adds no
+        # Puzzle notes block. A misprint mark from the review site has no place in the file until it is written into the
+        # transcription as a field. It does not hold the edition (a held edition's file is removed, so one reviewer's mark
+        # would take a published puzzle back): the edition stays the transcription, and the mark is listed, not applied
+        no = {(k, p, m) for k, p, m in declines}
+        rows = [{"key": k, "printed": pr, "meant": m, "by": c.get("by", ""), "done": "not applied",
+                 "note": "not in the xd yet: a field-form xd takes a correction as a field in its transcription (^Correction, <Header>-Correction)",
+                 **({"kind": c["kind"]} if c.get("kind") else {})}
+                for c in sorted(marks or [], key=_mark) for k, pr, m in [_mark(c)] if (k, pr, m) not in no]
+        declined = [{k: c.get(k, "") for k in ("key", "printed", "meant", "by")} for c in marks or [] if _mark(c) in no]
+        return {"text": text, "held": [], "corrections": rows, "declined": declined, "notes": []}
     no = {(k, p, m) for k, p, m in declines}
     live = sorted((c for c in marks or [] if _mark(c) not in no), key=_mark)
     declined = [{k: c.get(k, "") for k in ("key", "printed", "meant", "by")} for c in marks or [] if _mark(c) in no]
