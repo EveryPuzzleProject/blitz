@@ -151,3 +151,33 @@ def test_only_a_person_and_only_the_gaps_named(tmp_path):
     # a person's that named another gap (the check found more since): held
     other = _partial(root, f"pat ({SITE})", SITE, ["2 square(s) unsolved"])
     assert _row(plan(_repo(tmp_path, [other]), root, Rule()), U)["reason"] == "incomplete"
+
+
+def test_a_batch_ships_on_an_ai_ready_from_the_double_read_and_says_so(tmp_path):
+    from blitz.ship import rule_of
+    root = _packets(tmp_path)
+    note = "read twice, blind; every difference settled on the scan (second-read/VERDICTS.md)"
+    recs = handread.ai_ready_records(root, "Claude (double read)", note, hold={P}, at="2026-11-25T00:00:00Z")
+    assert [r["id"] for r in recs] == [f"proof:{M}"] and recs[0]["via"] == AGENT
+    repo = _repo(tmp_path, recs)
+    # the publication's rule is off; the batch's own entry takes the AI's Ready, and may replace an earlier ship of M
+    (repo / "fixes" / "ship-rule.json").write_text(json.dumps({"ai_ready": "off", "batches": {
+        "nyw-1914-s1": {"ai_ready": "ai", "replace": [M]}}}), encoding="utf-8")
+    assert rule_of(repo).ai_ready == "off" and rule_of(repo, "other").replace == ()
+    rule = rule_of(repo, "nyw-1914-s1")
+    assert (rule.ai_ready, rule.replace) == ("ai", (M,))
+    # M was shipped before from the OCR batch: the hand-read reading takes its place, and says so
+    (repo / "xd").mkdir()
+    (repo / "xd" / f"{M}.xd").write_text("Title: from the OCR\n", encoding="utf-8")
+    (repo / "provenance.jsonl").write_text(json.dumps({"xdid": M, "pid": M + "-L000", "batch": "nyw-1914-c1"}) + "\n", encoding="utf-8")
+    p = plan(repo, root, rule, "nyw-1914-s1")
+    m, held = _row(p, M), _row(p, P)
+    assert m["status"] == "shippable" and "replaces xd/" in m["why"] and f"{M}-L000" in m["why"]
+    assert m["review"] == f"read by hand; {note}; an AI's Ready; no person's review; by the AI proof reviewer's Ready"
+    assert held["reason"] == "no-ready"                          # held for a person: no AI Ready was written for it
+    write(repo, p)
+    row = json.loads((repo / "provenance.jsonl").read_text(encoding="utf-8").splitlines()[-1])
+    assert row["review"] == m["review"] and row["replaces"]["pid"] == f"{M}-L000" and row["replaces"]["batch"] == "nyw-1914-c1"
+    assert (repo / "xd" / f"{M}.xd").read_text(encoding="utf-8") == MODERN
+    # a plain AI Ready under the publication's own rule (off) ships nothing
+    assert _row(plan(repo, root, rule_of(repo), "nyw-1914-s1"), P)["reason"] == "no-ready"
