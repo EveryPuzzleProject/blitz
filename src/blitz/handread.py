@@ -237,6 +237,8 @@ def build(xd_path: Path, pages: Path, dest: Path, model: str = "") -> dict:
             outside.append((label, c, b))
             continue
         entry = {"text": c["text"]}
+        if m.get("Correction"):  # the clue as meant (^Correction): part of the record, shown under the printed text
+            entry["correction"] = m["Correction"]
         if printed:
             entry["printed"] = printed
         if b.get("box"):
@@ -252,7 +254,7 @@ def build(xd_path: Path, pages: Path, dest: Path, model: str = "") -> dict:
             entry["flags"] = flags
         clues[key] = entry
         for k, v in m.items():
-            if k not in ("Printed", "Fits"):  # the pair, and the pair that fits: the label and the grid's numbers show them
+            if k not in ("Printed", "Fits", "Correction"):  # the pair, and the pair that fits: the label and the grid's numbers show them
                 notes.append({"kind": "source", "target": f"clue:{key}", "note": f"{k}: {v}"})
 
     lines = []
@@ -264,7 +266,9 @@ def build(xd_path: Path, pages: Path, dest: Path, model: str = "") -> dict:
     # a clue the modern numbering can't name (a diagonal word, a word inside a longer run): a printed line of
     # its own, with its pair and answer, so it is seen and checked beside its crop
     for label, c, b in outside:
+        corr = xd["meta"].get(label, {}).get("Correction")
         lines.append({"n": len(lines) + 1, "text": f"{label}. {c['text']} ~ {c['answer']}", "box": b.get("box"),
+                      **({"correction": corr} if corr else {}),
                       "label": "other", "keep": True, "by": "hand-read",
                       "printed_as": "a clue no across or down run can name",
                       **({"image": image_of(b.get("page"))} if b.get("page") and image_of(b.get("page")) != "page.jpg" else {})})

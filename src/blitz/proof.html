@@ -252,6 +252,7 @@ h2 .quick { margin-left: 8px; font-size: 12px; padding: 2px 10px; }
 .typed { font: 17px/1.35 var(--serif); padding: 2px 4px 2px 0; margin-top: 2px; display: flex; }
 .typed .num { flex: none; width: 2.6em; text-align: right; padding-right: .45em; color: #555; user-select: none; }
 .typed .num.odd { color: var(--flag); }
+.corr { font: 16px/1.35 var(--serif); padding: 0 4px 2px 2.6em; color: #1d5a2e; } .corr .hint { font: 12px var(--sans, sans-serif); color: var(--muted); }
 .typed .num.pair { width: 3.9em; }
 .typed .txt { flex: 1; outline: none; white-space: pre-wrap; border-radius: 3px; padding: 0 3px; min-height: 1.35em; }
 .typed .txt:hover { background: #f4efe6; cursor: text; }
@@ -2843,6 +2844,13 @@ function jumpToHash(lit) {
   if (lit) flash([target]);
 }
 
+// the clue as meant, under the clue as printed: an xd's "A10 ^Correction: ..." (a printer's typo the reader corrected;
+// the clue line stays as printed). Part of the record that goes in the file, so it sits in the text cell, not a note
+function corrHtml(key, label) {
+  const c = key.startsWith('clue:') ? (ocr.clues[label] || {}).correction
+    : key.startsWith('line:B') ? ((ocr.lines || []).find(L => 'B' + L.n === key.slice(5)) || {}).correction : '';
+  return c ? `<div class="corr" title="the xd's ^Correction line: the clue as meant; the clue line keeps the print">→ ${esc(c)} <span class="hint">as meant (^Correction in the xd)</span></div>` : '';
+}
 function addRow(s, key, label, box, flags = [], src = null) {
   const row = document.createElement('div');
   row.className = 'row';
@@ -2860,6 +2868,7 @@ function addRow(s, key, label, box, flags = [], src = null) {
   row.innerHTML = `<div class="lab"${meta ? ` title="${esc(slot)}'s clue in the ${esc(meta)} set (the other clue set printed for this grid): the xd's ${esc(slot)} ^${esc(meta)} line"` : ''}>${meta && !solo ? `${esc(slot)}<span class="metakey">^${esc(meta)}</span>` : esc(cl)}</div>
     <div class="body"><div class="scan"></div><div>
       <div class="typed">${isClue ? `<span class="num${odd ? ' odd' : ''}${pair ? ' pair' : ''}" title="${pair ? `the numbers printed in this word's two end squares (${esc(slot)} in our grid; the blank grid shows the numbers)` : 'the number printed beside this clue'}">${esc(pn)}.</span>` : ''}<span class="txt" spellcheck="false"></span>${MULTILINE(key) ? '<button class="nlbtn" hidden title="Start a new line here (a paragraph break): Shift+Enter does the same">↵ new line</button>' : ''}</div>
+      ${corrHtml(key, label)}
       <div class="edhint" hidden></div>
       ${key.startsWith('other:') ? `<div class="keep">
         <button class="k1" title="Keep this line with the puzzle: it goes in the xd's Notes">Keep</button>
