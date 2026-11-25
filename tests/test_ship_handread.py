@@ -43,6 +43,18 @@ def _row(p, pid):
     return next(r for r in p["rows"] if r["pid"] == pid)
 
 
+def test_a_batch_page_snapshot_from_hand_read_packets(tmp_path):
+    from blitz.sitebatch import from_packets
+    root = _packets(tmp_path)
+    snap = from_packets(root, tmp_path / "snap", "nyw-1914-s1", "The World", "newyorkworld")
+    assert snap["snapshot"]["puzzles"] == 2 and [p["pid"] for p in snap["puzzles"]] == [M, P]
+    p = snap["puzzles"][0]
+    assert (p["title"], p["date"], p["disposition"], p["maps"]) == ("A test", "1914-01-04", "ready", [])
+    assert (p["changes"], p["blanks"], p["read_by"]) == (None, None, "read by hand")  # not recorded, and said so
+    assert (tmp_path / "snap" / p["page"]).exists() and (tmp_path / "snap" / p["thumb"]).exists()
+    assert json.loads((tmp_path / "snap" / "batch.json").read_text(encoding="utf-8"))["pubid"] == "newyorkworld"
+
+
 def test_the_section_form_reads_as_the_blank_line_form_and_back(tmp_path):
     root = _packets(tmp_path)
     for pid, xd in ((M, MODERN), (P, PAIRS)):

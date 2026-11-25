@@ -853,7 +853,7 @@ function draw() {
     const head = checked(p) && (!i || checked(rows[i - 1]) !== checked(p)) ? `<div class="checked">${CHECKED[checked(p)]}</div>` : '';
     return `${head}<div class="row withpage" id="${esc(p.pid)}">${pic}
       <div>${p.feature ? `<div class="feat" title="the feature (a sub-series it runs in)${p.feature_line ? ', from printed line B' + p.feature_line : ''}: our own Feature header until the export maps it">${esc(p.feature)}</div>` : ''}<div class="t">${DATA && closed(p) ? '' : `<a class="tl" href="${proofUrl(p.pid, '', rows)}"${TAB}>`}${p.title ? esc(p.title) : '<span class="none">no title found</span>'}${DATA && closed(p) ? '' : '</a>'}</div>
-        <div class="meta">${esc(p.date)} · ${p.grid.length}×${(p.grid[0] || '').length}${p.byline ? ' · ' + esc(p.byline) : ''}${p.cryptic ? ' · cryptic' : ''} · ${p.changes} changes, ${p.unsure_items.length} unsure, ${p.blanks} blanks</div>
+        <div class="meta">${esc(p.date)} · ${p.grid.length}×${(p.grid[0] || '').length}${p.byline ? ' · ' + esc(p.byline) : ''}${p.cryptic ? ' · cryptic' : ''} · ${p.changes == null ? esc(p.read_by || 'changes: not recorded') : `${p.changes} changes, ${p.unsure_items.length} unsure, ${p.blanks} blanks`}</div>
         ${asideHtml(p)}${sentBackHtml(p)}${remedyHtml(p)}${blockHtml(p)}${closed(p) ? '' : asksHtml(p)}
         ${closed(p) ? moreHtml(p, why, verdict, c, rows) : `${checkHtml(p)}
         ${why ? `<div class="doubts">To check on the proof page:</div><ul class="why">${why}</ul>` : ''}
