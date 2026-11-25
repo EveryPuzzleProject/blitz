@@ -321,6 +321,9 @@ Answered the same day:
 - **The lead publishes review pages and editions without asking**, for now.
 - **The second opinion comes from a different model than the first reviewer's**: they make
   different mistakes, so their agreement means more.
+- **After the first run the owner reads 10 shipped puzzles from each grade** (clean, reviewed,
+  doubts), a random sample the ship step-through marks, to learn whether the grades can be
+  trusted.
 - **Volunteers are out of scope.** The site is open and anyone can walk backwards from a
   mistake; the batch sheets may become volunteer work later.
 
@@ -329,6 +332,3 @@ Open:
 1. **Where the grade and the open doubts are written.** Not settled and not urgent: it can
    change later. The owner leans towards a short final grade or summary in the xd file, with
    the detail in provenance.
-2. **How many shipped puzzles the owner reads after the first run** to learn whether the
-   grades can be trusted. The ship step-through can mark a random sample for this: how many
-   from each grade?
