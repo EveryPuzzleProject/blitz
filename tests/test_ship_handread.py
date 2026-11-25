@@ -218,5 +218,9 @@ def test_a_field_form_transcription_is_its_own_edition():
     xd = MODERN.replace("## Grid", "## Printed\nintro: Fill in the squares.\n\n\n## Grid")
     ed = make(xd, printed=[{"label": "intro", "text": "Fill in the squares."}])
     assert ed["text"] == xd and ed["held"] == [] and ed["notes"] == []       # no Puzzle notes block: ## Printed has it
-    marked = make(xd, marks=[{"key": "clue:A1", "printed": "pet", "meant": "pat", "by": "x"}])
-    assert marked["text"] is None and marked["held"][0]["code"] == "mark-unplaced"  # a site mark has no place in it yet
+    mark = {"key": "clue:A1", "printed": "pet", "meant": "pat", "by": "x"}
+    marked = make(xd, marks=[mark])  # a site mark has no place in the file yet: listed, not applied, and nothing is held
+    assert marked["text"] == xd and marked["held"] == []
+    assert [(c["key"], c["done"]) for c in marked["corrections"]] == [("clue:A1", "not applied")]
+    declined = make(xd, marks=[mark], declines=[("clue:A1", "pet", "pat")])
+    assert declined["corrections"] == [] and [d["key"] for d in declined["declined"]] == ["clue:A1"]
