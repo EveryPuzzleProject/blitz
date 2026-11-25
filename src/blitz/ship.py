@@ -77,6 +77,11 @@ class Rule:
       makes the puzzle whole (filled_by).
     owner_ids: the owner's own review-site account ids (Supabase user_id). Publishing the edition is an owner-only
       gate, so the review site's "Publish the edition" counts only from these ids, never by a typed name (edition.py).
+    owner_stale: what the owner's Ready on an earlier version of the puzzle does. "hold" (the default: it holds the
+      puzzle, "look again", before anyone else's Ready is weighed) or "lapse" (it no longer counts, and the puzzle goes
+      on to the rest of the rule: a person's or an AI's Ready on the current version may ship it, and the reason says
+      the owner's was on an older version). The owner's word for the World's Nos. 1-33 (2026-11-25): "Let AI Ready
+      count". A Not ready, the owner's or any person's, holds on any version either way.
     replace: xdids this batch may write over in xd/ although another source shipped them first (the owner's decision:
       a better reading of the same puzzle, e.g. the World's Nos. 11-12, shipped from the OCR batch nyw-1914-c1 and read
       again by hand in nyw-1914-s1). The provenance row says what it replaced.
@@ -91,6 +96,7 @@ class Rule:
     typed_clues: str = "people"
     owner_ids: tuple = ()
     replace: tuple = ()
+    owner_stale: str = "hold"
 
 
 def rule_of(repo: Path, batch: str = "", **over) -> Rule:
@@ -100,6 +106,8 @@ def rule_of(repo: Path, batch: str = "", **over) -> Rule:
     d = {k: v for k, v in (json.loads(f.read_text(encoding="utf-8")) if f.exists() else {}).items() if not k.startswith("_")}
     d.update({k: v for k, v in ((d.pop("batches", None) or {}).get(batch) or {}).items() if not k.startswith("_")})
     d.update({k: v for k, v in over.items() if v is not None})
+    if d.get("owner_stale", "hold") not in ("hold", "lapse"):
+        raise Stop(f"owner_stale is hold or lapse, not {d['owner_stale']!r}")
     if d.get("ai_ready", "off") not in AI_READY:
         raise Stop(f"ai_ready is one of {', '.join(AI_READY)}, not {d['ai_ready']!r}")
     for k in WHOSE_INPUT:
@@ -175,6 +183,9 @@ def standing(batch: dict, proofs: list[dict], *, check_ok: bool = False, codes: 
 
     mine = max((s for s in said if s["kind"] == "owner"), key=lambda s: s["at"], default=None)
     res = None
+    lapsed = None  # the owner's Ready on an earlier version, when the rule lets it lapse (rule.owner_stale)
+    if mine and mine["answer"] == "ready" and mine["stale"] and rule.owner_stale == "lapse" and mine["at"] > batch.get("at", ""):
+        lapsed, mine = mine, None
     if mine and mine["at"] > batch.get("at", ""):
         if mine["answer"] == "notready":
             res = out("hold", "owner-hold", f"{mine['who']} said Not ready on the proof page" + (f": {mine['note']}" if mine["note"] else ""))
@@ -208,6 +219,9 @@ def standing(batch: dict, proofs: list[dict], *, check_ok: bool = False, codes: 
             has = [x for x in ("the AI proof reviewer said Ready" if ai else "", "the ship check passes" if check_ok else "") if x]
             res = out("hold", "no-ready", "no person has said Ready" + (f" ({'; '.join(has)})" if has else "")
                       + (f"; {', '.join(person)} needs a person's Ready, whatever ai_ready says" if person else ""))
+    if lapsed:  # said, on whatever the rule decided
+        res = {**res, "why": res["why"] + f"; {lapsed['who']}'s Ready ({lapsed['at'][:10]}) was on an earlier version of the puzzle, so it "
+               "doesn't count here (owner_stale: lapse)", "lapsed": {"who": lapsed["who"], "at": lapsed["at"]}}
     held = sorted(set(codes) & set(rule.hold_codes))
     if res["status"] == "ship" and held:
         res = {**out("hold", held[0], f"carries {', '.join(held)}: held whoever said Ready"), "rule": res["rule"]}
@@ -414,7 +428,9 @@ def review_of(st: dict, pk: dict) -> str:
     ai = [r for r in st.get("apply") or [] if r.get("via") == AGENT and not r.get("by", "").startswith(CHECK_BY)]
     notes = sorted({(r.get("note") or "").strip() for r in ai} - {""}) if st.get("rule") == "ai" else []
     read = "read by hand" if (pk.get("review") or {}).get("hand_read") else ""
-    return "; ".join(x for x in (read, *notes, how, f"by {st['by']}" if st.get("by") else "") if x)
+    lapsed = (f"{st['lapsed']['who']}'s earlier Ready ({st['lapsed']['at'][:10]}) was on an older version of the puzzle, and the "
+              + ("AI's" if st.get("rule") == "ai" else "current") + " Ready decided") if st.get("lapsed") else ""
+    return "; ".join(x for x in (read, *notes, how, f"by {st['by']}" if st.get("by") else "", lapsed) if x)
 
 
 def partial_of(apply: list[dict], rule: "Rule", gaps: list[str]) -> dict | None:

@@ -3,6 +3,7 @@ blank-line form and shipped in its own sections; the World's own form (pairs, La
 the proof page showed it on, written back under its pair; the record ship reads is the one hand-packets wrote."""
 
 import json
+from dataclasses import replace
 
 from blitz import handread
 from blitz.ship import AGENT, SITE, Rule, plan, sectioned, unsection, write
@@ -194,3 +195,19 @@ def test_a_keep_on_a_printed_line_ships_when_the_xd_has_a_printed_section(tmp_pa
     assert p["passing"][M]["text"] == xd                       # ## Printed keeps every printed line; the keep is the edition's
     fix = _said(root, M, {"line:B1": "By some one."})
     assert _row(plan(_repo(tmp_path, [fix]), root, Rule()), M)["reason"] == "edits-unapplied"
+
+
+def test_owner_stale_lapse_lets_an_ai_ready_on_the_current_version_ship(tmp_path):
+    from blitz.ship import standing
+    old = proof("oops6498 (review site)", "ready", "2026-11-20T00:00:00Z", SITE, xd="old")
+    ai = proof("Claude (double read)", "ready", "2026-11-25T00:00:00Z", AGENT, xd="new")
+    ai["note"] = "read twice, blind"
+    rule = Rule(ai_ready="ai", owner=("oops6498",))
+    assert standing({}, [old, ai], current=("new",), rule=rule)["reason"] == "proof-stale"     # the default: look again
+    st = standing({}, [old, ai], current=("new",), rule=replace(rule, owner_stale="lapse"))
+    assert st["status"] == "ship" and st["rule"] == "ai" and "earlier version" in st["why"] and st["lapsed"]["at"].startswith("2026-11-20")
+    # a Not ready, the owner's or a helper's, still holds on any version
+    no = proof("oops6498 (review site)", "notready", "2026-11-20T00:00:00Z", SITE, xd="old")
+    assert standing({}, [no, ai], current=("new",), rule=replace(rule, owner_stale="lapse"))["status"] == "hold"
+    helper_no = proof(f"pat ({SITE})", "notready", "2026-11-21T00:00:00Z", SITE, xd="old")
+    assert standing({}, [old, helper_no, ai], current=("new",), rule=replace(rule, owner_stale="lapse"))["reason"] == "not-ready"
