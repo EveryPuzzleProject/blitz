@@ -7,6 +7,7 @@ hold, and a check that reads them (`blitz check-format`). The design this belong
 | Handoff | From, to | Document | Check |
 |---|---|---|---|
 | Page folder: `pages.tsv` and images | fetch to xword-ocr | xword-ocr `docs/sources.md` | not yet |
+| **Assembly record**: one issue's parts linked into puzzles, with what it was made from and how long it took | xword-ocr's assembly to every step after it | [assembly-record.md](assembly-record.md) | `blitz check-format` |
 | Issue census: every grid, key and clue list with its fate | xword-ocr to blitz | xword-ocr `docs/census.md` | not yet |
 | **Proof packet**: one puzzle's folder | xword-ocr (and `blitz hand-packets`) to the proof page, review, ship | [proof-packet.md](proof-packet.md) | `blitz check-format` |
 | Triage record, decisions ledger, ship record | inside blitz | `design/ship.md`; xword-ocr `docs/ship-gate.md` | not yet |
