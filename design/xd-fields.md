@@ -2,7 +2,7 @@
 
 Status: agreed by the owner, 2026-11-25 ("very good, very clever"), with the decisions at the end; the hand-read World Nos. 1-33 use it (shipped, newyorkworld #37). Not yet built: the gxd export and the edition step in this form. It comes out of the World's Nos. 1-33 (batch `nyw-1914-s1`, the
 hand-read files in newyorkworld's `hand-read/`). There the owner found that the `Notes:` header had become a
-catch-all, and asked for a formal definition of what EPP adds to an xd. Nothing is built yet.
+catch-all, and asked for a formal definition of what EPP adds to an xd.
 
 ## Why
 
