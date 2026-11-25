@@ -53,7 +53,7 @@ def test_each_grade_from_the_records(tmp_path):
     assert [(d["row"], d["code"]) for d in by["41"]["doubts"]] == [("clue:D4", "ai-question"), ("grid", "ai-question")]
     assert "check the crop" in by["41"]["doubts"][0]["text"]
     # doubts nobody reviewed: what the checks flagged, at the rows triage names
-    assert by["43"]["doubts"] == [{"row": "clue:D4", "rows": ["clue:D4", "line:B3"], "text": "2: D4: looks cut short", "code": "unsure", "from": "triage"}]
+    assert by["43"]["doubts"] == [{"row": "clue:D4", "rows": ["clue:D4", "line:B3"], "text": "D4: looks cut short", "code": "unsure", "from": "triage"}]
     # incomplete: the gaps are named, with the stage each points to
     assert [(g["code"], g["stage"], g["row"]) for g in by["44"]["gaps"]] == [("grid-unsolved", "key reading", "grid"), ("key-missing", "assembly", "grid")]
     assert [g["code"] for g in by["49"]["gaps"]] == ["cryptic-no-key"]              # a gap triage records, though the ship check passes

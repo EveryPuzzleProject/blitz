@@ -631,7 +631,7 @@ def flags_of(t: dict, candidates: list | tuple = ()) -> list[dict]:
     for r in reasons:
         if r.get("class") != "defect" or r.get("severity") != "proof":
             continue
-        code, detail = r.get("code", ""), str(r.get("detail", ""))
+        code, detail = r.get("code", ""), re.sub(r"^\d+: ", "", str(r.get("detail", "")))  # without triage's count of the items
         keys = r.get("items") or r.get("labels") or []
         keys = [_row_key(k) for k in (list(keys) if isinstance(keys, (list, dict)) else [])]
         if code.startswith("key-") or code == "gxd-key-near-miss":

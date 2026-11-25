@@ -146,6 +146,24 @@ pre.edline { margin: 0; white-space: pre-wrap; font: inherit; }
 .edline-held { color: var(--person); }
 .shipview { padding: 12px 16px; } .shipview h3 { font-size: 14px; margin: 12px 0 4px; } .shiprecs { font-size: 13px; padding-left: 18px; } .shipxdlink { font-size: 13px; }
 .feat { font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: #6a5a2a; }
+/* the run's digest (?digest): every puzzle by the grade it exits with, as blitz ship recorded it; and the step-through */
+.g-clean { color: var(--ship); background: var(--ship-bg); } .g-reviewed { color: var(--rev); background: var(--rev-bg); }
+.g-doubts { color: var(--glance); background: var(--glance-bg); } .g-incomplete { color: var(--person); background: var(--person-bg); }
+.g-held { color: var(--bg); background: var(--person); } .g-deferred, .g-not-a-crossword { color: var(--drop); background: var(--drop-bg); }
+.bar .gbar { height: 100%; } a.chip { text-decoration: none; display: inline-flex; gap: 6px; align-items: center; }
+.dgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+.dcard { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 8px; padding: 8px; background: var(--paper); border: 1px solid var(--line); border-radius: 8px; font-size: 12.5px; }
+.dcard img, .noth { width: 64px; height: 64px; object-fit: contain; background: #fff; border: 1px solid var(--line); }
+.noth { display: flex; align-items: center; justify-content: center; font-size: 10px; line-height: 1.2; color: var(--muted); text-align: center; background: transparent; border-style: dashed; }
+.dcard .t { font: 600 13.5px/1.2 var(--serif); } .dcard .first { margin-top: 3px; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; } .dcard.toread { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.readme { color: var(--accent); } .you { color: var(--glance); font-weight: 600; }
+table.fail { border-collapse: collapse; font-size: 13px; width: 100%; } table.fail td, table.fail th { padding: 3px 8px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+table.fail th { font-weight: 600; color: var(--muted); font-size: 12px; } table.fail td.n { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; } table.fail tr.on { background: var(--glance-bg); }
+.step { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 18px; } .step h3 { font-size: 14px; margin: 12px 0 4px; } .step .shiprecs { font-size: 13px; padding-left: 18px; }
+@media (max-width: 800px) { .step { grid-template-columns: 1fr; } }
+kbd { border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; background: var(--paper); font: 12px var(--sans); }
+img.pgbig { width: 100%; border: 1px solid var(--line); background: #fff; }
+.disagree { margin: 10px 0; padding: 8px 10px; border: 1px solid var(--person); border-radius: 6px; background: var(--person-bg); } .disagree input { width: 100%; font: inherit; padding: 4px 6px; margin-top: 6px; }
 </style></head>
 <body><div class="wrap">
 <header>
@@ -366,6 +384,221 @@ async function shipView(pid) {
         + ' Answers given on the proof page since then are not in it until the record is made again.');
   $('#list').innerHTML = d ? `<div class="card shipview">${shippedHtml(d)}</div>` : '';
 }
+// <digest> (tests/test_digest_page.py reads this block)
+// ---- the run's digest (?digest) and its step-through of what ships (?digest&step=<pid>) ----
+// One page per run (design/v3-agent-forward.md, "How a person works" and "Batch review of every step"): every puzzle by
+// the grade it exits with, the counts, the kinds of failure ranked by puzzles, and the shipped xd files stepped through
+// in order. Drawn from blitz ship's record alone (ship.json: each row's grade, grade_why, doubts, gaps, diagnosis,
+// grade_order and to_read; counts.grades and grade_ships; grades; sample; walk; failures: formats/ship-record.md) and,
+// for a step, the as-shipped file beside it. A thumbnail is the batch snapshot's (batch.json). The page grades, sorts
+// and samples nothing: what the record doesn't say shows as "not recorded".
+const GRADE = {clean: ['Clean', 'the ship check passed and nothing was flagged'],
+               reviewed: ['Reviewed', 'flags were raised, and a review settled each'],
+               doubts: ['Doubts', 'flags stay open; each is listed with its row on the proof page'],
+               incomplete: ['Incomplete', 'a part was never found; the gaps are named'],
+               held: ['Held', "the structure does not hold, or a person's word holds it; a diagnosis names the stage"],
+               deferred: ['Deferred', 'known, not transcribed: out of the run for now'],
+               'not-a-crossword': ['Not a crossword', 'dropped from the run']};
+const FAILKIND = {held: 'holds the puzzle', gap: 'a gap', doubt: 'an open doubt'};
+const FAIL_TOP = 8;  // the kinds of failure shown before the fold, in the record's order
+const graded = () => !!(SHIP && SHIP.counts && SHIP.counts.grades && SHIP.grades);
+const digestUrl = (extra = {}) => {
+  const u = new URLSearchParams(location.search);
+  for (const k of ['ship', 'step', 'only', 'f', 'sub', 'cause', 'kind', 'code']) u.delete(k);
+  u.set('digest', '1');
+  for (const [k, v] of Object.entries(extra)) u.set(k, v);
+  return '?' + u.toString();
+};
+const queuesUrl = () => { const u = new URLSearchParams(location.search); for (const k of ['digest', 'step', 'only', 'kind', 'code']) u.delete(k); return '?' + u.toString(); };
+const gradePill = x => x && x.grade ? `<span class="pill g-${esc(x.grade)}" title="${esc(x.grade_why || (GRADE[x.grade] || [])[1] || '')}">${esc((GRADE[x.grade] || [x.grade])[0])}</span>`
+  : '<span class="pill p-none" title="the ship record gives this puzzle no grade">Grade not recorded</span>';
+const snapOf = pid => ((D || {}).puzzles || []).find(p => p.pid === pid);
+const thumbHtml = pid => { const p = snapOf(pid); return p && p.thumb ? `<img loading="lazy" src="${esc(U(p.thumb))}" alt="the grid">` : '<div class="noth">thumbnail not recorded</div>'; };
+// the first thing left open on a puzzle, as the record lists it: a doubt, else a gap; its row is where the proof page opens
+const firstOpen = x => (x.doubts || [])[0] || (x.gaps || [])[0] || null;
+const digestProof = (pid, k, list, label) => proofAt(pid, k) + `&walk=${encodeURIComponent(label)}&pids=${list.join(',')}&back=${encodeURIComponent(location.pathname + location.search)}`;
+const statusWord = x => x.status === 'shipped' ? `shipped as ${esc(x.xdid)}` : x.status === 'shippable' ? `ready to ship as ${esc(x.xdid)}` : x.status === 'held' ? 'does not ship' : x.status === 'out' ? 'out of the run' : 'status not recorded';
+function digestHead(title, about) {
+  for (const id of ['#bar', '#chips', '#causechips', '#shipchips', '#legend', '#runnote']) { const el = $(id); if (el) el.innerHTML = ''; }
+  $('#edpub').hidden = true; $('#runsel').hidden = true; $('#tools').hidden = true; $('#rerun').hidden = true;
+  $('#sitenav').hidden = !SITE;
+  document.title = title;
+  $('#h1').textContent = title;
+  $('#about').innerHTML = about;
+}
+function digestView() {
+  STEP = null;
+  const snap = (D || {}).snapshot || {}, name = snap.title || (SHIP || {}).batch || (D || {}).run || 'Batch';
+  const back = `<a href="${queuesUrl()}">← The batch's queues</a>`;
+  if (!SHIP) { digestHead(`${name}: the run's digest`, `${back} · <b>Not recorded</b>: this batch has no ship record (<code>blitz ship</code> writes it), so nothing says how its puzzles left the run.`); $('#list').innerHTML = ''; return; }
+  if (!graded()) { digestHead(`${name}: the run's digest`, `${back} · <b>The grades: not recorded.</b> This ship record (${esc((SHIP.at || '').slice(0, 10))}) is from before the grades; <code>blitz ship</code> makes it again with them.`); $('#list').innerHTML = ''; return; }
+  const rows = [...SHIP.puzzles].sort((a, b) => (a.grade_order ?? 1e9) - (b.grade_order ?? 1e9));
+  const c = SHIP.counts, order = SHIP.grades.order || [], ships = SHIP.grades.ships || [], walk = SHIP.walk || [];
+  const n = g => c.grades[g] ?? 0, s = g => (c.grade_ships || {})[g] ?? 0;
+  const sample = SHIP.sample || null, toRead = walk.filter(pid => (SHIPBY[pid] || {}).to_read);
+  digestHead(`${name}: the run's digest`,
+    `${back} · Every puzzle leaves the run with a <b>grade</b>, which says how far to trust it. As <code>blitz ship</code> recorded it on ${esc((SHIP.at || '').slice(0, 10))}, from run ${esc(SHIP.run || 'not recorded')}. `
+    + (ships.length ? `This batch <b>ships by grade</b> (${ships.map(esc).join(', ')}) with no person's Ready; a person's Not ready still holds a puzzle.`
+                    : `Shipping by grade is <b>off</b> for this batch: a puzzle ships on a Ready, as before, and its grade is a label.`));
+  $('#bar').innerHTML = order.map(g => `<span class="g-${esc(g)} gbar" style="width:${100 * n(g) / (c.puzzles || 1)}%" title="${esc((GRADE[g] || [g])[0])}: ${n(g)}"></span>`).join('');
+  $('#chips').innerHTML = order.map(g => `<a class="chip" href="#g-${esc(g)}" title="${esc((GRADE[g] || ['', ''])[1])}"><span class="pill g-${esc(g)}">${esc((GRADE[g] || [g])[0])}</span> <b>${n(g)}</b>${s(g) ? ` <span class="meta">${s(g)} ship</span>` : ''}</a>`).join('')
+    + `<span class="meta">${c.puzzles} puzzles in all</span>`;
+  const made = walk.filter(pid => (SHIPBY[pid] || {}).status === 'shipped').length;
+  $('#shipchips').innerHTML = walk.length
+    ? `<a class="walk go" style="margin-left:0" href="${digestUrl({step: walk[0]})}">Step through the ${walk.length} xd files that ship →</a>`
+      + (toRead.length ? ` <a class="walk go" style="margin-left:0" href="${digestUrl({step: toRead[0], only: 'sample'})}">Read the sample: ${toRead.length} →</a>` : '')
+      + ` <span class="meta">${made} shipped, ${walk.length - made} ready to ship · `
+      + (sample ? `the sample: up to ${esc(sample.per_grade)} from each of ${(sample.of || []).map(esc).join(', ')}, chosen by ${esc(sample.by || 'not recorded')}` : 'the sample: not recorded') + '</span>'
+    : '<span class="meta">Nothing ships in this record, so there is nothing to step through.</span>';
+  // the kinds of failure, ranked by puzzles, as recorded; one picked filters the cards to its puzzles
+  const fails = SHIP.failures || null, pick = fails && params.get('code') ? fails.find(f => f.code === params.get('code') && f.kind === params.get('kind')) : null;
+  const failHtml = !fails ? '<p class="meta">The kinds of failure: not recorded.</p>'
+    : !fails.length ? '<p class="meta">No failure of any kind is recorded for this run.</p>'
+    : (() => {
+        const row = f => `<tr class="${pick === f ? 'on' : ''}">
+        <td class="n"><a href="${pick === f ? digestUrl() : digestUrl({kind: f.kind, code: f.code})}#puzzles" title="show these puzzles">${esc(f.puzzles)}</a></td>
+        <td>${esc(FAILKIND[f.kind] || f.kind)}</td><td><b>${esc(f.code)}</b>${f.means ? ` <span class="meta">${esc(f.means)}</span>` : ''}</td>
+        <td class="meta">${esc(f.stage || '')}</td></tr>`;
+        const head = '<tr><th>Puzzles</th><th>Kind</th><th>What</th><th>Points to</th></tr>', top = fails.slice(0, FAIL_TOP), rest = fails.slice(FAIL_TOP);
+        return `<table class="fail">${head}${top.map(row).join('')}</table>`
+          + (rest.length ? `<details${pick && rest.includes(pick) ? ' open' : ''}><summary class="meta">${rest.length} more kinds, as recorded</summary><table class="fail">${rest.map(row).join('')}</table></details>` : '');
+      })();
+  const card = (x, list, label) => {
+    const fo = firstOpen(x), more = (x.doubts || []).length + (x.gaps || []).length - 1;
+    const first = x.grade === 'held' && x.diagnosis ? `<div class="first"><b>${esc(x.diagnosis.stage || 'stage not recorded')}</b>: ${esc(x.diagnosis.what || '')}</div>`
+      : fo ? `<div class="first" title="${esc(fo.text || fo.what || '')}"><a href="${digestProof(x.pid, fo.row, list, label)}"${TAB} title="opens the proof page at this row">${esc(rowName(fo.row))}</a>: ${esc((fo.text || fo.what || '') + (fo.detail ? ' (' + fo.detail + ')' : ''))}${more > 0 ? ` <span class="meta">+${more} more</span>` : ''}</div>`
+      : x.settled && x.flags ? `<div class="first meta">${esc(x.flags)} flag${x.flags === 1 ? '' : 's'} settled by ${esc(x.settled.by)}</div>` : '';
+    const v = LIVE && LIVE[x.pid] && LIVE[x.pid].you ? `<span class="you">you: ${LIVE[x.pid].you === 'ready' ? 'Ready' : 'Not ready'}</span>` : '';
+    return `<div class="dcard${x.to_read ? ' toread' : ''}" id="${esc(x.pid)}"><a href="${digestProof(x.pid, (fo || {}).row || '', list, label)}"${TAB} title="its proof page${fo && fo.row ? ', at ' + esc(rowName(fo.row)) : ''}">${thumbHtml(x.pid)}</a>
+      <div><div class="t">${x.title ? esc(x.title) : '<span class="none">no title found</span>'}</div>
+        <div class="meta">${esc(x.date || '')} · ${esc(x.pid.replace(/^[a-z]+/, ''))}</div>
+        <div class="meta">${statusWord(x)}${x.as_shipped ? ` · <a href="${digestUrl({step: x.pid})}">its xd</a>` : ''}${x.to_read ? ' · <b class="readme" title="in the owner\'s reading sample">to read</b>' : ''} ${v}</div>${first}</div></div>`;
+  };
+  const sections = order.map(g => {
+    const all = rows.filter(x => x.grade === g), mine = all.filter(x => !pick || pick.pids.includes(x.pid));
+    if (!mine.length) return '';
+    const list = mine.map(x => x.pid), label = (GRADE[g] || [g])[0];
+    return `<h2 id="g-${esc(g)}"><span class="pill g-${esc(g)}">${esc(label)}</span> ${mine.length}${pick ? ` of ${all.length}` : ''} <span class="meta">${esc((GRADE[g] || ['', ''])[1])}${s(g) ? ` · ${s(g)} ship` : ''}</span></h2>
+      <div class="dgrid">${mine.map(x => card(x, list, label)).join('')}</div>`;
+  }).join('');
+  const ungraded = rows.filter(x => !order.includes(x.grade));
+  $('#list').innerHTML = `<h2>Kinds of failure, by puzzles</h2>${failHtml}
+    <div id="puzzles"></div>${pick ? `<p class="meta">Showing the ${pick.puzzles} puzzles with <b>${esc(pick.code)}</b> (${esc(FAILKIND[pick.kind] || pick.kind)}). <a href="${digestUrl()}#puzzles">Show every puzzle</a></p>` : ''}
+    ${sections}${ungraded.length ? `<h2>Grade not recorded ${ungraded.length}</h2><div class="dgrid">${ungraded.map(x => card(x, ungraded.map(y => y.pid), 'Grade not recorded')).join('')}</div>` : ''}
+    <h2>The issues, and what the run cost</h2><p class="meta">Issue accounting (grids, keys and clue lists found; what was left over): <b>not recorded</b> in the ship record. What the run cost in tokens and hours: <b>not recorded</b>.</p>`;
+  if (location.hash) { const el = document.getElementById(decodeURIComponent(location.hash.slice(1))); if (el) setTimeout(() => el.scrollIntoView({block: 'start'}), 100); }
+}
+// ---- the step-through: every xd that ships, in the record's order (walk), the xd beside its proof ----
+// ← → (or k j) step; x disagrees, which records a Not ready for the puzzle as the proof page does (the site's proofs
+// table, which blitz ship takes into the ledger: a person's Not ready holds the puzzle; locally, ?save=<url>, the
+// proof page's own). Esc goes back to the digest.
+let STEP = null;  // {list: [pid], i, only, form: the disagree form is open, said: {pid: what was recorded here}}
+const ASSHIP = {};
+const asShippedOf = pid => ASSHIP[pid] ||= fetch(U(`as-shipped/${encodeURIComponent(pid)}.json`), {cache: 'no-cache'}).then(r => r.ok ? r.json() : null).catch(() => null);
+async function stepView(pid) {
+  if (!SHIP || !graded() || !Array.isArray(SHIP.walk)) return digestView();
+  const only = params.get('only') === 'sample';
+  const list = SHIP.walk.filter(p => !only || (SHIPBY[p] || {}).to_read);
+  STEP = {list, i: Math.max(0, list.indexOf(pid)), only, form: false, said: {}, msg: ''};
+  await drawStep();
+}
+async function drawStep() {
+  const {list, i, only} = STEP, pid = list[i], x = SHIPBY[pid] || null, n = list.length;
+  const snap = (D || {}).snapshot || {}, name = snap.title || SHIP.batch || 'Batch';
+  if (pid) history.replaceState(null, '', digestUrl({step: pid, ...(only ? {only: 'sample'} : {})}));
+  if (pid && list[i + 1]) asShippedOf(list[i + 1]);  // the next one, ready when asked for
+  const d = pid ? await asShippedOf(pid) : null;
+  if (!STEP || STEP.list[STEP.i] !== pid) return;  // stepped on while it loaded
+  digestHead(`${name}: the xd files that ship${only ? ', the reading sample' : ''}`,
+    `<a href="${digestUrl()}">← The run's digest</a> · ${only ? `The sample to read: ${n} of the ${SHIP.walk.length} that ship. ` : `Every xd that ships, sorted by grade. `}`
+    + `<kbd>←</kbd> <kbd>→</kbd> step · <kbd>x</kbd> disagree · <kbd>Esc</kbd> back to the digest`);
+  if (!pid) { $('#list').innerHTML = `<p class="meta">Nothing to step through: ${only ? 'the record marks no puzzle to read' : 'nothing ships in this record'}.</p>`; return; }
+  const p = snapOf(pid), you = STEP.said[pid] || (LIVE && LIVE[pid] && LIVE[pid].you ? {answer: LIVE[pid].you} : null);
+  const li = (a, f) => (a || []).map(f).join('');
+  const open = (x.doubts || []).length || (x.gaps || []).length;
+  const recs = ((d || {}).edits || {}).records || [], one = v => v === '' || v == null ? '<span class="meta">(none)</span>' : `“${esc(v)}”`;
+  $('#bar').innerHTML = `<span class="g-${esc(x.grade)} gbar" style="width:${100 * (i + 1) / n}%"></span>`;
+  $('#chips').innerHTML = `<button class="btn" id="stprev"${i ? '' : ' disabled'}>← Previous</button><b>${i + 1} of ${n}</b><button class="btn" id="stnext"${i < n - 1 ? '' : ' disabled'}>Next →</button>
+    ${gradePill(x)}${x.to_read ? '<span class="pill p-spot" title="in the owner\'s reading sample, as the record marks it">To read</span>' : ''}
+    <span class="meta">${statusWord(x)}</span>
+    ${you ? `<span class="pill ${you.answer === 'ready' ? 'p-ship' : 'p-person'}">You said ${you.answer === 'ready' ? 'Ready' : 'Not ready'}</span>` : `<button class="btn" id="stno" title="x">Disagree…</button>`}`;
+  const form = STEP.form ? `<div class="disagree"><b>Disagree with this xd</b>: it records a Not ready for the puzzle, which holds it under the ship rule.
+      <input id="stwhy" maxlength="400" placeholder="What is wrong? (optional) Enter to record, Esc to cancel"></div>` : '';
+  const msg = STEP.msg ? `<div class="disagree">${STEP.msg}</div>` : '';
+  $('#list').innerHTML = `${form}${msg}<div class="step">
+    <div><h3>${x.title ? esc(x.title) : '<span class="none">no title found</span>'} <span class="meta">${esc(x.xdid || pid)}.xd · ${esc(x.date || '')}</span></h3>
+      ${!x.as_shipped ? '<p class="meta"><b>Not recorded</b>: the record lists this puzzle in the walk, with no xd as it will ship.</p>'
+        : !d ? "<p class=\"meta\"><b>Not recorded</b>: the record says this puzzle ships, but its xd isn't beside the record. Making the record again adds it.</p>"
+        : (d.xd_fp !== x.as_shipped ? `<p class="meta"><b style="color:var(--person)">This file is from another making of the record (xd ${esc(d.xd_fp)}; the record says ${esc(x.as_shipped)}).</b></p>` : '')
+          + `<pre class="shipxd">${esc(d.xd)}</pre>`}</div>
+    <div><h3>Its proof</h3>
+      <p>${gradePill(x)} ${esc(x.grade_why || 'why: not recorded')}</p>
+      ${x.settled && x.flags ? `<p class="meta">${esc(x.flags)} flag${x.flags === 1 ? '' : 's'} raised by the checks, settled by ${esc(x.settled.by)} (${esc(x.settled.at)}).</p>` : ''}
+      ${(x.doubts || []).length ? `<h3>Open doubts</h3><ul class="shiprecs">${li(x.doubts, q => `<li><a href="${proofAt(pid, q.row)}"${TAB}>${esc(rowName(q.row))}</a> ${esc(q.text)} <span class="meta">${esc(q.code)} · ${esc(q.from)}</span></li>`)}</ul>` : ''}
+      ${(x.gaps || []).length ? `<h3>What it lacks</h3><ul class="shiprecs">${li(x.gaps, q => `<li>${q.row ? `<a href="${proofAt(pid, q.row)}"${TAB}>${esc(rowName(q.row))}</a> ` : ''}${esc(q.what)}${q.detail ? `: ${esc(q.detail)}` : ''} <span class="meta">${esc(q.code)}${q.stage ? ' · ' + esc(q.stage) : ''}</span></li>`)}</ul>` : ''}
+      ${!open && !x.settled ? '<p class="meta">Nothing was flagged, and nothing is missing.</p>' : ''}
+      ${p && p.page ? `<a href="${esc(U(p.page))}" target="_blank" title="the scanned page, full size"><img class="pgbig" src="${esc(U(p.page))}" alt="the scanned page"></a>` : p && p.thumb ? `<img class="pgbig" style="max-width:200px" src="${esc(U(p.thumb))}" alt="the grid">` : '<div class="noth" style="width:auto;height:auto;padding:16px">the page: not recorded in the snapshot</div>'}
+      <h3>Edits in it</h3>${!d ? '<p class="meta">Not recorded.</p>' : recs.length ? `<ul class="shiprecs">${li(recs, e => `<li><a href="${proofAt(pid, e.key)}"${TAB}>${esc(e.key)}</a> ${one(e.before)} → ${one(e.after)} <span class="meta">${esc(e.class)} · ${esc(e.by)}</span></li>`)}</ul>` : '<p class="meta">None: the xd is as its proof packet has it.</p>'}
+      <h3>What shipped it</h3><p class="meta">${d ? esc((d.decision || {}).why || 'not recorded') : esc(x.why || 'not recorded')}</p>
+      <p><a href="${proofAt(pid, (firstOpen(x) || {}).row || '')}"${TAB}>Its proof page${firstOpen(x) && firstOpen(x).row ? ', at ' + esc(rowName(firstOpen(x).row)) : ''} →</a>
+        · <a href="${shipViewUrl(pid)}">Everything recorded about this xd →</a></p></div></div>`;
+  const go = k => { STEP.i = Math.min(n - 1, Math.max(0, STEP.i + k)); STEP.form = false; STEP.msg = ''; drawStep(); window.scrollTo(0, 0); };
+  $('#stprev').onclick = () => go(-1); $('#stnext').onclick = () => go(1);
+  if ($('#stno')) $('#stno').onclick = () => { STEP.form = true; STEP.msg = ''; drawStep(); };
+  const why = $('#stwhy');
+  if (why) {
+    why.focus();
+    why.onkeydown = async e => {
+      e.stopPropagation();
+      if (e.key === 'Escape') { STEP.form = false; drawStep(); }
+      if (e.key !== 'Enter') return;
+      why.disabled = true;
+      try { STEP.said[pid] = await recordDisagree(pid, d, why.value.trim()); STEP.msg = `Recorded: <b>Not ready</b>, by you, ${esc(STEP.said[pid].at.slice(0, 16).replace('T', ' '))}. A person's Not ready holds the puzzle: it leaves what ships when <code>blitz ship</code> next makes the record.`; }
+      catch (err) { STEP.msg = `<span class="err">Not recorded: ${esc(err.message || err)}</span>`; }
+      STEP.form = false; drawStep();
+    };
+  }
+}
+// A disagreement is a decision in the ledger, recorded the way the proof page records a Not ready: on the site, the
+// person's row in proofs and verdicts (blitz site-import and blitz ship take it into the publication's ledger as
+// proof:<pid>); locally, the same body to ?save=<url> (xword-ocr watch's /api/proof). A review the person already
+// has on the puzzle is never written over from here: they change it on the proof page, where its edits are.
+// <digest-disagree> (run under node by tests/test_digest_page.py)
+async function recordDisagree(pid, d, text) {
+  const at = new Date().toISOString();
+  const note = "Disagreed with the xd as it ships (the batch digest's step-through)" + (text ? ': ' + text : '');
+  const review = {edits: {}, comments: [], status: {}, note, xd: (d || {}).packet_xd || ''};
+  const who = myName().slice(0, 40);
+  if (SITE) {
+    SB ||= window.supabase ? window.supabase.createClient(SITE.supabaseUrl, SITE.supabaseAnonKey) : null;
+    if (!SB) throw new Error("the site's sign-in library did not load");
+    let {data: {session}} = await SB.auth.getSession();
+    if (!session) { const r = await SB.auth.signInAnonymously(); if (r.error) throw r.error; session = r.data.session; }
+    const uid = session.user.id;
+    const have = await SB.from('proofs').select('decision,at').eq('xdid', pid).eq('user_id', uid);
+    if (have.error) throw have.error;
+    if ((have.data || []).length) throw new Error(`you already have a review of this puzzle (${have.data[0].decision === 'ready' ? 'Ready' : 'Not ready'}, ${(have.data[0].at || '').slice(0, 10)}): change it on its proof page, where its edits are`);
+    const p = await SB.from('proofs').upsert({xdid: pid, user_id: uid, who, decision: 'notready', review, at});
+    if (p.error) throw p.error;
+    const v = await SB.from('verdicts').upsert({xdid: pid, user_id: uid, verdict: 'needs-work', note: ('Not ready; ' + note).slice(0, 500), at});
+    if (v.error) throw v.error;
+  } else if (params.get('save')) {
+    const r = await fetch(params.get('save'), {method: 'POST', headers: {'Content-Type': 'text/plain'}, body: JSON.stringify({xdid: pid, who, decision: 'notready', review, at})});
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || r.statusText);
+  } else throw new Error('there is nowhere to record a decision from this copy of the page: open it on the review site, or give it ?save=<url> as the proof page takes');
+  if (LIVE) (LIVE[pid] ||= {up: 0, down: 0, you: ''}).you = 'notready';
+  return {answer: 'notready', at, note};
+}
+// </digest-disagree>
+addEventListener('keydown', e => {
+  if (!STEP || e.ctrlKey || e.metaKey || e.altKey || /^(INPUT|TEXTAREA|SELECT)$/.test((e.target || {}).tagName || '')) return;
+  const n = STEP.list.length, go = k => { STEP.i = Math.min(n - 1, Math.max(0, STEP.i + k)); STEP.form = false; STEP.msg = ''; drawStep(); window.scrollTo(0, 0); };
+  if (e.key === 'ArrowRight' || e.key === 'j') { e.preventDefault(); go(1); }
+  else if (e.key === 'ArrowLeft' || e.key === 'k') { e.preventDefault(); go(-1); }
+  else if (e.key === 'x' && $('#stno')) { e.preventDefault(); STEP.form = true; STEP.msg = ''; drawStep(); }
+  else if (e.key === 'Escape') { e.preventDefault(); if (STEP.form) { STEP.form = false; drawStep(); } else location.href = digestUrl() + '#' + encodeURIComponent(STEP.list[STEP.i] || ''); }
+});
+// </digest>
 const FILES = () => params.get('files') || SITE.filesBase;  // the site's bucket (?files=: a local copy of its layout)
 const full = m => DATA ? U(m.full || m.image) : m.image + '?w=1400';  // a page, full size
 
@@ -386,6 +619,7 @@ async function load() {
   SHIPBY = Object.fromEntries(((SHIP || {}).puzzles || []).map(x => [x.pid, x]));
   if (params.get('ship')) return shipView(params.get('ship'));  // one puzzle's xd as it will ship
   await liveVotes();
+  if (params.has('digest')) return params.get('step') ? stepView(params.get('step')) : digestView();  // the run's digest: every puzzle by its grade
   await liveEditionPublish();
   // a snapshot opens on the puzzles held on a question (with none, on the ones not checked yet, when there are any);
   // with no record of the queues, on all of them
@@ -526,6 +760,7 @@ function tally(p) {
 }
 document.addEventListener('visibilitychange', async () => {
   if (document.hidden || !D) return;
+  if (DATA && params.has('digest')) { await liveVotes(); if (!STEP) digestView(); return; }
   if (DATA) { await liveVotes(); draw(); return; }
   const r = await fetch('/api/batch' + (params.get('run') ? '?run=' + encodeURIComponent(params.get('run')) : ''), {cache: 'no-cache'});
   const d = await r.json().catch(() => null);
@@ -989,7 +1224,8 @@ function drawQueues() {
     : filter === 'broken' ? subs('Points to:', uniq(stageOf).sort((a, b) => count(b) - count(a)), k => STAGENAME[k] || k, stageOf)
     : filter === 'shipped' || filter === 'spot' ? `<span class="meta">For the maintainer:</span>` + chip('spot', 'Spot-check', sc, `a fixed sample, about one in ${(SHIP.spot || {}).one_in || 10} of the ${(SHIP.spot || {}).of || 'shipped puzzles'}, chosen by ${(SHIP.spot || {}).by || 'the puzzle id'}`) : '';
   $('#shipchips').innerHTML = rec ? `<span class="meta recnote">${D.puzzles.filter(p => (shipOf(p) || {}).reviewed).length} of ${D.puzzles.length} reviewed by a person (an AI's review alone never counts as that) · as blitz ship recorded it on ${esc((SHIP.at || '').slice(0, 10))}: `
-    + `one person's Ready and no Not ready ships; the maintainer's decision overrides${SHIP.rule.ai_ready !== 'off' ? `; the AI reviewer's Ready counts${SHIP.rule.ai_ready === 'both' ? ' with a passing ship check' : ''}` : ''}. Answers given since then show on the cards, and move a puzzle when the record is made again.</span>` : '';
+    + `one person's Ready and no Not ready ships; the maintainer's decision overrides${SHIP.rule.ai_ready !== 'off' ? `; the AI reviewer's Ready counts${SHIP.rule.ai_ready === 'both' ? ' with a passing ship check' : ''}` : ''}. Answers given since then show on the cards, and move a puzzle when the record is made again.</span>`
+    + (graded() ? ` <a class="walk" style="margin-left:0" href="${digestUrl()}">The run's digest: every puzzle by its grade, and the xd files that ship →</a>` : ` <span class="meta">The run's digest: not recorded (this ship record is from before the grades).</span>`) : '';
   document.querySelectorAll('[data-f]').forEach(b => b.onclick = e => { e.preventDefault(); filter = b.dataset.f; sub = ''; setUrl(); draw(); });
   document.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { sub = sub === b.dataset.s ? '' : b.dataset.s; setUrl(); draw(); });
   let lastG = null;
@@ -1011,7 +1247,7 @@ function drawQueues() {
         <div class="meta">${esc(p.date)} · ${p.grid.length}×${(p.grid[0] || '').length}${p.byline ? ' · ' + esc(p.byline) : ''}${p.cryptic ? ' · cryptic' : ''}${rec ? '' : ' · triage: ' + esc(p.choice === 'drop' ? 'not a crossword' : p.triage || 'not recorded')}</div>
         ${q === 'question' && (x.asks || []).length ? asksHtmlQ(p, x, rows) : ''}${q === 'broken' ? askedHtmlQ(p, x, rows) + brokenHtmlQ(x) : ''}${q === 'set-aside' ? asideHtml(p) : ''}
         ${rec ? standsHtmlQ(p, x, q) + candHtmlQ(p, x) : `<div class="shipline none"><b>Where it stands: not recorded</b></div>`}${doubts}</div>
-      <div class="side"><span class="pill ${k[1]}" title="${esc(k[3] || '')}">${k[0]}</span>${x && x.spot_check ? '<span class="pill p-spot" title="in the maintainer\'s spot-check sample">Spot-check</span>' : ''}
+      <div class="side"><span class="pill ${k[1]}" title="${esc(k[3] || '')}">${k[0]}</span>${graded() && x ? gradePill(x) : ''}${x && x.spot_check ? '<span class="pill p-spot" title="in the maintainer\'s spot-check sample">Spot-check</span>' : ''}
         <span class="state">${tally(p) || (WALKED.includes(q) && started(p.pid) ? '<b class="started">you started this</b>' : '')}</span>${side}</div></div>`;
   }).join('') || `<p class="meta">None.</p>`;
   wirePics(rows);
