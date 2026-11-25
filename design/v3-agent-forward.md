@@ -138,7 +138,7 @@ still needs its record.
 ## The second opinion
 
 An AI reviewer's Not ready goes to a second reviewer that has not seen the first's answer, on
-the same crops, and on a different model where that is cheap.
+the same crops, and on a different model.
 
 - Both say the same fix: it is applied, with both named in the record.
 - They disagree, or both are unsure: the flag stays open, and the puzzle's grade is `doubts`.
@@ -319,6 +319,8 @@ Answered the same day:
   runs.
 - **Every step's decisions can be reviewed in bulk** ("Batch review of every step").
 - **The lead publishes review pages and editions without asking**, for now.
+- **The second opinion comes from a different model than the first reviewer's**: they make
+  different mistakes, so their agreement means more.
 - **Volunteers are out of scope.** The site is open and anyone can walk backwards from a
   mistake; the batch sheets may become volunteer work later.
 
@@ -327,10 +329,6 @@ Open:
 1. **Where the grade and the open doubts are written.** Not settled and not urgent: it can
    change later. The owner leans towards a short final grade or summary in the xd file, with
    the detail in provenance.
-2. **Which model gives the second opinion.** When one AI reviewer says a puzzle has a problem,
-   a second one checks it. Should the second be a different model from the first (they make
-   different mistakes, so their agreement means more), or is the same model asked twice
-   enough (simpler, cheaper)?
-3. **How many shipped puzzles the owner reads after the first run** to learn whether the
+2. **How many shipped puzzles the owner reads after the first run** to learn whether the
    grades can be trusted. The ship step-through can mark a random sample for this: how many
    from each grade?
