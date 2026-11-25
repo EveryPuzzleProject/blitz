@@ -131,7 +131,15 @@ def make(text: str, marks: list[dict] = (), declines=(), labels=NOTE_LABELS, pri
 
     Returns {text (None when held), held: [{code, why}], corrections: [{key, printed, meant, by, done, note}],
     declined: [{key, printed, meant, by}], notes: [the Puzzle notes lines]}. Same inputs, same bytes."""
-    from .ship import _TYPO_KEY, mark_problem, with_notes
+    from .ship import _TYPO_KEY, mark_problem, sectioned, with_notes
+    if sectioned(text):
+        # EPP's field form (blitz design/xd-fields.md): the paper's other words are in its ## Printed and each correction
+        # is a field beside the print (^Correction, ^Answer-Correction), so the edition rewrites nothing and adds no
+        # Puzzle notes block; a mark from the review site has no place to go in it yet, and holds the edition
+        live = [c for c in marks or [] if _mark(c) not in {(k, p, m) for k, p, m in declines}]
+        held = [{"code": "mark-unplaced", "why": f"{c.get('key', '')}: a misprint mark on a field-form xd: record it as ^Correction "
+                 "in the transcription"} for c in live]
+        return {"text": None if held else text, "held": held, "corrections": [], "declined": [], "notes": []}
     no = {(k, p, m) for k, p, m in declines}
     live = sorted((c for c in marks or [] if _mark(c) not in no), key=_mark)
     declined = [{k: c.get(k, "") for k in ("key", "printed", "meant", "by")} for c in marks or [] if _mark(c) in no]

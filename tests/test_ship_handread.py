@@ -211,3 +211,12 @@ def test_owner_stale_lapse_lets_an_ai_ready_on_the_current_version_ship(tmp_path
     assert standing({}, [no, ai], current=("new",), rule=replace(rule, owner_stale="lapse"))["status"] == "hold"
     helper_no = proof(f"pat ({SITE})", "notready", "2026-11-21T00:00:00Z", SITE, xd="old")
     assert standing({}, [old, helper_no, ai], current=("new",), rule=replace(rule, owner_stale="lapse"))["reason"] == "not-ready"
+
+
+def test_a_field_form_transcription_is_its_own_edition():
+    from blitz.edition import make
+    xd = MODERN.replace("## Grid", "## Printed\nintro: Fill in the squares.\n\n\n## Grid")
+    ed = make(xd, printed=[{"label": "intro", "text": "Fill in the squares."}])
+    assert ed["text"] == xd and ed["held"] == [] and ed["notes"] == []       # no Puzzle notes block: ## Printed has it
+    marked = make(xd, marks=[{"key": "clue:A1", "printed": "pet", "meant": "pat", "by": "x"}])
+    assert marked["text"] is None and marked["held"][0]["code"] == "mark-unplaced"  # a site mark has no place in it yet
