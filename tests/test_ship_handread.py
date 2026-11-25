@@ -220,3 +220,16 @@ def test_a_field_form_transcription_is_its_own_edition():
     assert ed["text"] == xd and ed["held"] == [] and ed["notes"] == []       # no Puzzle notes block: ## Printed has it
     marked = make(xd, marks=[{"key": "clue:A1", "printed": "pet", "meant": "pat", "by": "x"}])
     assert marked["text"] is None and marked["held"][0]["code"] == "mark-unplaced"  # a site mark has no place in it yet
+
+
+def test_the_manifest_carries_the_feed_columns(tmp_path):
+    from blitz.edition import feed_columns
+    (tmp_path / "xd").mkdir()
+    (tmp_path / "xd" / "a.xd").write_text("Title: T\n\n\nAB\n\n\nA1. x ~ AB\n", encoding="utf-8")
+    (tmp_path / "xd" / "b.xd").write_text(MODERN, encoding="utf-8")
+    rows = {"a": {"edition_sha256": "1", "shipped_at": "2026-11-01", "proof_url": "https://p/a"},
+            "b": {"edition_sha256": "2", "shipped_at": "2026-11-01", "record_url": "https://r/b", "proof_url": "https://p/b"}}
+    old = {"a": {"edition_sha256": "1", "updated_at": "2026-11-10"}, "b": {"edition_sha256": "0", "updated_at": "2026-11-10"}}
+    feed_columns(tmp_path, rows, old, today="2026-11-25")
+    assert (rows["a"]["updated_at"], rows["a"]["form"], rows["a"]["page_url"]) == ("2026-11-10", "v1", "https://p/a")  # unchanged
+    assert (rows["b"]["updated_at"], rows["b"]["form"], rows["b"]["page_url"]) == ("2026-11-25", "v2", "https://r/b")  # changed

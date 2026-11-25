@@ -403,6 +403,13 @@ page draws the same file under "The xd as it will ship". Both draw only what the
 
 ## The edition (since 2026-11-16)
 
+Since 2026-11-25 the manifest ends with three columns for a reader that takes it as a feed (gxd-downloader, which will
+fetch it and import what changed): `updated_at`, the date the row's file last changed (its edition, or its
+transcription while it has none; it moves only when that file's sha256 does); `form`, the file's shape (`v1` the
+blank-line xd, `v2` EPP's field form, blitz design/xd-fields.md); `page_url`, a page that resolves for the puzzle (its
+record page once one is published, else its proof page). A field-form transcription is its own edition: the edition step
+rewrites nothing and adds no Puzzle notes block (its `## Printed` holds those lines).
+
 The last step of a publication's process is **publishing its edition** (`design/publishing-editions.md`). EPP makes
 two layers of every shipped puzzle (the owner's decision of 2026-11-13): the **transcription**, `xd/<xdid>.xd`, the
 puzzle as printed (everything above: reading fixes applied, key letters corrected with their note); and the
