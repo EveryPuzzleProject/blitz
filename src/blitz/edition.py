@@ -139,11 +139,16 @@ def make(text: str, marks: list[dict] = (), declines=(), labels=NOTE_LABELS, pri
     if sectioned(text):
         # EPP's field form (blitz design/xd-fields.md): the paper's other words are in its ## Printed and each correction
         # is a field beside the print (^Correction, ^Answer-Correction), so the edition rewrites nothing and adds no
-        # Puzzle notes block; a mark from the review site has no place to go in it yet, and holds the edition
-        live = [c for c in marks or [] if _mark(c) not in {(k, p, m) for k, p, m in declines}]
-        held = [{"code": "mark-unplaced", "why": f"{c.get('key', '')}: a misprint mark on a field-form xd: record it as ^Correction "
-                 "in the transcription"} for c in live]
-        return {"text": None if held else text, "held": held, "corrections": [], "declined": [], "notes": []}
+        # Puzzle notes block. A misprint mark from the review site has no place in the file until it is written into the
+        # transcription as a field. It does not hold the edition (a held edition's file is removed, so one reviewer's mark
+        # would take a published puzzle back): the edition stays the transcription, and the mark is listed, not applied
+        no = {(k, p, m) for k, p, m in declines}
+        rows = [{"key": k, "printed": pr, "meant": m, "by": c.get("by", ""), "done": "not applied",
+                 "note": "not in the xd yet: a field-form xd takes a correction as a field in its transcription (^Correction, <Header>-Correction)",
+                 **({"kind": c["kind"]} if c.get("kind") else {})}
+                for c in sorted(marks or [], key=_mark) for k, pr, m in [_mark(c)] if (k, pr, m) not in no]
+        declined = [{k: c.get(k, "") for k in ("key", "printed", "meant", "by")} for c in marks or [] if _mark(c) in no]
+        return {"text": text, "held": [], "corrections": rows, "declined": declined, "notes": []}
     no = {(k, p, m) for k, p, m in declines}
     live = sorted((c for c in marks or [] if _mark(c) not in no), key=_mark)
     declined = [{k: c.get(k, "") for k in ("key", "printed", "meant", "by")} for c in marks or [] if _mark(c) in no]
@@ -269,14 +274,17 @@ def feed_columns(repo: Path, rows: dict[str, dict], old: dict[str, dict], today:
     """Fill each row's updated_at, form and page_url (COLS, the feed's columns). updated_at moves only when the row's file
     changes (its edition_sha256, or its transcription_sha256 while it has no edition): a row the earlier manifest had with
     the same hash keeps its date (one written before the column existed takes its shipped_at), any other gets today."""
+    from .ship import sectioned
     today = today or date.today().isoformat()
     for x, r in rows.items():
         was = old.get(x) or {}
         sha = r.get("edition_sha256") or r.get("transcription_sha256") or ""
         same = sha and sha == (was.get("edition_sha256") or was.get("transcription_sha256") or "")
+        if not sha:  # no file to have changed (a row withdrawn before the hashes): the date it had, never a new one each run
+            r["updated_at"] = was.get("updated_at") or r.get("shipped_at") or today
+            same = True
         r["updated_at"] = (was.get("updated_at") or r.get("shipped_at") or today) if same else today
         t = Path(repo) / (r.get("transcription") or f"xd/{x}.xd")
-        from .ship import sectioned
         r["form"] = ("v2" if sectioned(t.read_text(encoding="utf-8")) else "v1") if t.exists() else (was.get("form") or "")
         r["page_url"] = r.get("record_url") or r.get("proof_url") or ""
 

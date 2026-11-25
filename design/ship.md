@@ -408,7 +408,9 @@ fetch it and import what changed): `updated_at`, the date the row's file last ch
 transcription while it has none; it moves only when that file's sha256 does); `form`, the file's shape (`v1` the
 blank-line xd, `v2` EPP's field form, blitz design/xd-fields.md); `page_url`, a page that resolves for the puzzle (its
 record page once one is published, else its proof page). A field-form transcription is its own edition: the edition step
-rewrites nothing and adds no Puzzle notes block (its `## Printed` holds those lines).
+rewrites nothing and adds no Puzzle notes block (its `## Printed` holds those lines). A misprint mark given on the review
+site for such a puzzle is listed in the edition's corrections as not applied and holds nothing: it takes effect when
+it is written into the transcription as a field (`^Correction:`, `<Header>-Correction:`).
 
 The last step of a publication's process is **publishing its edition** (`design/publishing-editions.md`). EPP makes
 two layers of every shipped puzzle (the owner's decision of 2026-11-13): the **transcription**, `xd/<xdid>.xd`, the
@@ -520,7 +522,12 @@ with any downstream reader (design/publishing-editions.md). It names no reader. 
 - UTF-8, LF line ends, tab-separated, a header line, then one row per xdid in xdid order; no tab or line
   break inside a value (`ship.CONTROL` turned to spaces).
 - Columns, in this order: `xdid date number status why transcription transcription_sha256 edition
-  edition_sha256 shipped_at batch published record_url proof_url`.
+  edition_sha256 shipped_at batch published record_url proof_url updated_at form page_url`. The last three were
+  added on 2026-11-25, at the end, so a reader of the first fourteen is unchanged.
+- `updated_at`: the date (YYYY-MM-DD) the row's file last changed: its edition, or its transcription while it has no
+  edition. It moves only when that file's sha256 does, so it is the one value in the manifest that depends on the day
+  the step ran. `form`: `v1` (the blank-line xd) or `v2` (EPP's field form, `design/xd-fields.md`), read from the
+  transcription. `page_url`: `record_url` when there is one, else `proof_url`.
 - `date`, `number`: the transcription's `Date:` and `Number:` headers as they are. `transcription`,
   `edition`: paths in the repo (`xd/<xdid>.xd`, `edition/<xdid>.xd`); empty when there is no such file.
   `*_sha256`: the full sha256 of the file's text with LF line ends, lowercase hex. `shipped_at`, `batch`: the
