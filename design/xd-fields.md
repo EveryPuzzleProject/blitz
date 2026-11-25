@@ -1,6 +1,6 @@
 # The fields EPP adds to an xd: a proposal
 
-Status: the four-kinds rule agreed by the owner, 2026-11-25 ("very good, very clever"); the names below are his, the open questions are still open. It comes out of the World's Nos. 1-33 (batch `nyw-1914-s1`, the
+Status: agreed by the owner, 2026-11-25 ("very good, very clever"), with the decisions at the end; the hand-read World Nos. 1-33 use it (shipped, newyorkworld #37). Not yet built: the gxd export and the edition step in this form. It comes out of the World's Nos. 1-33 (batch `nyw-1914-s1`, the
 hand-read files in newyorkworld's `hand-read/`). There the owner found that the `Notes:` header had become a
 catch-all, and asked for a formal definition of what EPP adds to an xd. Nothing is built yet.
 
@@ -60,7 +60,7 @@ That's the owner's rule of 2026-11-25 for clue typos, and here it applies to eve
 
 | header | meaning |
 |---|---|
-| `<Header>-Correction:` | a printed header as meant, beside it: `Author: Elizabeth M. Rutzinger` with `Author-Correction: Elizabeth M. Butzinger` |
+| `<Header>-Correction:` | a printed header as meant, beside it (agreed name): `Author: Elizabeth M. Rutzinger` with `Author-Correction: Elizabeth M. Butzinger` |
 | `Description:` | our description of what the grid alone doesn't show: the shape, a centre panel, a printed ornament |
 | `Incomplete:` | what's missing and why: "no printed answer key found", "the inner star is left out; see Description" |
 | `Notes:` | retired as a catch-all. If kept, it holds only what the old gxd form expects (see the open questions) |
@@ -115,14 +115,15 @@ A14 ^Printed: 15-16
 A14 ^Answer-Correction: MOAB
 ```
 
-## Open questions for the owner
+## Decided (the owner, 2026-11-25)
 
-1. **Names.** Settled: `^Correction:` (a clue's text) and `^Answer-Correction:` (its answer). Still open: `<Header>-Correction:`
-   versus a `## Corrections` section.
-2. **gxd and the old form.** gxd files use the blank-line form, and xdlint knows only metadata, grid, clues and notes.
-   Either gxd takes the v4 sections (`## Printed`, `## Design`, `## Labels`, which ties in with xdformat PR #47), or
-   the export folds `## Printed` into `Notes:` for gxd alone.
-3. **The spec.** These keys are EPP's. Should they go into xdformat #47 as a registered set, or stay an EPP profile
-   that the spec merely allows (the spec reserves no clue-metadata keys)?
-4. **Shipped puzzles.** Judge, GAMES and the World's c1 batch carry the old shape. Move them over when they're next
-   shipped, or in one pass?
+1. **Names.** `^Correction:` (a clue's text), `^Answer-Correction:` (its answer) and `<Header>-Correction:`
+   (a header's, e.g. `Author-Correction:`): the same "X-Correction" pattern throughout.
+2. **gxd gets a minimal edition in the old form.** "When we're exporting to GXD, going back to the old version is fine…
+   at some point we'll adopt the V4 version. We're just not there yet." The gxd edition is the blank-line form and
+   "could be fairly minimal. It'll link back to EPP": it needn't carry every EPP field. The full file, with every
+   field, is EPP's own.
+3. **Not registered in xdformat.** These are EPP's extensions, published on the EPP site, not proposed for the spec.
+   (xdformat #47, the World's printed numbering, is a separate proposal.)
+4. **Shipped puzzles keep their shape.** Judge, GAMES and the World's c1 batch stay as shipped. Files of both
+   shapes will coexist, which calls for a version marker (v1, v2) to be worked out.
