@@ -86,7 +86,7 @@ and a validator (`blitz check-format <path>`). Today's shapes become version 1 a
 | Issue census: every grid, key and clue list with its fate | xword-ocr to blitz | documented (xword-ocr `docs/census.md`) |
 | Reading packet: `ocr.json`, crops, boxes, page images | xword-ocr to blitz | two module docstrings, one in each repo; no version |
 | Triage record, decisions ledger, ship record | inside blitz | prose in `ship.md` and xword-ocr `docs/ship-gate.md` |
-| Annotated xd and its provenance row | blitz to any reader | spread over `ship.md` and `hand-read.md`; the `^Printed` / `^Fits` proposal is on an xdformat branch |
+| Annotated xd and its provenance row | blitz to any reader | designed in `xd-fields.md` (#114); reference and check in `formats/annotated-xd.md` (#115) |
 | Edition and `shipped.tsv` | blitz to any reader | `ship.md`, "The edition" |
 
 The annotated xd is the one that most needs writing: which sections and headers a transcription
@@ -271,7 +271,10 @@ allow is public. In practice it will mostly be the owner.
 
 ## What does not change
 
-- The ship rule's protections, the three-case edit rule, the transcription and the edition.
+- The ship rule's protections, the transcription and the edition.
+- The edit rule as `design/xd-fields.md` now has it (agreed 2026-11-25, EveryPuzzleProject/blitz#114): nothing
+  printed is overwritten, and a correction of a clue, a header or a key letter is a field beside the original. For
+  puzzles in the older block form, `design/ship.md`'s three cases still describe what ship does.
 - Views never compute; a milestone is run once and re-run only when invalidated.
 - The reviewer rules for helpers, guests and the owner in `ship.md` stay as built. They are
   not extended.
@@ -331,4 +334,6 @@ Open:
 
 1. **Where the grade and the open doubts are written.** Not settled and not urgent: it can
    change later. The owner leans towards a short final grade or summary in the xd file, with
-   the detail in provenance.
+   the detail in provenance. Against that: by `design/xd-fields.md`'s four kinds a grade is
+   provenance (how the puzzle was checked) and stays out of the xd, where `Incomplete:` already
+   says what a reader of the puzzle needs.
