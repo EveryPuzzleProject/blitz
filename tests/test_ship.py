@@ -155,7 +155,10 @@ def test_apply_edits_round_trip_and_answers():
 
 
 def test_refused_edits():
-    assert refused({"clue:A1": "x", "line:B3": "y", "ev:title": "2", "cell:r1c1": "AB"}, XD) == ["cell:r1c1", "ev:title", "line:B3"]
+    assert refused({"clue:A1": "x", "line:B3": "y", "ev:title": "2", "cell:r1c1": "AB"}, XD) == ["cell:r1c1", "ev:title"]
+    # a printed line's text and keep: any puzzle since 2026-11-25 (whether each can be applied: apply_printed)
+    assert refused({"line:B3": "y", "keep:B4": False}, XD) == [] and refused({"line:B3": "a\tb"}, XD) == ["line:B3"]
+    assert refused({"line:B3": "two\nlines"}, XD) == []                                     # a paragraph break is a line of the block
     # a linked-ends puzzle takes its own kinds (tests/test_ship_linked.py); a header's evidence line still holds it. A line's
     # label is taken by any puzzle since 2026-11-13 (whether it can be applied: label_problems, tests/test_ship_labels_typed.py)
     linked = XD.replace("Date:", "Clues: linked ends\nDate:")
@@ -530,3 +533,69 @@ def test_the_proofreads_a_ready_ships_are_walked_before_the_ones_it_cannot(tmp_p
     assert {r["queue"] for r in p["rows"]} == {"unchecked"}
     assert [r["pid"][-2:] for r in sorted(p["rows"], key=lambda r: r["order"])] == ["32", "33", "31"]
     assert by["31"]["also"] == ["clues with no text: A2 D19"] and by["32"]["also"] == []   # the card says a Ready won't ship it yet
+
+
+# ---- a printed line's text and keep, on an ordinary puzzle (2026-11-25: GAMES 1999-10's intro) ----------
+
+PLAIN = """Title: T
+Byline: By A. Person
+
+
+AB
+CD
+
+
+A1. One ~ AB
+A3. Two ~ CD
+
+D1. Three ~ AC
+D2. Four ~ BD
+A1 ^Easy: Uno
+
+
+Printed with puzzle:
+Scattershots The crosswrod on tihs page
+
+
+OCR review flags:
+A1: missing
+"""
+PLAIN_OCR = {"lines": [{"n": 1, "text": "Scattershots The crosswrod on tihs page", "label": "instructions", "keep": True},
+                       {"n": 2, "text": "By A. Person", "label": "", "keep": False},
+                       {"n": 3, "text": "GAMES 43", "label": "furniture", "keep": False}],
+             "evidence": {"byline": 2}}
+
+
+def test_an_ordinary_puzzles_printed_line_is_applied_in_its_block():
+    from blitz.ship import apply_printed
+
+    assert apply_printed(PLAIN, {}, PLAIN_OCR, {}) == (PLAIN, [], [])
+    out, done, cant = apply_printed(PLAIN, {"line:B1": "Scattershots The crossword on this page"}, PLAIN_OCR, {})
+    assert cant == [] and done == ["line:B1"]
+    assert out == PLAIN.replace("crosswrod on tihs", "crossword on this")          # the rest of the xd untouched
+    # kept, then dropped; a paragraph break is a line of the block
+    out = apply_printed(PLAIN, {"keep:B3": True}, PLAIN_OCR, {})[0]
+    assert "Printed with puzzle:\nScattershots The crosswrod on tihs page\nGAMES 43\n\n\nOCR review flags:" in out
+    out = apply_printed(PLAIN, {"line:B1": "Scattershots\nThe crossword"}, PLAIN_OCR, {})[0]
+    assert "Printed with puzzle:\nScattershots\nThe crossword\n\n\nOCR review flags:" in out
+    none = apply_printed(PLAIN, {"keep:B1": False}, PLAIN_OCR, {})[0]
+    assert PRINTED not in none and none.rstrip("\n").endswith("A1 ^Easy: Uno\n\n\nOCR review flags:\nA1: missing")
+    # with no block yet, the first kept line starts one after the clue lines (the ^Easy lines are clue lines too)
+    back = apply_printed(none, {"keep:B1": True}, {**PLAIN_OCR, "lines": [dict(PLAIN_OCR["lines"][0], keep=False)] + PLAIN_OCR["lines"][1:]}, {})[0]
+    assert "A1 ^Easy: Uno\n\n\nPrinted with puzzle:\nScattershots The crosswrod on tihs page\n\nOCR review flags:" in back
+
+
+def test_an_ordinary_puzzles_printed_line_that_cant_be_applied_says_why():
+    from blitz.ship import apply_printed
+
+    cant = lambda edits, ocr=PLAIN_OCR: apply_printed(PLAIN, edits, ocr, {})[2]
+    assert "no such printed line" in cant({"line:B9": "x"})[0]
+    assert "where the byline was read from" in cant({"keep:B2": True})[0]
+    assert "doesn't show the xd's header" in cant({"line:B2": "By Someone Else"})[0]
+    assert cant({"line:B2": "By A. Person, Jr."}) == []                                   # still gives the header
+    assert "tab" in cant({"line:B1": "a\tb"})[0] and "empty line" in cant({"line:B1": "a\n\nb"})[0]
+    assert "aren't the packet's kept lines" in cant({"line:B1": "x"}, {**PLAIN_OCR, "lines": PLAIN_OCR["lines"][1:]})[0]
+    assert apply_printed(PLAIN, {"line:B9": "x", "line:B1": "fine"}, PLAIN_OCR, {})[:2] == (PLAIN, [])  # nothing in part
+
+
+PRINTED = "Printed with puzzle:"

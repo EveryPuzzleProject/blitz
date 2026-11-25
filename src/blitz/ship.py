@@ -548,6 +548,7 @@ APPLIED = re.compile(r"clue:[AD]\d+(?:\^[A-Za-z][\w-]*)?|cell:r\d+c\d+|meta:(tit
 # remove (not this puzzle's), answers (the printed answers, not clues), clues (these are the real clues: they
 # replace the list in the xd), second:<Key> (a second clue set: its clues become the "A1 ^Key:" lines).
 CANDIDATE_VALUE = re.compile(r"remove|answers|clues|second:[A-Za-z][\w-]*")
+PRINTED_EDIT = re.compile(r"line:B\d+|keep:B\d+")  # a printed line's text and keep: any puzzle (apply_printed)
 HEADER ={"title": "Title", "author": "Author", "byline": "Byline", "puzzle_number": "Number", "editor": "Editor", "feature": "Feature"}
 META_RE = re.compile(r"^([AD]\d+) \^([A-Za-z][\w-]*): ?(.*)$")
 
@@ -558,15 +559,17 @@ def _meta_key(name: str) -> str:
 
 def refused(edits: dict, text: str) -> list[str]:
     """The edits this import can't apply (the puzzle is held for them): kinds it doesn't know (a
-    line's label or keep, a fill-in blank, a note), a rebus square, a header of several lines. A
-    linked-ends puzzle takes its own kinds (LINKED_APPLIED: a square's kind, a square's printed number,
-    a printed line's text and keep); whether each can be applied safely is apply_linked()'s to say."""
+    fill-in blank, a note), a rebus square, a header of several lines. Any puzzle takes a printed line's
+    text and keep (line:B<n>, keep:B<n>: whether each can be applied safely is _printed_edits()'s to say).
+    A linked-ends puzzle takes its own kinds too (LINKED_APPLIED: a square's kind, a square's printed
+    number); whether each can be applied safely is apply_linked()'s to say."""
     bad = lambda k, v: k.startswith(("clue:", "meta:", "label:")) and (not isinstance(v, str) or bool(CONTROL.search(v)))  # one line
+    bad_line = lambda k, v: k.startswith("line:") and (not isinstance(v, str) or bool(CONTROL_BUT_NL.search(v)))
     if linked(text):
-        return sorted(k for k, v in edits.items() if not LINKED_APPLIED.fullmatch(k) or bad(k, v)
-                      or (k.startswith("line:") and (not isinstance(v, str) or bool(CONTROL_BUT_NL.search(v)))))
-    return sorted(k for k, v in edits.items() if not APPLIED.fullmatch(k) or (k.startswith("cell:") and len(v or "") != 1)
-                  or bad(k, v)
+        return sorted(k for k, v in edits.items() if not LINKED_APPLIED.fullmatch(k) or bad(k, v) or bad_line(k, v))
+    return sorted(k for k, v in edits.items() if not (APPLIED.fullmatch(k) or PRINTED_EDIT.fullmatch(k))
+                  or (k.startswith("cell:") and len(v or "") != 1)
+                  or bad(k, v) or bad_line(k, v)
                   or (k.startswith("candidate:") and not CANDIDATE_VALUE.fullmatch(v or "")))
 
 
@@ -994,9 +997,10 @@ def printed_place(xd: str, ocr: dict, review: dict) -> dict | None:
 
     {head: the block's heading in the xd's notes, lines: the numbers (B<n>) of the packet lines the block is made
     of, in its order, or None when the xd's block is not the packet's kept lines (then nothing says where an edit
-    lands, and none is applied), edits: "applied" (a linked-ends puzzle: the block is written again from the kept
-    lines, apply_linked) or "held" (any other puzzle: a Ready carrying a keep: or line: edit holds it as
-    edits-unapplied), fixed: the lines a header was read from (not kept or dropped), says: that, in words}."""
+    lands, and none is applied), edits: "applied" (the block is written again from the kept lines with the edits,
+    _printed_edits: any puzzle since 2026-11-25, linked-ends before) or "held" (the block isn't the packet's kept
+    lines: a Ready carrying a keep: or line: edit holds it as edits-unapplied), fixed: the lines a header was read
+    from (not kept or dropped), says: that, in words}."""
     if not xd or not (ocr or {}).get("lines"):
         return None
     lines = printed_lines(ocr, review or {})
@@ -1004,16 +1008,13 @@ def printed_place(xd: str, ocr: dict, review: dict) -> dict | None:
     at = next((i for i, ln in enumerate(after) if ln == PRINTED_HEAD), None)
     block = after[at + 1:_block(after, at)] if at is not None else []
     agrees = block == block_lines(lines)
-    applied = linked(xd)
     fixed = sorted({n for n in ((ocr or {}).get("evidence") or {}).values() if isinstance(n, int)})
-    says = ("the xd's printed lines are not the packet's kept lines, so nothing says where an edit to one lands: none is applied"
+    says = ("the xd's printed lines are not the packet's kept lines, so nothing says where an edit to one lands: none is "
+            "applied, and a Ready carrying one holds the puzzle (edits-unapplied)"
             if not agrees else
-            "the import writes this block again from the kept lines, in the packet's order, with each line's text as edited"
-            if applied else
-            "the import doesn't apply a keep, discard or text edit of a printed line to this kind of puzzle yet: a Ready "
-            "carrying one holds the puzzle (edits-unapplied), and the notes stay as the packet has them")
+            "the import writes this block again from the kept lines, in the packet's order, with each line's text as edited")
     return {"head": PRINTED_HEAD, "lines": [ln["n"] for ln in lines if ln["keep"]] if agrees else None,
-            "edits": "applied" if applied and agrees else "held", "fixed": fixed, "says": says}
+            "edits": "applied" if agrees else "held", "fixed": fixed, "says": says}
 
 
 def apply_linked(text: str, edits: dict, ocr: dict | None = None, review: dict | None = None) -> tuple[str, list[str], list[str]]:
@@ -1043,10 +1044,7 @@ def apply_linked(text: str, edits: dict, ocr: dict | None = None, review: dict |
             cant.append(f"{k}: not a kind of edit the import applies to a linked-ends puzzle")
         elif k.startswith(("clue:", "meta:")) and (not isinstance(v, str) or CONTROL.search(v)):
             cant.append(f"{k}: its value isn't one line of text (a line break, a tab or another control character)")
-        elif k.startswith("line:") and isinstance(v, str) and CONTROL_BUT_NL.search(v):
-            cant.append(f"{k}: a printed line's text holds a tab or another control character")
-        elif k.startswith("line:") and (not isinstance(v, str) or any(not t.strip() for t in v.split("\n")[1:])):
-            cant.append(f"{k}: a printed line's text can hold line breaks, not an empty line (the xd's block ends at one)")
+    # (a printed line's text and keep: checked and applied with the printed lines, _printed_edits)
     # the squares: kinds and letters
     squares, bad = _square_edits(edits, cells)
     cant += bad
@@ -1126,52 +1124,87 @@ def apply_linked(text: str, edits: dict, ocr: dict | None = None, review: dict |
             head = _set_header(head, k, v)
             done.append(k)
     # the printed lines: their text, and which are kept
-    lines = [k for k in edits if k.startswith(("line:", "keep:"))]
-    if lines:
-        have = {ln["n"]: ln for ln in printed_lines(ocr or {}, review or {})}
-        evidence = {}
-        for f, n in ((ocr or {}).get("evidence") or {}).items():
-            if n is not None:
-                evidence.setdefault(n, []).append(f)
-        at = next((i for i, ln in enumerate(after) if ln == PRINTED_HEAD), None)
-        block = after[at + 1:_block(after, at)] if at is not None else []
-        if block != block_lines(have.values()):
-            cant.append(f"{', '.join(lines[:4])}: the xd's printed lines aren't the packet's kept lines, so the edit has no place in it")
-        heads = {h.partition(": ")[0]: h.partition(": ")[2].strip() for h in [*head]}
-        for k in lines:
-            n, v = int(k.partition(":B")[2]), edits[k]
-            if n not in have:
-                cant.append(f"{k}: the packet has no such printed line")
-            elif k.startswith("keep:") and (not isinstance(v, bool) or n in evidence):
-                cant.append(f"{k}: " + ("its value isn't kept or not kept" if not isinstance(v, bool) else
-                                        f"the line is where the {' and '.join(evidence[n])} was read from: it isn't a line kept or dropped"))
-            elif k.startswith("line:") and not v.strip():
-                cant.append(f"{k}: an empty line (keep:B{n} drops a line)")
-            elif k.startswith("line:") and any(not heads.get(EVIDENCE_HEADER.get(f, "")) or not _count(v.lower(), heads[EVIDENCE_HEADER[f]].lower())
-                                               for f in evidence.get(n, [])):
-                cant.append(f"{k}: the line is where the {' and '.join(evidence[n])} was read from, and as edited it doesn't show the "
-                            "xd's header: the header has to be given its value with it (meta:), or the line left as it was")
-            else:
-                done.append(k)
-        if not cant:
-            new = block_lines(printed_lines(ocr or {}, review or {}, edits))
-            if at is not None and new:
-                after[at + 1:_block(after, at)] = new
-            elif at is not None:  # nothing kept any more: the block goes, with the blank line that set it off
-                end = _block(after, at)
-                del after[at:end + 1 if end < len(after) else end]
-                while after and not after[-1].strip():
-                    after.pop()
-            elif new:  # the first kept line: the block comes first in the notes
-                first = next((i for i, ln in enumerate(after) if ln.strip() and not PAIR_LINE.match(ln)), None)
-                if first is None:
-                    after += ["", "", PRINTED_HEAD, *new]
-                else:
-                    after[first:first] = [PRINTED_HEAD, *new, ""]
+    after, did, bad = _printed_edits(head, after, edits, ocr, review)
+    done += did
+    cant += bad
     if cant:
         return text, [], cant
     out = "\n".join(head) + "\n\n\n" + "\n".join("".join(r) for r in cells) + ("\n\n\n" + "\n".join(after) if after else "") + "\n"
     return out, done, []
+
+
+def _printed_edits(head: list[str], after: list[str], edits: dict, ocr: dict | None, review: dict | None
+                   ) -> tuple[list[str], list[str], list[str]]:
+    """A reviewer's line:B<n> and keep:B<n> edits applied to an xd's lines after the grid (any puzzle): (those lines,
+    the keys applied, what can't be applied, in words). The "Printed with puzzle:" block is the packet's kept lines in
+    order, and is written again from them with the edits. A line a header was read from can't be dropped, and its text
+    must still give the xd's header. Nothing is applied when anything can't be."""
+    lines = [k for k in edits if k.startswith(("line:", "keep:"))]
+    done, cant = [], []
+    if not lines:
+        return after, done, cant
+    after = list(after)
+    have = {ln["n"]: ln for ln in printed_lines(ocr or {}, review or {})}
+    evidence = {}
+    for f, n in ((ocr or {}).get("evidence") or {}).items():
+        if n is not None:
+            evidence.setdefault(n, []).append(f)
+    at = next((i for i, ln in enumerate(after) if ln == PRINTED_HEAD), None)
+    block = after[at + 1:_block(after, at)] if at is not None else []
+    if block != block_lines(have.values()):
+        cant.append(f"{', '.join(lines[:4])}: the xd's printed lines aren't the packet's kept lines, so the edit has no place in it")
+    heads = {h.partition(": ")[0]: h.partition(": ")[2].strip() for h in [*head]}
+    for k in lines:
+        n, v = int(k.partition(":B")[2]), edits[k]
+        if n not in have:
+            cant.append(f"{k}: the packet has no such printed line")
+        elif k.startswith("keep:") and (not isinstance(v, bool) or n in evidence):
+            cant.append(f"{k}: " + ("its value isn't kept or not kept" if not isinstance(v, bool) else
+                                    f"the line is where the {' and '.join(evidence[n])} was read from: it isn't a line kept or dropped"))
+        elif k.startswith("line:") and isinstance(v, str) and CONTROL_BUT_NL.search(v):
+            cant.append(f"{k}: a printed line's text holds a tab or another control character")
+        elif k.startswith("line:") and (not isinstance(v, str) or any(not t.strip() for t in v.split("\n")[1:])):
+            cant.append(f"{k}: a printed line's text can hold line breaks, not an empty line (the xd's block ends at one)")
+        elif k.startswith("line:") and not v.strip():
+            cant.append(f"{k}: an empty line (keep:B{n} drops a line)")
+        elif k.startswith("line:") and any(not heads.get(EVIDENCE_HEADER.get(f, "")) or not _count(v.lower(), heads[EVIDENCE_HEADER[f]].lower())
+                                           for f in evidence.get(n, [])):
+            cant.append(f"{k}: the line is where the {' and '.join(evidence[n])} was read from, and as edited it doesn't show the "
+                        "xd's header: the header has to be given its value with it (meta:), or the line left as it was")
+        else:
+            done.append(k)
+    if cant:
+        return after, [], cant
+    new = block_lines(printed_lines(ocr or {}, review or {}, edits))
+    if at is not None and new:
+        after[at + 1:_block(after, at)] = new
+    elif at is not None:  # nothing kept any more: the block goes, with the blank lines after it (the ones before
+        end = _block(after, at)  # it set off what comes next, as they did the block)
+        while end < len(after) and not after[end].strip():
+            end += 1
+        del after[at:end]
+        while after and not after[-1].strip():
+            after.pop()
+    elif new:  # the first kept line: the block comes first in the notes, after the clue lines
+        first = next((i for i, ln in enumerate(after) if ln.strip() and not PAIR_LINE.match(ln) and not META_RE.match(ln)), None)
+        if first is None:
+            after += ["", "", PRINTED_HEAD, *new]
+        else:
+            after[first:first] = [PRINTED_HEAD, *new, ""]
+    return after, done, cant
+
+
+def apply_printed(text: str, edits: dict, ocr: dict | None, review: dict | None) -> tuple[str, list[str], list[str]]:
+    """Any xd with a reviewer's printed-line edits (line:B<n>, keep:B<n>) applied: (text, the keys applied, what can't
+    be applied, in words). A linked-ends xd's go through apply_linked() with the rest of its edits; this is the same
+    step for an ordinary puzzle, run after apply_edits()."""
+    if not any(k.startswith(("line:", "keep:")) for k in edits):
+        return text, [], []
+    head, grid, *rest = text.replace("\r\n", "\n").rstrip("\n").split("\n\n\n")
+    after, done, cant = _printed_edits(head.split("\n"), "\n\n\n".join(rest).split("\n") if rest else [], edits, ocr, review)
+    if cant:
+        return text, [], cant
+    return head + "\n\n\n" + grid + ("\n\n\n" + "\n".join(after) if after else "") + "\n", done, []
 
 
 def candidate_decisions(records: list[dict], rule: "Rule" = None, current: tuple = ()) -> dict[str, dict]:
@@ -1548,6 +1581,12 @@ def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict |
                 continue
         else:
             text, done = apply_edits(text, edits)
+            text, ldone, cant = apply_printed(text, edits, pk["ocr"], pk["review"])
+            if cant:
+                hold("edits-unapplied", "proof-page edits to the printed lines the import can't apply as they stand: "
+                     + "; ".join(cant[:3]) + (f" (+{len(cant) - 3})" if len(cant) > 3 else ""))
+                continue
+            done += ldone
         squares = any(isinstance(f, dict) and f.get("code") == "grid-unsolved" and f.get("detail") in filled for f in ship.get("findings") or [])
         if squares and any(ch in ".?" for ch in text.split("\n\n\n")[1]):  # the letters were given, and a square is still unread in what would ship
             hold("incomplete", "Ready, but incomplete: " + "; ".join(map(str, ship["incomplete"])) + " (the edits don't fill every square)")
@@ -2083,7 +2122,7 @@ def edit_records(packet_xd: str, applied: str, apply: list[dict], rule: Rule = R
             add(k, "square number", lk0["nums"].get(sq, ""), lk1["nums"].get(sq, ""), r,
                 pairs={lab: [lk0["label"][lab], lk1["label"].get(lab, "")] for lab in lk0["label"]
                        if lk0["label"][lab] != lk1["label"].get(lab) and sq in (lk0["words"][lab][0], lk0["words"][lab][-1])})
-        elif is_linked and k.startswith(("line:", "keep:")):
+        elif k.startswith(("line:", "keep:")):  # any puzzle's printed lines
             ln = lines0.get(int(k.partition(":B")[2]))
             if ln is None:
                 missing.append(f"{k}: the packet has no such printed line")
@@ -2143,10 +2182,11 @@ def edit_records(packet_xd: str, applied: str, apply: list[dict], rule: Rule = R
         moved = [lab for lab in {**lk0["label"], **lk1["label"]} if lk0["label"].get(lab) != lk1["label"].get(lab)]
         if moved and not any(h["what"] in ("square number", "grid square") for h in records):
             missing.append(f"the clue lines of {' '.join(moved[:6])} changed their labels with no edit to a square's number or kind recorded")
-        block = lambda t: next((b.strip("\n").split("\n")[1:] for b in t.replace("\r\n", "\n").split("\n\n") if b.strip("\n").startswith(PRINTED_HEAD)), [])
-        if block(packet_xd) != block(text) and block(text) != block_lines(printed_lines(
-                ocr, packet_review or {}, {k: v for k, v in value.items() if k.startswith(("line:", "keep:"))})):
-            missing.append("the printed lines ship as something other than the packet's kept lines with the edits recorded for them")
+    # and under any puzzle's printed lines
+    block = lambda t: next((b.strip("\n").split("\n")[1:] for b in t.replace("\r\n", "\n").split("\n\n") if b.strip("\n").startswith(PRINTED_HEAD)), [])
+    if block(packet_xd) != block(text) and block(text) != block_lines(printed_lines(
+            ocr, packet_review or {}, {k: v for k, v in value.items() if k.startswith(("line:", "keep:"))})):
+        missing.append("the printed lines ship as something other than the packet's kept lines with the edits recorded for them")
     for k, what, before, after in diffs:
         if k.startswith("cell:") and k not in have and "grid:" + k[5:] in have:
             k = "grid:" + k[5:]  # a linked-ends square whose kind changed: recorded under the grid: key

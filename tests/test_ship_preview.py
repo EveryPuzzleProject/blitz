@@ -60,8 +60,9 @@ def test_the_record_says_where_each_printed_line_lands_and_whether_an_edit_is_ap
     assert place["fixed"] == [25]                                                            # the Number's line: not kept or dropped
     plain = "Title: T\n\n\nA\n\n\nA1. x ~ A\n\n\nPrinted with puzzle:\nhello\n"
     o = {"lines": [{"n": 1, "text": "hello", "label": "intro", "keep": True}, {"n": 2, "text": "ad", "label": "other", "keep": False}]}
-    assert printed_place(plain, o, {})["edits"] == "held"                                    # not applied to an ordinary puzzle yet
+    assert printed_place(plain, o, {})["edits"] == "applied"                                 # an ordinary puzzle's too (2026-11-25)
     assert printed_place(plain.replace("hello", "bye"), o, {})["lines"] is None              # the xd isn't the packet's kept lines
+    assert printed_place(plain.replace("hello", "bye"), o, {})["edits"] == "held"
     assert printed_place(plain, {}, {}) is None
     repo, proofs = batch(tmp_path, {}, pids=(NO12,))
     assert next(r for r in record(plan(repo, proofs, RULE, "nyw-1914-c1"))["puzzles"])["printed"]["lines"] == kept
