@@ -110,7 +110,7 @@ and a time budget. It runs compute itself and hands model steps to worker agents
 | 7 | Second opinion where the first said Not ready | puzzle | yes | no |
 | 8 | Repair: a stage action, then back to the step it invalidates | puzzle | yes | partly (`remedy`: grow a box, re-read parts, request a page) |
 | 9 | Last resort: an agent reads the part no stage delivered | part | yes | no (done by hand for the World, Nos. 1-33) |
-| 10 | Grade, ship, make the edition, write the batch report | puzzle | none | ship and edition yes; grade and report no |
+| 10 | Grade, ship, make and publish the edition, publish the review pages, write the batch report | puzzle | none | ship and edition yes; grade and report no |
 
 Steps 6 to 9 loop at most a fixed number of rounds per puzzle. A puzzle that is still not
 whole after them exits with what it has.
@@ -126,7 +126,7 @@ the proof page and the batch page.
 | `clean` | the ship check passed; nothing was flagged | yes |
 | `reviewed` | flags were raised and an AI review settled each from its crop | yes |
 | `doubts` | one or more flags stayed open after the second opinion; each is listed with its row and crop | yes |
-| `incomplete` | a part was never found (a key, a clue, a clue list); the gaps are named | yes, as it stands (open question 1) |
+| `incomplete` | a part was never found (a key, a clue, a clue list); the gaps are named | yes, as it stands |
 | `held` | the structure does not hold (the clues don't fit the grid, no grid); a diagnosis names the stage | no |
 | `deferred` | its kind is out of scope for now | no: a stub |
 | `not-a-crossword` | | no |
@@ -234,7 +234,40 @@ minutes fetching 1,031 files one at a time.
 - **A correction is a decision**, recorded as now. Where it names a stage, the run picks it up
   and re-runs that puzzle's chain.
 - **Budgets replace go-aheads.** The lead has a token ceiling for the batch and does not stop
-  to ask inside it (open question 3 covers publishing).
+  to ask inside it.
+- **The lead publishes without asking**: review pages and editions (the owner, 2026-11-25).
+  This replaces `operating-model.md`'s owner-only publishing for now. Nothing reads the
+  editions yet, not even gxd; the owner expects to bring back a person's sign-off once
+  something does.
+
+### Batch review of every step
+
+Any step that decides something can be scanned in bulk, with its evidence, after the fact.
+These are checks the owner can make at any time, never gates the run waits at.
+
+| Step | What is scanned | Evidence on each card |
+|---|---|---|
+| Kind and scope (3) | every grid deferred, dropped or called not a crossword, grouped by kind | the grid's crop and its page, the kind, who or what decided |
+| Census (2) | every grid turned down, orphan key and loose clue list | the crop, its fate, the issue's line |
+| Assembly (2) | every puzzle as assembled: grid, lists and key side by side | thumbnails of each part with the page it came from |
+| Reading (4 to 9) | grids in bulk, or clue sheets in bulk | the crop beside what was read |
+| Ship (10) | every xd that shipped, stepped through in order, sorted by grade | the xd beside its proof: grade, open doubts, edits |
+
+- One view pattern for all of them: a sheet of cards, keys for next and previous, one key to
+  disagree. Collegian's contact and confirm sheets are the model (`collegian-lessons.md`,
+  "View patterns worth keeping").
+- A disagreement is a decision in the ledger. The run picks it up and re-runs that puzzle's
+  chain, as for any correction.
+- Each view reads what its milestone recorded, so each step has to record its decisions with
+  the crop they were made from. A step that cannot be scanned is not finished.
+- These sheets are also where volunteers could help later, and assembly may turn out to be
+  the step that needs people most.
+
+### Backwards from a mistake, in the open
+
+Anyone can walk the chain, with no account: a puzzle on crossref, its EPP record page, the
+proof page, the assembly view, the page and its regions, the scan. As much of this as rights
+allow is public. In practice it will mostly be the owner.
 
 ## What does not change
 
@@ -279,18 +312,25 @@ to image tools and blitz orchestrates; the formats are written down; the puzzle 
 after assembly; incremental work by default; fetch may be its own repo; issue accounting that
 does not block; out-of-scope kinds deferred, not dropped.
 
+Answered the same day:
+
+- **Incomplete puzzles ship with the `incomplete` grade**, with no person's Ready. The rule of
+  2026-11-23 (`ship.md`: a person's "Ready to ship as it stands") no longer stands for v3
+  runs.
+- **Every step's decisions can be reviewed in bulk** ("Batch review of every step").
+- **The lead publishes review pages and editions without asking**, for now.
+- **Volunteers are out of scope.** The site is open and anyone can walk backwards from a
+  mistake; the batch sheets may become volunteer work later.
+
 Open:
 
-1. **Incomplete puzzles.** The owner's rule of 2026-11-23 is that an incomplete puzzle needs a
-   person's "Ready to ship as it stands". The `incomplete` grade would ship one without it.
-   Which stands?
-2. **Where the grade and the open doubts are written**: provenance only, or also in the
-   transcription xd, and whether anything of them reaches the edition.
-3. **Publishing without asking.** `operating-model.md` keeps uploads to the live site and
-   publishing an edition for the owner. Does a lead get standing permission for review pages?
-   For editions?
-4. **The second opinion's model**, and whether agreement between two readings on one model
-   counts.
-5. **The sample the owner reads** to measure the first run: how many puzzles, from which
-   grades.
-6. **Volunteers.** What the review site asks of a visitor once nothing waits on them.
+1. **Where the grade and the open doubts are written.** Not settled and not urgent: it can
+   change later. The owner leans towards a short final grade or summary in the xd file, with
+   the detail in provenance.
+2. **Which model gives the second opinion.** When one AI reviewer says a puzzle has a problem,
+   a second one checks it. Should the second be a different model from the first (they make
+   different mistakes, so their agreement means more), or is the same model asked twice
+   enough (simpler, cheaper)?
+3. **How many shipped puzzles the owner reads after the first run** to learn whether the
+   grades can be trusted. The ship step-through can mark a random sample for this: how many
+   from each grade?
