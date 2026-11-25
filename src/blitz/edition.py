@@ -38,7 +38,11 @@ CODES = {  # triage codes the edition step publishes with a word in `why` (the e
 NOTES_HEAD = "Puzzle notes:"  # the printed lines the Notes rule takes: the puzzle's notes
 FIXED_HEAD = "Misprints corrected:"  # one line per clue or header misprint the edition corrected, saying what was printed
 COLS = ("xdid", "date", "number", "status", "why", "transcription", "transcription_sha256", "edition", "edition_sha256",
-        "shipped_at", "batch", "published", "record_url", "proof_url")
+        "shipped_at", "batch", "published", "record_url", "proof_url", "updated_at", "form", "page_url")
+# the columns a downstream reader (gxd-downloader) takes as a feed (the owner, 2026-11-25), at the end so a reader of the
+# first fourteen is unchanged: updated_at, the date the row's file last changed (its edition, or its transcription while
+# it has none); form, the file's shape (v1: the blank-line xd; v2: EPP's field form, blitz design/xd-fields.md); page_url,
+# a page that resolves for the puzzle: its record page once one is published, its proof page until then
 STATUSES = ("published", "held", "withdrawn")
 # the ledger's publish-edition:<batch>: the owner's "Publish the edition" on the batch page, answer publish, or unpublish
 # when taken back. Not the review site's "publish" (site-publish, ship --publish), which puts packets and records on the site.
@@ -261,8 +265,28 @@ def write_manifest(repo: Path, rows: dict[str, dict]) -> Path:
     for x, r in old.items():
         if x not in rows:
             rows[x] = {**r, "status": "withdrawn", "why": r["why"] if r.get("status") == "withdrawn" else "not advertised any more: not in xd/"}
+    feed_columns(repo, rows, old)
     f.write_text("\t".join(COLS) + "\n" + "".join(_row_tsv(rows[x]) + "\n" for x in sorted(rows)), encoding="utf-8", newline="\n")
     return f
+
+
+def feed_columns(repo: Path, rows: dict[str, dict], old: dict[str, dict], today: str = "") -> None:
+    """Fill each row's updated_at, form and page_url (COLS, the feed's columns). updated_at moves only when the row's file
+    changes (its edition_sha256, or its transcription_sha256 while it has no edition): a row the earlier manifest had with
+    the same hash keeps its date (one written before the column existed takes its shipped_at), any other gets today."""
+    from .ship import sectioned
+    today = today or date.today().isoformat()
+    for x, r in rows.items():
+        was = old.get(x) or {}
+        sha = r.get("edition_sha256") or r.get("transcription_sha256") or ""
+        same = sha and sha == (was.get("edition_sha256") or was.get("transcription_sha256") or "")
+        if not sha:  # no file to have changed (a row withdrawn before the hashes): the date it had, never a new one each run
+            r["updated_at"] = was.get("updated_at") or r.get("shipped_at") or today
+            same = True
+        r["updated_at"] = (was.get("updated_at") or r.get("shipped_at") or today) if same else today
+        t = Path(repo) / (r.get("transcription") or f"xd/{x}.xd")
+        r["form"] = ("v2" if sectioned(t.read_text(encoding="utf-8")) else "v1") if t.exists() else (was.get("form") or "")
+        r["page_url"] = r.get("record_url") or r.get("proof_url") or ""
 
 
 def _record_pages(repo: Path) -> dict[str, str]:
