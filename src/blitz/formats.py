@@ -11,8 +11,9 @@ Two kinds of line come back:
   type, an image named and not there, an xd that isn't the version the packet says it is).
 - note: the file is a valid older form, or lacks something today's writers always write.
 
-So far: the proof packet (formats/proof-packet.md), the annotated xd (formats/annotated-xd.md) and the
-assembly record (formats/assembly-record.md).
+So far: the proof packet (formats/proof-packet.md), the annotated xd (formats/annotated-xd.md), the
+assembly record (formats/assembly-record.md) and the grades in the ship record and the provenance rows
+(formats/ship-record.md).
 """
 
 from __future__ import annotations
@@ -253,12 +254,20 @@ def _kind(text: str) -> str:
 
 
 def check(paths: list[Path], artifacts: Path | None = None) -> dict:
-    """{packets, xds, assemblies, problems, notes, by_text: {(level, kind): count}, lines: [(name, level, text)]}
-    for what is at or under the paths: packet folders, .xd files, a folder of either, or a harvest's assembly
-    records (its assembly/ folder, or one issue's file). artifacts: the store the records' outputs are in
+    """{packets, xds, assemblies, ship_records, problems, notes, by_text: {(level, kind): count}, lines: [(name, level, text)]}
+    for what is at or under the paths: packet folders, .xd files, a folder of either, a harvest's assembly
+    records (its assembly/ folder, or one issue's file), a batch's ship record (ship.json, or a file of
+    pipeline/ship/) or a publication's provenance.jsonl (their grades). artifacts: the store the records' outputs are in
     (xword-ocr .cache/artifacts), to check those too."""
-    lines, counts, n, nx, na = [], {}, 0, 0, 0
+    lines, counts, n, nx, na, ns = [], {}, 0, 0, 0, 0
     for path in map(Path, paths):
+        graded = check_ship_record(path) if is_ship_record(path) else check_provenance_grades(path) if path.name == "provenance.jsonl" and path.is_file() else None
+        if graded is not None:  # a batch's ship record, or a publication's provenance rows: their grades
+            ns += 1
+            for level, text in graded:
+                lines.append((path.name, level, text))
+                counts[(level, _kind(text))] = counts.get((level, _kind(text)), 0) + 1
+            continue
         records = assembly_files(path)
         if records:
             na += len(records)
@@ -280,7 +289,7 @@ def check(paths: list[Path], artifacts: Path | None = None) -> dict:
             for level, text in res:
                 lines.append((name, level, text))
                 counts[(level, _kind(text))] = counts.get((level, _kind(text)), 0) + 1
-    return {"packets": n, "xds": nx, "assemblies": na, "problems": sum(1 for _, lv, _ in lines if lv == "problem"),
+    return {"packets": n, "xds": nx, "assemblies": na, "ship_records": ns, "problems": sum(1 for _, lv, _ in lines if lv == "problem"),
             "notes": sum(1 for _, lv, _ in lines if lv == "note"), "by_text": counts, "lines": lines}
 
 
@@ -603,4 +612,184 @@ def check_xd(text: str) -> list[tuple[str, str]]:
         _grid_rows(sections["Grid"], out)
     if "Clues" in sections:
         _clue_lines(sections["Clues"], out, field=True)
+    return out
+
+
+# ---- the ship record's grades (formats/ship-record.md) -------------------------------------------
+
+SHIP_RECORD = "ship-record"
+SHIP_RECORD_VERSIONS = (1,)
+GRADES = ("clean", "reviewed", "doubts", "incomplete", "held", "deferred", "not-a-crossword")  # blitz ship.GRADES
+GRADES_SHIP = GRADES[:4]
+ROW_KEY = re.compile(r"clue:[AD]\d+(\^[\w-]+)?|line:B\d+|cell:r\d+c\d+|(ev|meta):\w+|candidate:\S+|grid|notes|")
+DOUBT = {"row": STR, "text": STR, "code": STR, "from": STR}
+GAP = {"what": STR, "code": STR, "stage": STR, "detail": STR, "row": STR}
+DIAGNOSIS = {"stage": STR, "what": STR, "code": STR}
+GRADE_ROW = {"grade": STR, "grade_why": STR, "flags": (int,), "doubts": LIST, "gaps": LIST, "grade_order": (int,), "to_read": BOOL}
+PROVENANCE_GRADE = {"grade": STR, "why": STR, "flags": (int,), "doubts": LIST, "gaps": LIST}
+
+
+def is_ship_record(path: Path) -> bool:
+    """A batch's ship record: ship.json in a batch snapshot, or pipeline/ship/<batch>.json in a publication's repo."""
+    path = Path(path)
+    return path.is_file() and path.suffix == ".json" and (path.name == "ship.json" or path.parent.name == "ship")
+
+
+def _grade_lists(g: dict, name: str, out: list) -> None:
+    """A row's doubts and gaps, as the record's row and the provenance row both carry them."""
+    for i, d in enumerate(g.get("doubts") or []):
+        if not isinstance(d, dict):
+            out.append(("problem", f"{name}: doubts[{i}] is not an object"))
+            continue
+        _fields(d, DOUBT, f"{name}: doubts[{i}]", out)
+        if isinstance(d.get("row"), str) and not ROW_KEY.fullmatch(d["row"]):
+            out.append(("problem", f"{name}: doubts[{i}] row {d['row']!r} is not a proof-page row key"))
+    for i, x in enumerate(g.get("gaps") or []):
+        if not isinstance(x, dict):
+            out.append(("problem", f"{name}: gaps[{i}] is not an object"))
+            continue
+        _fields(x, GAP, f"{name}: gaps[{i}]", out)
+        if isinstance(x.get("row"), str) and not ROW_KEY.fullmatch(x["row"]):
+            out.append(("problem", f"{name}: gaps[{i}] row {x['row']!r} is not a proof-page row key"))
+    s = g.get("settled")
+    if s is not None and not (isinstance(s, dict) and all(isinstance(s.get(k), str) for k in ("by", "kind", "at"))):
+        out.append(("problem", f"{name}: settled is not null or {{by, kind, at}}"))
+
+
+def check_ship_record(f: Path) -> list[tuple[str, str]]:
+    """A batch's ship record against formats/ship-record.md: the grade fields, and that they agree with each other
+    (the counts with the rows, the sample and the walk with what ships). The older fields are design/ship.md's and
+    are not checked here. Reads the file only."""
+    out: list[tuple[str, str]] = []
+    d = _load(Path(f), out)
+    if d is None:
+        return out
+    fmt = d.get("format")
+    if fmt is not None:
+        m = re.fullmatch(rf"{SHIP_RECORD}/(\d+)", str(fmt))
+        if not m:
+            out.append(("problem", f"format is {fmt!r}, not {SHIP_RECORD}/<n>"))
+        elif int(m.group(1)) not in SHIP_RECORD_VERSIONS:
+            out.append(("problem", f"format {fmt} is newer than this check reads ({SHIP_RECORD}/{SHIP_RECORD_VERSIONS[-1]})"))
+    rows = d.get("puzzles")
+    if not isinstance(rows, list) or not isinstance(d.get("counts"), dict):
+        out.append(("problem", "not a ship record: no puzzles list or no counts"))
+        return out
+    if not any(isinstance(r, dict) and "grade" in r for r in rows):
+        out.append(("note", "from before the grades: no puzzle has a grade (blitz ship makes the record again with them)"))
+        return out
+    ships = lambda r: r.get("status") in ("shipped", "shippable")
+    by = {}
+    for r in rows:
+        if not isinstance(r, dict) or not isinstance(r.get("pid"), str):
+            out.append(("problem", "a puzzle row with no pid"))
+            continue
+        name = r["pid"]
+        by[name] = r
+        _fields(r, GRADE_ROW, name, out)
+        g = r.get("grade")
+        if g not in GRADES:
+            out.append(("problem", f"{name}: grade {g!r} is not one of {', '.join(GRADES)}"))
+            continue
+        _grade_lists(r, name, out)
+        dg = r.get("diagnosis")
+        if g == "held":
+            if not isinstance(dg, dict):
+                out.append(("problem", f"{name}: held, with no diagnosis"))
+            else:
+                _fields(dg, DIAGNOSIS, f"{name}: diagnosis", out)
+        elif dg is not None:
+            out.append(("problem", f"{name}: a diagnosis on a puzzle graded {g}"))
+        if ships(r) and g not in GRADES_SHIP:
+            out.append(("problem", f"{name}: {r.get('status')}, and graded {g}, which never ships"))
+        if g == "doubts" and not r.get("doubts"):
+            out.append(("problem", f"{name}: graded doubts, and lists none"))
+        if g == "incomplete" and not r.get("gaps"):
+            out.append(("problem", f"{name}: graded incomplete, and names no gap"))
+        if g in ("clean", "reviewed") and (r.get("doubts") or r.get("gaps")):
+            out.append(("problem", f"{name}: graded {g}, with open doubts or gaps listed"))
+        if g == "reviewed" and not r.get("settled"):
+            out.append(("problem", f"{name}: graded reviewed, and nothing says who settled its flags"))
+    c = d["counts"]
+    for key, of in (("grades", lambda r: True), ("grade_ships", ships)):
+        if not isinstance(c.get(key), dict):
+            out.append(("problem", f"counts.{key} is missing"))
+            continue
+        for g in GRADES:
+            n = sum(1 for r in by.values() if r.get("grade") == g and of(r))
+            if c[key].get(g) != n:
+                out.append(("problem", f"counts.{key}.{g} is {c[key].get(g)!r}; the rows say {n}"))
+    if sorted(r.get("grade_order", -1) for r in by.values()) != list(range(len(by))):
+        out.append(("problem", "grade_order is not each row's own place, 0 to n-1"))
+    gs = d.get("grades")
+    if not (isinstance(gs, dict) and isinstance(gs.get("order"), list) and isinstance(gs.get("ships"), list)):
+        out.append(("problem", "grades is not {order, ships}"))
+    elif [x for x in gs["ships"] if x not in GRADES_SHIP]:
+        out.append(("problem", f"grades.ships lists a grade that never ships: {gs['ships']}"))
+    walk = d.get("walk")
+    if not isinstance(walk, list):
+        out.append(("problem", "walk is missing"))
+    else:
+        if sorted(walk) != sorted(p for p, r in by.items() if ships(r)):
+            out.append(("problem", "walk is not exactly the puzzles that ship"))
+        if [by[p]["grade_order"] for p in walk if p in by] != sorted(by[p]["grade_order"] for p in walk if p in by):
+            out.append(("problem", "walk is not in the rows' grade_order"))
+        for p in walk:
+            if p in by and not by[p].get("as_shipped"):
+                out.append(("problem", f"{p}: in the walk, with no as_shipped fingerprint"))
+    s = d.get("sample")
+    if not (isinstance(s, dict) and isinstance(s.get("picked"), dict) and isinstance(s.get("per_grade"), int)):
+        out.append(("problem", "sample is not {per_grade, of, from, by, pool, picked}"))
+    else:
+        picked = set()
+        for g, pids in s["picked"].items():
+            if not isinstance(pids, list) or len(pids) > s["per_grade"]:
+                out.append(("problem", f"sample.picked.{g} is not a list of at most {s['per_grade']}"))
+                continue
+            for p in pids:
+                picked.add(p)
+                if p not in by or by[p].get("grade") != g or not ships(by[p]):
+                    out.append(("problem", f"sample.picked.{g}: {p} is not a puzzle that ships at that grade"))
+        if picked != {p for p, r in by.items() if r.get("to_read")}:
+            out.append(("problem", "the rows' to_read and sample.picked name different puzzles"))
+    fs = d.get("failures")
+    if not isinstance(fs, list):
+        out.append(("problem", "failures is missing"))
+    else:
+        for i, x in enumerate(fs):
+            if not (isinstance(x, dict) and x.get("kind") in ("held", "gap", "doubt") and isinstance(x.get("code"), str)
+                    and isinstance(x.get("pids"), list) and x.get("puzzles") == len(x["pids"])):
+                out.append(("problem", f"failures[{i}] is not {{code, kind: held | gap | doubt, stage, means, puzzles, pids}}"))
+        if [x.get("puzzles", 0) for x in fs if isinstance(x, dict)] != sorted((x.get("puzzles", 0) for x in fs if isinstance(x, dict)), reverse=True):
+            out.append(("problem", "failures is not ranked by puzzles"))
+    return out
+
+
+def check_provenance_grades(f: Path) -> list[tuple[str, str]]:
+    """provenance.jsonl's `grade` on each row that has one (formats/ship-record.md, "In the provenance row"). A row
+    with none is from before the grades: a note, once."""
+    out: list[tuple[str, str]] = []
+    without = 0
+    for i, line in enumerate(Path(f).read_text(encoding="utf-8").splitlines(), 1):
+        if not line.strip():
+            continue
+        try:
+            r = json.loads(line)
+        except json.JSONDecodeError as e:
+            out.append(("problem", f"line {i}: not JSON ({e.msg})"))
+            continue
+        g = r.get("grade")
+        if g is None:
+            without += 1
+            continue
+        name = str(r.get("xdid") or f"line {i}")
+        if not isinstance(g, dict):
+            out.append(("problem", f"{name}: grade is not an object"))
+            continue
+        _fields(g, PROVENANCE_GRADE, f"{name}: grade", out)
+        if g.get("grade") not in GRADES_SHIP:
+            out.append(("problem", f"{name}: shipped, and graded {g.get('grade')!r}, which never ships"))
+        _grade_lists(g, f"{name}: grade", out)
+    if without:
+        out.append(("note", f"{without} row(s) from before the grades"))
     return out

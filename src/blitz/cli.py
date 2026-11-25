@@ -34,7 +34,7 @@ The public review site (helpers check agents' reviews in the browser; see site/R
     blitz site-retire-batch <name>       take a whole batch off the site: its puzzles closed, the batch page's entry gone
 
 Shipping a batch (design/ship.md):
-    blitz ship <pub> --proof <run's proof packets> [--batch NAME] [--write] [--ai-ready off|both|either]
+    blitz ship <pub> --proof <run's proof packets> [--batch NAME] [--write] [--ai-ready off|both|either] [--ship-grades ...]
                                          the batch's reviewed puzzles into ../<pub>/xd/ under the ship rule: which
                                          are shipped, shippable and held, and why (dry run without --write)
                                          --backfill-records: edit records for puzzles shipped before ship kept them
@@ -163,7 +163,7 @@ def cmd_check_format(a) -> None:
     what = [f"{res['packets']} packets against {formats.PACKET}/1"] * bool(res["packets"]) + \
            [f"{res['xds']} xd files against formats/annotated-xd.md"] * bool(res["xds"]) + \
            [f"{res['assemblies']} issues' assembly records against {formats.ASSEMBLY}/1"
-            + ("" if a.artifacts else " (records only: --artifacts <store> checks their outputs too)")] * bool(res["assemblies"])
+            + ("" if a.artifacts else " (records only: --artifacts <store> checks their outputs too)")] * bool(res["assemblies"]) +            [f"{res['ship_records']} ship record(s) or provenance file(s) against {formats.SHIP_RECORD}/1 (the grades)"] * bool(res["ship_records"])
     print(f"checked {' and '.join(what) or 'nothing'}: {res['problems']} problems, {res['notes']} notes"
           + ("" if a.notes or not res["notes"] else " (--notes shows them)"))
     if res["problems"]:
@@ -458,7 +458,10 @@ def cmd_ship(a) -> None:
         from .site import fetch_decisions
 
         site = fetch_decisions(False)
-    rule = ship.rule_of(repo, a.batch or Path(a.proof).resolve().name, ai_ready=a.ai_ready, ignore=a.ignore or None)
+    grades = None if a.ship_grades is None else [g for g in a.ship_grades.replace(",", " ").split() if g != "off"]
+    if grades == ["all"]:
+        grades = list(ship.SHIPS)
+    rule = ship.rule_of(repo, a.batch or Path(a.proof).resolve().name, ai_ready=a.ai_ready, ignore=a.ignore or None, ship_grades=grades)
     p = ship.plan(repo, Path(a.proof), rule, a.batch or "", site, a.pub)
     if a.backfill_records:  # the edit records of puzzles shipped before ship kept them: provenance rows only, no xd touched
         rows = ship.backfill(repo, p) if a.write else ship.unrecorded(repo, p)
@@ -499,6 +502,9 @@ def cmd_ship(a) -> None:
     own = sum(1 for r in rec["puzzles"] if r["queue"] == "question" and not r["group"])
     if q["question"]:
         print("  questions: " + "; ".join([f"{g['label']} {g['puzzles']}" for g in rec["groups"] if g["puzzles"]] + [f"one puzzle's own {own}"]))
+    g, gs = c["grades"], c["grade_ships"]  # every puzzle exits with a grade (design/v3-agent-forward.md)
+    print("grades (how many ship): " + ", ".join(f"{k} {g[k]} ({gs[k]})" for k in ship.GRADES if g[k])
+          + "; shipping by grade: " + (", ".join(rule.ship_grades) if rule.ship_grades else "off (ship-rule.json's ship_grades)"))
     w = c["ships_with"]
     print(f"the rule passes {w.get('off', 0)} as it stands; with --ai-ready both {w.get('off', 0) + w.get('both', 0)}; "
           f"with --ai-ready either {sum(w.values())} (before the import's own holds)")
@@ -663,7 +669,7 @@ def main(argv=None) -> None:
     q = sub.add_parser("text", help="(re)write text.md for puzzles")
     q.add_argument("puzzles", nargs="+")
     q.set_defaults(fn=cmd_text)
-    q = sub.add_parser("check-format", help="check proof packets, xd files and assembly records against formats/ (reads files only)")
+    q = sub.add_parser("check-format", help="check proof packets, xd files, assembly records and a ship record's grades against formats/ (reads files only)")
     q.add_argument("paths", nargs="+", help="a packet folder, an .xd file, a folder of either, or a harvest's assembly/ folder")
     q.add_argument("--lines", action="store_true", help="every line with its packet, not counts by kind")
     q.add_argument("--notes", action="store_true", help="also show notes (older forms, things today's writers add)")
@@ -791,6 +797,8 @@ def main(argv=None) -> None:
                         "default: the publication's fixes/ship-rule.json, else off")
     q.add_argument("--ignore", action="append", help="a reviewer whose decisions don't count (repeatable; replaces "
                                                      "ship-rule.json's list)")
+    q.add_argument("--ship-grades", help="ship by grade with no person's Ready: a list of clean, reviewed, doubts, incomplete "
+                                         "(or all, or off); default: the publication's fixes/ship-rule.json (ship_grades), else off")
     q.add_argument("--write", action="store_true", help="write the xd files, ledger records, provenance and the ship record")
     q.add_argument("--backfill-records", action="store_true",
                    help="list the provenance rows that give edit records to puzzles shipped before ship kept them; with "
