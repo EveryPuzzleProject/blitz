@@ -82,7 +82,7 @@ A puzzle the rule passes can still be held by the import, each with its own reas
 | `packet-stale` | the proof packet doesn't show its xd: rebuild the packet |
 | `proof-stale` | all that was said (a Ready, or an AI's Not ready) was on an earlier version of the puzzle |
 | `edits-differ` | two reviewers changed the same thing two ways |
-| `edits-unapplied` | a proof-page edit the import doesn't apply: a line's keep or text in a puzzle that isn't linked-ends (`keep:B3`, `line:B3`), a header's evidence line (`ev:title`), a fill-in blank, a rebus square; a line's label it can't hold (A printed line's label, below); in a linked-ends puzzle, an edit that can't be applied safely (Linked ends, below) |
+| `edits-unapplied` | a proof-page edit the import doesn't apply: a line's keep or text that can't be applied as it stands (the xd's block isn't the packet's kept lines, a header's line dropped or edited away from its header: `keep:B3`, `line:B3`), a header's evidence line (`ev:title`), a fill-in blank, a rebus square; a line's label it can't hold (A printed line's label, below); in a linked-ends puzzle, an edit that can't be applied safely (Linked ends, below) |
 | `xd-exists` | `xd/` already has another file under its id |
 | `candidate-undecided` | the packet records a candidate clue list and no reviewer who said Ready has decided it (next section but one). A question, not a breakage |
 | `candidate-partial` | a candidate was taken into the puzzle (as the clues, or as a second set) and doesn't cover its slots |
@@ -539,9 +539,9 @@ The record's row for each puzzle carries `printed` (`ship.printed_place`): where
 lines land in its xd and what the import does with a keep, a discard or a text edit of one: `{head:
 "Printed with puzzle:", lines: [the numbers of the packet's lines the block is made of, in its order]
 (null when the xd's block isn't the packet's kept lines), edits: applied | held, fixed: [the lines a
-header was read from], says}`. `applied`: a linked-ends puzzle, whose block the import writes again
-from the kept lines in the packet's order (`apply_linked`). `held`: any other puzzle, which a Ready
-carrying such an edit holds (`edits-unapplied`).
+header was read from], says}`. `applied`: the import writes the block again from the kept lines in the packet's order (`apply_linked` for a
+linked-ends puzzle, `apply_printed` for any other, since 2026-11-25). `held`: the xd's block isn't the packet's
+kept lines, so nothing says where an edit lands; a Ready carrying such an edit holds the puzzle (`edits-unapplied`).
 
 The proof page's "Notes in the xd file" draws that block with the review's own keeps, discards and
 line edits, labelled "preview with this review's edits: not yet the shipped text", the packet's block
@@ -653,9 +653,12 @@ assembly's.
   still listed as applied with its `printed line` record (`kept: false`).
 - `label:`, `ev:`, `candidate:`, a fill-in blank: as for any puzzle.
 
-`line:` and `keep:` are applied to linked-ends puzzles only (`label:` to any puzzle, since 2026-11-13). Any other puzzle is still held on
-them (GAMES 1977-79 has three such), though nothing in how they are applied is particular to
-linked ends: lifting that is a change to `refused()` and a look at those three.
+`line:` and `keep:` are applied to any puzzle since 2026-11-25 (`label:` since 2026-11-13): the same step
+(`_printed_edits`) for both kinds, `apply_printed` after `apply_edits` for a puzzle that isn't linked-ends, with
+the same records (`printed line`, `printed line kept`) and the same net under the block. It came with GAMES
+1999-10's intro ("Scattershots"). The three GAMES 1977-79 puzzles held on them before become shippable at the
+next `blitz ship` of that batch: 1977-09 L036 (`keep:B5`, which keeps a fragment, "go wrong will!", under the
+line it repeats: worth the owner's look), 1978-01 L028 and 1978-07 L026b (an intro's text read again).
 
 blitz doesn't depend on xword-ocr, so the Numbering section's reader and writer are in `ship.py`
 as well as in xword-ocr `numbering.py`, whose format it is; `tests/test_ship_linked.py` reads
