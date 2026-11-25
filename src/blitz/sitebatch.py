@@ -167,3 +167,54 @@ def publish(out: Path, dry_run: bool = False, force: bool = False) -> list[str]:
     s3.put_object(Bucket=bucket, Key="batch/batches.json", Body=json.dumps(idx, indent=1).encode("utf-8"),
                   ContentType="application/json", CacheControl="no-cache")
     return keys
+
+
+def from_packets(packets: Path, out: Path, name: str, title: str = "", pubid: str = "") -> dict:
+    """The batch page's data for puzzles read by hand (blitz hand-packets: no harvest run, so no watch to snapshot), from
+    their proof packets alone: batch.json with one row per packet (its date, title, number and byline as its xd's headers
+    say, its grid, its page and a thumbnail of the grid as the packet has them, the ship check's findings as reasons),
+    page/ and thumbs/. No overlays: the boxes are on the proof page. Every packet is "ready" (for review: the batch's ship
+    record says what shipped). Returns batch.json's contents."""
+    from PIL import Image
+
+    if out.exists():
+        if not (out / "batch.json").exists():
+            raise Stop(f"{out} exists and isn't a batch snapshot: give another --out.")
+        shutil.rmtree(out)
+    (out / "page").mkdir(parents=True)
+    (out / "thumbs").mkdir()
+    tri = json.loads((packets / "triage.json").read_text(encoding="utf-8")) if (packets / "triage.json").exists() else {}
+    checks = {r["pid"]: r.get("ship") or {} for r in tri.get("puzzles") or []}
+    puzzles = []
+    for d in sorted(p for p in packets.iterdir() if (p / "ocr.json").exists()):
+        pid, o = d.name, json.loads((d / "ocr.json").read_text(encoding="utf-8"))
+        ship = checks.get(pid) or {}
+        page = thumb = ""
+        if (d / "page.jpg").exists():
+            with Image.open(d / "page.jpg") as im:
+                im.thumbnail((1400, 1400))
+                im.convert("RGB").save(out / "page" / f"{pid}.jpg", "JPEG", quality=82)
+            page = f"page/{pid}.jpg"
+        src = d / "grid.png" if (d / "grid.png").exists() else d / "page.jpg" if (d / "page.jpg").exists() else None
+        if src:
+            with Image.open(src) as im:
+                im.thumbnail((160, 160))
+                im.convert("RGB").save(out / "thumbs" / f"{pid}.png", "PNG")
+            thumb = f"thumbs/{pid}.png"
+        puzzles.append({
+            "pid": pid, "date": o.get("issue_date", ""), "title": o.get("title", ""), "number": o.get("puzzle_number", ""),
+            "byline": o.get("author", ""), "feature": "", "grid": o.get("grid") or [""], "changes": 0, "blanks": 0,
+            "unsure_items": [], "cryptic": False, "triage": "ready", "disposition": "ready", "set_aside": None, "blocking": [],
+            "check": {"agrees": True, "disposition": "ready", "says": "read by hand; " + ("the ship check finds it whole" if not ship.get("incomplete")
+                      else "the ship check finds it incomplete: " + "; ".join(ship["incomplete"]))},
+            "reasons": [{"code": f.get("code", ""), "class": "tool", "severity": "", "detail": f.get("detail", ""), "row": "", "stage": ""}
+                        for f in ship.get("findings") or []],
+            "choice": "", "by": "", "note": "", "at": "", "thumb": thumb, "page": page, "maps": [],
+            "sent_back": None, "remedy": None, "chain": None, "restart": None})
+    run = packets.name
+    snap = {"run": run, "current": run, "pubid": pubid, "counts": {"ready": len(puzzles)}, "causes": None, "puzzles": puzzles,
+            "run_notes": {run: {"status": "current", "what": "read by hand (blitz hand-packets): no OCR run"}}, "runs": [run],
+            "snapshot": {"name": name, "title": title or name, "run": run, "at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                         "puzzles": len(puzzles), "dropped": 0}}
+    (out / "batch.json").write_text(json.dumps(snap, ensure_ascii=False, indent=1), encoding="utf-8")
+    return snap

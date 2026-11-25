@@ -288,6 +288,9 @@ def cmd_site_publish_batch(a) -> None:
     if a.keep:  # the snapshot already made (and looked at with --dry-run), as it is
         snap = json.loads((out / "batch.json").read_text(encoding="utf-8"))["snapshot"]
         print(f"{snap['run']}: {snap['puzzles']} puzzles ({snap['dropped']} dropped), snapshot of {snap['at']} in {out}")
+    elif a.packets:  # puzzles read by hand: no watch, the packets themselves
+        snap = sitebatch.from_packets(Path(a.packets), out, a.name, a.title or "", a.pub or "")["snapshot"]
+        print(f"{snap['run']}: {snap['puzzles']} puzzles read by hand, written to {out}")
     else:
         snap = sitebatch.snapshot(a.watch, out, a.name, a.title or "", a.run or "")["snapshot"]
         print(f"{snap['run']}: {snap['puzzles']} puzzles ({snap['dropped']} dropped), written to {out}")
@@ -688,6 +691,8 @@ def main(argv=None) -> None:
     q.add_argument("name", help="the batch's name on the site, e.g. games-1977-79 (as site-publish --batch)")
     q.add_argument("--title", help="its heading, e.g. 'GAMES 1977-79' (default: the name)")
     q.add_argument("--watch", default="http://127.0.0.1:8772", help="the running watch (xword-ocr watch) to snapshot")
+    q.add_argument("--packets", help="instead of a watch: a folder of proof packets read by hand (blitz hand-packets)")
+    q.add_argument("--pub", help="with --packets: the publication's id, e.g. newyorkworld")
     q.add_argument("--run", help="the text step run (default: the watch's current one, from the publication's "
                                  "pipeline/triage/runs.json)")
     q.add_argument("--out", help="where to write the snapshot (default: ../blitz-work/site-batch/<name>)")

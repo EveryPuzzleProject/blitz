@@ -211,3 +211,14 @@ def test_owner_stale_lapse_lets_an_ai_ready_on_the_current_version_ship(tmp_path
     assert standing({}, [no, ai], current=("new",), rule=replace(rule, owner_stale="lapse"))["status"] == "hold"
     helper_no = proof(f"pat ({SITE})", "notready", "2026-11-21T00:00:00Z", SITE, xd="old")
     assert standing({}, [old, helper_no, ai], current=("new",), rule=replace(rule, owner_stale="lapse"))["reason"] == "not-ready"
+
+
+def test_a_batch_page_snapshot_from_hand_read_packets(tmp_path):
+    from blitz.sitebatch import from_packets
+    root = _packets(tmp_path)
+    snap = from_packets(root, tmp_path / "snap", "nyw-1914-s1", "The World", "newyorkworld")
+    assert snap["snapshot"]["puzzles"] == 2 and [p["pid"] for p in snap["puzzles"]] == [M, P]
+    p = snap["puzzles"][0]
+    assert (p["title"], p["date"], p["disposition"], p["maps"]) == ("A test", "1914-01-04", "ready", [])
+    assert (tmp_path / "snap" / p["page"]).exists() and (tmp_path / "snap" / p["thumb"]).exists()
+    assert json.loads((tmp_path / "snap" / "batch.json").read_text(encoding="utf-8"))["pubid"] == "newyorkworld"
