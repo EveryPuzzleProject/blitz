@@ -3,6 +3,8 @@
 Draft, 2026-10-09, for approval. Nothing here is done yet except step 0. Updated
 2026-10-18: the module moves are now **v3** work, after GAMES 1977-79 ships on v2, and
 harvest becomes its own package. See "v3: harvest on its own, blitz orchestrates".
+2026-11-25: the newer v3 intent (agents drive the import, the repo line, the handoff formats)
+is in `v3-agent-forward.md`.
 
 ## The rule
 
