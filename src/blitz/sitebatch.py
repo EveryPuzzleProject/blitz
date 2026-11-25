@@ -205,9 +205,11 @@ def from_packets(packets: Path, out: Path, name: str, title: str = "", pubid: st
             thumb = f"thumbs/{pid}.png"
         puzzles.append({
             "pid": pid, "date": o.get("issue_date", ""), "title": o.get("title", ""), "number": o.get("puzzle_number", ""),
-            "byline": o.get("author", ""), "feature": "", "grid": o.get("grid") or [""], "changes": 0, "blanks": 0,
-            "unsure_items": [], "cryptic": False, "triage": "ready", "disposition": "ready", "set_aside": None, "blocking": [],
-            "check": {"agrees": True, "disposition": "ready", "says": "read by hand; " + ("the ship check finds it whole" if not ship.get("incomplete")
+            "byline": o.get("author", ""), "feature": "", "grid": o.get("grid") or [""],
+            # no text step ran on a puzzle read by hand: its counts are not recorded (None), and the page says whose reading it is
+            "changes": None, "blanks": None, "read_by": o.get("read_by") or "read by hand",
+            "unsure_items": [], "cryptic": None, "triage": "ready", "disposition": "ready", "set_aside": None, "blocking": [],
+            "check": {"by": "the ship check (blitz hand-packets)", "disposition": "ready", "says": "read by hand; " + ("the ship check finds it whole" if not ship.get("incomplete")
                       else "the ship check finds it incomplete: " + "; ".join(ship["incomplete"]))},
             "reasons": [{"code": f.get("code", ""), "class": "tool", "severity": "", "detail": f.get("detail", ""), "row": "", "stage": ""}
                         for f in ship.get("findings") or []],
