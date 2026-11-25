@@ -151,3 +151,34 @@ def test_lines_headers_and_checks_record(tmp_path):
     assert checks["xd_fp"] == json.loads((p / "review.json").read_text(encoding="utf-8"))["xd_fp"]
     assert {i["code"]: (i["key"], i["from"], i["incomplete"]) for i in checks["items"]} == {
         "no-author": ("meta:author", "hand-read check", False)}
+
+
+def test_a_correction_is_recorded_on_its_clue_or_line_not_as_a_note(tmp_path):
+    xd = MODERN.replace("A1 ^Printed: 1-2\n", "A1 ^Printed: 1-2\nA1 ^Correction: A pet!\n")
+    src, pages = _make(tmp_path, "nyw1914-01-04", xd, [])
+    handread.build_all(src, pages, tmp_path / "out")
+    p = tmp_path / "out" / "nyw1914-01-04"
+    ocr = json.loads((p / "ocr.json").read_text(encoding="utf-8"))
+    assert ocr["clues"]["A1"]["correction"] == "A pet!" and ocr["clues"]["A1"]["text"] == "A pet."
+    assert not any("Correction" in n["note"] for n in json.loads((p / "review.json").read_text(encoding="utf-8"))["tool_notes"])
+    # in the World's own form, a clue no word can name: on its printed line
+    pairs = PAIRS.replace("1-4. Diagonal. ~ C_W\n", "1-4. Diagonal. ~ C_W\n1-4 ^Correction: A diagonal.\n")
+    src, pages = _make(tmp_path, "nyw1914-04-19", pairs, [])
+    handread.build_all(src, pages, tmp_path / "out2", ["nyw1914-04-19"])
+    line = json.loads((tmp_path / "out2" / "nyw1914-04-19" / "ocr.json").read_text(encoding="utf-8"))["lines"][-1]
+    assert line["text"] == "1-4. Diagonal. ~ C_W" and line["correction"] == "A diagonal."
+
+
+def test_the_four_kinds_of_field(tmp_path):
+    xd = (MODERN.replace("Notes: Read by hand.\n", "Description: A tiny grid.\nIncomplete: the key wasn't found.\nSource: The Paper, p. 1\n")
+          .replace("D1 ^Printed: 1-3\n", "D1 ^Printed: 1-3\nD1 ^Answer-Correction: CAT\n")
+          .replace("## Grid", "## Printed\nheading: A TEST.\n\n\n## Grid"))
+    src, pages = _make(tmp_path, "nyw1914-01-04", xd, [])
+    handread.build_all(src, pages, tmp_path / "out")
+    p = tmp_path / "out" / "nyw1914-01-04"
+    ocr = json.loads((p / "ocr.json").read_text(encoding="utf-8"))
+    assert ocr["clues"]["D1"]["answer_correction"] == "CAT"                       # under the clue, not a note
+    assert [e["name"] for e in ocr["epp_fields"]] == ["Description", "Incomplete", "Source"]
+    ship = json.loads((tmp_path / "out" / "triage.json").read_text(encoding="utf-8"))["puzzles"][0]["ship"]
+    assert ship["incomplete"] == [] and ship["findings"][0]["code"] == "declared-incomplete"  # said, not a hold
+    assert not any("Answer-Correction" in n["note"] for n in json.loads((p / "review.json").read_text(encoding="utf-8"))["tool_notes"])

@@ -91,7 +91,7 @@ def parse_xd(text: str) -> dict:
     for line in sections.get("Clues", []):
         if not line.strip():
             continue
-        m = re.match(r"^(\S+?) \^(\w+): ?(.*)$", line)
+        m = re.match(r"^(\S+?) \^([\w-]+): ?(.*)$", line)  # ^Answer-Correction: the key may have a hyphen
         if m:
             meta.setdefault(m.group(1), {})[m.group(2)] = m.group(3)
             continue
@@ -237,6 +237,10 @@ def build(xd_path: Path, pages: Path, dest: Path, model: str = "") -> dict:
             outside.append((label, c, b))
             continue
         entry = {"text": c["text"]}
+        if m.get("Correction"):  # the clue as meant (^Correction): part of the record, shown under the printed text
+            entry["correction"] = m["Correction"]
+        if m.get("Answer-Correction"):  # the answer as meant (^Answer-Correction); the grid keeps the key's printed letters
+            entry["answer_correction"] = m["Answer-Correction"]
         if printed:
             entry["printed"] = printed
         if b.get("box"):
@@ -252,7 +256,7 @@ def build(xd_path: Path, pages: Path, dest: Path, model: str = "") -> dict:
             entry["flags"] = flags
         clues[key] = entry
         for k, v in m.items():
-            if k not in ("Printed", "Fits"):  # the pair, and the pair that fits: the label and the grid's numbers show them
+            if k not in ("Printed", "Fits", "Correction", "Answer-Correction"):  # the pair, and the pair that fits: the label and the grid's numbers show them
                 notes.append({"kind": "source", "target": f"clue:{key}", "note": f"{k}: {v}"})
 
     lines = []
@@ -264,7 +268,11 @@ def build(xd_path: Path, pages: Path, dest: Path, model: str = "") -> dict:
     # a clue the modern numbering can't name (a diagonal word, a word inside a longer run): a printed line of
     # its own, with its pair and answer, so it is seen and checked beside its crop
     for label, c, b in outside:
+        corr = xd["meta"].get(label, {}).get("Correction")
+        acorr = xd["meta"].get(label, {}).get("Answer-Correction")
         lines.append({"n": len(lines) + 1, "text": f"{label}. {c['text']} ~ {c['answer']}", "box": b.get("box"),
+                      **({"correction": corr} if corr else {}),
+                      **({"answer_correction": acorr} if acorr else {}),
                       "label": "other", "keep": True, "by": "hand-read",
                       "printed_as": "a clue no across or down run can name",
                       **({"image": image_of(b.get("page"))} if b.get("page") and image_of(b.get("page")) != "page.jpg" else {})})
@@ -312,6 +320,9 @@ def build(xd_path: Path, pages: Path, dest: Path, model: str = "") -> dict:
            "clue_image": "page.jpg", "scales": {n: 1.0 for n in files.values() if (out / n).exists()},
            "clues": clues, "lines": lines, "evidence": {},
            "metadata": metadata,
+           # EPP's own statements about the puzzle (blitz design/xd-fields.md, kind 3) and the scans it cites: shown with
+           # the headers, read-only, as the xd has them
+           "epp_fields": [{"name": k, "value": h[k]} for k in ("Description", "Incomplete", "Source", "Solution-Source") if h.get(k)],
            "square_numbers": square_numbers,
            "numbering": ("as printed (the xd's Labels section)" if pair_form else
                          "from each clue's printed pair (the xd's ^Printed, or ^Fits where the pair was misprinted): its first "
@@ -370,6 +381,11 @@ def ship_check(text: str, ocr: dict | None = None) -> dict:
     runs = slots(grid)
     pair_form = bool(xd["labels"]) or bool(h.get("Numbering"))
     f = []
+    # the file's own statement of what's missing (Incomplete:), made on the owner's ruling (No. 13, 2026-11-25: "ship
+    # that one with the middle part left out and just note the omission"): said to the reviewer, not a hold. A gap the
+    # check finds itself (an unsolved grid: No. 3) still holds until a person's "Ready to ship as it stands"
+    if h.get("Incomplete"):
+        f.append({"code": "declared-incomplete", "detail": f"the xd says it is incomplete: {h['Incomplete'].rstrip('.')}"})
     if not h.get("Title"):
         f.append({"code": "no-title", "detail": "no Title header"})
     if not (h.get("Author") or h.get("Byline")):

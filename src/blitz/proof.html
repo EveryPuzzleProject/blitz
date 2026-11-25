@@ -201,6 +201,7 @@ h2 .quick { margin-left: 8px; font-size: 12px; padding: 2px 10px; }
 .hdrs tr.flash { animation: flash 1.6s ease-out; } @keyframes flash { from { background: #fff1b8; } to { background: transparent; } }
 .hdrs { margin: 10px 14px 4px; } .hdrhead { font-weight: 600; margin-bottom: 4px; } .hdrhead .hint { font-weight: 400; }
 .hdrs table { border-collapse: collapse; width: 100%; font-size: 13px; }
+.hdrs table.eppf { margin-top: 8px; border-top: 1px solid var(--line); } .hdrs table.eppf th { width: 110px; } .hdrs table.eppf td { padding: 5px 8px 5px 0; vertical-align: top; }
 .hdrs th { text-align: left; color: var(--muted); font-weight: 600; width: 80px; padding: 5px 8px 5px 0; vertical-align: top; }
 .hdrs td { padding: 5px 8px 5px 0; border-top: 1px solid var(--line); vertical-align: top; } .hdrs tr:first-child td { border-top: 0; }
 .hdrs td.hv { width: 45%; } .hdrs td.hs { color: var(--ink); }
@@ -252,6 +253,7 @@ h2 .quick { margin-left: 8px; font-size: 12px; padding: 2px 10px; }
 .typed { font: 17px/1.35 var(--serif); padding: 2px 4px 2px 0; margin-top: 2px; display: flex; }
 .typed .num { flex: none; width: 2.6em; text-align: right; padding-right: .45em; color: #555; user-select: none; }
 .typed .num.odd { color: var(--flag); }
+.corr { font: 16px/1.35 var(--serif); padding: 0 4px 2px 2.6em; color: #1d5a2e; } .corr .hint { font: 12px var(--sans, sans-serif); color: var(--muted); }
 .typed .num.pair { width: 3.9em; }
 .typed .txt { flex: 1; outline: none; white-space: pre-wrap; border-radius: 3px; padding: 0 3px; min-height: 1.35em; }
 .typed .txt:hover { background: #f4efe6; cursor: text; }
@@ -813,6 +815,9 @@ async function load() {
   // (a question's row that this packet doesn't have: the page stays at the top, where the question says so)
   const k = params.get('k');
   if (k && !(asksOf(ID).some(a => a.row === k) && !rowTarget(k))) { setTimeout(() => goTo(params.get('k')), 0); setTimeout(() => goTo(params.get('k')), 900); }
+  // #A15 (or #B4, #Title, a World pair #19-33) opens the page at that row: the rows are drawn after the fetch, so the
+  // browser's own jump to the anchor finds nothing; once drawn, the page jumps there itself (again when images settle)
+  else if (location.hash.length > 1) { setTimeout(() => jumpToHash(true), 0); setTimeout(() => jumpToHash(false), 900); }
 }
 
 // The AI proof reviewer's round: the ledger's proof:<pid> record (xword-ocr proofreview.record: edits keyed
@@ -2183,7 +2188,7 @@ function checksSection() {
   const hint = checks ? (srcs.length ? `from the records: ${srcs.join(', ')} · click a name to go to its row` : 'from the records')
     : 'no checks record in this packet (xword-ocr proof-checks writes one)';
   s.innerHTML = `<h2>What the checks found <span class="hint">${esc(hint)}</span><span class="chip">${items.length ? esc(plural(items.length, 'finding')) + (inc.length ? ' · not whole' : '') : ''}</span></h2>
-    <div class="body">${inc.length ? `<div class="whole"><b>Not whole:</b> ${inc.map(esc).join('; ')}. <b>A Ready can't ship this until it is whole</b> (the ship check holds it: a missing page or block goes back to the stage that lost it).</div>` : ''}
+    <div class="body">${inc.length ? `<div class="whole"><b>Not whole:</b> ${inc.map(esc).join('; ')}. <b>A plain Ready can't ship this until it is whole</b> (the ship check holds it: a missing page or block goes back to the stage that lost it); if nothing more can be had, a person's <i>Ready to ship it as it stands</i>, below, ships it with what's missing said.</div>` : ''}
     ${items.length ? `<ul>${items.map(line).join('')}</ul>` : '<p class="hint" style="margin:0">No findings recorded.</p>'}
     ${stale ? `<p class="more">The record was made on an earlier version of this puzzle (${esc(checks.xd_fp)}; this is ${esc(rev.xd_fp)}): a finding may be settled since.</p>` : ''}
     ${checks?.decision ? `<p class="more">Triage: ${esc(checks.decision)}${checks.ship ? checks.ship.ok ? ' · passed the ship check' : inc.length ? ' · held by the ship check' : " · the ship check has findings, none that holds it: a person's Ready ships it" : ' · no ship check recorded'}.</p>` : ''}</div>`;
@@ -2718,6 +2723,10 @@ function headerSection(hs) {
   t.innerHTML = `<div class="hdrhead">The xd file's headers <span class="hint">what we took from the lines above (and from the issue); click a value to fix it</span></div><table></table>`;
   hs.append(t);
   const tb = t.querySelector('table');
+  // the xd's own statements about the puzzle (Description:, Incomplete:) and the scans it cites: read-only, as the
+  // file has them (blitz design/xd-fields.md: EPP's fields, not the paper's)
+  if ((ocr.epp_fields || []).length) t.insertAdjacentHTML('beforeend', `<table class="eppf">${ocr.epp_fields.map(e =>
+    `<tr><th>${esc(e.name)}</th><td>${esc(e.value)}</td><td class="hs"><span class="hint">${e.name.endsWith('Source') ? 'the scan it was read from' : "EPP's statement, in the xd"}</span></td></tr>`).join('')}</table>`);
   for (const [f, name] of HEADERS) {
     const [derived, rule, n] = headerValue(f), k = 'meta:' + (META[f] || f), h = history(k, derived), last = h[h.length - 1];
     const own = h.length > 1 && last.value !== derived, m = typeof n === 'string' && metaOf(n);
@@ -2807,11 +2816,48 @@ function opsList() {
 let listY = null;
 addEventListener('click', e => { if (e.target.closest('.ops a[href^="#"]')) listY = window.scrollY; }, true);
 addEventListener('hashchange', () => {
-  const row = location.hash.length > 1 && document.getElementById(decodeURIComponent(location.hash.slice(1)));
-  if (row && row.classList.contains('row')) requestAnimationFrame(() => row.scrollIntoView({block: 'center'}));
+  const row = location.hash.length > 1 && hashTarget(decodeURIComponent(location.hash.slice(1)));
+  if (row && row.closest('.row')) requestAnimationFrame(() => jumpToHash(true));  // shown, centred, lit
   else if (listY !== null) requestAnimationFrame(() => window.scrollTo({top: listY}));
 });
+// the element a link's #hash names: a row's id (#A15, #B4), a header's (#Title), or a pair the paper printed a clue
+// under (#19-33 in the World's FUN: the clue row whose end squares carry that pair, or else the printed line of a
+// clue no across or down word can name, which starts with it)
+function hashTarget(h) {
+  if (!h) return null;
+  const el = document.getElementById(h);
+  if (el || !/^[\w?]+-[\w?]+$/.test(h)) return el;
+  const k = wordByPair(h);
+  if (k) return document.getElementById(k);
+  const L = (ocr.lines || []).find(L => (L.text || '').startsWith(h + '. '));
+  return L ? document.getElementById('B' + L.n) : null;
+}
+// the first load's jump to the hash's row: shown (a row "Look here first" hides comes back, as goTo does it),
+// centred clear of the sticky header, and lit for a moment (the first time only)
+function jumpToHash(lit) {
+  let el = hashTarget(decodeURIComponent(location.hash.slice(1)));
+  if (!el) return;
+  const row = el.closest('.row'), all = document.querySelector('[data-show=all]');
+  if (row && row.offsetParent === null && all && !all.classList.contains('on')) {
+    all.click();  // drawn again: find it again
+    el = hashTarget(decodeURIComponent(location.hash.slice(1)));
+    if (!el) return;
+  }
+  const target = el.closest('.row, tr') || el, i = rows.indexOf(target);
+  if (i >= 0) setFocus(i);
+  target.scrollIntoView({block: 'center'});
+  if (lit) flash([target]);
+}
 
+// the clue as meant, under the clue as printed: an xd's "A10 ^Correction: ..." (a printer's typo the reader corrected;
+// the clue line stays as printed). Part of the record that goes in the file, so it sits in the text cell, not a note
+function corrHtml(key, label) {
+  const it = key.startsWith('clue:') ? (ocr.clues[label] || {})
+    : key.startsWith('line:B') ? ((ocr.lines || []).find(L => 'B' + L.n === key.slice(5)) || {}) : {};
+  // the answer as meant (^Answer-Correction): the key printed something else, which the grid keeps
+  return (it.correction ? `<div class="corr" title="the xd's ^Correction line: the clue as meant; the clue line keeps the print">→ ${esc(it.correction)} <span class="hint">as meant (^Correction in the xd)</span></div>` : '')
+    + (it.answer_correction ? `<div class="corr" title="the xd's ^Answer-Correction line: the answer as meant; the grid keeps the letters the key printed">→ answer ${esc(it.answer_correction)} <span class="hint">as meant; the key prints it otherwise (^Answer-Correction in the xd)</span></div>` : '');
+}
 function addRow(s, key, label, box, flags = [], src = null) {
   const row = document.createElement('div');
   row.className = 'row';
@@ -2829,6 +2875,7 @@ function addRow(s, key, label, box, flags = [], src = null) {
   row.innerHTML = `<div class="lab"${meta ? ` title="${esc(slot)}'s clue in the ${esc(meta)} set (the other clue set printed for this grid): the xd's ${esc(slot)} ^${esc(meta)} line"` : ''}>${meta && !solo ? `${esc(slot)}<span class="metakey">^${esc(meta)}</span>` : esc(cl)}</div>
     <div class="body"><div class="scan"></div><div>
       <div class="typed">${isClue ? `<span class="num${odd ? ' odd' : ''}${pair ? ' pair' : ''}" title="${pair ? `the numbers printed in this word's two end squares (${esc(slot)} in our grid; the blank grid shows the numbers)` : 'the number printed beside this clue'}">${esc(pn)}.</span>` : ''}<span class="txt" spellcheck="false"></span>${MULTILINE(key) ? '<button class="nlbtn" hidden title="Start a new line here (a paragraph break): Shift+Enter does the same">↵ new line</button>' : ''}</div>
+      ${corrHtml(key, label)}
       <div class="edhint" hidden></div>
       ${key.startsWith('other:') ? `<div class="keep">
         <button class="k1" title="Keep this line with the puzzle: it goes in the xd's Notes">Keep</button>

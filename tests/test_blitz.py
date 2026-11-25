@@ -258,7 +258,7 @@ def test_the_proof_page_opens_with_what_the_checks_found():
     assert "checks.json" in site.FILES
     page = (Path(__file__).parents[1] / "src" / "blitz" / "proof.html").read_text(encoding="utf-8")
     for needed in ("fetch(dir + 'checks.json')", "main.append(checksSection())", "What the checks found",
-                   "A Ready can't ship this until it is whole", "No findings recorded.", "checks?.ship?.incomplete",
+                   "A plain Ready can't ship this until it is whole", "No findings recorded.", "checks?.ship?.incomplete",
                    "/^cell:r(\\d+)c(\\d+)$/", "goTo(params.get('k'))", "flagged.has(key)", "no checks record in this packet"):
         assert needed in page, needed
     assert page.index("main.append(checksSection())") < page.index("main.append(pageSection())")
