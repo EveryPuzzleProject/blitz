@@ -398,6 +398,27 @@ def cmd_site_close(a) -> None:
     print(f"closed {len(a.puzzles)} puzzles")
 
 
+def cmd_hand_ready(a) -> None:
+    from . import handread
+
+    repo = Path(a.repo or f"../{a.pub}").resolve()
+    hold = {x.strip() for h in a.hold or [] for x in h.split(",") if x.strip()}
+    recs = handread.ai_ready_records(Path(a.proof), a.by, a.note, hold)
+    ledger = repo / "fixes" / "decisions.jsonl"
+    have = {(r.get("id"), r.get("by"), ((r.get("proof") or {}).get("review") or {}).get("xd")) for r in
+            (json.loads(ln) for ln in (ledger.read_text(encoding="utf-8").splitlines() if ledger.exists() else []) if ln.strip())}
+    new = [r for r in recs if (r["id"], r["by"], r["proof"]["review"]["xd"]) not in have]
+    for r in recs:
+        print(f"  {r['id'][6:]}: Ready by {r['by']}" + ("" if r in new else " (already in the ledger)"))
+    print(f"{len(new)} AI Ready record(s) to add, {len(recs) - len(new)} already there, {len(hold)} held: {', '.join(sorted(hold)) or 'none'}")
+    if a.write and new:
+        with ledger.open("a", encoding="utf-8", newline="\n") as fh:
+            fh.writelines(json.dumps(r, ensure_ascii=False) + "\n" for r in new)
+        print(f"added to {ledger}")
+    elif new:
+        print("a dry run: --write appends them to the ledger")
+
+
 def cmd_ship(a) -> None:
     from . import ship
 
@@ -409,7 +430,7 @@ def cmd_ship(a) -> None:
         from .site import fetch_decisions
 
         site = fetch_decisions(False)
-    rule = ship.rule_of(repo, ai_ready=a.ai_ready, ignore=a.ignore or None)
+    rule = ship.rule_of(repo, a.batch or Path(a.proof).resolve().name, ai_ready=a.ai_ready, ignore=a.ignore or None)
     p = ship.plan(repo, Path(a.proof), rule, a.batch or "", site, a.pub)
     if a.backfill_records:  # the edit records of puzzles shipped before ship kept them: provenance rows only, no xd touched
         rows = ship.backfill(repo, p) if a.write else ship.unrecorded(repo, p)
@@ -707,6 +728,17 @@ def main(argv=None) -> None:
     q.add_argument("--max-lines", type=int, default=MAX_LINES, help="refuse crediting anyone with more ledger lines than this")
     q.add_argument("--json", action="store_true")
     q.set_defaults(fn=cmd_sync)
+    q = sub.add_parser("hand-ready", help="an AI's Ready on each puzzle read by hand in a packets folder, into the "
+                                            "publication's ledger (dry run without --write): a review done outside the site")
+    q.add_argument("pub")
+    q.add_argument("--proof", required=True, help="the hand-packets folder")
+    q.add_argument("--by", required=True, help="who said it, e.g. \"Claude (double read, newyorkworld second-read)\"")
+    q.add_argument("--note", required=True, help="what the Ready rests on; the puzzle's provenance quotes it")
+    q.add_argument("--hold", action="append", help="xdids to leave without it (comma-separated, repeatable): held for a person")
+    q.add_argument("--repo", help="the publication's checkout (default ../<pub>)")
+    q.add_argument("--write", action="store_true", help="append the records to fixes/decisions.jsonl")
+    q.set_defaults(fn=cmd_hand_ready)
+
     q = sub.add_parser("ship", help="a batch's reviewed puzzles into the publication repo's xd/ under the ship rule; which "
                                      "are shipped, shippable and held, with the reason (dry run without --write)")
     q.add_argument("pub")
@@ -717,8 +749,9 @@ def main(argv=None) -> None:
                                        "--record or --write its records are written into the publication's ledger: point a "
                                        "hand-made file only at a scratch copy")
     q.add_argument("--no-site", action="store_true", help="the ledger only: don't read the review site")
-    q.add_argument("--ai-ready", choices=("off", "both", "either"),
-                   help="let an AI count as the one Ready: both (the AI reviewer's Ready and a passing ship check) or either; "
+    q.add_argument("--ai-ready", choices=("off", "both", "ai", "either"),
+                   help="let an AI count as the one Ready: both (the AI reviewer's Ready and a passing ship check), ai (the "
+                        "AI's Ready alone) or either; ship-rule.json's \"batches\" can set it for one batch; "
                         "default: the publication's fixes/ship-rule.json, else off")
     q.add_argument("--ignore", action="append", help="a reviewer whose decisions don't count (repeatable; replaces "
                                                      "ship-rule.json's list)")

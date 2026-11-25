@@ -99,6 +99,12 @@ needs work is the pipeline's (broken, with the stage triage's blocking parts poi
 reviewed an earlier version; before, it showed under "not checked yet", which asks a person to
 proofread it. What was said stays in `said`, marked `stale`, and in the reason.
 
+Since 2026-11-25: `ai_ready` also takes `ai` (the AI's Ready alone, with no ship check), `fixes/ship-rule.json`'s
+`"batches": {"<batch>": {...}}` gives one batch its own values (`rule_of(repo, batch)`), and `replace` lists xdids
+the batch may write over in `xd/` although another batch shipped them (the provenance row says what it replaced).
+Every passing puzzle's ship record row and provenance row carry `review`: how it was reviewed, in words
+(`review_of`). design/hand-read.md has the case these were made for.
+
 ## What it writes (publication repo)
 
 - `xd/<xdid>.xd`: the packet's `puzzle.xd` with the Ready reviewers' edits applied (clue text,

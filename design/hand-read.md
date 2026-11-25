@@ -72,3 +72,21 @@ the same ship rule, helpers' decisions from the site, the record of every edit, 
 
 Not done: `ship-export` (the gxd export) reads the blank-line form; a hand-read xd in `xd/` isn't
 exported until it reads sections too.
+
+## Shipping on the double read (2026-11-25)
+
+The owner's decision for Nos. 1-33: ship on an AI's Ready, and send a puzzle back to review only if an error
+turns up (every clue list was read twice, blind: newyorkworld `hand-read/second-read/VERDICTS.md`).
+
+- **The batch's own rule.** `fixes/ship-rule.json` takes `"batches": {"nyw-1914-s1": {"ai_ready": "ai", "replace":
+  ["nyw1914-03-01", "nyw1914-03-08"]}}`: `ai_ready: "ai"` lets the AI's Ready alone ship a puzzle (the ship check's
+  findings, such as no author, are a reviewer's to weigh, not a hold); the World's own rule stays `off`.
+- **The AI's Ready is a record.** `blitz hand-ready newyorkworld --proof <hand-packets folder> --by "..." --note "..."
+  --hold <xdids> --write` writes one `proof:<xdid>` Ready per packet, on its version, into `fixes/decisions.jsonl`,
+  leaving out the puzzles held for the owner (No. 3, the three metas, any with a decision open). A person's Not ready
+  still holds a puzzle, and an incomplete one still needs a person's "Ready to ship as it stands".
+- **How each was reviewed** is in its ship record row and provenance row (`review`), e.g. "read by hand; read twice,
+  blind; ...; an AI's Ready; no person's review", so the rest can be found if an error turns up in one.
+- **Nos. 11 and 12** were shipped from the OCR batch (`-L000`). `replace` lets the hand-read reading take their place
+  in `xd/`; the provenance row's `replaces` names the earlier ship (pid, batch, its xd's fingerprint).
+

@@ -40,7 +40,7 @@ from .work import Stop
 
 SITE, AGENT = "review site", "agent review"  # a ledger record's via: a helper's (the hosted proof page), an AI's
 CHECK_BY = "the ship check"  # the by of the no-model ship check's own Ready (xword-ocr shipcheck)
-AI_READY = ("off", "both", "either")
+AI_READY = ("off", "both", "ai", "either")  # in order: each passes everything the one before it does
 WHOSE = ("people", "owner")  # whose input counts (Rule.marks, grid_fixes, typed_clues): any person's, or the owner's only
 WHOSE_INPUT = ("marks", "grid_fixes", "typed_clues")
 PUBLIC = "https://pub-52ac4a15c4ba43fe8e4af5a496733fb5.r2.dev"  # the review site's packages
@@ -56,8 +56,9 @@ class Rule:
     ships with at least one person's Ready and no Not ready, and the owner's own decision overrides.
 
     ai_ready: whether an AI counts as the one Ready when no person has said it. "off" (the default:
-      not decided), "both" (the AI proof reviewer's Ready and a passing ship check together) or
-      "either" (one of them is enough: xword-ocr docs/ship-gate.md's design).
+      not decided), "both" (the AI proof reviewer's Ready and a passing ship check together), "ai" (the AI's
+      Ready alone: the ship check's findings are a reviewer's to weigh, not a hold; since 2026-11-25, for the World's
+      Nos. 1-33, read twice blind) or "either" (one of them is enough: xword-ocr docs/ship-gate.md's design).
     hold_codes: triage reason codes that hold a puzzle whoever said Ready (clue-typed: a clue the
       text step supplied with no OCR reading behind it).
     ignore: reviewers whose decisions don't count (a scripted usability test's account).
@@ -75,7 +76,12 @@ class Rule:
     typed_clues: a clue typed on the proof page where the packet has no text for it (the ship check's clue-empty)
       makes the puzzle whole (filled_by).
     owner_ids: the owner's own review-site account ids (Supabase user_id). Publishing the edition is an owner-only
-      gate, so the review site's "Publish the edition" counts only from these ids, never by a typed name (edition.py)."""
+      gate, so the review site's "Publish the edition" counts only from these ids, never by a typed name (edition.py).
+    replace: xdids this batch may write over in xd/ although another source shipped them first (the owner's decision:
+      a better reading of the same puzzle, e.g. the World's Nos. 11-12, shipped from the OCR batch nyw-1914-c1 and read
+      again by hand in nyw-1914-s1). The provenance row says what it replaced.
+
+    ship-rule.json's "batches": {"<batch>": {...}} gives one batch its own values of these (rule_of)."""
     ai_ready: str = "off"
     hold_codes: tuple = ("clue-typed",)
     ignore: tuple = ()
@@ -84,12 +90,15 @@ class Rule:
     grid_fixes: str = "people"
     typed_clues: str = "people"
     owner_ids: tuple = ()
+    replace: tuple = ()
 
 
-def rule_of(repo: Path, **over) -> Rule:
-    """The publication's rule: fixes/ship-rule.json where it has one, then the caller's overrides."""
+def rule_of(repo: Path, batch: str = "", **over) -> Rule:
+    """The publication's rule: fixes/ship-rule.json where it has one, then its "batches" entry for this batch (a batch
+    shipped on its own terms: the World's Nos. 1-33 on an AI's Ready), then the caller's overrides."""
     f = Path(repo) / "fixes" / "ship-rule.json"
     d = {k: v for k, v in (json.loads(f.read_text(encoding="utf-8")) if f.exists() else {}).items() if not k.startswith("_")}
+    d.update({k: v for k, v in ((d.pop("batches", None) or {}).get(batch) or {}).items() if not k.startswith("_")})
     d.update({k: v for k, v in over.items() if v is not None})
     if d.get("ai_ready", "off") not in AI_READY:
         raise Stop(f"ai_ready is one of {', '.join(AI_READY)}, not {d['ai_ready']!r}")
@@ -184,7 +193,7 @@ def standing(batch: dict, proofs: list[dict], *, check_ok: bool = False, codes: 
         people = [s for s in ready if s["kind"] == "helper"]
         ai = any(s["kind"] == "ai" for s in ready)
         person = sorted(set(codes) & set(PERSON_CODES))  # needs a person's Ready, whatever ai_ready says
-        ai_ok = {"off": False, "both": ai and check_ok, "either": ai or check_ok}[rule.ai_ready] and not person
+        ai_ok = {"off": False, "both": ai and check_ok, "ai": ai, "either": ai or check_ok}[rule.ai_ready] and not person
         if no:
             res = out("hold", "not-ready", "said Not ready by " + "; ".join(s["who"] + (f": {s['note']}" if s["note"] else "") for s in no))
         elif people:
@@ -394,6 +403,18 @@ def filled_by(ship: dict, edits: dict, typed: dict | None = None) -> list[str]:
               and all(isinstance(c, str) and typed_text(typed.get(f"clue:{c}")) for c in f["items"])):
             out.append(f["detail"])
     return out
+
+
+def review_of(st: dict, pk: dict) -> str:
+    """How a puzzle that passes was reviewed, in words, for its provenance row and its ship record: whose Ready shipped
+    it (the owner's, a helper's, or an AI's alone with no person's review), and, for a puzzle read by hand, that it was
+    (with the AI's own note, which says what it rests on: "read twice, blind"). So a kind of review can be found again
+    if an error turns up in one puzzle it shipped."""
+    how = {"owner": "the owner's Ready", "people": "a person's Ready", "ai": "an AI's Ready; no person's review"}.get(st.get("rule"), "")
+    ai = [r for r in st.get("apply") or [] if r.get("via") == AGENT and not r.get("by", "").startswith(CHECK_BY)]
+    notes = sorted({(r.get("note") or "").strip() for r in ai} - {""}) if st.get("rule") == "ai" else []
+    read = "read by hand" if (pk.get("review") or {}).get("hand_read") else ""
+    return "; ".join(x for x in (read, *notes, how, f"by {st['by']}" if st.get("by") else "") if x)
 
 
 def partial_of(apply: list[dict], rule: "Rule", gaps: list[str]) -> dict | None:
@@ -1388,6 +1409,7 @@ def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict |
         xd = (folder / "puzzle.xd").read_text(encoding="utf-8") if (folder / "puzzle.xd").exists() else ""
         packs[pid] = {"folder": folder, "ocr": o, "xd": xd, "review": _load(folder / "review.json") or {}}
         if xd and sectioned(xd):  # read by hand: read and edited as the blank-line form, shipped in its own sections
+            packs[pid]["sections"] = [name for name, _ in _sections(xd)]
             xd, packs[pid]["restore"] = unsection(xd, o)
             packs[pid]["xd"] = xd
         page = ((o.get("stages") or {}).get("pages") or {}).get("page.jpg") or ["", ""]
@@ -1395,6 +1417,7 @@ def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict |
         places[pid] = (page[0], str(page[1]), f"{len(grid)}x{len(grid[0])}")
     prov = {r["pid"]: r for r in provenance(repo)}
     rows, passing = [], {}
+    by_xdid = {r["xdid"]: r for r in prov.values()}
     for t in tri["puzzles"]:
         pid, pk = t["pid"], packs[t["pid"]]
         codes = {r["code"] for r in t.get("reasons") or []}
@@ -1579,6 +1602,17 @@ def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict |
                      + (f" +{len(unread) - 6}" if len(unread) > 6 else "") + "): their places weren't read from the paper. "
                      "Give the end squares' printed numbers on the proof page, or move each clue to the word its pair names")
                 continue
+        elif "Printed" in (pk.get("sections") or []):
+            # read by hand, with the paper's other words in ## Printed (blitz design/xd-fields.md): every printed line is
+            # there whatever its keep, so a keep or discard is the edition's choice of notes (the provenance row's
+            # `printed` carries it) and changes no line of the xd; a line's new text has no place written for it yet
+            text, done = apply_edits(text, edits)
+            cant = [f"{k}: a printed line's text in ## Printed isn't rewritten by the import yet" for k in edits if k.startswith("line:")]
+            if cant:
+                hold("edits-unapplied", "proof-page edits to the printed lines the import can't apply as they stand: "
+                     + "; ".join(cant[:3]) + (f" (+{len(cant) - 3})" if len(cant) > 3 else ""))
+                continue
+            done += sorted(k for k in edits if k.startswith("keep:"))
         else:
             text, done = apply_edits(text, edits)
             text, ldone, cant = apply_printed(text, edits, pk["ocr"], pk["review"])
@@ -1597,6 +1631,7 @@ def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict |
         done = cdone + done + sorted(k for k in edits if k.startswith("label:"))  # a label isn't in the xd's text: it is applied to `printed`
         if part:
             row["partial"] = {"missing": part["missing"], "note": part["note"]}
+        row["review"] = review_of(st, pk)
         passing[pid] = {"text": text, "edits": done, "edit_values": edits, "edit_sources": sources, "standing": st, "row": row,
                         **({"partial": part} if part else {}),
                         "packet": f"{rel}/{pid}", "xd_fp": review.get("xd_fp", ""), "typed": typed}
@@ -1613,11 +1648,15 @@ def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict |
         ours = (prov.get(pid) or {}).get("xdid") == xdid
         if f.exists() and f.read_text(encoding="utf-8") == x["text"] and ours:
             row.update(status="shipped", reason="", why=f"in xd/ as {xdid}: {(prov[pid].get('shipped') or {}).get('why', '')}")
-        elif f.exists() and not ours:
+        elif f.exists() and not ours and xdid not in rule.replace:
             row.update(reason="xd-exists", why=f"xd/{xdid}.xd is another file (an earlier import's): replace it by hand, or drop it")
             del passing[pid]
         else:
-            row.update(status="shippable", reason="", why=x["standing"]["why"])
+            if f.exists() and not ours:  # the owner's decision (rule.replace): this reading takes the place of the earlier one
+                was = by_xdid.get(xdid) or {}
+                x["replaces"] = {"xdid": xdid, "pid": was.get("pid", ""), "batch": was.get("batch", ""), "xd": fingerprint(f.read_text(encoding="utf-8"))}
+            row.update(status="shippable", reason="", why=x["standing"]["why"] + (
+                f"; replaces xd/{xdid}.xd, shipped from {x['replaces']['pid'] or 'another source'}" if x.get("replaces") else ""))
     for row in rows:  # a puzzle shipped earlier that the rule now holds: still in xd/, and said so
         p = prov.get(row["pid"])
         if row["status"] == "held" and p and (repo / "xd" / f"{p['xdid']}.xd").exists():
@@ -2470,7 +2509,9 @@ def write(repo: Path, p: dict, today: str = "") -> dict:
                "said": st["said"], "edits": _edits_of(x, pk), "corrections": x.get("corrections", []), "notes": x.get("notes", []),
                **({"proposals": x["proposals"]} if x.get("proposals") else {}),
                **({"typed": x["typed"]} if x.get("typed") else {}),  # clues typed by a person where none was read
-               **({"partial": x["partial"]} if x.get("partial") else {}),  # shipped as it stands: the gaps a person waived, and why  # waiting for the owner; the export never reads them
+               **({"partial": x["partial"]} if x.get("partial") else {}),
+               "review": x["row"].get("review", ""),  # how it was reviewed, in words: to find the rest if an error turns up
+               **({"replaces": x["replaces"]} if x.get("replaces") else {}),  # the earlier ship of this xdid it took the place of  # shipped as it stands: the gaps a person waived, and why  # waiting for the owner; the export never reads them
                "check": x["row"]["check"], "codes": x["row"]["codes"],
                "sources": {k: _header(x["text"], h) for k, h in (("grid", "Source"), ("clues", "Clue-Source"), ("key", "Solution-Source"))
                            if _header(x["text"], h)},
@@ -2557,7 +2598,8 @@ def record(p: dict, public: bool = True) -> dict:
              # its candidate clue lists and what a person decided for each ("" undecided): the packet's, and the ledger's
              **({"candidates": r["candidates"]} if r.get("candidates") else {}),
              # shipped as it stands: what is missing, and the reviewer's word on why we stop here
-             **({"partial": r["partial"]} if r.get("partial") else {})} for r in p["rows"]]
+             **({"partial": r["partial"]} if r.get("partial") else {}),
+             **({"review": r["review"]} if r.get("review") else {})} for r in p["rows"]]
     return {"_about": "blitz ship: which puzzles of the batch are shipped (in the publication repo's xd/), shippable (pass the "
                       "ship rule, not written yet) or held, with the reason, and the queue each is in: what the batch page asks "
                       "of people. Format: blitz design/ship.md.",

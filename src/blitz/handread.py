@@ -470,3 +470,28 @@ def build_all(src: Path, pages: Path, dest: Path, xdids: list[str] | None = None
     made = [build(p, pages, dest, model) for p in xds]
     write_triage(dest, [m["xdid"] for m in made])
     return made
+
+
+# ---- an AI's Ready on puzzles read by hand: the record of a review done outside the review site ----------
+# The World's Nos. 1-33 were read twice, blind (newyorkworld hand-read/second-read/VERDICTS.md): every disagreement
+# looked at on the scan, every answer checked against the grid and the printed key. The owner's decision
+# (2026-11-25): ship them on that, an AI's Ready, and send a puzzle back to review only if an error turns up. This
+# writes that Ready into the publication's ledger, one proof:<pid> record per packet, on the packet's version, so
+# ship counts it under a batch rule with ai_ready "ai" (ship-rule.json "batches"), and the record says what it rests on.
+
+def ai_ready_records(proof_root: Path, by: str, note: str, hold=(), at: str = "") -> list[dict]:
+    """A Ready by an AI (via the ship's AGENT) for each packet in proof_root but those in hold, on the packet's
+    version (review.json xd_fp). note: what it rests on, which ship's review_of() quotes on the puzzle's record."""
+    from datetime import datetime, timezone
+
+    from .ship import AGENT
+    at = at or datetime.now(timezone.utc).isoformat(timespec="seconds")
+    out = []
+    for d in sorted(p for p in Path(proof_root).iterdir() if (p / "review.json").exists()):
+        if d.name in hold:
+            continue
+        fp = json.loads((d / "review.json").read_text(encoding="utf-8")).get("xd_fp", "")
+        review = {"edits": {}, "comments": [], "status": {}, "note": note, "xd": fp}
+        out.append({"id": f"proof:{d.name}", "answer": "ready", "note": note, "fix": "", "by": by, "at": at, "via": AGENT,
+                    "proof": {"xdid": d.name, "review": review, "at": at}})
+    return out
