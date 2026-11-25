@@ -10,7 +10,8 @@ hold, and a check that reads them (`blitz check-format`). The design this belong
 | Issue census: every grid, key and clue list with its fate | xword-ocr to blitz | xword-ocr `docs/census.md` | not yet |
 | **Proof packet**: one puzzle's folder | xword-ocr (and `blitz hand-packets`) to the proof page, review, ship | [proof-packet.md](proof-packet.md) | `blitz check-format` |
 | Triage record, decisions ledger, ship record | inside blitz | `design/ship.md`; xword-ocr `docs/ship-gate.md` | not yet |
-| Annotated xd and its provenance row | blitz to any reader | not yet written (`design/ship.md`, `design/hand-read.md`) | not yet |
+| **Annotated xd**: the shipped transcription and its edition | blitz to any reader | [annotated-xd.md](annotated-xd.md); the design is `design/xd-fields.md` | `blitz check-format` |
+| Provenance row (`provenance.jsonl`) | blitz to any reader | `design/ship.md`, "What it writes" | not yet |
 | Edition and `shipped.tsv` | blitz to any reader | `design/ship.md`, "The edition" | not yet |
 
 ## Rules for a format

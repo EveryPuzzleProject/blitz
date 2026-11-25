@@ -11,7 +11,7 @@ Two kinds of line come back:
   type, an image named and not there, an xd that isn't the version the packet says it is).
 - note: the file is a valid older form, or lacks something today's writers always write.
 
-So far: the proof packet (formats/proof-packet.md).
+So far: the proof packet (formats/proof-packet.md) and the annotated xd (formats/annotated-xd.md).
 """
 
 from __future__ import annotations
@@ -244,21 +244,182 @@ def check_packet(packet: Path) -> list[tuple[str, str]]:
     return out
 
 
+def _kind(text: str) -> str:
+    """A line with its ids and values taken out, for counting lines of one kind."""
+    return re.sub(r"(?<= has )'[^']*'|(?<=xdid )'[^']*'|\([^)]*\)|[AD]\d+|B\d+|\[\d+\]|\d+x\d+|^\S+\.(jpg|png)(?=: named)"
+                  r"|(?<=clue field ')\S+|(?<=: )['\"].*$", "…", text)
+
+
 def check(paths: list[Path]) -> dict:
-    """{packets, problems, notes, by_text: {text: count}, lines: [(packet, level, text)]} for the packets
-    at or under the paths."""
-    lines, counts, n = [], {}, 0
-    for path in paths:
-        found = packets_under(Path(path))
-        if not found:
-            lines.append((str(path), "problem", "no packet here (a packet is a folder with ocr.json)"))
-        for p in found:
-            n += 1
-            for level, text in check_packet(p):
-                lines.append((p.name, level, text))
-                # count by kind of line: the text with ids and values taken out
-                kind = re.sub(r"(?<= has )'[^']*'|(?<=xdid )'[^']*'|\([^)]*\)|\b[AD]\d+\b|B\d+|\[\d+\]|\b\d+x\d+\b|^\S+\.(jpg|png)(?=: named)",
-                              "…", text)
-                counts[(level, kind)] = counts.get((level, kind), 0) + 1
-    return {"packets": n, "problems": sum(1 for _, lv, _ in lines if lv == "problem"),
+    """{packets, xds, problems, notes, by_text: {(level, kind): count}, lines: [(name, level, text)]} for what
+    is at or under the paths: packet folders, .xd files, or a folder of either."""
+    lines, counts, n, nx = [], {}, 0, 0
+    for path in map(Path, paths):
+        found = packets_under(path)
+        xds = [path] if path.is_file() and path.suffix == ".xd" else             sorted(path.glob("*.xd")) if path.is_dir() and not found else []
+        if not found and not xds:
+            text = "no packet and no .xd file here (a packet is a folder with ocr.json)"
+            lines.append((str(path), "problem", text))
+            counts[("problem", text)] = counts.get(("problem", text), 0) + 1
+        got = [(p.name, check_packet(p)) for p in found]
+        got += [(f.name, check_xd(f.read_text(encoding="utf-8"))) for f in xds]
+        n, nx = n + len(found), nx + len(xds)
+        for name, res in got:
+            for level, text in res:
+                lines.append((name, level, text))
+                counts[(level, _kind(text))] = counts.get((level, _kind(text)), 0) + 1
+    return {"packets": n, "xds": nx, "problems": sum(1 for _, lv, _ in lines if lv == "problem"),
             "notes": sum(1 for _, lv, _ in lines if lv == "note"), "by_text": counts, "lines": lines}
+
+
+# ---- the annotated xd (formats/annotated-xd.md) -------------------------------------------------
+
+XD = "annotated-xd"
+SECTIONS = ("Metadata", "Printed", "Grid", "Clues", "Design", "Labels", "Notes")
+# Field form. Kind 1: what the paper printed for this puzzle. Kind 3: EPP's own statements. And the
+# scan citations the xd keeps (design/xd-fields.md).
+PRINTED_HEADERS = ("Title", "Author", "Editor", "Number", "Date", "Copyright")
+EPP_HEADERS = ("Description", "Incomplete", "Numbering")
+CITATIONS = ("Source", "Solution-Source", "Clue-Source")
+CLUE_KEYS = ("Printed", "Fits", "Correction", "Answer-Correction", "Note")
+# Provenance (kind 4): in the block form's header, never in the field form's.
+WORKING_HEADERS = ("Assembly", "Text-Review", "Proof-Packet", "Shipped", "Proof", "Proof-Edits", "Numbering-Rule",
+                   "Solution", "Provenance")
+# The labels a ## Printed line has carried so far (the World's Nos. 1-33), with blitz's own (ship.LINE_LABELS).
+PRINTED_LABELS = ("heading", "subheading", "number", "intro", "intro heading", "instructions", "credit", "art credit",
+                  "banner", "tagline", "note", "panel", "prize notice", "centre", "centre block", "solution heading",
+                  "solution caption", "solution intro", "solution centre",
+                  "test-solver", "kind", "answers", "section", "furniture", "other-puzzle", "other")
+HEADER = re.compile(r"([A-Za-z][\w-]*): ?(.*)")
+CLUE = re.compile(r"([AD]\d+|\d+-\d+|[A-Za-z]?\d+[a-z]?)\. ?(.*)")
+CLUE_META = re.compile(r"(\S+) \^([\w-]+): ?(.*)")
+DATE = re.compile(r"\d{4}(-\d{2}(-\d{2})?)?")
+
+
+def xd_form(text: str) -> str:
+    """'field' (## sections, design/xd-fields.md) or 'block' (parts set apart by two blank lines)."""
+    return "field" if text.lstrip("﻿ \n").startswith("## ") else "block"
+
+
+def _grid_rows(rows: list[str], out: list) -> None:
+    rows = [r for r in rows if r.strip()]
+    if not rows:
+        out.append(("problem", "no grid"))
+    elif len({len(r) for r in rows}) != 1:
+        out.append(("problem", "the grid's rows differ in length"))
+
+
+def _clue_lines(lines: list[str], out: list, field: bool) -> None:
+    last, seen, metas = None, set(), {}
+    for ln in lines:
+        if not ln.strip():
+            continue
+        m = CLUE_META.fullmatch(ln)
+        if m:
+            ref, key = m.group(1), m.group(2)
+            if ref != last:
+                out.append(("problem", f"clue field '{ref} ^{key}:' is not under its clue's line"))
+            if field and key not in CLUE_KEYS:
+                out.append(("note", f"clue field '^{key}:' is not one of EPP's ({', '.join('^' + k for k in CLUE_KEYS)})"))
+            metas.setdefault(ref, set()).add(key)
+            continue
+        m = CLUE.fullmatch(ln)
+        if not m:
+            out.append(("problem", f"not a clue line: {ln[:60]!r}"))
+            continue
+        last = m.group(1)
+        if last in seen:
+            out.append(("problem", f"clue {last} is there twice"))
+        seen.add(last)
+        if " ~" not in ln:
+            out.append(("problem", f"clue {last} has no ' ~ ' before its answer"))
+    for ref, keys in metas.items():
+        if "Fits" in keys and "Printed" not in keys:
+            out.append(("problem", f"clue {ref} has ^Fits: with no ^Printed:"))
+    if not seen:
+        out.append(("note", "no clue lines"))
+
+
+def check_xd(text: str) -> list[tuple[str, str]]:
+    """What differs from formats/annotated-xd.md, as (level, text) lines."""
+    out: list[tuple[str, str]] = []
+    text = text.replace("\r\n", "\n")
+    if xd_form(text) == "block":
+        out.append(("note", "the block form (the shape shipped before 2026-11-25)"))
+        parts = text.strip("\n").split("\n\n\n")
+        if len(parts) < 3:
+            out.append(("problem", f"{len(parts)} parts set apart by two blank lines; a header, a grid and clues are three"))
+            return out
+        heads = {}
+        for ln in parts[0].split("\n"):
+            m = HEADER.fullmatch(ln)
+            if not m:
+                out.append(("problem", f"not a header line: {ln[:60]!r}"))
+            else:
+                heads[m.group(1)] = m.group(2)
+        if not DATE.fullmatch(heads.get("Date", "")):
+            out.append(("problem", "no Date header as YYYY-MM-DD"))
+        _grid_rows(parts[1].split("\n"), out)
+        _clue_lines(parts[2].split("\n"), out, field=False)
+        return out
+
+    sections: dict[str, list[str]] = {}
+    cur = None
+    for ln in text.split("\n"):
+        m = re.fullmatch(r"## (.+)", ln)
+        if m:
+            cur = m.group(1).strip()
+            if cur in sections:
+                out.append(("problem", f"section '## {cur}' is there twice"))
+            sections.setdefault(cur, [])
+            if cur not in SECTIONS:
+                out.append(("note", f"section '## {cur}' is not one the format names"))
+        elif cur is not None:
+            sections[cur].append(ln)
+    for need in ("Metadata", "Grid", "Clues"):
+        if need not in sections:
+            out.append(("problem", f"no '## {need}' section"))
+    if list(sections)[:1] != ["Metadata"]:
+        out.append(("problem", "the first section is not '## Metadata'"))
+
+    heads = {}
+    for ln in sections.get("Metadata", []):
+        if not ln.strip():
+            continue
+        m = HEADER.fullmatch(ln)
+        if not m:
+            out.append(("problem", f"not a header line: {ln[:60]!r}"))
+            continue
+        name = m.group(1)
+        if name in heads:
+            out.append(("problem", f"header '{name}:' is there twice"))
+        heads[name] = m.group(2)
+        if name in WORKING_HEADERS:
+            out.append(("problem", f"header '{name}:' is provenance, which the field form keeps out of the xd"))
+        elif name == "Notes":
+            out.append(("note", "header 'Notes:' (retired as a catch-all: Description, ## Printed or provenance)"))
+        elif name.endswith("-Correction"):
+            if name[:-len("-Correction")] not in heads:
+                out.append(("problem", f"header '{name}:' has no '{name[:-len('-Correction')]}:' before it"))
+        elif name not in PRINTED_HEADERS + EPP_HEADERS + CITATIONS:
+            out.append(("note", f"header '{name}:' is not one the format names"))
+    if not DATE.fullmatch(heads.get("Date", "")):
+        out.append(("problem", "no Date header as YYYY-MM-DD"))
+    if "Source" not in heads:
+        out.append(("note", "no Source header (the scan the puzzle was read from)"))
+
+    for ln in sections.get("Printed", []):
+        if not ln.strip():
+            continue
+        m = re.fullmatch(r"([a-z][a-z -]*?)(?: \([^()]+\))?: ?(.*)", ln)  # label, or label (which one)
+        if not m:
+            out.append(("problem", f"## Printed: not 'label: text': {ln[:60]!r}"))
+        elif m.group(1) not in PRINTED_LABELS:
+            spaced = m.group(1).replace("-", " ")
+            out.append(("note", f"## Printed: label '{m.group(1)}' is written '{spaced}' elsewhere" if spaced in PRINTED_LABELS
+                        else f"## Printed: label '{m.group(1)}' is new"))
+    if "Grid" in sections:
+        _grid_rows(sections["Grid"], out)
+    if "Clues" in sections:
+        _clue_lines(sections["Clues"], out, field=True)
+    return out

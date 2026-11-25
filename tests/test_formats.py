@@ -118,5 +118,89 @@ def test_checks_json(tmp_path):
     assert any("items[1]" in t for t in problems(d))
 
 
-def test_no_packet_here(tmp_path):
+def test_nothing_here(tmp_path):
     assert formats.check([tmp_path])["problems"] == 1
+
+
+# ---- the annotated xd
+
+FIELD = """## Metadata
+Title: A test
+Author: A. Seter
+Author-Correction: A. Setter
+Date: 1914-01-04
+Description: A small square.
+Source: A Paper, 1914-01-04, p. 3
+
+
+## Printed
+heading: A TEST
+heading (left of grid): Can You
+solution caption: Last week's answer
+
+
+## Grid
+CAT
+A#O
+BAT
+
+
+## Clues
+A1. A pet ~ CAT
+A1 ^Printed: 1-2
+A1 ^Fits: 1-3
+A1 ^Correction: A pet.
+D1. A taxi. ~ CAB
+D1 ^Answer-Correction: CAR
+"""
+
+
+def xd_problems(text: str) -> list[str]:
+    return [t for lv, t in formats.check_xd(text) if lv == "problem"]
+
+
+def test_the_field_form_passes():
+    assert formats.xd_form(FIELD) == "field"
+    assert formats.check_xd(FIELD) == []
+
+
+def test_the_block_form_is_valid_and_said():
+    got = formats.check_xd(XD)
+    assert formats.xd_form(XD) == "block"
+    assert [lv for lv, _ in got] == ["note"] and "block form" in got[0][1]
+
+
+@pytest.mark.parametrize("old, new, says", [
+    ("Source: A Paper", "Assembly: hands-off\nSource: A Paper", "'Assembly:' is provenance"),
+    ("Author: A. Seter\n", "", "'Author-Correction:' has no 'Author:'"),
+    ("Date: 1914-01-04", "Date: January 4", "no Date header as YYYY-MM-DD"),
+    ("heading: A TEST", "A TEST", "## Printed: not 'label: text'"),
+    ("A#O", "A#", "rows differ in length"),
+    ("A1 ^Printed: 1-2\n", "", "^Fits: with no ^Printed:"),
+    ("D1 ^Answer-Correction", "A1 ^Answer-Correction", "is not under its clue's line"),
+    ("D1. A taxi. ~ CAB", "D1. A taxi.", "has no ' ~ '"),
+    ("D1. A taxi. ~ CAB", "D1. A taxi. ~ CAB\n\nPuzzle notes:\nSome prose.", "not a clue line"),
+    ("## Grid", "## Squares", "no '## Grid' section"),
+])
+def test_what_breaks_a_reader_of_the_field_form(old, new, says):
+    assert old in FIELD
+    assert any(says in t for t in xd_problems(FIELD.replace(old, new))), xd_problems(FIELD.replace(old, new))
+
+
+@pytest.mark.parametrize("old, new, says", [
+    ("solution caption:", "solution-caption:", "is written 'solution caption' elsewhere"),
+    ("heading: A TEST", "masthead: A TEST", "label 'masthead' is new"),
+    ("Description:", "Notes:", "retired as a catch-all"),
+    ("D1 ^Answer-Correction", "D1 ^Easy", "is not one of EPP's"),
+])
+def test_what_is_only_a_note_in_the_field_form(old, new, says):
+    got = formats.check_xd(FIELD.replace(old, new))
+    assert [lv for lv, _ in got] == ["note"] and says in got[0][1], got
+
+
+def test_check_takes_xd_files_and_folders(tmp_path):
+    (tmp_path / "a.xd").write_text(FIELD, encoding="utf-8")
+    (tmp_path / "b.xd").write_text(XD, encoding="utf-8")
+    res = formats.check([tmp_path])
+    assert (res["xds"], res["packets"], res["problems"], res["notes"]) == (2, 0, 0, 1)
+    assert formats.check([tmp_path / "a.xd"])["xds"] == 1
