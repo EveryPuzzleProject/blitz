@@ -180,5 +180,5 @@ def test_the_four_kinds_of_field(tmp_path):
     assert ocr["clues"]["D1"]["answer_correction"] == "CAT"                       # under the clue, not a note
     assert [e["name"] for e in ocr["epp_fields"]] == ["Description", "Incomplete", "Source"]
     ship = json.loads((tmp_path / "out" / "triage.json").read_text(encoding="utf-8"))["puzzles"][0]["ship"]
-    assert ship["incomplete"] == ["the xd says it is incomplete: the key wasn't found"]  # a person's word ships it (partial)
+    assert ship["incomplete"] == [] and ship["findings"][0]["code"] == "declared-incomplete"  # said, not a hold
     assert not any("Answer-Correction" in n["note"] for n in json.loads((p / "review.json").read_text(encoding="utf-8"))["tool_notes"])

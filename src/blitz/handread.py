@@ -362,7 +362,7 @@ def build(xd_path: Path, pages: Path, dest: Path, model: str = "") -> dict:
 # and No. 28 printed no clues at all), so it is a finding the reviewer sees, not a hold; a run whose every square
 # is a given (printed in the grid) wants no clue and isn't one.
 
-INCOMPLETE = ("clue-extra", "grid-unsolved", "answer-differs", "declared-incomplete")
+INCOMPLETE = ("clue-extra", "grid-unsolved", "answer-differs")
 
 
 def _items(code: str, what: str, items: list[str]) -> dict:
@@ -381,7 +381,10 @@ def ship_check(text: str, ocr: dict | None = None) -> dict:
     runs = slots(grid)
     pair_form = bool(xd["labels"]) or bool(h.get("Numbering"))
     f = []
-    if h.get("Incomplete"):  # the reader's own statement of what's missing (Incomplete:): only a person ships it so
+    # the file's own statement of what's missing (Incomplete:), made on the owner's ruling (No. 13, 2026-11-25: "ship
+    # that one with the middle part left out and just note the omission"): said to the reviewer, not a hold. A gap the
+    # check finds itself (an unsolved grid: No. 3) still holds until a person's "Ready to ship as it stands"
+    if h.get("Incomplete"):
         f.append({"code": "declared-incomplete", "detail": f"the xd says it is incomplete: {h['Incomplete'].rstrip('.')}"})
     if not h.get("Title"):
         f.append({"code": "no-title", "detail": "no Title header"})
