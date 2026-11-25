@@ -462,7 +462,8 @@ def cmd_ship(a) -> None:
     if grades == ["all"]:
         grades = list(ship.SHIPS)
     rule = ship.rule_of(repo, a.batch or Path(a.proof).resolve().name, ai_ready=a.ai_ready, ignore=a.ignore or None, ship_grades=grades)
-    p = ship.plan(repo, Path(a.proof), rule, a.batch or "", site, a.pub)
+    scope = ship.scope_of(repo, a.batch or Path(a.proof).resolve().name, Path(a.scope)) if a.scope else None  # a rule to try
+    p = ship.plan(repo, Path(a.proof), rule, a.batch or "", site, a.pub, scope=scope)
     if a.backfill_records:  # the edit records of puzzles shipped before ship kept them: provenance rows only, no xd touched
         rows = ship.backfill(repo, p) if a.write else ship.unrecorded(repo, p)
         if a.json:
@@ -505,6 +506,11 @@ def cmd_ship(a) -> None:
     g, gs = c["grades"], c["grade_ships"]  # every puzzle exits with a grade (design/v3-agent-forward.md)
     print("grades (how many ship): " + ", ".join(f"{k} {g[k]} ({gs[k]})" for k in ship.GRADES if g[k])
           + "; shipping by grade: " + (", ".join(rule.ship_grades) if rule.ship_grades else "off (ship-rule.json's ship_grades)"))
+    if p.get("scope"):
+        stubs = [r["stub"] for r in p["rows"] if r.get("stub")]
+        print("scope: " + ", ".join(f"{k}: {v}" for k, v in p["scope"].items()) + f"; {len(stubs)} known, not transcribed ("
+              + (", ".join(f"{k or 'kind not recorded'} {sum(1 for s in stubs if s['kind'] == k)}" for k in dict.fromkeys(s["kind"] for s in stubs)) or "none")
+              + "); a kind is read from triage's codes (" + ", ".join(ship.KIND_CODES) + "): nothing records variety")
     w = c["ships_with"]
     print(f"the rule passes {w.get('off', 0)} as it stands; with --ai-ready both {w.get('off', 0) + w.get('both', 0)}; "
           f"with --ai-ready either {sum(w.values())} (before the import's own holds)")
@@ -799,6 +805,7 @@ def main(argv=None) -> None:
                                                      "ship-rule.json's list)")
     q.add_argument("--ship-grades", help="ship by grade with no person's Ready: a list of clean, reviewed, doubts, incomplete "
                                          "(or all, or off); default: the publication's fixes/ship-rule.json (ship_grades), else off")
+    q.add_argument("--scope", help="a scope rule to try, as a file ({\"cryptic\": \"defer\"}); default: the publication's fixes/scope.json")
     q.add_argument("--write", action="store_true", help="write the xd files, ledger records, provenance and the ship record")
     q.add_argument("--backfill-records", action="store_true",
                    help="list the provenance rows that give edit records to puzzles shipped before ship kept them; with "

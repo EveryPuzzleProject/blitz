@@ -627,6 +627,8 @@ GAP = {"what": STR, "code": STR, "stage": STR, "detail": STR, "row": STR}
 DIAGNOSIS = {"stage": STR, "what": STR, "code": STR}
 GRADE_ROW = {"grade": STR, "grade_why": STR, "flags": (int,), "doubts": LIST, "gaps": LIST, "grade_order": (int,), "to_read": BOOL}
 PROVENANCE_GRADE = {"grade": STR, "why": STR, "flags": (int,), "doubts": LIST, "gaps": LIST}
+STUB = {"pid": STR, "issue": STR, "scan": STR, "leaf": STR, "size": STR, "kind": STR, "kind_from": STR, "why": STR}
+KINDS = ("crossword", "cryptic", "variety")  # blitz ship.KINDS
 
 
 def is_ship_record(path: Path) -> bool:
@@ -708,6 +710,20 @@ def check_ship_record(f: Path) -> list[tuple[str, str]]:
             out.append(("problem", f"{name}: graded incomplete, and names no gap"))
         if g in ("clean", "reviewed") and (r.get("doubts") or r.get("gaps")):
             out.append(("problem", f"{name}: graded {g}, with open doubts or gaps listed"))
+        stub = r.get("stub")
+        if stub is not None:
+            if not isinstance(stub, dict):
+                out.append(("problem", f"{name}: stub is not an object"))
+            else:
+                _fields(stub, STUB, f"{name}: stub", out)
+                if stub.get("kind") not in ("", *KINDS):
+                    out.append(("problem", f"{name}: stub kind {stub.get('kind')!r} is not one of {', '.join(KINDS)}, or empty (not recorded)"))
+                if stub.get("kind") and not stub.get("kind_from"):
+                    out.append(("problem", f"{name}: stub names a kind, and not the milestone that recorded it"))
+            if g != "deferred":
+                out.append(("problem", f"{name}: a stub on a puzzle graded {g}"))
+        elif g == "deferred":
+            out.append(("note", f"{name}: deferred, with no stub (a record from before the stubs)"))
         if g == "reviewed" and not r.get("settled"):
             out.append(("problem", f"{name}: graded reviewed, and nothing says who settled its flags"))
     c = d["counts"]

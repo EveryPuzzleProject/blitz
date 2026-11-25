@@ -247,8 +247,10 @@ const QUEUE = {question: ['Held on a question', 'p-glance', 'var(--glance)', 'a 
                shippable: ['Ready to ship', 'p-ship', 'var(--ship)', 'passes the ship rule; not written to the publication yet'],
                shipped: ['Shipped', 'p-done', 'var(--ship)', "done: in the publication's xd/"],
                'set-aside': ['Set aside', 'p-aside', 'var(--glance)', 'in scope, not a priority now'],
+               // the publication's scope rule defers its kind (blitz ship: fixes/scope.json): a stub, known and not transcribed
+               deferred: ['Deferred', 'p-aside', 'var(--glance)', "known, not transcribed: the publication's scope defers its kind for now"],
                'not-a-crossword': ['Not a crossword', 'p-drop', 'var(--drop)', 'dropped from the batch']};
-const QORDER = ['question', 'unchecked', 'broken', 'shippable', 'shipped', 'set-aside', 'not-a-crossword'];
+const QORDER = ['question', 'unchecked', 'broken', 'shippable', 'shipped', 'set-aside', 'deferred', 'not-a-crossword'];
 const WALKED = ['question', 'unchecked', 'spot'];  // the lists a person walks on the proof page
 const recorded = () => !!(SHIP && SHIP.counts && SHIP.counts.queues);
 const shipOf = p => SHIPBY[p.pid];
@@ -302,7 +304,7 @@ function standsHtmlQ(p, x, q) {
   if (!x) return `<div class="shipline none"><b>${q === 'not-a-crossword' ? 'Dropped as not a crossword' : 'Not recorded'}</b><br><span class="meta">${q === 'not-a-crossword'
     ? esc((p.note || '').replace(/^triage: /, '')) + ' (the snapshot\'s record; the ship record doesn\'t list it)' : "blitz ship's record doesn't list this puzzle"}</span></div>`;
   const head = {shipped: `Shipped as ${esc(x.xdid)}`, shippable: `Ready to ship as ${esc(x.xdid)}`, question: 'Also said', unchecked: "Waiting for a person's Ready",
-                broken: `Held: ${esc(HELD[x.reason] || x.reason)}`, 'set-aside': 'Set aside', 'not-a-crossword': 'Not a crossword'}[q];
+                broken: `Held: ${esc(HELD[x.reason] || x.reason)}`, 'set-aside': 'Set aside', deferred: 'Deferred: known, not transcribed', 'not-a-crossword': 'Not a crossword'}[q];
   const why = q === 'question' || q === 'broken' ? '' : esc(x.why.replace(/^in xd\/ as \S+: /, ''));
   // a question's askers are named with their questions: here, only what anyone else said
   const said = saidQ(x, s => q !== 'question' || s.answer === 'ready');
@@ -397,7 +399,7 @@ const GRADE = {clean: ['Clean', 'the ship check passed and nothing was flagged']
                doubts: ['Doubts', 'flags stay open; each is listed with its row on the proof page'],
                incomplete: ['Incomplete', 'a part was never found; the gaps are named'],
                held: ['Held', "the structure does not hold, or a person's word holds it; a diagnosis names the stage"],
-               deferred: ['Deferred', 'known, not transcribed: out of the run for now'],
+               deferred: ['Known, not transcribed', "deferred: set aside, or a kind the publication's scope leaves for a later batch; a stub each"],
                'not-a-crossword': ['Not a crossword', 'dropped from the run']};
 const FAILKIND = {held: 'holds the puzzle', gap: 'a gap', doubt: 'an open doubt'};
 const FAIL_TOP = 8;  // the kinds of failure shown before the fold, in the record's order
@@ -417,7 +419,11 @@ const thumbHtml = pid => { const p = snapOf(pid); return p && p.thumb ? `<img lo
 // the first thing left open on a puzzle, as the record lists it: a doubt, else a gap; its row is where the proof page opens
 const firstOpen = x => (x.doubts || [])[0] || (x.gaps || [])[0] || null;
 const digestProof = (pid, k, list, label) => proofAt(pid, k) + `&walk=${encodeURIComponent(label)}&pids=${list.join(',')}&back=${encodeURIComponent(location.pathname + location.search)}`;
-const statusWord = x => x.status === 'shipped' ? `shipped as ${esc(x.xdid)}` : x.status === 'shippable' ? `ready to ship as ${esc(x.xdid)}` : x.status === 'held' ? 'does not ship' : x.status === 'out' ? 'out of the run' : 'status not recorded';
+// a deferred puzzle's stub, as the record has it (stub: {pid, issue, scan, leaf, size, kind, kind_from, why}): what is known
+// of a puzzle nobody transcribes for now
+const stubHtml = x => !x.stub ? '<div class="first meta">its stub: not recorded</div>'
+  : `<div class="first" title="${esc(x.stub.why || '')}"><b>${esc(x.stub.kind || 'kind not recorded')}</b>${x.stub.kind_from ? ` <span class="meta">${esc(x.stub.kind_from)}</span>` : ''} · issue ${esc(x.stub.issue || 'not recorded')} · ${x.stub.leaf !== '' ? 'leaf ' + esc(x.stub.leaf) : 'page not recorded'}${x.stub.size ? ' · ' + esc(x.stub.size) : ''}<br><span class="meta">${esc(x.stub.why || '')}</span></div>`;
+const statusWord = x => x.status === 'shipped' ? `shipped as ${esc(x.xdid)}` : x.status === 'shippable' ? `ready to ship as ${esc(x.xdid)}` : x.status === 'held' ? 'does not ship' : x.status === 'out' ? (x.grade === 'deferred' ? 'a stub: out of the run for now' : 'out of the run') : 'status not recorded';
 function digestHead(title, about) {
   for (const id of ['#bar', '#chips', '#causechips', '#shipchips', '#legend', '#runnote']) { const el = $(id); if (el) el.innerHTML = ''; }
   $('#edpub').hidden = true; $('#runsel').hidden = true; $('#tools').hidden = true; $('#rerun').hidden = true;
@@ -465,11 +471,13 @@ function digestView() {
       })();
   const card = (x, list, label) => {
     const fo = firstOpen(x), more = (x.doubts || []).length + (x.gaps || []).length - 1;
-    const first = x.grade === 'held' && x.diagnosis ? `<div class="first"><b>${esc(x.diagnosis.stage || 'stage not recorded')}</b>: ${esc(x.diagnosis.what || '')}</div>`
+    const first = x.grade === 'deferred' ? stubHtml(x) : x.grade === 'held' && x.diagnosis ? `<div class="first"><b>${esc(x.diagnosis.stage || 'stage not recorded')}</b>: ${esc(x.diagnosis.what || '')}</div>`
       : fo ? `<div class="first" title="${esc(fo.text || fo.what || '')}"><a href="${digestProof(x.pid, fo.row, list, label)}"${TAB} title="opens the proof page at this row">${esc(rowName(fo.row))}</a>: ${esc((fo.text || fo.what || '') + (fo.detail ? ' (' + fo.detail + ')' : ''))}${more > 0 ? ` <span class="meta">+${more} more</span>` : ''}</div>`
       : x.settled && x.flags ? `<div class="first meta">${esc(x.flags)} flag${x.flags === 1 ? '' : 's'} settled by ${esc(x.settled.by)}</div>` : '';
     const v = LIVE && LIVE[x.pid] && LIVE[x.pid].you ? `<span class="you">you: ${LIVE[x.pid].you === 'ready' ? 'Ready' : 'Not ready'}</span>` : '';
-    return `<div class="dcard${x.to_read ? ' toread' : ''}" id="${esc(x.pid)}"><a href="${digestProof(x.pid, (fo || {}).row || '', list, label)}"${TAB} title="its proof page${fo && fo.row ? ', at ' + esc(rowName(fo.row)) : ''}">${thumbHtml(x.pid)}</a>
+    // a stub has no proof page (a deferred puzzle gets a stub and nothing else); nor has a puzzle dropped as not a crossword
+    const pic = x.status === 'out' ? thumbHtml(x.pid) : `<a href="${digestProof(x.pid, (fo || {}).row || '', list, label)}"${TAB} title="its proof page${fo && fo.row ? ', at ' + esc(rowName(fo.row)) : ''}">${thumbHtml(x.pid)}</a>`;
+    return `<div class="dcard${x.to_read ? ' toread' : ''}" id="${esc(x.pid)}">${pic}
       <div><div class="t">${x.title ? esc(x.title) : '<span class="none">no title found</span>'}</div>
         <div class="meta">${esc(x.date || '')} · ${esc(x.pid.replace(/^[a-z]+/, ''))}</div>
         <div class="meta">${statusWord(x)}${x.as_shipped ? ` · <a href="${digestUrl({step: x.pid})}">its xd</a>` : ''}${x.to_read ? ' · <b class="readme" title="in the owner\'s reading sample">to read</b>' : ''} ${v}</div>${first}</div></div>`;
@@ -1209,7 +1217,7 @@ function drawQueues() {
   $('#bar').innerHTML = rec ? QORDER.map(q => `<span style="width:${100 * n(q) / D.puzzles.length}%;background:${QUEUE[q][2]}${q === 'shipped' ? ';opacity:.45' : ''}" title="${QUEUE[q][0]}: ${n(q)}"></span>`).join('') : '';
   const chip = (f, label, count, title = '') => `<button class="chip ${filter === f ? 'on' : ''}" data-f="${f}" title="${esc(title)}">${label} <b>${count}</b></button>`;
   const first = walk[0] && filter === 'question' ? ((shipOf(walk[0]).asks || [])[0] || {}).row : '';
-  $('#chips').innerHTML = (rec ? QORDER.map(q => chip(q, QUEUE[q][0], n(q), QUEUE[q][3])).join('')
+  $('#chips').innerHTML = (rec ? QORDER.filter(q => q !== 'deferred' || n(q)).map(q => chip(q, QUEUE[q][0], n(q), QUEUE[q][3])).join('')
       + (none ? chip('none', 'Not recorded', none, "the ship record doesn't list them") : '') : `<span class="meta">Queues: <b>not recorded</b></span>`)
     + chip('all', 'All', D.puzzles.length, rec ? 'the queues add up to this' : '')
     + (walk.length ? `<a class="walk go" href="${proofUrl(walk[0].pid, first, walk)}"${TAB}>${filter === 'spot' ? `Spot-check these ${walk.length} →` : filter === 'question' ? `Start with these ${walk.length} →` : `Start proofreading these ${walk.length} →`}</a>` : '');
@@ -1241,7 +1249,7 @@ function drawQueues() {
     const side = q === 'question' && canOpen ? `<a class="open go" href="${proofUrl(p.pid, ask, rows)}"${TAB}>Answer it →</a>`
       : q === 'unchecked' && canOpen ? `<a class="open go" href="${proofUrl(p.pid, '', rows)}"${TAB}>Proofread →</a>`
       : x && x.spot_check && canOpen ? `<a class="open${filter === 'spot' ? ' go' : ' plain'}" href="${proofUrl(p.pid, '', filter === 'spot' ? rows : [p])}"${TAB}>Spot-check →</a>`
-      : canOpen && q !== 'broken' && q !== 'not-a-crossword' ? `<a class="plain" href="${proofUrl(p.pid, '', [p])}"${TAB}>its proof page</a>` : '';
+      : canOpen && q !== 'broken' && q !== 'not-a-crossword' && q !== 'deferred' ? `<a class="plain" href="${proofUrl(p.pid, '', [p])}"${TAB}>its proof page</a>` : '';
     return `${head}<div class="row withpage" id="${esc(p.pid)}">${picHtml(p)}
       <div>${p.feature ? `<div class="feat">${esc(p.feature)}</div>` : ''}<div class="t">${p.title ? esc(p.title) : '<span class="none">no title found</span>'}</div>
         <div class="meta">${esc(p.date)} · ${p.grid.length}×${(p.grid[0] || '').length}${p.byline ? ' · ' + esc(p.byline) : ''}${p.cryptic ? ' · cryptic' : ''}${rec ? '' : ' · triage: ' + esc(p.choice === 'drop' ? 'not a crossword' : p.triage || 'not recorded')}</div>

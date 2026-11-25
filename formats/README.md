@@ -10,9 +10,10 @@ hold, and a check that reads them (`blitz check-format`). The design this belong
 | **Assembly record**: one issue's parts linked into puzzles, with what it was made from and how long it took | xword-ocr's assembly to every step after it | [assembly-record.md](assembly-record.md) | `blitz check-format` |
 | Issue census: every grid, key and clue list with its fate | xword-ocr to blitz | xword-ocr `docs/census.md` | not yet |
 | **Proof packet**: one puzzle's folder | xword-ocr (and `blitz hand-packets`) to the proof page, review, ship | [proof-packet.md](proof-packet.md) | `blitz check-format` |
-| Triage record, decisions ledger, ship record | inside blitz | `design/ship.md`; xword-ocr `docs/ship-gate.md` | not yet |
+| Triage record, decisions ledger | inside blitz | `design/ship.md`; xword-ocr `docs/ship-gate.md` | not yet |
+| **Ship record**: every puzzle of a batch with its status, its queue and its grade | blitz ship to the batch page and any reader | [ship-record.md](ship-record.md) for the grades, the digest and the stubs; `design/ship.md` for the rest | `blitz check-format` (the grade fields) |
 | **Annotated xd**: the shipped transcription and its edition | blitz to any reader | [annotated-xd.md](annotated-xd.md); the design is `design/xd-fields.md` | `blitz check-format` |
-| Provenance row (`provenance.jsonl`) | blitz to any reader | `design/ship.md`, "What it writes" | not yet |
+| Provenance row (`provenance.jsonl`) | blitz to any reader | `design/ship.md`, "What it writes"; its `grade` in [ship-record.md](ship-record.md) | `blitz check-format` (its `grade`) |
 | Edition and `shipped.tsv` | blitz to any reader | `design/ship.md`, "The edition" | not yet |
 
 ## Rules for a format

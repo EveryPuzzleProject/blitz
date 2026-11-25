@@ -206,3 +206,46 @@ def test_the_check_of_the_grade_fields(tmp_path):
     f.write_text(json.dumps(rec), encoding="utf-8")
     res = formats.check([f])
     assert res["problems"] == 0 and res["notes"] == 1
+
+
+# ---- the scope rule and the stubs of deferred puzzles (ship.scope_of, recorded_kind) ----
+
+def test_a_kind_the_scope_defers_leaves_the_batch_as_a_stub(tmp_path):
+    from blitz.ship import recorded_kind, scope_of
+
+    triage = {P + "40": OK, P + "49": CRYPTIC, P + "44": GAPPY}
+    repo, proofs = _batch(tmp_path, {}, triage)
+    assert scope_of(repo) == {} and recorded_kind(CRYPTIC) == ("cryptic", "triage: cryptic-no-key") and recorded_kind(OK) == ("", "")
+    before = {r["pid"][-2:]: r for r in plan(repo, proofs, ALL, "b")["rows"]}
+    assert before["49"]["grade"] == "incomplete" and "stub" not in before["49"]      # no rule: every kind is imported, as before
+    (repo / "fixes" / "scope.json").write_text(json.dumps({"crossword": "import", "cryptic": "defer", "variety": "defer"}), encoding="utf-8")
+    p = plan(repo, proofs, ALL, "b")
+    by = {r["pid"][-2:]: r for r in p["rows"]}
+    assert (by["49"]["status"], by["49"]["reason"], by["49"]["grade"], by["49"]["queue"]) == ("out", "deferred", "deferred", "deferred")
+    assert by["49"]["stub"] == {"pid": P + "49", "issue": "1978-03-01", "scan": "item", "leaf": "31", "size": "3x3", "kind": "cryptic",
+                                "kind_from": "triage: cryptic-no-key", "why": by["49"]["why"]}
+    assert by["40"]["status"] == by["44"]["status"] == "shippable"                  # a puzzle with no recorded kind is imported
+    rec = record(p)
+    assert rec["scope"]["rule"]["cryptic"] == "defer" and rec["scope"]["stubs"] == 1 and rec["counts"]["queues"]["deferred"] == 1
+    assert sum(rec["counts"]["queues"].values()) == rec["counts"]["puzzles"] and P + "49" not in rec["walk"]
+    f = tmp_path / "ship.json"
+    f.write_text(json.dumps(rec), encoding="utf-8")
+    assert formats.check([f])["problems"] == 0
+    # one batch's own scope, as ship-rule.json has it; and a bad rule stops
+    (repo / "fixes" / "scope.json").write_text(json.dumps({"cryptic": "defer", "batches": {"b": {"cryptic": "import"}}}), encoding="utf-8")
+    assert scope_of(repo, "b") == {"cryptic": "import"} and scope_of(repo, "c") == {"cryptic": "defer"}
+    (repo / "fixes" / "scope.json").write_text(json.dumps({"acrostic": "defer"}), encoding="utf-8")
+    with pytest.raises(Stop):
+        scope_of(repo)
+
+
+def test_a_set_aside_puzzle_has_a_stub_and_a_shipped_one_is_never_deferred(tmp_path):
+    aside = {"id": f"setaside:{P}47", "answer": "set-aside", "note": "a diagramless", "by": "person", "at": "2026-10-20T00:00:00Z"}
+    repo, proofs = _batch(tmp_path, {P + "47": [aside], P + "49": [HELPER]}, {P + "47": OK, P + "49": CRYPTIC})
+    p = plan(repo, proofs, Rule(), "b")
+    by = {r["pid"][-2:]: r for r in p["rows"]}
+    assert by["47"]["stub"]["kind"] == "" and "a diagramless" in by["47"]["stub"]["why"]   # no milestone recorded its kind: said so
+    write(repo, p, "2026-11-25")                                                       # the cryptic ships on a person's Ready
+    (repo / "fixes" / "scope.json").write_text(json.dumps({"cryptic": "defer"}), encoding="utf-8")
+    again = {r["pid"][-2:]: r for r in plan(repo, proofs, Rule(), "b")["rows"]}
+    assert again["49"]["status"] == "shipped" and "stub" not in again["49"]          # a rule written later takes nothing back

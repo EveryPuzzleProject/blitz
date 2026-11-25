@@ -533,7 +533,7 @@ def queues(rows: list[dict]) -> list[dict]:
         r["group"] = mine[0] if mine else ""
 
     def key(r):
-        q = QUEUES.index(r["queue"])
+        q = QUEUES.index(r["queue"]) if r["queue"] in QUEUES else len(QUEUES)  # deferred by the scope rule: last
         if r["queue"] == "unchecked":  # the ones a Ready ships before the ones it can't yet (the ship check's incompleteness)
             return (q, bool(r.get("also")), 0, 0, r["pid"])
         if r["queue"] != "question":
@@ -788,6 +788,50 @@ def digest(rows: list[dict], batch: str, means: dict | None = None) -> dict:
                        "by": "the smallest sha1 of \"<batch>:<pid>\" in each grade: random with respect to the puzzles, the same each time",
                        "pool": pool, "picked": picked},
             "walk": [r["pid"] for r in ships], "failures": failures}
+
+
+# ---- scope: the kinds a publication imports now, and the ones it defers -----------------------
+# design/v3-agent-forward.md, "Scope: kinds that are not a priority". The publication states its scope once, in its
+# repo: fixes/scope.json, {"crossword": "import", "cryptic": "defer", "variety": "defer"}, with "batches": {"<batch>":
+# {...}} for one batch's own values, as ship-rule.json has. A puzzle whose kind the rule defers leaves the batch as a
+# stub (id, issue, page, kind; its thumbnail is the batch snapshot's) graded `deferred`, listed on the batch page as
+# "known, not transcribed", and never counts as broken.
+#
+# A puzzle's kind is read from what a milestone recorded, never worked out here (ship is not a classifier). Today
+# only triage records one, and only for some cryptics: KIND_CODES. Nothing records `variety`, and nothing records
+# `crossword` either (it is what a puzzle with no recorded kind is taken to be), so a rule's `variety` entry defers
+# nothing until a milestone records that kind. A puzzle already shipped is never deferred by a rule written later.
+KINDS = ("crossword", "cryptic", "variety")
+SCOPE_ANSWERS = ("import", "defer")
+KIND_CODES = {"cryptic-no-key": "cryptic", "cryptic-unflagged": "cryptic"}  # triage's reason codes that record a kind
+
+
+def scope_of(repo: Path, batch: str = "", path: Path | None = None) -> dict:
+    """The publication's scope rule, {kind: import | defer}: fixes/scope.json (or `path`, to try one), then its
+    "batches" entry for this batch. {} when it has none: every kind is imported, as before the rule existed."""
+    f = Path(path) if path else Path(repo) / "fixes" / "scope.json"
+    d = {k: v for k, v in (json.loads(f.read_text(encoding="utf-8")) if f.exists() else {}).items() if not k.startswith("_")}
+    d.update({k: v for k, v in ((d.pop("batches", None) or {}).get(batch) or {}).items() if not k.startswith("_")})
+    for k, v in d.items():
+        if k not in KINDS or v not in SCOPE_ANSWERS:
+            raise Stop(f"{f}: {k!r}: {v!r} is not one of {', '.join(KINDS)}: {' | '.join(SCOPE_ANSWERS)}")
+    return d
+
+
+def recorded_kind(t: dict) -> tuple[str, str]:
+    """(a puzzle's kind, what recorded it) from triage's record of it: ("cryptic", "triage: cryptic-no-key"), or
+    ("", "") when no milestone recorded a kind for it."""
+    for r in t.get("reasons") or []:
+        if isinstance(r, dict) and r.get("code") in KIND_CODES:
+            return KIND_CODES[r["code"]], f"triage: {r['code']}"
+    return "", ""
+
+
+def stub_of(pid: str, date: str, place: tuple, kind: str, kind_from: str, why: str) -> dict:
+    """A deferred puzzle's stub: what is known of a puzzle nobody transcribes for now. {pid, issue, scan, leaf, size,
+    kind ("" when no milestone recorded one), kind_from, why}."""
+    return {"pid": pid, "issue": date or (re.search(r"\d{4}-\d\d-\d\d", pid) or [""])[0], "scan": place[0], "leaf": place[1], "size": place[2],
+            "kind": kind, "kind_from": kind_from, "why": why}
 
 
 # ---- reading the milestones ----------------------------------------------------------------
@@ -1666,7 +1710,7 @@ def _where(proof_root: Path) -> tuple[Path, str, str]:
 
 
 def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict | None = None, pub: str = "",
-         _grading: bool = False) -> dict:
+         _grading: bool = False, scope: dict | None = None) -> dict:
     """What shipping the batch would do, written nowhere: every puzzle of the run with its status
     (shipped: in xd/ as it stands; shippable: passes, not written yet; held, with the reason; out: set
     aside or not a crossword), and the xd text and provenance of each one that passes.
@@ -1677,7 +1721,10 @@ def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict |
     edit the import doesn't apply), xd-exists (xd/ has another file under its id).
 
     Every row carries its grade (grade_of; `held` for a puzzle the rule would hold with every grade on, which a second
-    pass of this function, _grading, works out), and the plan the digest's facts (digest)."""
+    pass of this function, _grading, works out), and the plan the digest's facts (digest).
+
+    scope: the publication's scope rule (scope_of; None: read from its repo). A puzzle whose recorded kind it defers
+    is out of the batch, with a stub."""
     repo = Path(repo)
     harvest, run, rel = _where(proof_root)
     # a harvest's run has triage's record beside its proof packets; puzzles read by hand have the one blitz hand-packets
@@ -1689,6 +1736,7 @@ def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict |
     recs = ledger(repo)
     pids = [p["pid"] for p in tri["puzzles"]]
     means = {g.get("code", ""): g.get("means", "") for g in tri.get("groups") or [] if isinstance(g, dict)}  # triage's own words for its codes
+    scope = scope_of(repo, batch or run) if scope is None else scope
     new_site = from_site(site, recs, set(pids), {batch or run}) if site else []
     recs += new_site
     latest, proofs = {}, {}
@@ -1727,6 +1775,16 @@ def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict |
             row.update(status="out", reason=kind, why=f"{kind.replace('-', ' ')}: {rec.get('note', '')} ({rec.get('by', '')})", said=[], rule="", asks=[], broken=[])
             row.update(grade="not-a-crossword" if kind == "not-a-crossword" else "deferred", grade_why=row["why"], flags=0, settled=None,
                        doubts=[], gaps=[], diagnosis=None)
+            if kind == "set-aside":  # known, not transcribed: a stub, as a puzzle the scope rule defers has
+                row["stub"] = stub_of(pid, row["date"], places[pid], *recorded_kind(t), f"set aside by {rec.get('by', '')}: {rec.get('note', '')}")
+            continue
+        # out of scope for now: its kind as a milestone recorded it, deferred by the publication's rule. Never a puzzle
+        # this batch already shipped (a rule written later doesn't take back what is in xd/)
+        pkind, pfrom = recorded_kind(t)
+        if pkind and scope.get(pkind) == "defer" and pid not in prov:
+            why = f"deferred: a {pkind} ({pfrom}), out of scope for now (the publication's fixes/scope.json)"
+            row.update(status="out", reason="deferred", why=why, said=[], rule="", asks=[], broken=[], grade="deferred", grade_why=why, flags=0,
+                       settled=None, doubts=[], gaps=[], diagnosis=None, stub=stub_of(pid, row["date"], places[pid], pkind, pfrom, why))
             continue
         review = pk["review"]
         current = tuple(x for x in (review.get("xd_fp"), *(review.get("xd_fp_same") or [])) if x)
@@ -1975,13 +2033,13 @@ def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict |
     if _grading:  # the pass that asks what the rule holds with every grade on: its rows are all the caller reads
         return {"rows": rows}
     # held: what the rule holds whatever the grade. This plan's own answer when it ships by every grade, else one more pass
-    would = rows if set(rule.ship_grades) >= set(SHIPS) else plan(repo, proof_root, replace(rule, ship_grades=SHIPS), batch, site, pub, _grading=True)["rows"]
+    would = rows if set(rule.ship_grades) >= set(SHIPS) else plan(repo, proof_root, replace(rule, ship_grades=SHIPS), batch, site, pub, _grading=True, scope=scope)["rows"]
     for row, w in zip(rows, would):
         held_grade(row, w)
     groups = queues(rows)
     out = {"groups": groups, "pub": pub or re.match(r"[a-z]+", repo.name)[0], "batch": batch or run, "run": run, "packets": rel, "rule": {"ai_ready": rule.ai_ready, "hold_codes": list(rule.hold_codes),
             "ignore": list(rule.ignore), "owner": list(rule.owner), **{k: getattr(rule, k) for k in WHOSE_INPUT}, "ship_grades": list(rule.ship_grades)},
-            "means": means, "digest": digest(rows, batch or run, means), "rows": rows, "passing": passing, "pins": [p for p in pins if p["xdid"] in {x["xdid"] for x in passing.values()}],
+            "means": means, "digest": digest(rows, batch or run, means), "scope": scope, "rows": rows, "passing": passing, "pins": [p for p in pins if p["xdid"] in {x["xdid"] for x in passing.values()}],
             "site": new_site, "packs": packs}
     from . import edition  # the edition of each passing puzzle, and whether the batch's edition is published (design/ship.md, "The edition")
     out["editions"] = edition.preview(repo, out["pub"], out, recs, rule)
@@ -1996,6 +2054,7 @@ def counts(rows: list[dict]) -> dict:
            "grades": {g: 0 for g in GRADES}, "grade_ships": {g: 0 for g in GRADES}}
     for r in rows:
         out[r["status"]] += 1
+        out["queues"].setdefault(r["queue"], 0)  # `deferred` (the scope rule's): a queue only where a puzzle is in it
         if r.get("grade") in out["grades"]:
             out["grades"][r["grade"]] += 1
             out["grade_ships"][r["grade"]] += r["status"] in ("shipped", "shippable")
@@ -2939,7 +2998,9 @@ def record(p: dict, public: bool = True) -> dict:
              "settled": ((_public_who(r["settled"]) if public else r["settled"]) if r.get("settled") else None),
              "doubts": list(r.get("doubts") or []), "gaps": list(r.get("gaps") or []),
              "diagnosis": ({**r["diagnosis"], "what": why({**r, "why": r["diagnosis"]["what"]})} if r.get("diagnosis") else None),
-             "grade_order": r.get("grade_order", 0), "to_read": bool(r.get("to_read"))} for r in p["rows"]]
+             "grade_order": r.get("grade_order", 0), "to_read": bool(r.get("to_read")),
+             # a deferred puzzle's stub: known, not transcribed (the scope rule's, or a person's set-aside)
+             **({"stub": {**r["stub"], "why": why({**r, "why": r["stub"]["why"]})}} if r.get("stub") else {})} for r in p["rows"]]
     return {"_about": "blitz ship: which puzzles of the batch are shipped (in the publication repo's xd/), shippable (pass the "
                       "ship rule, not written yet) or held, with the reason, and the queue each is in: what the batch page asks "
                       "of people. Format: blitz design/ship.md.",
@@ -2950,6 +3011,10 @@ def record(p: dict, public: bool = True) -> dict:
             "format": "ship-record/1",
             "grades": {"order": list(GRADES), "ships": list(p["rule"].get("ship_grades") or [])},
             **{k: (p.get("digest") or {}).get(k) for k in ("sample", "walk", "failures")},
+            # the publication's scope rule as this record was made with it (fixes/scope.json), where it has one, and which
+            # kinds a milestone records today: a kind nothing records is deferred for no puzzle
+            **({"scope": {"rule": p["scope"], "recorded_by": {k: f"triage: {c}" for c, k in KIND_CODES.items()},
+                          "stubs": sum(1 for r in p["rows"] if r.get("stub"))}} if p.get("scope") else {}),
             "groups": p["groups"], "spot": {"one_in": SPOT_ONE_IN, "of": "puzzles shipped on someone else's word than the owner's",
                                             "by": "sha1 of the puzzle's id"},
             "puzzles": [{**row, **{k: r[k] for k in ("notes", "corrections", "proposals", "typed") if r.get(k)}, **_recorded_more(p, r)} for row, r in zip(rows, p["rows"])],
