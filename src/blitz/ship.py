@@ -1409,6 +1409,7 @@ def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict |
         xd = (folder / "puzzle.xd").read_text(encoding="utf-8") if (folder / "puzzle.xd").exists() else ""
         packs[pid] = {"folder": folder, "ocr": o, "xd": xd, "review": _load(folder / "review.json") or {}}
         if xd and sectioned(xd):  # read by hand: read and edited as the blank-line form, shipped in its own sections
+            packs[pid]["sections"] = [name for name, _ in _sections(xd)]
             xd, packs[pid]["restore"] = unsection(xd, o)
             packs[pid]["xd"] = xd
         page = ((o.get("stages") or {}).get("pages") or {}).get("page.jpg") or ["", ""]
@@ -1601,6 +1602,17 @@ def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict |
                      + (f" +{len(unread) - 6}" if len(unread) > 6 else "") + "): their places weren't read from the paper. "
                      "Give the end squares' printed numbers on the proof page, or move each clue to the word its pair names")
                 continue
+        elif "Printed" in (pk.get("sections") or []):
+            # read by hand, with the paper's other words in ## Printed (blitz design/xd-fields.md): every printed line is
+            # there whatever its keep, so a keep or discard is the edition's choice of notes (the provenance row's
+            # `printed` carries it) and changes no line of the xd; a line's new text has no place written for it yet
+            text, done = apply_edits(text, edits)
+            cant = [f"{k}: a printed line's text in ## Printed isn't rewritten by the import yet" for k in edits if k.startswith("line:")]
+            if cant:
+                hold("edits-unapplied", "proof-page edits to the printed lines the import can't apply as they stand: "
+                     + "; ".join(cant[:3]) + (f" (+{len(cant) - 3})" if len(cant) > 3 else ""))
+                continue
+            done += sorted(k for k in edits if k.startswith("keep:"))
         else:
             text, done = apply_edits(text, edits)
             text, ldone, cant = apply_printed(text, edits, pk["ocr"], pk["review"])

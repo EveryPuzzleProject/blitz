@@ -181,3 +181,16 @@ def test_a_batch_ships_on_an_ai_ready_from_the_double_read_and_says_so(tmp_path)
     assert (repo / "xd" / f"{M}.xd").read_text(encoding="utf-8") == MODERN
     # a plain AI Ready under the publication's own rule (off) ships nothing
     assert _row(plan(repo, root, rule_of(repo), "nyw-1914-s1"), P)["reason"] == "no-ready"
+
+
+def test_a_keep_on_a_printed_line_ships_when_the_xd_has_a_printed_section(tmp_path):
+    xd = MODERN.replace("## Grid", "## Printed\ncredit: By someone.\n\n\n## Grid")
+    src, pages = _make(tmp_path, M, xd, [{"pair": "1-2", "text": "A pet.", "page": "puzzle", "box": [5, 100, 90, 120], "ref": "A1"}])
+    root = tmp_path / "hand" / "nyw-1914-s1"
+    handread.build_all(src, pages, root)
+    keep = _said(root, M, {"keep:B1": False})
+    p = plan(_repo(tmp_path, [keep]), root, Rule())
+    assert _row(p, M)["status"] == "shippable", _row(p, M)["why"]
+    assert p["passing"][M]["text"] == xd                       # ## Printed keeps every printed line; the keep is the edition's
+    fix = _said(root, M, {"line:B1": "By some one."})
+    assert _row(plan(_repo(tmp_path, [fix]), root, Rule()), M)["reason"] == "edits-unapplied"
