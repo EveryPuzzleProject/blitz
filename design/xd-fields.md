@@ -115,6 +115,24 @@ A14 ^Printed: 15-16
 A14 ^Answer-Correction: MOAB
 ```
 
+## Built, and not yet (2026-11-25)
+
+Built: the hand-read World files in this form (newyorkworld #37, #38); the edition step leaving a field-form
+transcription as it is (blitz #116); the manifest's `form` column, `v1` or `v2` (blitz #117); a reference for
+readers and a check, `blitz check-format` (blitz #115, `formats/annotated-xd.md`); the conversion to gxd's old form,
+on gxd's side (gxd-downloader).
+
+Not yet built:
+
+- **A reviewer's mark becoming a field.** A misprint mark given on the review site for a field-form puzzle is not
+  written into the transcription as `^Correction:` or `<Header>-Correction:`. The edition lists it as not applied
+  (blitz #116) until someone writes the field by hand.
+- **A reviewer's key correction.** "What changes" 1 says a probably wrong key letter stays in the grid with
+  `^Answer-Correction:` beside it. `blitz ship` still does what `design/ship.md` says for the block form (the letter
+  corrected, with a note), and nothing defines or tests it for a field-form xd.
+- **The proof page showing the corrected key** while the xd keeps the printed one.
+- **The version marker** (decision 4): today a reader tells the forms apart by the file's first line.
+
 ## Decided (the owner, 2026-11-25)
 
 1. **Names.** `^Correction:` (a clue's text), `^Answer-Correction:` (its answer) and `<Header>-Correction:`
