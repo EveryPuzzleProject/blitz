@@ -154,7 +154,9 @@ def publish(out: Path, dry_run: bool = False, force: bool = False) -> list[str]:
     res = r2.sync(s3, bucket, [r2.Put(k, src=f, cache="no-cache" if f.suffix == ".json" else "public, max-age=86400")
                               for f, k in zip(files, keys)], remote, force=force)
     print(f"  {r2.summary(res)}")
-    stale = sorted(old - set(keys))  # an earlier snapshot's files this one doesn't have
+    # an earlier snapshot's files this one doesn't have; the batch's ship record and its as-shipped files are blitz ship's
+    # (ship --publish puts them beside the snapshot), not the snapshot's, and stay
+    stale = sorted(k for k in old - set(keys) if not k.startswith((prefix + "ship.json", prefix + "as-shipped/")))
     for i in range(0, len(stale), 1000):
         s3.delete_objects(Bucket=bucket, Delete={"Objects": [{"Key": k} for k in stale[i:i + 1000]]})
     try:
