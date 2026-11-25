@@ -214,6 +214,7 @@ h2 .quick { margin-left: 8px; font-size: 12px; padding: 2px 10px; }
 .hdrs tr.flash { animation: flash 1.6s ease-out; } @keyframes flash { from { background: #fff1b8; } to { background: transparent; } }
 .hdrs { margin: 10px 14px 4px; } .hdrhead { font-weight: 600; margin-bottom: 4px; } .hdrhead .hint { font-weight: 400; }
 .hdrs table { border-collapse: collapse; width: 100%; font-size: 13px; }
+.hdrs table.eppf { margin-top: 8px; border-top: 1px solid var(--line); } .hdrs table.eppf th { width: 110px; } .hdrs table.eppf td { padding: 5px 8px 5px 0; vertical-align: top; }
 .hdrs th { text-align: left; color: var(--muted); font-weight: 600; width: 80px; padding: 5px 8px 5px 0; vertical-align: top; }
 .hdrs td { padding: 5px 8px 5px 0; border-top: 1px solid var(--line); vertical-align: top; } .hdrs tr:first-child td { border-top: 0; }
 .hdrs td.hv { width: 45%; } .hdrs td.hs { color: var(--ink); }
@@ -2202,7 +2203,7 @@ function checksSection() {
   const hint = checks ? (srcs.length ? `from the records: ${srcs.join(', ')} · click a name to go to its row` : 'from the records')
     : 'no checks record in this packet (xword-ocr proof-checks writes one)';
   s.innerHTML = `<h2>What the checks found <span class="hint">${esc(hint)}</span><span class="chip">${items.length ? esc(plural(items.length, 'finding')) + (inc.length ? ' · not whole' : '') : ''}</span></h2>
-    <div class="body">${inc.length ? `<div class="whole"><b>Not whole:</b> ${inc.map(esc).join('; ')}. <b>A Ready can't ship this until it is whole</b> (the ship check holds it: a missing page or block goes back to the stage that lost it).</div>` : ''}
+    <div class="body">${inc.length ? `<div class="whole"><b>Not whole:</b> ${inc.map(esc).join('; ')}. <b>A plain Ready can't ship this until it is whole</b> (the ship check holds it: a missing page or block goes back to the stage that lost it); if nothing more can be had, a person's <i>Ready to ship it as it stands</i>, below, ships it with what's missing said.</div>` : ''}
     ${items.length ? `<ul>${items.map(line).join('')}</ul>` : '<p class="hint" style="margin:0">No findings recorded.</p>'}
     ${stale ? `<p class="more">The record was made on an earlier version of this puzzle (${esc(checks.xd_fp)}; this is ${esc(rev.xd_fp)}): a finding may be settled since.</p>` : ''}
     ${checks?.decision ? `<p class="more">Triage: ${esc(checks.decision)}${checks.ship ? checks.ship.ok ? ' · passed the ship check' : inc.length ? ' · held by the ship check' : " · the ship check has findings, none that holds it: a person's Ready ships it" : ' · no ship check recorded'}.</p>` : ''}</div>`;
@@ -2737,6 +2738,10 @@ function headerSection(hs) {
   t.innerHTML = `<div class="hdrhead">The xd file's headers <span class="hint">what we took from the lines above (and from the issue); click a value to fix it</span></div><table></table>`;
   hs.append(t);
   const tb = t.querySelector('table');
+  // the xd's own statements about the puzzle (Description:, Incomplete:) and the scans it cites: read-only, as the
+  // file has them (blitz design/xd-fields.md: EPP's fields, not the paper's)
+  if ((ocr.epp_fields || []).length) t.insertAdjacentHTML('beforeend', `<table class="eppf">${ocr.epp_fields.map(e =>
+    `<tr><th>${esc(e.name)}</th><td>${esc(e.value)}</td><td class="hs"><span class="hint">${e.name.endsWith('Source') ? 'the scan it was read from' : "EPP's statement, in the xd"}</span></td></tr>`).join('')}</table>`);
   for (const [f, name] of HEADERS) {
     const [derived, rule, n] = headerValue(f), k = 'meta:' + (META[f] || f), h = history(k, derived), last = h[h.length - 1];
     const own = h.length > 1 && last.value !== derived, m = typeof n === 'string' && metaOf(n);
@@ -2862,9 +2867,11 @@ function jumpToHash(lit) {
 // the clue as meant, under the clue as printed: an xd's "A10 ^Correction: ..." (a printer's typo the reader corrected;
 // the clue line stays as printed). Part of the record that goes in the file, so it sits in the text cell, not a note
 function corrHtml(key, label) {
-  const c = key.startsWith('clue:') ? (ocr.clues[label] || {}).correction
-    : key.startsWith('line:B') ? ((ocr.lines || []).find(L => 'B' + L.n === key.slice(5)) || {}).correction : '';
-  return c ? `<div class="corr" title="the xd's ^Correction line: the clue as meant; the clue line keeps the print">→ ${esc(c)} <span class="hint">as meant (^Correction in the xd)</span></div>` : '';
+  const it = key.startsWith('clue:') ? (ocr.clues[label] || {})
+    : key.startsWith('line:B') ? ((ocr.lines || []).find(L => 'B' + L.n === key.slice(5)) || {}) : {};
+  // the answer as meant (^Answer-Correction): the key printed something else, which the grid keeps
+  return (it.correction ? `<div class="corr" title="the xd's ^Correction line: the clue as meant; the clue line keeps the print">→ ${esc(it.correction)} <span class="hint">as meant (^Correction in the xd)</span></div>` : '')
+    + (it.answer_correction ? `<div class="corr" title="the xd's ^Answer-Correction line: the answer as meant; the grid keeps the letters the key printed">→ answer ${esc(it.answer_correction)} <span class="hint">as meant; the key prints it otherwise (^Answer-Correction in the xd)</span></div>` : '');
 }
 function addRow(s, key, label, box, flags = [], src = null) {
   const row = document.createElement('div');

@@ -167,3 +167,18 @@ def test_a_correction_is_recorded_on_its_clue_or_line_not_as_a_note(tmp_path):
     handread.build_all(src, pages, tmp_path / "out2", ["nyw1914-04-19"])
     line = json.loads((tmp_path / "out2" / "nyw1914-04-19" / "ocr.json").read_text(encoding="utf-8"))["lines"][-1]
     assert line["text"] == "1-4. Diagonal. ~ C_W" and line["correction"] == "A diagonal."
+
+
+def test_the_four_kinds_of_field(tmp_path):
+    xd = (MODERN.replace("Notes: Read by hand.\n", "Description: A tiny grid.\nIncomplete: the key wasn't found.\nSource: The Paper, p. 1\n")
+          .replace("D1 ^Printed: 1-3\n", "D1 ^Printed: 1-3\nD1 ^Answer-Correction: CAT\n")
+          .replace("## Grid", "## Printed\nheading: A TEST.\n\n\n## Grid"))
+    src, pages = _make(tmp_path, "nyw1914-01-04", xd, [])
+    handread.build_all(src, pages, tmp_path / "out")
+    p = tmp_path / "out" / "nyw1914-01-04"
+    ocr = json.loads((p / "ocr.json").read_text(encoding="utf-8"))
+    assert ocr["clues"]["D1"]["answer_correction"] == "CAT"                       # under the clue, not a note
+    assert [e["name"] for e in ocr["epp_fields"]] == ["Description", "Incomplete", "Source"]
+    ship = json.loads((tmp_path / "out" / "triage.json").read_text(encoding="utf-8"))["puzzles"][0]["ship"]
+    assert ship["incomplete"] == ["the xd says it is incomplete: the key wasn't found"]  # a person's word ships it (partial)
+    assert not any("Answer-Correction" in n["note"] for n in json.loads((p / "review.json").read_text(encoding="utf-8"))["tool_notes"])
