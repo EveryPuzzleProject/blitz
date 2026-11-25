@@ -25,7 +25,7 @@ The public review site (helpers check agents' reviews in the browser; see site/R
     blitz checkup [folder] [--all]       grade each reviewed puzzle: check closely / worth a look / looks clean
     blitz site-status                    how many helpers checked each puzzle, and where they disagree
     blitz site-close <puzzle...>         take puzzles off the site
-    blitz check-format <folder...> [--lines] [--notes]
+    blitz check-format <folder...> [--lines] [--notes] [--artifacts <store>]
                                          check proof packets and xd files against formats/ (reads files only)
     blitz key-squares <folder> --pub P  the key squares worth a glance, for /review/squares/ (site-publish puts them up)
     blitz hand-packets <hand-read dir> --pages DIR --dest DIR
@@ -151,7 +151,7 @@ def cmd_check_format(a) -> None:
     """Check packets and xd files against formats/. Reads files only; exit 1 when a reader would break."""
     from . import formats
 
-    res = formats.check([Path(x) for x in a.paths])
+    res = formats.check([Path(x) for x in a.paths], Path(a.artifacts) if a.artifacts else None)
     if a.lines:
         for packet, level, text in res["lines"]:
             if level == "problem" or a.notes:
@@ -160,7 +160,10 @@ def cmd_check_format(a) -> None:
         for (level, kind), n in sorted(res["by_text"].items(), key=lambda x: (x[0][0] != "problem", -x[1])):
             if level == "problem" or a.notes:
                 print(f"{n:6}  {level}: {kind}")
-    what = [f"{res['packets']} packets against {formats.PACKET}/1"] * bool(res["packets"]) +            [f"{res['xds']} xd files against formats/annotated-xd.md"] * bool(res["xds"])
+    what = [f"{res['packets']} packets against {formats.PACKET}/1"] * bool(res["packets"]) + \
+           [f"{res['xds']} xd files against formats/annotated-xd.md"] * bool(res["xds"]) + \
+           [f"{res['assemblies']} issues' assembly records against {formats.ASSEMBLY}/1"
+            + ("" if a.artifacts else " (records only: --artifacts <store> checks their outputs too)")] * bool(res["assemblies"])
     print(f"checked {' and '.join(what) or 'nothing'}: {res['problems']} problems, {res['notes']} notes"
           + ("" if a.notes or not res["notes"] else " (--notes shows them)"))
     if res["problems"]:
@@ -660,10 +663,11 @@ def main(argv=None) -> None:
     q = sub.add_parser("text", help="(re)write text.md for puzzles")
     q.add_argument("puzzles", nargs="+")
     q.set_defaults(fn=cmd_text)
-    q = sub.add_parser("check-format", help="check proof packets and xd files against formats/ (reads files only)")
-    q.add_argument("paths", nargs="+", help="a packet folder, an .xd file, or a folder of either")
+    q = sub.add_parser("check-format", help="check proof packets, xd files and assembly records against formats/ (reads files only)")
+    q.add_argument("paths", nargs="+", help="a packet folder, an .xd file, a folder of either, or a harvest's assembly/ folder")
     q.add_argument("--lines", action="store_true", help="every line with its packet, not counts by kind")
     q.add_argument("--notes", action="store_true", help="also show notes (older forms, things today's writers add)")
+    q.add_argument("--artifacts", help="for assembly records: the store their outputs are in (xword-ocr .cache/artifacts)")
     q.set_defaults(fn=cmd_check_format)
     q = sub.add_parser("sheets", help="crops of the scan on contact sheets (added to the puzzle's earlier ones)")
     q.add_argument("puzzle")

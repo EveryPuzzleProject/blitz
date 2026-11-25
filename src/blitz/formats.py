@@ -11,11 +11,13 @@ Two kinds of line come back:
   type, an image named and not there, an xd that isn't the version the packet says it is).
 - note: the file is a valid older form, or lacks something today's writers always write.
 
-So far: the proof packet (formats/proof-packet.md) and the annotated xd (formats/annotated-xd.md).
+So far: the proof packet (formats/proof-packet.md), the annotated xd (formats/annotated-xd.md) and the
+assembly record (formats/assembly-record.md).
 """
 
 from __future__ import annotations
 
+import gzip
 import hashlib
 import json
 import re
@@ -250,11 +252,21 @@ def _kind(text: str) -> str:
                   r"|(?<=clue field ')\S+|(?<=: )['\"].*$", "…", text)
 
 
-def check(paths: list[Path]) -> dict:
-    """{packets, xds, problems, notes, by_text: {(level, kind): count}, lines: [(name, level, text)]} for what
-    is at or under the paths: packet folders, .xd files, or a folder of either."""
-    lines, counts, n, nx = [], {}, 0, 0
+def check(paths: list[Path], artifacts: Path | None = None) -> dict:
+    """{packets, xds, assemblies, problems, notes, by_text: {(level, kind): count}, lines: [(name, level, text)]}
+    for what is at or under the paths: packet folders, .xd files, a folder of either, or a harvest's assembly
+    records (its assembly/ folder, or one issue's file). artifacts: the store the records' outputs are in
+    (xword-ocr .cache/artifacts), to check those too."""
+    lines, counts, n, nx, na = [], {}, 0, 0, 0
     for path in map(Path, paths):
+        records = assembly_files(path)
+        if records:
+            na += len(records)
+            for f in records:
+                for level, text in check_assembly(f, artifacts):
+                    lines.append((f.name, level, text))
+                    counts[(level, _kind(text))] = counts.get((level, _kind(text)), 0) + 1
+            continue
         found = packets_under(path)
         xds = [path] if path.is_file() and path.suffix == ".xd" else             sorted(path.glob("*.xd")) if path.is_dir() and not found else []
         if not found and not xds:
@@ -268,8 +280,177 @@ def check(paths: list[Path]) -> dict:
             for level, text in res:
                 lines.append((name, level, text))
                 counts[(level, _kind(text))] = counts.get((level, _kind(text)), 0) + 1
-    return {"packets": n, "xds": nx, "problems": sum(1 for _, lv, _ in lines if lv == "problem"),
+    return {"packets": n, "xds": nx, "assemblies": na, "problems": sum(1 for _, lv, _ in lines if lv == "problem"),
             "notes": sum(1 for _, lv, _ in lines if lv == "note"), "by_text": counts, "lines": lines}
+
+
+# ---- the assembly record (formats/assembly-record.md) --------------------------------------------
+
+ASSEMBLY = "assembly-record"
+ASSEMBLY_VERSIONS = (1,)
+READINGS = ("hands-off", "reviewed", "hands-off-without-drops")
+ISSUE_FILE = re.compile(r"\d{4}-\d{2}-\d{2}\.json")
+SHA = re.compile(r"sha256:[0-9a-f]{64}")
+INPUT_NAMES = ("issues", "given_keys", "left_out")
+RECORD = {"stage": STR, "version": STR, "settings": OBJ, "inputs": OBJ, "output": STR, "made": STR, "code": STR}
+BODY = {"pubid": STR, "date": STR, "variant": STR, "pages_read": LIST, "puzzles": LIST, "loose": LIST, "pages": LIST,
+        "state": OBJ}
+PAGE_READ = {"scan": STR, "leaf": (int,), "role": STR, "restarted": BOOL}
+PUZZLE = {"grid": OBJ, "title": STR, "clues": OBJ, "flags": LIST, "cryptic": BOOL}
+PLACE = {"scan": STR, "leaf": (int,), "box": LIST}
+
+
+def assembly_files(path: Path) -> list[Path]:
+    """The assembly record files at a path: one issue's file (<date>.json under a folder named issue), a
+    harvest's assembly/ folder, or its assembly/issue/ folder. [] when the path is none of these."""
+    path = Path(path)
+    if path.is_file():
+        return [path] if ISSUE_FILE.fullmatch(path.name) and path.parent.name == "issue" else []
+    if path.is_dir() and path.name == "assembly" and (path / "issue").is_dir():
+        path = path / "issue"
+    if path.is_dir() and path.name == "issue" and path.parent.name == "assembly":
+        return sorted(f for f in path.iterdir() if ISSUE_FILE.fullmatch(f.name))
+    return []
+
+
+def artifact_path(store: Path, stage: str, h: str) -> Path:
+    """Where a store keeps an artifact (xword-ocr artifacts.Store): <store>/<stage>/<ab>/<hash>.json.gz."""
+    hexd = h.split(":", 1)[1]
+    return Path(store) / stage / hexd[:2] / f"{hexd}.json.gz"
+
+
+def _versioned(d: dict, name: str, out: list) -> None:
+    fmt = d.get("format")
+    if fmt is None:
+        return  # version 1
+    m = re.fullmatch(rf"{ASSEMBLY}/(\d+)", str(fmt))
+    if not m:
+        out.append(("problem", f"{name}: format is {fmt!r}, not {ASSEMBLY}/<n>"))
+    elif int(m.group(1)) not in ASSEMBLY_VERSIONS:
+        out.append(("problem", f"{name}: format {fmt} is newer than this check reads ({ASSEMBLY}/{ASSEMBLY_VERSIONS[-1]})"))
+
+
+def check_assembly(f: Path, artifacts: Path | None = None) -> list[tuple[str, str]]:
+    """One issue's assembly records (a file of a harvest's assembly/issue/) against formats/assembly-record.md;
+    with artifacts (the store), each record's output too. Reads those files and nothing else."""
+    out: list[tuple[str, str]] = []
+    data = _load(f, out)
+    if data is None:
+        return out
+    if not isinstance(data, dict):
+        return [("problem", f"{f.name}: not an object of units")]
+    date = f.stem
+    if not data:
+        out.append(("note", f"{f.name}: no records in it"))
+    for unit, stages in data.items():
+        m = re.fullmatch(r"issue:(\d{4}-\d{2}-\d{2})/([\w-]+)", unit)
+        if not m:
+            out.append(("problem", f"unit {unit!r} is not issue:<date>/<reading>"))
+            continue
+        if m.group(1) != date:
+            out.append(("problem", f"unit {unit!r} is in the file of another issue ({f.name})"))
+        reading = m.group(2)
+        if reading not in READINGS:
+            out.append(("note", f"unit {unit!r}: a reading this check doesn't know (it knows {', '.join(READINGS)})"))
+        rec = stages.get("assembly") if isinstance(stages, dict) else None
+        if not isinstance(rec, dict):
+            out.append(("problem", f"{unit}: no assembly record"))
+            continue
+        _versioned(rec, unit, out)
+        _fields(rec, RECORD, unit, out)
+        if rec.get("stage") != "assembly":
+            out.append(("problem", f"{unit}: stage is {rec.get('stage')!r}, not 'assembly'"))
+        if isinstance(rec.get("version"), str) and not re.fullmatch(r"assembly/\d+", rec["version"]):
+            out.append(("problem", f"{unit}: version is {rec['version']!r}, not assembly/<n>"))
+        took = rec.get("took")
+        if isinstance(took, bool) or not isinstance(took, (int, float)) or took < 0:
+            out.append(("problem", f"{unit}: took is {took!r}, not the seconds its assembly took"))
+        if isinstance(rec.get("made"), str) and not re.match(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}", rec["made"]):
+            out.append(("problem", f"{unit}: made is {rec['made']!r}, not a time"))
+        settings = rec.get("settings") if isinstance(rec.get("settings"), dict) else {}
+        if not isinstance(settings.get("hands_off"), bool):
+            out.append(("problem", f"{unit}: settings has no hands_off (true or false)"))
+        elif reading in READINGS and settings["hands_off"] != reading.startswith("hands-off"):
+            out.append(("problem", f"{unit}: settings.hands_off is {settings['hands_off']} for the {reading} reading"))
+        inputs = rec.get("inputs") if isinstance(rec.get("inputs"), dict) else {}
+        for name, h in inputs.items():
+            if not (isinstance(h, str) and SHA.fullmatch(h)):
+                out.append(("problem", f"{unit}: input {name!r} is not a sha256 hash"))
+            if not (name in INPUT_NAMES or re.fullmatch(r"page:.+/\d{4}", name)):
+                out.append(("note", f"{unit}: input {name!r} is not one the format names"))
+        if "inputs" in rec and "issues" not in inputs:
+            out.append(("problem", f"{unit}: inputs has no 'issues' (the issues read and their pages)"))
+        if reading == "hands-off-without-drops" and "left_out" not in inputs:
+            out.append(("note", f"{unit}: the reading without drops names no left_out input (no drop in this issue)"))
+        output = rec.get("output")
+        if isinstance(output, str) and not SHA.fullmatch(output):
+            out.append(("problem", f"{unit}: output is not a sha256 hash"))
+        elif isinstance(output, str) and artifacts is not None:
+            out += _check_assembly_artifact(unit, date, reading, inputs, artifact_path(artifacts, "assembly", output), output)
+    return out
+
+
+def _check_assembly_artifact(unit: str, date: str, reading: str, inputs: dict, f: Path, h: str) -> list[tuple[str, str]]:
+    out: list[tuple[str, str]] = []
+    if not f.is_file():
+        return [("problem", f"{unit}: its artifact is not in the store ({f.parent.name}/{f.name})")]
+    try:
+        raw = gzip.decompress(f.read_bytes())
+        body = json.loads(raw)
+    except (OSError, ValueError) as e:
+        return [("problem", f"{unit}: its artifact can't be read: {e}")]
+    if "sha256:" + hashlib.sha256(raw).hexdigest() != h:
+        out.append(("problem", f"{unit}: its artifact's bytes don't have the hash the record names"))
+    if not isinstance(body, dict):
+        return out + [("problem", f"{unit}: its artifact is not an object")]
+    name = f"{unit} artifact"
+    _versioned(body, name, out)
+    _fields(body, BODY, name, out)
+    if body.get("date") != date or body.get("variant") != reading:
+        out.append(("problem", f"{name}: is of {body.get('date')} {body.get('variant')}, not this unit's issue and reading"))
+    if not (body.get("next") is None or isinstance(body.get("next"), str)):
+        out.append(("problem", f"{name}: next is neither a date nor null"))
+    read = set()
+    for i, p in enumerate(body.get("pages_read") if isinstance(body.get("pages_read"), list) else []):
+        if not isinstance(p, dict):
+            out.append(("problem", f"{name}: pages_read[{i}] is not an object"))
+            continue
+        _fields(p, PAGE_READ, f"{name} pages_read[{i}]", out)
+        for k in ("analysis", "ocr", "image", "view", "extract"):
+            if not (p.get(k) is None or isinstance(p.get(k), str) and SHA.fullmatch(p[k])):
+                out.append(("problem", f"{name}: pages_read[{i}] {k} is neither a sha256 hash nor null"))
+        if isinstance(p.get("scan"), str) and isinstance(p.get("leaf"), int):
+            read.add(f"page:{p['scan']}/{p['leaf']:04d}")
+    named = {n for n in inputs if n.startswith("page:")}
+    if read != named:
+        out.append(("problem", f"{name}: pages_read names {len(read)} pages, the record's inputs {len(named)}: "
+                               f"they should be the same pages"))
+    for i, z in enumerate(body.get("puzzles") if isinstance(body.get("puzzles"), list) else []):
+        if not isinstance(z, dict):
+            out.append(("problem", f"{name}: puzzles[{i}] is not an object"))
+            continue
+        _fields(z, PUZZLE, f"{name} puzzles[{i}]", out)
+        if isinstance(z.get("grid"), dict):
+            _fields(z["grid"], PLACE, f"{name} puzzles[{i}] grid", out)
+            if "box" in z["grid"] and not _box(z["grid"]["box"]):
+                out.append(("problem", f"{name}: puzzles[{i}] grid box is not [x0, y0, x1, y1]"))
+        if isinstance(z.get("key"), dict):
+            _fields(z["key"], PLACE, f"{name} puzzles[{i}] key", out)
+        elif "key" not in z or z["key"] is not None:
+            out.append(("problem", f"{name}: puzzles[{i}] key is neither a key nor null"))
+        if isinstance(z.get("clues"), dict) and not all(isinstance(z["clues"].get(d), list) for d in ("A", "D")):
+            out.append(("problem", f"{name}: puzzles[{i}] clues has no A and D lists"))
+    for i, x in enumerate(body.get("loose") if isinstance(body.get("loose"), list) else []):
+        if not isinstance(x, dict):
+            out.append(("problem", f"{name}: loose[{i}] is not an object"))
+            continue
+        _fields(x, {"kind": STR, "label": STR, "why": STR, **PLACE}, f"{name} loose[{i}]", out)
+    for i, p in enumerate(body.get("pages") if isinstance(body.get("pages"), list) else []):
+        if not isinstance(p, dict):
+            out.append(("problem", f"{name}: pages[{i}] is not an object"))
+            continue
+        _fields(p, {"scan": STR, "leaf": (int,), "boxes": LIST}, f"{name} pages[{i}]", out)
+    return out
 
 
 # ---- the annotated xd (formats/annotated-xd.md) -------------------------------------------------
