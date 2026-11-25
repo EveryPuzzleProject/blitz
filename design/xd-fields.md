@@ -1,6 +1,6 @@
 # The fields EPP adds to an xd: a proposal
 
-Status: draft for the owner, 2026-11-25. It comes out of the World's Nos. 1-33 (batch `nyw-1914-s1`, the
+Status: the four-kinds rule agreed by the owner, 2026-11-25 ("very good, very clever"); the names below are his, the open questions are still open. It comes out of the World's Nos. 1-33 (batch `nyw-1914-s1`, the
 hand-read files in newyorkworld's `hand-read/`). There the owner found that the `Notes:` header had become a
 catch-all, and asked for a formal definition of what EPP adds to an xd. Nothing is built yet.
 
@@ -53,7 +53,7 @@ That's the owner's rule of 2026-11-25 for clue typos, and here it applies to eve
 | `^Printed:` | the clue's label as printed (the World's `4-5`) | only where the paper numbered differently from the xd |
 | `^Fits:` | the label that fits the grid | only where `^Printed:` is a misprint |
 | `^Correction:` | the whole clue as meant | the printed clue has a typesetting slip (a dropped letter, a stray comma); never period spelling or style |
-| `^Suspect:` | the answer probably meant, or `?` | the printed answer (from the key) is probably wrong, but it's kept: ROAB for "A son of Lot" → `^Suspect: MOAB` |
+| `^Answer-Correction:` | the answer as meant | the printed answer (from the key) is probably wrong; the grid keeps the printed letters: ROAB for "A son of Lot" → `^Answer-Correction: MOAB`. Where what was meant can't be named (YAT, "A city in northern Africa"), a `^Note:` says so instead |
 | `^Note:` | free text | an explanation for a person, never the only place a fact lives |
 
 **On the puzzle** (headers):
@@ -75,10 +75,13 @@ and it's where a downstream reader's Notes rule picks from.
 
 ## What changes
 
-1. **Answer-key misprints are flagged, not corrected.** Today `design/ship.md` corrects a misprinted key letter in
-   the transcription, with a note. Under this rule the letter stays as printed and the clue gets `^Suspect:`. The
-   owner's word on 2026-11-25: "flag the probable mistake but leave it in." RABIT, for "A wooden drinking vessel",
-   is archaic but right, so it gets no flag.
+1. **Answer-key misprints are recorded beside the print, not over it.** Today `design/ship.md` corrects a misprinted
+   key letter in the transcription, with a note. Under this rule the grid keeps the printed letter and each clue it
+   spoils gets `^Answer-Correction:`. The owner, 2026-11-25: "flag the probable mistake but leave it in". Also:
+   correcting the key "is often necessary just so that the review tool makes sense… That doesn't mean… that we would
+   overwrite it in the XD file, just that we would include the corrected version". So the review tool may show the
+   corrected key, and the xd still holds both. RABIT, for "A wooden drinking vessel", is archaic but right, so it gets
+   no flag.
 2. **The edition step stops rewriting text.** Corrections are already in the file as fields, so the edition no
    longer changes clue text or writes prose notes. Choosing the printed or the corrected text becomes a reader's
    house style (the `publishing-editions.md` boundary moves one step down). This also answers that note's open
@@ -88,7 +91,7 @@ and it's where a downstream reader's Notes rule picks from.
 4. **The hand-read World files move to this form.**
    - Their Notes split into `Description:`, `## Printed` and provenance.
    - Each `^Note: misprint…` reduces to `^Printed:` + `^Fits:`.
-   - The answer-key misprints the first reading noted get `^Suspect:`.
+   - The answer-key misprints the first reading noted get `^Answer-Correction:`.
 5. **No. 13** (nyw1914-03-15): its inner star leaves the grid. The star's clues and its shape go to `Description:`
    as text, and the file gets `Incomplete:`. The owner's call: hard or impossible to represent for now.
 
@@ -109,12 +112,13 @@ instructions: …
 ## Clues
 A14. A son of Lot. ~ ROAB
 A14 ^Printed: 15-16
-A14 ^Suspect: MOAB
+A14 ^Answer-Correction: MOAB
 ```
 
 ## Open questions for the owner
 
-1. **Names.** `^Suspect:` versus `^Intended:`; `<Header>-Correction:` versus a `## Corrections` section.
+1. **Names.** Settled: `^Correction:` (a clue's text) and `^Answer-Correction:` (its answer). Still open: `<Header>-Correction:`
+   versus a `## Corrections` section.
 2. **gxd and the old form.** gxd files use the blank-line form, and xdlint knows only metadata, grid, clues and notes.
    Either gxd takes the v4 sections (`## Printed`, `## Design`, `## Labels`, which ties in with xdformat PR #47), or
    the export folds `## Printed` into `Notes:` for gxd alone.
