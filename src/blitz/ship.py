@@ -593,6 +593,7 @@ FLAG_KINDS = ("structure", "missing", "grid-reading", "clue-reading", "header", 
 DOUBT_KINDS = FLAG_KINDS[2:]
 AI_STRUCTURE, AI_MISSING = "ai-structure", "ai-missing"
 FLAG_PREFIX = "Flag for the maintainer:"
+PAGE_ROW = re.compile(r"clue:[AD]\d+(\^[\w-]+)?|line:B\d+|cell:r\d+c\d+|(ev|meta):\w+|candidate:\S+|grid|notes|")  # formats.ROW_KEY
 
 
 def ai_flags(rec: dict) -> list[dict]:
@@ -602,6 +603,7 @@ def ai_flags(rec: dict) -> list[dict]:
     for c in ((rec.get("proof") or {}).get("review") or {}).get("comments") or []:
         if isinstance(c, dict) and str(c.get("text") or "").startswith(FLAG_PREFIX):
             row = re.sub(r"^grid:(r\d+c\d+)$", r"cell:\1", c.get("key") or "")
+            row = row if PAGE_ROW.fullmatch(row) else ""  # a key the page has no row for (clue:key): no row
             out.append({"row": row, **_ask(c["text"]), "kind": c.get("kind") if c.get("kind") in FLAG_KINDS else ""})
     return out
 
