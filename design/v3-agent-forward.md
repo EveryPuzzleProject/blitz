@@ -102,7 +102,8 @@ and a time budget. It runs compute itself and hands model steps to worker agents
 | # | Step | Unit | Model | Exists |
 |---|---|---|---|---|
 | 1 | Fetch and read pages | page | none | yes |
-| 2 | Assemble; write the census | issue | none | yes, but not recorded for reuse |
+| 2 | Assemble; write the census | issue | none | yes (recorded per issue since xword-ocr #77) |
+| 2a | Look for what each puzzle is missing, before any model reads it ("Missing parts, looked for early") | puzzle | none, then small | no |
 | 3 | Classify each grid's kind; defer what is out of scope | puzzle | small | partly (the text step drops non-crosswords) |
 | 4 | Text step | puzzle | yes | yes |
 | 5 | Triage and the ship check | puzzle | none | yes |
@@ -127,7 +128,7 @@ the proof page and the batch page.
 | `reviewed` | flags were raised and an AI review settled each from its crop | yes |
 | `doubts` | one or more flags stayed open after the second opinion; each is listed with its row and crop | yes |
 | `incomplete` | a part was never found (a key, a clue, a clue list); the gaps are named | yes, as it stands |
-| `held` | the structure does not hold (the clues don't fit the grid, no grid); a diagnosis names the stage | no |
+| `held` | the structure does not hold (the clues don't fit the grid, no grid), or an AI review names a problem that makes the puzzle wrong, not doubtful (this grid is another puzzle's key); a diagnosis names the stage | no |
 | `deferred` | its kind is out of scope for now | no: a stub |
 | `not-a-crossword` | | no |
 
@@ -175,6 +176,22 @@ when this slice lands.
 - It is the last step, after repair, so it never hides a stage that should be fixed. The batch
   report counts how many parts needed it, per kind of failure: that count is the pipeline's
   to-do list.
+
+## Missing parts, looked for early
+
+`incomplete` at the end of a run is the late way to learn a part is missing. On GAMES 1980-82, 64 of 125 puzzles
+graded `incomplete`: cryptics whose key was never asked for, pages requested and never fetched, squares left
+unsolved. Most of that was knowable at assembly, before the text step spent anything on them.
+
+- **Each puzzle states what it expects and what it has**, at assembly: a grid, an Across and a Down list, a key, a
+  heading. The census already holds the other side: the issue's orphan keys, loose clue lists and unclaimed grids.
+- **A missing part starts a search then**, in order of cost: the issue's own loose pieces; the pages the issue
+  points to (an answer page, "continued on page"); the next issue, for a key printed later; a page request to
+  fetch. Each try is a recorded decision, so it is made once.
+- **Only what is still missing after the search goes on as missing**, with what was tried. The grade's reason then
+  says "no key: not on the issue's answer pages or in the next two issues", which a person can act on, where
+  "no key" alone says nothing.
+- **It does not block.** A puzzle whose search comes up empty goes on through the run and ships `incomplete`.
 
 ## Accounting per issue
 
@@ -292,7 +309,7 @@ Each leaves everything working and is merged before the next starts.
    batch page, import. Then the text step and proof packets.
 4. **Grades and the batch digest**; the scope rule and stubs.
 5. **The second opinion.**
-6. **Repair actions for assembly** (link, unlink, key-of, look for a grid).
+6. **Missing parts looked for early, and repair actions for assembly** (link, unlink, key-of, look for a grid).
 7. **The last-resort read.**
 8. **Views into the viewer** with no stage code (`restructure.md`); **fetch into its own
    repo**.
@@ -316,6 +333,11 @@ after assembly; incremental work by default; fetch may be its own repo; issue ac
 does not block; out-of-scope kinds deferred, not dropped.
 
 Answered the same day:
+
+- **Some problems are blockers.** A puzzle an AI review finds wrong in its structure is `held`, not shipped with a
+  doubt.
+- **Missing parts are looked for early**, at assembly, not found out at the end ("Missing parts, looked for
+  early").
 
 - **Incomplete puzzles ship with the `incomplete` grade**, with no person's Ready. The rule of
   2026-11-23 (`ship.md`: a person's "Ready to ship as it stands") no longer stands for v3
