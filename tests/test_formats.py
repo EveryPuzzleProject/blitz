@@ -252,3 +252,10 @@ def test_supplied_rows_typed_clues_read_twice_and_not_written():
     old = formats.check_supplied({"clue:D3": {"kind": "supplied", "sourced": False, "says": "no source recorded"}})
     assert old == [("note", old[0][1])] and "before 2026-11-26" in old[0][1]
     assert formats.check_supplied({"clue:D3": {"kind": "typed?", "sourced": False, "says": ""}})[0][0] == "problem"
+
+
+def test_a_second_reading_with_a_doubt_cannot_agree():
+    rd = [{"text": "Revue unit", "by": "the text step"}, {"text": "Revue unit", "by": "second", "unsure": "number 59 on the crop"}]
+    row = {"kind": "supplied", "sourced": True, "says": "typed", "readings": rd}
+    assert formats.check_supplied({"clue:D61": {**row, "agree": False}}) == []
+    assert formats.check_supplied({"clue:D61": {**row, "agree": True}})[0][0] == "problem"

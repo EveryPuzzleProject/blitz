@@ -157,7 +157,7 @@ crop like any doubted line.
 | `by` | the stage that gave it (`the text step`) |
 | `from`, `lines` | the source crop's label and the printed lines within it |
 | `box`, `image` | the source crop on one of the packet's page images, in that image's pixels; `page` instead when the page isn't in the packet |
-| `readings`, `agree` | a typed clue read a second time from the same crop by another agent that had not seen the first reading: `[{text, by}, {text, by, unsure?}]`, the text step's first; `agree` whether the two are the same (letters and digits, a fill-in blank however long) |
+| `readings`, `agree` | a typed clue read a second time from the same crop by another agent that had not seen the first reading: `[{text, by}, {text, by, unsure?}]`, the text step's first; `agree` whether the two are the same (letters and digits, a fill-in blank however long) and the second raised no doubt (`unsure`) |
 | `written` | `false`: the text step typed it and named no source crop, so it was not written. The clue stays missing; the row says so, with no text |
 
 A typed clue is written only with its source crop (2026-11-26); `check-format` notes a packet made

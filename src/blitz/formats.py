@@ -151,8 +151,8 @@ def check_supplied(sup, images: dict | None = None) -> list[tuple[str, str]]:
                 out.append(("problem", f"{name}: readings is not two {{text, by}} with agree"))
             elif e["kind"] != "supplied" or not e["sourced"]:
                 out.append(("problem", f"{name}: read twice, but not a typed clue with a source"))
-            elif e["agree"] != same_reading(rd[0]["text"], rd[1]["text"]):
-                out.append(("problem", f"{name}: agree is {e['agree']}, but the two readings are "
+            elif e["agree"] != (same_reading(rd[0]["text"], rd[1]["text"]) and not rd[1].get("unsure")):
+                out.append(("problem", f"{name}: agree is {e['agree']}, but the two readings (and the second's doubt) say "
                                        f"{'the same' if not e['agree'] else 'not the same'}"))
     return out
 
