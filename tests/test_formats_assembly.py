@@ -92,3 +92,76 @@ def test_the_artifact_is_read_when_the_store_is_given(tmp_path):
     a = formats.artifact_path(store2, "assembly", out)
     a.write_bytes(gzip.compress(gzip.decompress(a.read_bytes()).replace(b'"A Title"', b'"Another"')))
     assert any("don't have the hash the record names" in t for t in problems(f2, store2))
+
+
+# -- the search for missing parts, recorded beside the assembly in the same unit (stage "search")
+
+def add_search(f: Path, store: Path, puzzles=None) -> None:
+    """A search record and artifact as xword-ocr's writer makes them, beside the unit's assembly."""
+    d = json.loads(f.read_text(encoding="utf-8"))
+    unit, stages = next(iter(d.items()))
+    asm = stages["assembly"]["output"]
+    place = {"scan": "scan-a", "leaf": 26, "box": [10.0, 20.0, 300.0, 400.0]}
+    puzzles = puzzles if puzzles is not None else [{
+        "grid": {**place, "size": [15, 15]},
+        "expects": [{"part": "grid", "has": {**place, "size": [15, 15]}},
+                    {"part": "across", "has": {"share": 1.0, "parts": [place]}},
+                    {"part": "down", "has": {"share": 0.6, "parts": [place]}, "short": ["D1", "D2"],
+                     "missing": "2 of 30 Down clues not found"},
+                    {"part": "key", "missing": "no answer grid with its black squares in this issue or the next"}],
+        "missing": ["down", "key"],
+        "tries": [{"step": "issue", "part": "key", "how": "keysearch", "result": "found",
+                   "best": {"scan": "scan-a", "leaf": 63, "differ": 0}},
+                  {"step": "issue", "part": "down", "result": "nothing fits"},
+                  {"step": "pointed", "part": "down", "result": "no list of the issue is headed as continued"}],
+        "linked": [{"part": "key", "as": "answer grid", "step": "issue", **place, "leaf": 63, "differ": 0}],
+        "still_missing": ["down"],
+        "requests": [{"part": "down", "scan": "scan-a", "leaves": [25], "kind": "look",
+                      "why": "its Down list lacks its start (D1, D2): the page before the list's first was read"}]}]
+    body = {"format": "assembly-record/1", "pubid": "games", "date": unit[6:16], "variant": unit.split("/")[1],
+            "assembly": asm, "next": None, "puzzles": puzzles, "state": {"$id": 0}}
+    raw = json.dumps(body, separators=(",", ":")).encode("utf-8")
+    h = "sha256:" + hashlib.sha256(raw).hexdigest()
+    a = formats.artifact_path(store, "search", h)
+    a.parent.mkdir(parents=True, exist_ok=True)
+    a.write_bytes(gzip.compress(raw))
+    stages["search"] = {"format": "assembly-record/1", "stage": "search", "version": "search/1",
+                        "settings": {"whole": 0.95}, "inputs": {"assembly": asm, "page:scan-a/0063": H}, "output": h,
+                        "made": "2026-11-25T23:00:00+00:00", "took": 1.6, "code": "xword-ocr 0.1.0"}
+    f.write_text(json.dumps(d), encoding="utf-8")
+
+
+def test_a_search_beside_the_assembly_passes_and_a_record_without_one_still_does(tmp_path):
+    f, store = make(tmp_path)
+    assert formats.check_assembly(f, store) == []  # no search: assembly-record/1 as before
+    add_search(f, store)
+    assert formats.check_assembly(f, store) == [] and formats.check_assembly(f) == []
+
+
+def test_a_search_made_from_another_assembly_is_stale_not_broken(tmp_path):
+    f, store = make(tmp_path)
+    add_search(f, store)
+    d = json.loads(f.read_text(encoding="utf-8"))
+    next(iter(d.values()))["search"]["inputs"]["assembly"] = H
+    f.write_text(json.dumps(d), encoding="utf-8")
+    got = formats.check_assembly(f)
+    assert [lv for lv, _ in got] == ["note"] and "stale" in got[0][1]
+
+
+def test_a_missing_part_with_nothing_tried_or_asked_for_is_a_problem(tmp_path):
+    f, store = make(tmp_path)
+    add_search(f, store, puzzles=[{
+        "grid": {"scan": "scan-a", "leaf": 26, "box": [1.0, 2.0, 3.0, 4.0]},
+        "expects": [{"part": "key", "missing": "no key"}, {"part": "across", "has": {"share": 1.0}}],
+        "missing": ["key"], "tries": [], "linked": [{"part": "across", "as": "clue list", "step": "issue"}],
+        "still_missing": ["key"], "requests": [{"part": "key", "scan": "scan-a", "leaves": [], "kind": "maybe", "why": "x"}]}])
+    got = problems(f, store)
+    assert any("nothing was tried" in t for t in got)
+    assert any("a link is not" in t for t in got)  # linked a part that wasn't missing
+    assert any("a request is not" in t for t in got)
+    f2, store2 = make(tmp_path / "b")
+    add_search(f2, store2)
+    d = json.loads(f2.read_text(encoding="utf-8"))
+    next(iter(d.values()))["search"]["output"] = "sha256:" + "cd" * 32
+    f2.write_text(json.dumps(d), encoding="utf-8")
+    assert "its artifact is not in the store" in problems(f2, store2)[0]

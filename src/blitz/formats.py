@@ -396,6 +396,125 @@ def check_assembly(f: Path, artifacts: Path | None = None) -> list[tuple[str, st
             out.append(("problem", f"{unit}: output is not a sha256 hash"))
         elif isinstance(output, str) and artifacts is not None:
             out += _check_assembly_artifact(unit, date, reading, inputs, artifact_path(artifacts, "assembly", output), output)
+        if "search" in stages:
+            out += check_search(unit, date, reading, stages["search"], output, artifacts)
+        for other in sorted(set(stages) - {"assembly", "search"}):
+            out.append(("note", f"{unit}: a stage this check doesn't know ({other})"))
+    return out
+
+
+# ---- the search for missing parts, recorded beside the assembly (formats/assembly-record.md, "The search")
+
+SEARCH_RECORD = {"stage": STR, "version": STR, "settings": OBJ, "inputs": OBJ, "output": STR, "made": STR, "code": STR}
+SEARCH_BODY = {"pubid": STR, "date": STR, "variant": STR, "assembly": STR, "puzzles": LIST, "state": OBJ}
+SEARCH_PUZZLE = {"grid": OBJ, "expects": LIST, "missing": LIST, "tries": LIST, "linked": LIST, "still_missing": LIST,
+                 "requests": LIST}
+SEARCH_STEPS = ("issue", "pointed", "next")
+PARTS = ("grid", "across", "down", "key", "second clue set")
+REQUEST_KINDS = ("fetch", "look")
+LINKED_AS = ("answer grid", "answers as text", "clue list")
+
+
+def check_search(unit: str, date: str, reading: str, rec, assembly_output, artifacts: Path | None) -> list[tuple[str, str]]:
+    """A unit's search record (stage "search", beside its assembly) and, with the store, its artifact: what
+    each puzzle expected and lacked, every try, what was linked and what is asked for."""
+    out: list[tuple[str, str]] = []
+    name = f"{unit} search"
+    if not isinstance(rec, dict):
+        return [("problem", f"{name}: not a record")]
+    _versioned(rec, name, out)
+    _fields(rec, SEARCH_RECORD, name, out)
+    if rec.get("stage") != "search":
+        out.append(("problem", f"{name}: stage is {rec.get('stage')!r}, not 'search'"))
+    if isinstance(rec.get("version"), str) and not re.fullmatch(r"search/\d+", rec["version"]):
+        out.append(("problem", f"{name}: version is {rec['version']!r}, not search/<n>"))
+    took = rec.get("took")
+    if isinstance(took, bool) or not isinstance(took, (int, float)) or took < 0:
+        out.append(("problem", f"{name}: took is {took!r}, not the seconds the search took"))
+    inputs = rec.get("inputs") if isinstance(rec.get("inputs"), dict) else {}
+    for n, h in inputs.items():
+        if not (isinstance(h, str) and SHA.fullmatch(h)):
+            out.append(("problem", f"{name}: input {n!r} is not a sha256 hash"))
+        if not (n in ("assembly", "next") or re.fullmatch(r"page:.+/\d{4}", n)):
+            out.append(("note", f"{name}: input {n!r} is not one the format names"))
+    if "assembly" not in inputs:
+        out.append(("problem", f"{name}: inputs has no 'assembly' (the assembly it searched)"))
+    elif isinstance(assembly_output, str) and inputs["assembly"] != assembly_output:
+        out.append(("note", f"{name}: made from another assembly than the unit's record now: stale"))
+    output = rec.get("output")
+    if isinstance(output, str) and not SHA.fullmatch(output):
+        out.append(("problem", f"{name}: output is not a sha256 hash"))
+    elif isinstance(output, str) and artifacts is not None:
+        out += _check_search_artifact(name, date, reading, inputs, artifact_path(artifacts, "search", output), output)
+    return out
+
+
+def _check_search_artifact(name: str, date: str, reading: str, inputs: dict, f: Path, h: str) -> list[tuple[str, str]]:
+    out: list[tuple[str, str]] = []
+    if not f.is_file():
+        return [("problem", f"{name}: its artifact is not in the store ({f.parent.name}/{f.name})")]
+    try:
+        raw = gzip.decompress(f.read_bytes())
+        body = json.loads(raw)
+    except (OSError, ValueError) as e:
+        return [("problem", f"{name}: its artifact can't be read: {e}")]
+    if "sha256:" + hashlib.sha256(raw).hexdigest() != h:
+        out.append(("problem", f"{name}: its artifact's bytes don't have the hash the record names"))
+    if not isinstance(body, dict):
+        return out + [("problem", f"{name}: its artifact is not an object")]
+    an = f"{name} artifact"
+    _versioned(body, an, out)
+    _fields(body, SEARCH_BODY, an, out)
+    if body.get("date") != date or body.get("variant") != reading:
+        out.append(("problem", f"{an}: is of {body.get('date')} {body.get('variant')}, not this unit's issue and reading"))
+    if body.get("assembly") != inputs.get("assembly"):
+        out.append(("problem", f"{an}: names another assembly than its record's input"))
+    for i, s in enumerate(body.get("puzzles") if isinstance(body.get("puzzles"), list) else []):
+        at = f"{an} puzzles[{i}]"
+        if not isinstance(s, dict):
+            out.append(("problem", f"{at} is not an object"))
+            continue
+        _fields(s, SEARCH_PUZZLE, at, out)
+        if isinstance(s.get("grid"), dict):
+            _fields(s["grid"], PLACE, f"{at} grid", out)
+        expected = set()
+        for e in s.get("expects") if isinstance(s.get("expects"), list) else []:
+            # has, or missing, or both for a list that is short (has, missing, short)
+            ok = isinstance(e, dict) and isinstance(e.get("part"), str) and (
+                ("has" in e and "missing" not in e) or ("missing" in e and ("has" not in e or "short" in e)))
+            if not ok:
+                out.append(("problem", f"{at}: an expected part is not {{part, has or missing}}: {str(e)[:80]}"))
+                continue
+            expected.add(e["part"])
+            if e["part"] not in PARTS:
+                out.append(("note", f"{at}: expects a part this check doesn't know ({e['part']})"))
+        missing = s.get("missing") if isinstance(s.get("missing"), list) else []
+        if not set(missing) <= expected:
+            out.append(("problem", f"{at}: missing names a part it doesn't expect"))
+        if isinstance(s.get("still_missing"), list) and not set(s["still_missing"]) <= set(missing):
+            out.append(("problem", f"{at}: still_missing names a part that wasn't missing"))
+        for t in s.get("tries") if isinstance(s.get("tries"), list) else []:
+            if not (isinstance(t, dict) and t.get("step") in SEARCH_STEPS and isinstance(t.get("part"), str)
+                    and isinstance(t.get("result"), str)):
+                out.append(("problem", f"{at}: a try is not {{step ({', '.join(SEARCH_STEPS)}), part, result}}: {str(t)[:80]}"))
+            elif t["part"] not in missing:
+                out.append(("problem", f"{at}: a try for {t['part']}, which wasn't missing"))
+        if missing and not s.get("tries"):
+            out.append(("problem", f"{at}: a part is missing and nothing was tried"))
+        for x in s.get("linked") if isinstance(s.get("linked"), list) else []:
+            if not (isinstance(x, dict) and x.get("as") in LINKED_AS and x.get("step") in SEARCH_STEPS and x.get("part") in missing):
+                out.append(("problem", f"{at}: a link is not {{part (missing), as ({', '.join(LINKED_AS)}), step}}: {str(x)[:80]}"))
+            elif x["as"] == "answer grid":
+                _fields(x, PLACE, f"{at} linked", out)
+        for r in s.get("requests") if isinstance(s.get("requests"), list) else []:
+            if not (isinstance(r, dict) and r.get("kind") in REQUEST_KINDS and isinstance(r.get("leaves"), list)
+                    and isinstance(r.get("why"), str) and isinstance(r.get("scan"), str)):
+                out.append(("problem", f"{at}: a request is not {{part, scan, leaves, kind (fetch, look), why}}: {str(r)[:80]}"))
+            elif r.get("part") not in (s.get("still_missing") or []):
+                out.append(("problem", f"{at}: a request for {r.get('part')}, which isn't still missing"))
+        for p in s.get("still_missing") if isinstance(s.get("still_missing"), list) else []:
+            if not any(isinstance(r, dict) and r.get("part") == p for r in s.get("requests") or []):
+                out.append(("problem", f"{at}: {p} is still missing and no page is asked for"))
     return out
 
 
