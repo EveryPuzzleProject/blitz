@@ -307,7 +307,10 @@ Each leaves everything working and is merged before the next starts.
 3. **blitz owns the batch and the run.** A `blitz batch` that calls xword-ocr at stage
    boundaries. The modules that only read packets move: ship check, triage, proof review,
    batch page, import. Then the text step and proof packets.
-4. **Grades and the batch digest**; the scope rule and stubs.
+4. **Grades and the batch digest**; the scope rule and stubs. Built 2026-11-25 ahead of slice 3 (the owner's choice):
+   `design/ship.md`, "Shipping by grade"; `formats/ship-record.md`. Not in it: the grade on the proof page, the issue
+   accounting and the run's cost on the digest, and a milestone that records each grid's kind (only triage's cryptic
+   codes do today).
 5. **The second opinion.**
 6. **Missing parts looked for early, and repair actions for assembly** (link, unlink, key-of, look for a grid).
 7. **The last-resort read.**

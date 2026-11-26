@@ -62,6 +62,7 @@ counted).
 | `marks` | `people` | whose misprint marks and key corrections take effect (The record of every edit, "Whose marks take effect"). |
 | `grid_fixes` | `people` | whose fixes to a linked-ends grid in a Not ready the re-place stage reads in (`awaits-replace`; xword-ocr `linkedends.hint` reads the same setting). |
 | `typed_clues` | `people` | whose clue typed on the proof page, where the packet has no text for it, makes the puzzle whole (`incomplete`, below). |
+| `ship_grades` | `[]` | the grades a puzzle ships by with no person's Ready (Shipping by grade, below). Empty: nothing ships by its grade. |
 
 **Whose input counts** (the last three; `ship.counts_for`). The owner's rule of 2026-11-13, replacing the three "Owner
 only for now" answers of 2026-11-12 and 2026-11-13: "I'm okay with a pretty broad sense that the other reviewers can
@@ -104,6 +105,72 @@ Since 2026-11-25: `ai_ready` also takes `ai` (the AI's Ready alone, with no ship
 the batch may write over in `xd/` although another batch shipped them (the provenance row says what it replaced).
 Every passing puzzle's ship record row and provenance row carry `review`: how it was reviewed, in words
 (`review_of`). design/hand-read.md has the case these were made for.
+
+## Shipping by grade (since 2026-11-25, off by default)
+
+Every puzzle of a batch gets a grade: `clean`, `reviewed`, `doubts`, `incomplete`, `held`, `deferred` or
+`not-a-crossword` (`ship.grade_of`; the definitions and the fields are in `formats/ship-record.md`; the design is
+`design/v3-agent-forward.md`, "Every puzzle exits with a grade"). The grade is worked out for every batch and
+changes nothing by itself: it is a label on the row.
+
+The rule's `ship_grades` option makes it count. It lists the grades a puzzle ships by with no person's Ready, any of
+`clean`, `reviewed`, `doubts`, `incomplete`, for the publication or for one batch:
+
+```json
+{"ai_ready": "both", "batches": {"games-1980-82": {"ship_grades": ["clean", "reviewed", "doubts", "incomplete"]}}}
+```
+
+`blitz ship ... --ship-grades all` (or a list, or `off`) tries it on a dry run without changing the file. With a
+puzzle's grade in the list:
+
+- It ships with no Ready at all. The flags no review settled are the row's `doubts`, each with its proof-page row.
+- **Any Not ready that stands still holds it, an AI reviewer's included.** The AI's record cannot say whether it names
+  a structural problem (the wrong key linked) or a reading doubt, so until a second opinion exists none ships: the
+  puzzle is graded `held`, diagnosis `ai-not-ready`, with the reviewer's words (`formats/ship-record.md` says what
+  the reviewer would need to record). Its edits are not applied: only a Ready's are.
+- `incomplete` ships as it stands, with its gaps named on the row (`gaps`) and the kind of incomplete it is (`lacks`:
+  no key, a page never found, clues missing, unsolved squares, another part missing). This is the owner's decision of 2026-11-25
+  and replaces, for a batch that opts in, the rule of 2026-11-23 that only a person's "Ready to ship as it stands"
+  ships an incomplete puzzle. For every other batch that rule stands.
+- A candidate clue list nobody decided stays out of the xd and is an open doubt on the row, not a hold.
+- A header the text step typed with no printed line (`header-typed`) is a doubt about that one value, at its header's
+  row, which only a person's Ready settles. It is not a missing part.
+
+Every protection of a person's word stays (`tests/test_grades.py`): a person's Not ready holds the puzzle, on any
+version; the owner's decision overrides, either way; the owner's Ready on an earlier version still asks them to look
+again; an AI never overrides a person; a hold code holds; `clue-by-sequence` still needs a person's Ready; and no edit
+ships without its record. Such a puzzle is graded `held`, with the hold as its diagnosis. `held` is worked out by
+applying the rule once more with every grade on, so the grade and the rule cannot disagree.
+
+The ship record's row carries `grade`, `grade_why`, `flags`, `settled`, `doubts`, `gaps` and `diagnosis`; the
+provenance row and the as-shipped file carry `grade: {grade, why, flags, settled, doubts, gaps}`. Nothing is written
+into the xd.
+
+### The batch digest
+
+One page per run on the batch page, `?b=<batch>&digest=1`, linked from the batch's queues: the puzzles sorted by
+grade with a thumbnail each, each linking to its proof page at the row of its first open doubt; the counts per
+grade; the kinds of failure ranked by puzzles; and a step-through of the xd files that ship, in the record's order
+(`walk`). In the step-through, left and right step, `x` disagrees, Esc goes back. A disagreement records a Not ready
+for the puzzle the way the proof page does (the site's `proofs` table, which `blitz ship` takes into the ledger), so
+it holds the puzzle when the record is next made. It never writes over a review the person already has.
+
+The record marks a reading sample for the owner (`sample`, the rows' `to_read`): up to 10 puzzles that ship from
+each of `clean`, `reviewed` and `doubts`. The page draws the record and works nothing out; what the record does not
+say shows as "not recorded" (the issue accounting and the run's cost are not in it yet).
+
+### Scope, and the stubs of deferred puzzles
+
+A publication states which kinds it imports now in `fixes/scope.json`: `{"crossword": "import", "cryptic": "defer",
+"variety": "defer"}`, with `"batches"` for one batch's own values. A puzzle whose kind the rule defers is out of the
+batch (`status` out, `reason` and `queue` deferred, grade `deferred`) with a stub on its row: id, issue, page, kind,
+and what recorded the kind. The batch page lists stubs under "Known, not transcribed"; a person's set-aside gets one
+too. `blitz ship ... --scope FILE` tries a rule on a dry run.
+
+A kind is read from what a milestone recorded, never worked out by ship. Today only triage records one, and only
+for some cryptics (`cryptic-no-key`, `cryptic-unflagged`: `ship.KIND_CODES`). No milestone records `variety`, or
+that a cryptic with a key grid is a cryptic, so the rule defers neither yet. A puzzle already shipped is never
+deferred by a rule written later.
 
 ## What it writes (publication repo)
 
