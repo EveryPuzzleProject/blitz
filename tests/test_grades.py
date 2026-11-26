@@ -121,7 +121,7 @@ def test_an_ais_not_ready_holds_and_its_edits_are_not_applied(tmp_path):
     _, p, by = _run(tmp_path, {P + "41": [ai]}, {P + "41": FLAGGED})
     assert (by["41"]["status"], by["41"]["grade"]) == ("held", "held") and P + "41" not in p["passing"] and p["digest"]["walk"] == []
     top = p["digest"]["failures"][0]
-    assert (top["kind"], top["code"], top["stage"]) == ("held", "ai-not-ready", "proof review") and "second opinion" in top["means"]
+    assert (top["kind"], top["code"], top["stage"]) == ("held", "ai-not-ready", "proof review") and "no kind" in top["means"]
 
 
 TYPED = {"decision": "not ready", "ship": {"ok": False, "findings": [{"code": "triage-doubt", "detail": "header-typed"}]},
@@ -282,3 +282,112 @@ def test_a_set_aside_puzzle_has_a_stub_and_a_shipped_one_is_never_deferred(tmp_p
     (repo / "fixes" / "scope.json").write_text(json.dumps({"cryptic": "defer"}), encoding="utf-8")
     again = {r["pid"][-2:]: r for r in plan(repo, proofs, Rule(), "b")["rows"]}
     assert again["49"]["status"] == "shipped" and "stub" not in again["49"]          # a rule written later takes nothing back
+
+
+# ---- v3 slice 5: the kind of each AI flag, and the second opinion ---------------------------------------------------
+
+FIRST, SECOND = "Claude (AI proof reviewer, claude-opus-5-5)", "Claude (AI proof reviewer, claude-sonnet-5-5)"
+T1, T2 = "2026-11-25T10:00:00Z", "2026-11-25T11:00:00Z"
+
+
+def _kinded(pid, answer="notready", flags=(), by=FIRST, at=T1, edits=None, second=None):
+    """An AI review as xword-ocr proofreview.record writes it, each flag's comment with its kind (flags: (row, text, kind),
+    kind None for none); second: review.second_opinion, for a second opinion's record."""
+    r = proof(by, answer, at, AGENT, xd="fp", note="n")
+    r["id"] = f"proof:{pid}"
+    r["proof"]["review"]["edits"] = dict(edits or {})
+    r["proof"]["review"]["comments"] = [{"key": k, "text": f"Flag for the maintainer: {t}", **({"kind": kd} if kd else {})} for k, t, kd in flags]
+    if second is not None:
+        r["proof"]["review"]["second_opinion"] = {"of": FIRST, "of_at": T1, "of_answer": "notready", "of_flags": [], "settles": second}
+    return r
+
+
+READING = ("grid", "r1c2 is T in the xd, but the printed key clearly shows O. Change r1c2 to O?", "grid-reading")
+TITLE = ("ev:title", "No Title header; is the heading the feature name?", "header")
+STRUCTURE = ("grid", "The grid is another puzzle's key: its answers fit none of the clues.", "structure")
+MISSING = ("clue:D46", "D46 was never read, and its crop shows other clues.", "missing")
+
+
+def _kinds_batch(tmp_path, rule=ALL):
+    said = {
+        P + "50": [_kinded(P + "50", flags=[READING, TITLE])],                              # reading and header doubts: ships, doubts
+        P + "51": [_kinded(P + "51", flags=[STRUCTURE, TITLE])],                            # structural: held
+        P + "52": [_kinded(P + "52", flags=[MISSING])],                                     # a missing part: incomplete
+        P + "53": [_kinded(P + "53", flags=[READING]),                                      # the second makes the same fix: reviewed
+                   _kinded(P + "53", "ready", by=SECOND, at=T2, edits={"cell:r1c2": "O"},
+                           second=[{"key": "grid", "kind": "grid-reading", "edit": {"cell:r1c2": "O"}}])],
+        P + "54": [_kinded(P + "54", flags=[READING, TITLE]),                               # the second settles one of two: doubts
+                   _kinded(P + "54", "ready", by=SECOND, at=T2, edits={"cell:r1c2": "O"},
+                           second=[{"key": "grid", "kind": "grid-reading", "edit": {"cell:r1c2": "O"}}])],
+        P + "55": [_kinded(P + "55", flags=[TITLE]),                                        # the second names a structural problem: held
+                   _kinded(P + "55", flags=[STRUCTURE], by=SECOND, at=T2, second=[])],
+        P + "56": [_kinded(P + "56", flags=[READING]),                                      # both doubt the same square: doubts
+                   _kinded(P + "56", flags=[("grid", "r1c2: T or O? The key is smudged.", "grid-reading")], by=SECOND, at=T2, second=[])],
+        P + "57": [_kinded(P + "57", flags=[READING, ("clue:A1", "Cut off?", None)])],      # a flag of no kind: held, as before
+        P + "58": [_kinded(P + "58", flags=[READING]),                                      # the second sees nothing wrong: they disagree
+                   _kinded(P + "58", "ready", by=SECOND, at=T2, second=[])],
+    }
+    return _run(tmp_path, said, {pid: FLAGGED for pid in said}, rule)
+
+
+def test_the_kind_of_each_ai_flag_decides_the_grade(tmp_path):
+    _, p, by = _kinds_batch(tmp_path)
+    assert {k: r["grade"] for k, r in by.items()} == {"50": "doubts", "51": "held", "52": "incomplete", "53": "reviewed", "54": "doubts",
+                                                       "55": "held", "56": "doubts", "57": "held", "58": "doubts"}
+    # reading and header doubts ship, each listed with its kind and its row
+    assert [(d["row"], d["code"], d["kind"]) for d in by["50"]["doubts"]] == [("grid", "ai-question", "grid-reading"), ("ev:title", "ai-question", "header")]
+    assert by["50"]["status"] == "shippable" and by["50"]["rule"] == "grade"
+    # structural: held, the reviewer's words as the diagnosis, the stage assembly
+    assert by["51"]["diagnosis"] == {"stage": "assembly", "what": STRUCTURE[1], "code": "ai-structure", "detail": FIRST}
+    assert by["51"]["status"] == "held"
+    # a part the reviewer says is missing: a gap, in its words
+    [g] = by["52"]["gaps"]
+    assert (g["code"], g["row"], g["what"], g["sub"]) == ("ai-missing", "clue:D46", MISSING[1], "part-missing")
+    assert by["52"]["status"] == "shippable"
+    # no kind on one flag: read as before slice 5, held on the AI's Not ready
+    assert by["57"]["diagnosis"]["code"] == "ai-not-ready" and by["57"]["status"] == "held"
+    top = {f["code"]: f for f in p["digest"]["failures"]}
+    assert top["ai-structure"]["pids"] == [P + "51", P + "55"] and top["ai-structure"]["stage"] == "assembly"
+
+
+def test_the_second_opinion_resolves_into_a_grade(tmp_path):
+    _, _, by = _kinds_batch(tmp_path)
+    # agree on the fix: reviewed, settled by both, and the second's Ready (its edits) is what ships
+    assert by["53"]["settled"] == {"by": f"{FIRST} and {SECOND}", "kind": "ai", "at": "2026-11-25"} and by["53"]["doubts"] == []
+    assert by["53"]["status"] == "shippable" and by["53"]["rule"] == "grade"
+    # settles one flag of two: the other stays open, and says the second saw nothing there
+    assert [(d["row"], d["kind"], d.get("second")) for d in by["54"]["doubts"]] == [("ev:title", "header", "nothing")]
+    assert "after a second opinion" in by["54"]["grade_why"]
+    # either names a structural problem: held
+    assert by["55"]["diagnosis"]["code"] == "ai-structure" and by["55"]["diagnosis"]["detail"] == SECOND
+    # both doubt the same square: a doubt, marked as both; the second's own flag is listed too
+    assert [(d["row"], d["from"], d.get("second")) for d in by["56"]["doubts"]] == [("grid", FIRST, "also"), ("grid", SECOND, None)]
+    # they disagree (the second's Ready settles nothing the first asked): the first's doubts stay open
+    assert [(d["row"], d.get("second")) for d in by["58"]["doubts"]] == [("grid", "nothing")] and by["58"]["settled"] is None
+
+
+def test_with_the_option_off_an_ais_not_ready_still_holds_and_an_ais_ready_never_ships_over_a_doubt(tmp_path):
+    _, off, by = _kinds_batch(tmp_path, Rule(ai_ready="both"))
+    assert all(r["status"] == "held" for r in by.values())                            # nothing ships by grade: an AI's Not ready holds
+    assert {k: r["reason"] for k, r in by.items()} == {k: "not-ready" for k in by}
+    g = dict(check_ok=True, rule=Rule(ai_ready="either", ship_grades=("doubts",)))
+    soft = _kinded("p", flags=[READING])
+    second = _kinded("p", "ready", by=SECOND, at=T2, second=[])
+    assert standing({}, [soft, second], grade="reviewed", **g)["status"] == "hold"    # an AI's Ready doesn't ship over another AI's doubt
+    assert standing({}, [soft, second], grade="doubts", **g)["rule"] == "grade"        # its grade does, when the batch lists it
+    assert standing({}, [_kinded("p", flags=[STRUCTURE])], grade="doubts", **g)["reason"] == "not-ready"
+    assert standing({}, [soft, HELPER_NO], grade="doubts", **g)["reason"] == "not-ready"  # a person's Not ready still holds
+
+
+def test_the_ship_record_checks_a_doubts_kind(tmp_path):
+    _, p, _ = _kinds_batch(tmp_path)
+    f = tmp_path / "ship.json"
+    f.write_text(json.dumps(record(p)), encoding="utf-8")
+    assert [x for x in formats.check_ship_record(f) if x[0] == "problem"] == []
+    d = json.loads(f.read_text(encoding="utf-8"))
+    row = next(r for r in d["puzzles"] if r["pid"].endswith("50"))
+    row["doubts"][0]["kind"] = "a hunch"
+    row["doubts"][1]["second"] = "maybe"
+    f.write_text(json.dumps(d), encoding="utf-8")
+    problems = [t for lv, t in formats.check_ship_record(f) if lv == "problem"]
+    assert any("kind 'a hunch'" in t for t in problems) and any("second 'maybe'" in t for t in problems)

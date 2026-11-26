@@ -232,6 +232,12 @@ def check_packet(packet: Path) -> list[tuple[str, str]]:
                 out.append(("problem", f"puzzle.xd: its fingerprint ({puzzle_fingerprint(xd)}) is not review.json's "
                                        f"xd_fp ({review['xd_fp']}): the packet doesn't show its xd"))
 
+    # ---- ai_review.json (optional): the AI reviewer's record, and a second opinion's beside it
+    if (packet / "ai_review.json").exists():
+        ai = _load(packet / "ai_review.json", out)
+        if ai is not None:
+            out.extend(check_ai_review(ai))
+
     # ---- checks.json (optional)
     if (packet / "checks.json").exists():
         checks = _load(packet / "checks.json", out)
@@ -244,6 +250,60 @@ def check_packet(packet: Path) -> list[tuple[str, str]]:
                     out.append(("problem", f"checks.json: items[{i}] has no key, what or from"))
             if fps and isinstance(checks.get("xd_fp"), str) and checks["xd_fp"] not in fps:
                 out.append(("note", f"checks.json: made for another version of the xd ({checks['xd_fp']})"))
+    return out
+
+
+# ---- ai_review.json: the kind of each flag, and the second opinion (formats/proof-packet.md, "ai_review.json") ------
+
+FLAG_KINDS = ("structure", "missing", "grid-reading", "clue-reading", "header", "misprint", "convention", "extra")  # blitz ship.FLAG_KINDS
+SECOND_SAYS = ("also", "nothing")  # a ship record doubt's `second`: what the second opinion did about a first review's flag
+AI_REVIEW = {"record": STR, "by": STR, "model_id": STR, "answer": STR, "at": STR, "xd_fp": STR, "review": OBJ}
+SECOND_OPINION = {"of": STR, "of_at": STR, "of_answer": STR, "of_flags": LIST, "settles": LIST}
+FLAG_TEXT = "Flag for the maintainer:"
+
+
+def check_ai_review(ai: dict, name: str = "ai_review.json") -> list[tuple[str, str]]:
+    """An AI review's copy in a packet (xword-ocr proofreview.ai_review_record), and its `second` when it has one: the
+    fields, each flag's `kind` (optional: a flag with none is read as it was before kinds), and a second opinion's
+    account of what it is one of. A record with no kind on any flag is from before kinds: a note."""
+    out: list[tuple[str, str]] = []
+    _fields(ai, AI_REVIEW, name, out)
+    review = ai.get("review") if isinstance(ai.get("review"), dict) else {}
+    if ai.get("answer") not in ("ready", "notready", None):
+        out.append(("problem", f"{name}: answer {ai.get('answer')!r} is not ready or notready"))
+    flags = [c for c in review.get("comments") or [] if isinstance(c, dict) and str(c.get("text") or "").startswith(FLAG_TEXT)]
+    for c in flags:
+        if "kind" in c and c["kind"] not in FLAG_KINDS:
+            out.append(("problem", f"{name}: the flag on {c.get('key', '')!r} has kind {c['kind']!r}, not one of {', '.join(FLAG_KINDS)}"))
+    if flags and not any("kind" in c for c in flags):
+        out.append(("note", f"{name}: no flag has a kind (a review from before kinds: it holds the puzzle)"))
+    if ai.get("answer") == "notready" and not flags:
+        out.append(("note", f"{name}: Not ready with no flag"))
+    so = review.get("second_opinion")
+    if so is not None:
+        if not isinstance(so, dict):
+            out.append(("problem", f"{name}: review.second_opinion is not an object"))
+        else:
+            _fields(so, SECOND_OPINION, f"{name} second_opinion", out)
+            if so.get("of") == ai.get("by"):
+                out.append(("problem", f"{name}: a second opinion by the reviewer it is a second opinion of ({so.get('of')})"))
+            for i, x in enumerate(so.get("settles") or [] if isinstance(so.get("settles"), list) else []):
+                if not (isinstance(x, dict) and isinstance(x.get("key"), str) and isinstance(x.get("edit"), dict)):
+                    out.append(("problem", f"{name}: second_opinion.settles[{i}] has no key or edit"))
+                elif any(review.get("edits", {}).get(k) != v for k, v in x["edit"].items()):
+                    out.append(("problem", f"{name}: second_opinion.settles[{i}] names an edit the review doesn't make"))
+    if "second" in ai:
+        sec = ai["second"]
+        if not isinstance(sec, dict):
+            out.append(("problem", f"{name}: second is not an object"))
+        else:
+            out.extend(check_ai_review(sec, f"{name} second"))
+            if not (sec.get("review") or {}).get("second_opinion"):
+                out.append(("problem", f"{name}: second has no review.second_opinion"))
+            elif sec["review"]["second_opinion"].get("of") != ai.get("by"):
+                out.append(("problem", f"{name}: second is a second opinion of {sec['review']['second_opinion'].get('of')!r}, not of {ai.get('by')!r}"))
+            if sec.get("model_id") and sec.get("model_id") == ai.get("model_id"):
+                out.append(("problem", f"{name}: the second opinion is on the first's model ({ai.get('model_id')})"))
     return out
 
 
@@ -766,6 +826,10 @@ def _grade_lists(g: dict, name: str, out: list) -> None:
         _fields(d, DOUBT, f"{name}: doubts[{i}]", out)
         if isinstance(d.get("row"), str) and not ROW_KEY.fullmatch(d["row"]):
             out.append(("problem", f"{name}: doubts[{i}] row {d['row']!r} is not a proof-page row key"))
+        if "kind" in d and d["kind"] not in FLAG_KINDS:
+            out.append(("problem", f"{name}: doubts[{i}] kind {d['kind']!r} is not one of {', '.join(FLAG_KINDS)}"))
+        if "second" in d and d["second"] not in SECOND_SAYS:
+            out.append(("problem", f"{name}: doubts[{i}] second {d['second']!r} is not one of {', '.join(SECOND_SAYS)}"))
     for i, x in enumerate(g.get("gaps") or []):
         if not isinstance(x, dict):
             out.append(("problem", f"{name}: gaps[{i}] is not an object"))
