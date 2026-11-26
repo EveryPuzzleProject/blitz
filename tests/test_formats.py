@@ -118,6 +118,37 @@ def test_checks_json(tmp_path):
     assert any("items[1]" in t for t in problems(d))
 
 
+def _ai(by, model, answer, comments, edits=None, second_opinion=None):
+    review = {"edits": edits or {}, "comments": comments, "status": {}, "note": "", "xd": "fp"}
+    if second_opinion is not None:
+        review["second_opinion"] = second_opinion
+    return {"record": "proof:p", "ledger": "games/fixes/decisions.jsonl", "by": by, "model_id": model, "answer": answer,
+            "note": "", "at": "2026-11-25T10:00:00Z", "xd_fp": "fp", "review": review}
+
+
+def test_ai_review_json_the_kind_of_each_flag_and_the_second_opinion(tmp_path):
+    d = make(tmp_path)
+    first_by, second_by = "Claude (AI proof reviewer, claude-opus-5-5)", "Claude (AI proof reviewer, claude-sonnet-5-5)"
+    flag = {"key": "grid", "text": "Flag for the maintainer: r1c2 is O in the key. Change r1c2 to O?", "kind": "grid-reading"}
+    first = _ai(first_by, "claude-opus-5-5", "notready", [flag])
+    first["second"] = _ai(second_by, "claude-sonnet-5-5", "ready", [], {"cell:r1c2": "O"},
+                          {"of": first_by, "of_at": "2026-11-25T10:00:00Z", "of_answer": "notready",
+                           "of_flags": [{"key": "grid", "kind": "grid-reading"}],
+                           "settles": [{"key": "grid", "kind": "grid-reading", "edit": {"cell:r1c2": "O"}}]})
+    (d / "ai_review.json").write_text(json.dumps(first), encoding="utf-8")
+    assert formats.check_packet(d) == []
+    # a flag with no kind: a review from before kinds, said in a note
+    edit(d, "ai_review.json", lambda v: v["review"]["comments"][0].pop("kind"))
+    assert [t for lv, t in formats.check_packet(d) if lv == "note"] == ["ai_review.json: no flag has a kind (a review from before kinds: it holds the puzzle)"]
+    # a kind not in the set; a second opinion on the first's model; a settle naming an edit the review doesn't make
+    edit(d, "ai_review.json", lambda v: v["review"]["comments"][0].update(kind="a hunch"))
+    edit(d, "ai_review.json", lambda v: v["second"].update(model_id="claude-opus-5-5"))
+    edit(d, "ai_review.json", lambda v: v["second"]["review"]["edits"].update({"cell:r1c2": "Q"}))
+    said = problems(d)
+    assert any("kind 'a hunch'" in t for t in said) and any("on the first's model" in t for t in said)
+    assert any("settles[0] names an edit the review doesn't make" in t for t in said)
+
+
 def test_nothing_here(tmp_path):
     assert formats.check([tmp_path])["problems"] == 1
 

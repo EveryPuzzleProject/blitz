@@ -94,9 +94,11 @@ class Rule:
       SHIPS: clean, reviewed, doubts, incomplete. A puzzle whose grade is listed ships as it stands: `doubts` with the
       flags no review has settled listed on the row, `incomplete` with its gaps
       named (which replaces, for a batch that opts in, the 2026-11-23 rule that only a person's "Ready to ship as it
-      stands" ships an incomplete puzzle). Any Not ready that stands still holds, an AI reviewer's included: its record
-      can't say whether it names a structural problem (the wrong key linked) or a reading doubt, so until a second
-      opinion exists (v3 slice 5) none ships (AI_NOT_READY). Every protection of a person's word stays: the
+      stands" ships an incomplete puzzle). Any Not ready that stands still holds, a person's or an AI reviewer's, with
+      one exception: an AI reviewer's Not ready whose every flag has a kind and none is `structure` (soft_no: a reading
+      doubt, a header doubt, a missing part) does not stop a puzzle shipping by its grade (`doubts`, `incomplete` or
+      `reviewed`: grade_of); it still stops an AI's Ready shipping it. An AI's Not ready with a flag of no kind holds it
+      (AI_NOT_READY), and one with a `structure` flag is graded held (AI_STRUCTURE). Every protection of a person's word stays: the
       owner's decision overrides, an AI never overrides a person, a hold code holds, PERSON_CODES still need a person's
       Ready, and no edit ships without its record.
 
@@ -224,13 +226,17 @@ def standing(batch: dict, proofs: list[dict], *, check_ok: bool = False, codes: 
         res = out("ship", "", f"Ship on the batch page by {batch.get('by', '')}", batch.get("by", ""), "owner")
     if res is None:
         no = [s for s in said if s["answer"] == "notready" and not s["stale"]]
+        # an AI's Not ready that names only doubts (soft_no): it doesn't stop a puzzle shipping by its grade
+        soft = [s for s in no if s["kind"] == "ai" and soft_no(s["rec"])]
+        hard = [s for s in no if s not in soft]
         people = [s for s in ready if s["kind"] == "helper"]
         ai = any(s["kind"] == "ai" for s in ready)
         person = sorted(set(codes) & set(PERSON_CODES))  # needs a person's Ready, whatever ai_ready says
-        ai_ok = {"off": False, "both": ai and check_ok, "ai": ai, "either": ai or check_ok}[rule.ai_ready] and not person
-        # by its grade: never over a Not ready that stands (a person's, or an AI's: AI_NOT_READY), never a PERSON_CODE
-        by_grade = bool(grade) and grade in rule.ship_grades and not person and not no
-        if no:
+        # an AI's Ready never ships over another AI's Not ready, a soft one included: the two disagree (grade_of)
+        ai_ok = {"off": False, "both": ai and check_ok, "ai": ai, "either": ai or check_ok}[rule.ai_ready] and not person and not soft
+        # by its grade: never over a Not ready that stands (a person's, or an AI's that isn't soft: AI_NOT_READY), never a PERSON_CODE
+        by_grade = bool(grade) and grade in rule.ship_grades and not person and not hard
+        if hard or (soft and not by_grade):
             res = out("hold", "not-ready", "said Not ready by " + "; ".join(s["who"] + (f": {s['note']}" if s["note"] else "") for s in no))
         elif people:
             res = out("ship", "", f"Ready by {who(people)}, no Not ready", who(people), "people")
@@ -580,6 +586,97 @@ AI_QUESTION = "ai-question"  # the code of a doubt that is an AI proof reviewer'
 # to record, per flag, what kind it is (structure: a part linked from another puzzle, a part missing; or reading: a
 # letter or a word), or use the review's send-back {kind, part} for what is the pipeline's.
 AI_NOT_READY = "ai-not-ready"
+# The kind of an AI reviewer's flag (v3 slice 5; xword-ocr proofreview.FLAG_KINDS, kept on the flag's comment as `kind`,
+# formats/proof-packet.md): structure holds the puzzle (AI_STRUCTURE), missing is a gap (AI_MISSING: incomplete), every
+# other kind is a doubt the puzzle ships with. A puzzle with any AI flag of no kind is read as before: AI_NOT_READY.
+FLAG_KINDS = ("structure", "missing", "grid-reading", "clue-reading", "header", "misprint", "convention", "extra")
+DOUBT_KINDS = FLAG_KINDS[2:]
+AI_STRUCTURE, AI_MISSING = "ai-structure", "ai-missing"
+FLAG_PREFIX = "Flag for the maintainer:"
+
+
+def ai_flags(rec: dict) -> list[dict]:
+    """An AI reviewer's flags, from its record's comments (xword-ocr proofreview.record): [{row, text, suggest?, kind}],
+    kind "" when none was recorded."""
+    out = []
+    for c in ((rec.get("proof") or {}).get("review") or {}).get("comments") or []:
+        if isinstance(c, dict) and str(c.get("text") or "").startswith(FLAG_PREFIX):
+            row = re.sub(r"^grid:(r\d+c\d+)$", r"cell:\1", c.get("key") or "")
+            out.append({"row": row, **_ask(c["text"]), "kind": c.get("kind") if c.get("kind") in FLAG_KINDS else ""})
+    return out
+
+
+def soft_no(rec: dict) -> bool:
+    """An AI reviewer's Not ready that names only doubts and gaps: at least one flag, every flag with a kind, none
+    `structure`. It doesn't stop a puzzle shipping by its grade (standing)."""
+    fl = ai_flags(rec)
+    return bool(fl) and all(f["kind"] for f in fl) and not any(f["kind"] == "structure" for f in fl)
+
+
+def second_opinion(rec: dict) -> dict | None:
+    """A second opinion's account of what it is one of (xword-ocr proofreview.record_second): {of, of_at, of_answer,
+    of_flags, settles}, or None for a first review."""
+    so = ((rec.get("proof") or {}).get("review") or {}).get("second_opinion")
+    return so if isinstance(so, dict) and so.get("of") else None
+
+
+def ai_rounds(stands: list[dict]) -> list[dict]:
+    """The AI reviews that stand, each first review with its second opinion: [{first, second}], each a standing() `said`
+    entry (with its `rec`) or None. A second is paired with the first it names (its reviewer, and that record's time
+    when it gives one); a second whose first no longer stands is a round of its own."""
+    ai = [s for s in stands if s["kind"] == "ai"]
+    rounds = [{"first": f, "second": None} for f in ai if not second_opinion(f.get("rec") or {})]
+    for s in [s for s in ai if second_opinion(s.get("rec") or {})]:
+        so = second_opinion(s["rec"])
+        mate = next((r for r in rounds if r["second"] is None and r["first"]["who"] == so["of"]
+                     and (not so.get("of_at") or r["first"]["at"] == so["of_at"])), None)
+        if mate:
+            mate["second"] = s
+        else:
+            rounds.append({"first": s, "second": None})
+    return rounds
+
+
+def ai_verdict(stands: list[dict]) -> dict:
+    """What the AI reviews that stand say, for grade_of (formats/proof-packet.md, "The second opinion"):
+    {structure, missing, doubts: [flag], unkinded: bool, settled_by: [said] | None}. Each flag {row, text, suggest?,
+    kind, who, second?}; second, on a first review's flag that has a second opinion: "also" (the second flagged the
+    same row) or "nothing" (it didn't: it said Ready, or flagged other rows). A first's flag the second's Ready edits
+    settle the same way (its `settles`) is not listed. settled_by: the reviews that settle everything (an AI's Ready;
+    or a first's Not ready with a second opinion's Ready that settles every one of its flags), None when any flag
+    stays."""
+    out = {"structure": [], "missing": [], "doubts": [], "unkinded": False, "settled_by": None}
+    readies = []
+    for r in ai_rounds(stands):
+        f, sec = r["first"], r["second"]
+        if sec is None:
+            if f["answer"] == "ready":
+                readies.append([f])
+                continue
+            flags = [{**x, "who": f["who"]} for x in ai_flags(f["rec"])]
+            if not flags:
+                flags = [{"row": "", "text": f.get("note") or "said Not ready, with no note", "kind": "", "who": f["who"]}]
+        else:
+            so = second_opinion(sec["rec"])
+            settled = {x.get("key") for x in so.get("settles") or [] if isinstance(x, dict)} if sec["answer"] == "ready" else set()
+            rows2 = {x["row"] for x in ai_flags(sec["rec"])} if sec["answer"] == "notready" else set()
+            first_flags = ai_flags(f["rec"]) if f["answer"] == "notready" else []
+            flags = [{**x, "who": f["who"], "second": "also" if x["row"] in rows2 else "nothing"}
+                     for x in first_flags if x["row"] not in settled]
+            if sec["answer"] == "notready":
+                flags += [{**x, "who": sec["who"]} for x in ai_flags(sec["rec"])]
+            if sec["answer"] == "ready" and not flags:
+                readies.append([f, sec] if f["answer"] == "notready" else [sec])
+                continue
+        for x in flags:
+            if not x["kind"]:
+                out["unkinded"] = True
+                out["doubts"].append(x)
+            else:
+                out["structure" if x["kind"] == "structure" else "missing" if x["kind"] == "missing" else "doubts"].append(x)
+    if not (out["structure"] or out["missing"] or out["doubts"]) and readies:
+        out["settled_by"] = readies[-1]
+    return out
 # ---- what an incomplete puzzle lacks, by kind (the row's `lacks`, each gap's `sub`): the first that applies, in this order
 LACKS = ("no-key", "page-not-found", "clues-missing", "unsolved-squares", "part-missing")
 LACKS_MEANS = {"no-key": "no answer key: none printed (a cryptic's answers as text, a contest), or none found",
@@ -608,8 +705,10 @@ MEANS = {AI_QUESTION: "the AI proof reviewer's own question, left open", "candid
          "second-set-missing": "a second clue set that doesn't cover every clue (the ship check)",
          "notes-other-list": "another list's lines in the notes (the ship check)", "clue-hygiene": "a clue's text looks damaged (the ship check)",
          "no-title": "no Title header (the ship check)", "no-author": "no Author or Byline header (the ship check)",
-         "not-ready": "a person said Not ready", AI_NOT_READY: "an AI reviewer said Not ready: held until a second opinion can tell a structural problem from a reading doubt",
-         HEADER_TYPED: "a header's value typed by the text step: no printed line gives it", "owner-hold": "held by the owner", "sent-back": "a reviewer sent it back to the pipeline",
+         "not-ready": "a person said Not ready", AI_NOT_READY: "an AI reviewer said Not ready with a flag of no kind: held, as nothing tells a structural problem from a reading doubt",
+         HEADER_TYPED: "a header's value typed by the text step: no printed line gives it",
+         AI_STRUCTURE: "an AI reviewer says the puzzle is put together wrong (another puzzle's grid or key, clues for another grid)",
+         AI_MISSING: "an AI reviewer says a part is missing or was never read", "owner-hold": "held by the owner", "sent-back": "a reviewer sent it back to the pipeline",
          "no-ready": "needs a person's Ready, whatever its grade", "proof-stale": "the owner's Ready was on an earlier version: look again"}
 
 
@@ -735,17 +834,28 @@ def grade_of(t: dict, st: dict, proofs: list[dict], rule: Rule, current: tuple =
     flags = flags_of(t, candidates)
     gaps = gaps_of(t, means, filled, blocking=not person_ships)
     stands = [s for s in st.get("said") or [] if not s.get("stale")]
+    recs = {(r.get("by", ""), r.get("at", "")): r for r in proofs}  # standing()'s said leaves the records out
+    stands = [s if "rec" in s else {**s, "rec": recs.get((s["who"], s["at"]), {})} for s in stands]
     ai_no = [s for s in stands if s["answer"] == "notready" and s["kind"] == "ai"]
-    # a review that settles what was flagged: a person's Ready that ships it, else the AI proof reviewer's Ready (the
-    # ship check's own Ready looks at nothing a flag names, so it settles none)
-    by = ([s for s in stands if s["answer"] == "ready" and s["kind"] in ("owner", "helper")] if person_ships else []) \
-        or ([] if ai_no else [s for s in stands if s["answer"] == "ready" and s["kind"] == "ai"])
-    settled = {"by": by[-1]["who"], "kind": by[-1]["kind"], "at": by[-1]["at"][:10]} if by else None
+    ai = ai_verdict(stands)
+    kinded = bool(ai_no) and not ai["unkinded"]  # every AI flag has a kind: the kinds decide (v3 slice 5)
+    # a review that settles what was flagged: a person's Ready that ships it, else the AI reviews' (an AI's Ready with no
+    # AI Not ready standing; or a first review's Not ready whose every flag its second opinion's Ready settles). The ship
+    # check's own Ready looks at nothing a flag names, so it settles none
+    people = [s for s in stands if s["answer"] == "ready" and s["kind"] in ("owner", "helper")] if person_ships else []
+    by = people[-1:] or (ai["settled_by"] if not ai_no or kinded else None) or []
+    settled = {"by": " and ".join(s["who"] for s in by), "kind": by[-1]["kind"], "at": max(s["at"] for s in by)[:10]} if by else None
+    if settled and not people:
+        ai_no = []  # every AI flag is settled: by a Ready, or by a second opinion that made the same fix
     # what an AI's Ready can't settle: a candidate list (a person decides it) and a typed header (no crop shows it)
     person_only = ("candidate-undecided", HEADER_TYPED)
     undecided = [d for d in flags if d["code"] in person_only and not (settled and settled["kind"] in ("owner", "helper") and d["code"] == HEADER_TYPED)]
     if settled:
         doubts = undecided
+    elif kinded:  # the AI reviewers looked at what was flagged: their doubts are what stays open, each with its kind
+        doubts = [d for d in flags if d["code"] in person_only] + [
+            {"row": a["row"], "text": a["text"] + (f" Suggest: {a['suggest']}" if a.get("suggest") else ""), "code": AI_QUESTION,
+             "from": a["who"], "kind": a["kind"], **({"second": a["second"]} if a.get("second") else {})} for a in ai["doubts"]]
     elif ai_no:  # the AI reviewer looked at what was flagged: its own questions are what stays open
         doubts = [d for d in flags if d["code"] in person_only] + [{"row": a["row"], "text": a["text"] + (f" Suggest: {a['suggest']}" if a.get("suggest") else ""), "code": AI_QUESTION,
                                "from": a["who"]} for a in asks_of("not-ready", "", {}, proofs, rule, current) if a["kind"] == "ai"]
@@ -757,8 +867,17 @@ def grade_of(t: dict, st: dict, proofs: list[dict], rule: Rule, current: tuple =
         doubts = [{"row": "", "text": str(fd.get("detail", "")) if isinstance(fd, dict) else str(fd), "code": fd.get("code", "") if isinstance(fd, dict) else "",
                    "from": "ship check"} for fd in (t.get("ship") or {}).get("findings") or []] or [
                   {"row": "", "text": "the ship check did not pass, and records no finding", "code": "ship-check", "from": "ship check"}]
+    if kinded and not person_ships:  # a part an AI reviewer says is missing: a gap, in the reviewer's words
+        for a in ai["missing"]:
+            g = {"what": a["text"][:300], "code": AI_MISSING, "stage": "", "detail": a["who"]
+                 + (f"; suggest: {a['suggest']}" if a.get("suggest") else "")[:300], "row": a["row"]}
+            gaps.append({**g, "sub": lack_of(g)})
     lacks = [k for k in LACKS if any(g["sub"] == k for g in gaps)]  # what it lacks, by kind; the first is the one it is counted under
     out = {**base, "flags": len(flags), "settled": settled, "doubts": doubts, "gaps": gaps, "lacks": lacks}
+    if kinded and ai["structure"] and not person_ships:  # an AI reviewer says the puzzle is put together wrong
+        a = ai["structure"][0]
+        dg = {"stage": "assembly", "what": a["text"][:300], "code": AI_STRUCTURE, "detail": a["who"]}
+        return {**out, "grade": "held", "diagnosis": dg, "grade_why": f"an AI reviewer says the structure does not hold: {a['text'][:160]}"}
     if structure:
         b = structure[0]
         dg = {"stage": b.get("restart") or "", "what": b.get("part") or b.get("code") or "", "code": b.get("code") or "",
@@ -770,7 +889,8 @@ def grade_of(t: dict, st: dict, proofs: list[dict], rule: Rule, current: tuple =
     if doubts:
         return {**out, "grade": "doubts", "grade_why": f"{len(doubts)} open doubt(s): " + (
             "what only a person settles (a candidate clue list, a header typed with no printed line)" if settled
-            else "the AI reviewer's questions" if ai_no else "flagged by the checks, and no review has settled them")}
+            else ("the AI reviewers' doubts, after a second opinion" if any(a.get("second") for a in ai["doubts"]) else "the AI reviewer's doubts")
+            if kinded else "the AI reviewer's questions" if ai_no else "flagged by the checks, and no review has settled them")}
     if flags:
         return {**out, "grade": "reviewed", "grade_why": f"{len(flags)} flag(s) raised by the checks, settled by {settled['by']} ({settled['at']})"}
     return {**out, "grade": "clean", "grade_why": "the ship check passed and nothing was flagged" if ok else f"nothing was flagged; Ready by {settled['by']}"}

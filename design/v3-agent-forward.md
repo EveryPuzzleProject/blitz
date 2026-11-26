@@ -145,6 +145,15 @@ the same crops, and on a different model.
 - They disagree, or both are unsure: the flag stays open, and the puzzle's grade is `doubts`.
 - Neither result is a question for the owner.
 
+Built in slice 5 (2026-11-25): every flag carries a kind (`structure`, `missing`, `grid-reading`,
+`clue-reading`, `header`, `misprint`, `convention`, `extra`), and only a Not ready with no
+`structure` flag goes to the second opinion, since a structural problem holds the puzzle whatever
+a second reviewer says. The first reviewer is Opus (its Ready ships a puzzle alone, so it is the
+stronger reader), the second Sonnet (cheaper, run only where the first left doubts); neither is
+Fable. Either naming a structural problem holds; a missing part makes the puzzle `incomplete`; a
+second Ready that makes the same fix for every flag makes it `reviewed`; anything else is
+`doubts`. `formats/proof-packet.md`, "ai_review.json", has the record and the rules.
+
 ## Repair actions
 
 On GAMES 1980-82 the remedy agent fixed none of 68 puzzles outright, because most failures

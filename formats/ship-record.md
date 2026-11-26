@@ -49,15 +49,16 @@ graded is from before the grades: valid, and the check says so as a note.
   stays a gap unless their edits fill it.
 - The order of precedence is `held`, `incomplete`, `doubts`, `reviewed`, `clean`. An incomplete
   puzzle can also list open doubts.
-- **An AI reviewer's Not ready holds the puzzle**, graded `held` with the diagnosis code
-  `ai-not-ready` and the reviewer's words as `what`; its questions stay in `doubts`. The
-  review's record (comments keyed by proof-page row, a status per part, a note) cannot tell a
-  structural problem from a reading doubt: on GAMES 1980-82 the key `grid` carries both "this
-  grid is another puzzle's key" and "r5c3 is O in the printed key", and no review carries a
-  send-back. Until a second opinion exists, none ships. For reading doubts to ship, the
-  reviewer would have to record a kind on each flag (`structure`: a part linked from another
-  puzzle, a part missing; `reading`: a letter or a word), or use the review's send-back
-  `{kind, part}` for what is the pipeline's.
+- **An AI reviewer's flags are graded by their kind** (`formats/proof-packet.md`,
+  "ai_review.json", since 2026-11-25): a `structure` flag is `held` (diagnosis `ai-structure`,
+  stage assembly, the reviewer's words as `what`, the reviewer as `detail`); a `missing` one is a
+  gap (`ai-missing`, so `incomplete`); every other kind is a doubt (`ai-question`, with its
+  `kind`). With a second opinion, the two are read together: the rules are there. A Ready from a
+  second opinion that settles every flag of the first's makes the puzzle `reviewed`, `settled.by`
+  naming both.
+- **An AI's Not ready with a flag of no kind holds the puzzle** as before kinds, graded `held`
+  with the diagnosis code `ai-not-ready` and the reviewer's words as `what`; its questions stay
+  in `doubts`. Its record can't tell a structural problem from a reading doubt.
 - **A typed header is a doubt, not a gap.** Triage's `header-typed` names the field and the
   value (`field`, `detail`): the value is in the xd, and no printed line gives it. It is a
   doubt at that header's row (`ev:title`, `ev:byline`). An AI's Ready does not settle it (no
@@ -106,7 +107,7 @@ move. The page marks these rows and draws no sample of its own.
 
 **The failures.** `kind` is `held` (a held puzzle's diagnosis), `gap` (a gap of any puzzle) or
 `doubt` (an open doubt of any puzzle). `code` is the record's own: a triage reason code, a ship
-check finding, a hold reason, `ai-not-ready`, `ai-question` or `candidate-undecided`. `means` is triage's own
+check finding, a hold reason, `ai-not-ready`, `ai-structure`, `ai-missing`, `ai-question` or `candidate-undecided`. `means` is triage's own
 words for its code (its record's `groups`), or blitz's for the others; `stage` is the stage a
 gap or a hold points to, `""` when none is recorded. A puzzle counts once for each kind it has.
 
@@ -118,7 +119,7 @@ gap or a hold points to, `""` when none is recorded. A puzzle counts once for ea
 | `grade_why` | one line, in words |
 | `flags` | how many flags the checks raised |
 | `settled` | `{by, kind, at}` of the review that settled them, or `null` |
-| `doubts` | the open ones: `[{row, rows?, text, code, from}]` |
+| `doubts` | the open ones: `[{row, rows?, text, code, from, kind?, second?}]`; `kind` an AI flag's kind, `second` (on a first review's flag that had a second opinion) `also` or `nothing` |
 | `gaps` | `[{what, code, stage, detail, row, sub}]` |
 | `lacks` | the kinds of its gaps, in order; `[]` when it has none |
 | `diagnosis` | a held puzzle's: `{stage, what, code, detail}`; `null` otherwise |

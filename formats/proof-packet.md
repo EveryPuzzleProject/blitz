@@ -43,7 +43,7 @@ a hand-read packet).
 | `cover.jpg` | the issue's cover, small | optional |
 | `meta-<id>.png`, `clues_<n>.png`, `pictures/`, `candidate_page*.jpg` | crops for the headers table; the task form's clue sheets; pictures a clue points to; pages only a candidate clue list is on | optional |
 | `_src/` | the same pages at full resolution, by the same names, for crops | expected |
-| `ai_review.json` | an AI proof reviewer's answer, when one ran | optional; not checked yet |
+| `ai_review.json` | an AI proof reviewer's answer, when one ran, and a second opinion's beside it | optional |
 
 Every image `ocr.json` names must be in the folder.
 
@@ -147,6 +147,67 @@ one puzzle and ship another.
 A packet's identity is this fingerprint, not the code that built it. Moving or renaming the
 code that writes packets changes no packet.
 
+## ai_review.json
+
+Optional: the AI proof reviewer's record (xword-ocr `proofreview.py`), a copy of the ledger's
+`proof:<pid>` record that the proof page draws as the AI's round. The ledger stays the source of
+truth.
+
+| Field | Holds |
+|---|---|
+| `record`, `ledger` | the record's id and the ledger it is in |
+| `by`, `model_id` | "Claude (AI proof reviewer, <model>)", and the model |
+| `answer` | `ready` or `notready` |
+| `at`, `xd_fp` | when, and the version of the puzzle it was made on |
+| `review` | `{edits, comments, status, note, xd, typos?, key_corrections?, second_opinion?}`, keyed as the proof page keys its rows |
+| `second` | a second opinion's record, the same fields, when one was made |
+
+**Flags.** Each flag is a comment whose text begins "Flag for the maintainer:". Since v3 slice 5
+(2026-11-25) a flag carries `kind`, one of a closed set; it is optional, so a record from before
+it stays valid, and a flag with no kind is read as before: an AI's Not ready holds the puzzle.
+
+| `kind` | The reviewer says | At ship (`blitz ship`, `grade_of`) |
+|---|---|---|
+| `structure` | the puzzle is put together wrong: another puzzle's grid or answer key, clues for another grid, two puzzles mixed, misnumbered all through | `held`, diagnosis `ai-structure`, stage assembly |
+| `missing` | a part is not there or was never read: a clue, a list, the key (a grid of dots), a line cut off | `incomplete`, a gap `ai-missing` |
+| `grid-reading` | a doubt about one square of the key | `doubts` |
+| `clue-reading` | a doubt about a clue's or a printed line's reading | `doubts` |
+| `header` | a doubt about a header's value | `doubts` |
+| `misprint` | the print may be wrong, or on purpose (typo or wordplay) | `doubts` |
+| `convention` | the reading is right; the question is how the xd holds it (a symbol in a square, an unclued entry) | `doubts` |
+| `extra` | something that isn't this puzzle's and can go (another puzzle's list in the notes) | `doubts` |
+
+**The second opinion.** A first review that is Not ready, with every flag of a kind and none
+`structure`, goes to a second reviewer on a different model (the first on Opus, the second on
+Sonnet; never Fable), which reads the same input (`input.md` and crops) without the first's
+answer. Its record sits in the ledger beside the first's, by its own reviewer, and its `review`
+carries `second_opinion`:
+
+| Field | Holds |
+|---|---|
+| `of`, `of_at`, `of_answer` | the first review's reviewer, its record's time, its answer |
+| `of_flags` | the first's flags: `[{key, kind}]` |
+| `settles` | the first's flags this review's own edits settle the same way, when it is Ready: `[{key, kind, edit: {key: value}}]` (the square the first proposed changing to O, edited to O) |
+
+How the two make a grade, first match wins:
+
+1. Either names a `structure` problem: `held`.
+2. Either names a `missing` part: `incomplete`, the flag as a gap.
+3. The second is Ready and settles every flag of the first's: `reviewed`, settled by both; its
+   edits are the ones applied.
+4. Otherwise `doubts`: the first's flags it did not settle stay open, each marked `second: also`
+   (the second flagged the same row) or `second: nothing` (it didn't), and the second's own
+   flags are added. A second's Ready that settles only some of them is a disagreement, and a
+   disagreement stays a doubt (`design/v3-agent-forward.md`).
+
+An AI's Not ready whose flags are all of a kind other than `structure` doesn't stop a puzzle
+shipping by its grade (`ship_grades`); it still stops an AI's Ready shipping it (`ai_ready`), and
+with `ship_grades` off it holds as before.
+
+The check: the fields; a `kind` outside the set is a problem, a record whose flags have no kind a
+note; a second opinion must name the first's reviewer, be on another model, and make every edit
+its `settles` names.
+
 ## checks.json
 
 Optional. `xd_fp` (the version it was made for), `decision` (triage's disposition), `ship`
@@ -164,10 +225,10 @@ not four numbers; an image named and not in the folder; a `puzzle.xd` that is no
 
 A **note** is a valid packet that differs from what today's writers write: the task form; no
 `grid.png`, `answers.png` or `_src/`; a review without `reviewer`, `verdict`, `requests`,
-`findings` or `blanks`; a `checks.json` made for another version.
+`findings` or `blanks`; a `checks.json` made for another version; an `ai_review.json` whose flags have no kind.
 
-The check does not yet look inside `candidates`, `stages`, `findings`, `requests` or
-`ai_review.json`, and it does not open the images.
+The check does not yet look inside `candidates`, `stages`, `findings` or `requests`, and it
+does not open the images.
 
 ## Earlier packets
 
