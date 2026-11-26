@@ -300,3 +300,14 @@ def test_the_proof_page_shows_a_supplied_clues_source_crop_and_badge_from_the_pa
                    "Object.values(rev.supplied || {}).map(c => c.box && c.image)", "'clues supplied or replaced whole'",
                    "The crop the text step read this from:"):
         assert needed in page, needed
+
+
+def test_a_typed_clues_row_shows_both_readings_as_recorded():
+    # a typed clue read twice from its source crop (review.json's supplied: readings, agree): the row shows both
+    # readings and whether they agree, beside the source crop and the badge; nothing is compared on the page
+    from pathlib import Path
+
+    page = (Path(__file__).parents[1] / "src" / "blitz" / "proof.html").read_text(encoding="utf-8")
+    for needed in ("sup && sup.readings ?", "sup.agree ? 'read twice, the same' : 'read twice, differently'",
+                   "sup.readings.map(r =>"):
+        assert needed in page, needed

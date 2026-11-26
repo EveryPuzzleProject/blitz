@@ -56,7 +56,7 @@ counted).
 | option | default | what it does |
 |---|---|---|
 | `ai_ready` | `off` | `both`: with no person's Ready, the AI proof reviewer's Ready and a passing ship check together count as the one Ready. `either`: one of them is enough (xword-ocr docs/ship-gate.md's design). GAMES: `both`, the owner's decision of 2026-11-10. |
-| `hold_codes` | `["clue-typed"]` | triage reason codes that hold a puzzle whoever said Ready. `clue-typed` (a clue the text step supplied with no OCR reading) doesn't exist in triage yet; when it does, such puzzles are held with no change here. |
+| `hold_codes` | `["clue-typed"]` | triage reason codes that hold a puzzle whoever said Ready. `clue-typed` is a clue the text step typed with no source crop recorded (2026-11-26; a clue read by a model from a recorded crop is `clue-model-read` and doesn't hold). |
 | `owner` | `[]` | the owner's own accounts on the review site. Who the owner is isn't in the code: it is this list in the publication's `fixes/ship-rule.json` (GAMES: `oops6498`, confirmed by the owner 2026-11-10). The site's copy of the ship record shows such a decision as "the owner", a helper's as "a helper". |
 | `ignore` | `[]` | review-site accounts whose decisions don't count (GAMES: `walkthrough test`, a scripted usability test that left a Ready and a Not ready on the live site). |
 | `marks` | `people` | whose misprint marks and key corrections take effect (The record of every edit, "Whose marks take effect"). |

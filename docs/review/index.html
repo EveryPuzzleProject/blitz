@@ -3008,6 +3008,11 @@ function addRow(s, key, label, box, flags = [], src = null) {
       (isClue && linkedEnds() && !meta && (ocr.clues[label] || {}).printed && pairOf(label) !== ocr.clues[label].printed
         ? `<b class="m-flag" title="The clue is printed with the pair ${esc(ocr.clues[label].printed)}; the numbers in this word's end squares on the blank grid are ${esc(pairOf(label))}.">printed as ${esc(ocr.clues[label].printed)}</b>` : '') +
       (sup ? `<b class="${sup.sourced ? 'm-src' : 'm-flag m-nosrc'}" title="${esc(sup.sourced ? (sup.box ? 'The crop above is the one the text step named as where it read this text; the OCR read nothing of this clue.' : 'The text step named the crop it read this from, but that crop is on a page this packet doesn’t show.') : 'The text step gave this text and recorded no crop it read it from: check it against the scan.')}">${esc(sup.says)}</b>` : '') +
+      // a typed clue read again from the same crop, blind (review.json's supplied: readings, agree): both readings, as recorded
+      (sup && sup.readings ? `<div class="reads" title="The clue was typed: the OCR read nothing. It was read a second time from the same crop by another agent that had not seen the first reading.">`
+        + `<b class="${sup.agree ? 'm-ok' : 'm-flag'}">${sup.agree ? 'read twice, the same' : 'read twice, differently'}</b> `
+        + sup.readings.map(r => `<span class="hint">${esc(r.by)}:</span> “${esc(r.text) || '(nothing)'}”${r.unsure ? ` <span class="hint">(${esc(r.unsure)})</span>` : ''}`).join(' · ')
+        + '</div>' : '') +
       (moved ? `<b class="m-flag" title="the reviewer moved this text from where the OCR put it; the scan line came with it">printed line found in ${esc(src.label)}'s crop</b>` : '') +
       flags.filter(f => !f.startsWith('number-corrected') && !f.startsWith('fill-in blank')).map(f => `<b class="m-flag" title="${esc(f)}">${esc(f.split(':')[0])}</b>`).join('') +
       flags.filter(f => f.startsWith('fill-in blank')).map(f => {

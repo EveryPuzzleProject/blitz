@@ -75,14 +75,14 @@ In every form:
 | `grid_asymmetric_squares` | list | squares that break the grid's symmetry, each alone or with the square opposite (`r1c5/r15c11`) |
 | `clue_image` | text | the image the clues' boxes are on |
 | `scales` | name to number | every page image in the packet, with its scale |
-| `clues` | id to clue | each clue: `text`; `box` where it was read from; optional `flags`, `image` (when on another page), `printed` (a linked-ends pair) |
+| `clues` | id to clue | each clue: `text`; `box` where it was read from; optional `flags`, `image` (when on another page), `printed` (a linked-ends pair), `read_from` (below) |
 
 Also in the assembled and hand forms:
 
 | Field | Type | Holds |
 |---|---|---|
 | `puzzle_number`, `editor`, `feature`, `issue_date` | text | more headers; empty when none |
-| `lines` | list | every printed line that is not a clue: `n` (the line is row `B<n>`), `text`, `box`; `keep` (whether it is in the xd's printed block), `label` (what the line is) and `by` (who or what said so); optional `image` |
+| `lines` | list | every printed line that is not a clue: `n` (the line is row `B<n>`), `text`, `box`; `keep` (whether it is in the xd's printed block), `label` (what the line is) and `by` (who or what said so); optional `image`, `clues` (the clues assembly read from it, below; a line that was nothing else has `label` `clues`, not kept) |
 | `evidence` | header to line number | which printed line each header was read from (null: none) |
 | `metadata` | list | the rows of the proof page's headers table: `id`, `name`, `value`; optional `field`, `source`, `says`, `rule`, `image`, `line` |
 
@@ -130,8 +130,42 @@ Also in the assembled and hand forms:
 
 Optional: `built_from` (the commits of the code and the publication's repo), `send_back` (the
 kinds and parts the page offers for sending a puzzle back), `gaps` (parts confirmed not
-printed), `supplied` (clues whose text is the text step's alone), `asks`, `pictures`,
+printed), `supplied` (clues whose text is the text step's alone, below), `asks`, `pictures`,
 `mismatches`, `hand_read`.
+
+### A clue the reading filed elsewhere: ocr.json's read_from
+
+Assembly gives back to its slot a clue the OCR read but the list put somewhere else (xword-ocr
+`claims.py`), by the number printed before it: a line read as a printed line near the puzzle
+(`how` `line`: the column's last rows under the grid), a line the list gave another number
+(`moved`, only when it is printed in its slot's place in the column), or two clues read as one
+line (`split`). `read_from` is `{how, from, text}`: `from` the clue it came out of (`D54`) or
+`printed line`; `text` the reading it came out of. The clue's `box` is that reading's box, and
+its `flags` say the same in words (`read as a printed line: ...`, `read under D54: ...`, `read
+run into D50: ...`). Such a clue is the OCR's reading, not typed: the text step checks it on its
+crop like any doubted line.
+
+### supplied: what the text step gave where the OCR read nothing
+
+`supplied` maps a clue's row (`clue:D12`) to:
+
+| Field | Holds |
+|---|---|
+| `kind` | `supplied` (printed clue text, typed by the text step), `replaced` (the reading was another clue's), `picture` (a drawing described: not printed text), `no-clue-printed` (an entry printed with no clue: no text) |
+| `says` | the row's badge, in words: typed by which stage, from which crop, read twice or not |
+| `sourced` | whether a source crop is recorded |
+| `by` | the stage that gave it (`the text step`) |
+| `from`, `lines` | the source crop's label and the printed lines within it |
+| `box`, `image` | the source crop on one of the packet's page images, in that image's pixels; `page` instead when the page isn't in the packet |
+| `readings`, `agree` | a typed clue read a second time from the same crop by another agent that had not seen the first reading: `[{text, by}, {text, by, unsure?}]`, the text step's first; `agree` whether the two are the same (letters and digits, a fill-in blank however long) and the second raised no doubt (`unsure`) |
+| `written` | `false`: the text step typed it and named no source crop, so it was not written. The clue stays missing; the row says so, with no text |
+
+A typed clue is written only with its source crop (2026-11-26); `check-format` notes a packet made
+before that, whose unsourced typed clues were written. What holds is the source, not the
+agreement (the owner, 2026-11-26): a typed clue with a recorded crop is triage's
+`clue-model-read`, never a hold; readings that differ, or a doubt from the second reader, are
+`clue-reading-differs`, a doubt on the row and in the grade's `doubts`. `clue-typed` is only a
+typed clue with no recorded source; it holds (games' `hold_codes`).
 
 ## The version: xd_fp
 
