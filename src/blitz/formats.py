@@ -104,6 +104,59 @@ def _fields(d: dict, want: dict, name: str, out: list, level: str = "problem") -
             out.append(("problem", f"{name}: '{k}' is {type(d[k]).__name__}, not {' or '.join(t.__name__ for t in types)}"))
 
 
+# ---- review.json's supplied: what the text step gave where the OCR read nothing (formats/proof-packet.md, "supplied") ----
+SUPPLIED_KINDS = ("supplied", "replaced", "picture", "no-clue-printed")
+READ_FROM = ("line", "moved", "split")  # ocr.json clue read_from: where assembly found a clue the list had filed elsewhere
+
+
+def same_reading(x: str, y: str) -> bool:
+    """xword-ocr textstep.same_reading: the same letters and digits, a fill-in blank however long."""
+    f = lambda t: re.sub(r"[^a-z0-9_]", "", re.sub(r"(?:_{2,}|[—–]+|-{2,})", "_", (t or "").lower()))
+    return bool(f(x)) and f(x) == f(y)
+
+
+def check_supplied(sup, images: dict | None = None) -> list[tuple[str, str]]:
+    """review.json's supplied: each row's kind and badge; a source's box and page image; a typed clue with no
+    source is not written (written: false; a packet made before 2026-11-26 wrote it: a note); a typed clue read
+    twice carries both readings, and agree says whether they are the same."""
+    out: list[tuple[str, str]] = []
+    if sup is None:
+        return out
+    if not isinstance(sup, dict):
+        return [("problem", "review.json: supplied is not a map")]
+    for key, e in sup.items():
+        name = f"review.json: supplied['{key}']"
+        if not re.fullmatch(r"clue:[AD]\d+(\^[A-Za-z][\w-]*)?", key) or not isinstance(e, dict):
+            out.append(("problem", f"{name}: not a clue row"))
+            continue
+        if e.get("kind") not in SUPPLIED_KINDS or not isinstance(e.get("says"), str) or not isinstance(e.get("sourced"), bool):
+            out.append(("problem", f"{name}: needs kind ({', '.join(SUPPLIED_KINDS)}), says and sourced"))
+            continue
+        if e.get("written") is False:
+            if e["sourced"] or "readings" in e or "box" in e:
+                out.append(("problem", f"{name}: not written, but with a source or readings"))
+            continue
+        if "box" in e and (not _box(e["box"]) or not isinstance(e.get("image"), str)):
+            out.append(("problem", f"{name}: its source box is not four numbers on a named page image"))
+        elif "box" in e and images is not None and e["image"] not in images and e["image"] != "page.jpg":
+            images[e["image"]] = name
+        if e["kind"] == "supplied" and not e["sourced"]:
+            out.append(("note", f"{name}: typed with no source and written (a packet made before 2026-11-26: such a clue "
+                                "is now not written)"))
+        if "readings" in e:
+            rd = e["readings"]
+            if (not isinstance(rd, list) or len(rd) != 2 or not all(isinstance(r, dict) and isinstance(r.get("text"), str)
+                                                                  and isinstance(r.get("by"), str) for r in rd)
+                    or not isinstance(e.get("agree"), bool)):
+                out.append(("problem", f"{name}: readings is not two {{text, by}} with agree"))
+            elif e["kind"] != "supplied" or not e["sourced"]:
+                out.append(("problem", f"{name}: read twice, but not a typed clue with a source"))
+            elif e["agree"] != same_reading(rd[0]["text"], rd[1]["text"]):
+                out.append(("problem", f"{name}: agree is {e['agree']}, but the two readings are "
+                                       f"{'the same' if not e['agree'] else 'not the same'}"))
+    return out
+
+
 def _box(v) -> bool:
     return isinstance(v, list) and len(v) == 4 and all(isinstance(x, (int, float)) and not isinstance(x, bool) for x in v)
 
@@ -174,6 +227,10 @@ def check_packet(packet: Path) -> list[tuple[str, str]]:
             out.append(("problem", f"ocr.json: clue {label}'s box is not four numbers"))
         if isinstance(c.get("image"), str):
             images[c["image"]] = f"clue {label}"
+        rf = c.get("read_from")
+        if rf is not None and (not isinstance(rf, dict) or rf.get("how") not in READ_FROM
+                               or not isinstance(rf.get("text"), str) or not isinstance(rf.get("from"), str)):
+            out.append(("problem", f"ocr.json: clue {label}'s read_from is not {{how: {'|'.join(READ_FROM)}, from, text}}"))
     for i, ln in enumerate(ocr.get("lines") or [] if isinstance(ocr.get("lines"), list) else []):
         if not isinstance(ln, dict) or not isinstance(ln.get("n"), int) or not isinstance(ln.get("text"), str):
             out.append(("problem", f"ocr.json: lines[{i}] has no n or no text"))
@@ -216,6 +273,7 @@ def check_packet(packet: Path) -> list[tuple[str, str]]:
             bad = [k for k, v in (review.get(name) or {}).items() if not isinstance(v, str)] if isinstance(review.get(name), dict) else []
             if bad:
                 out.append(("problem", f"review.json: {name}['{bad[0]}'] is not text"))
+        out += check_supplied(review.get("supplied"), images)
 
     # ---- puzzle.xd and the version it is
     xd_file = packet / "puzzle.xd"

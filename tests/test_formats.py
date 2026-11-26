@@ -235,3 +235,20 @@ def test_check_takes_xd_files_and_folders(tmp_path):
     res = formats.check([tmp_path])
     assert (res["xds"], res["packets"], res["problems"], res["notes"]) == (2, 0, 0, 1)
     assert formats.check([tmp_path / "a.xd"])["xds"] == 1
+
+
+def test_supplied_rows_typed_clues_read_twice_and_not_written():
+    # review.json's supplied (xword-ocr proofpacket.supplied): a typed clue with its source and both readings
+    src = {"kind": "supplied", "sourced": True, "by": "the text step", "from": "D12", "box": [1, 2, 3, 4], "image": "page.jpg",
+           "says": "typed by the text step, no OCR reading; read twice, the same; read from the crop labelled D12"}
+    two = [{"text": "Fender ___", "by": "the text step (AI reviewer)"}, {"text": "fender ____", "by": "a second reading, blind (m)"}]
+    ok = {"clue:D12": {**src, "readings": two, "agree": True},
+          "clue:A1": {"kind": "picture", "sourced": True, "says": "a description of the drawing", "box": [1, 2, 3, 4], "image": "page.jpg"},
+          "clue:A2": {"kind": "supplied", "sourced": False, "written": False, "says": "typed with no source crop named: not written"}}
+    assert formats.check_supplied(ok) == []
+    bad = formats.check_supplied({"clue:D12": {**src, "readings": two, "agree": False}})
+    assert bad and "agree is False" in bad[0][1]
+    assert formats.check_supplied({"clue:A2": {**ok["clue:A2"], "sourced": True}})[0][0] == "problem"
+    old = formats.check_supplied({"clue:D3": {"kind": "supplied", "sourced": False, "says": "no source recorded"}})
+    assert old == [("note", old[0][1])] and "before 2026-11-26" in old[0][1]
+    assert formats.check_supplied({"clue:D3": {"kind": "typed?", "sourced": False, "says": ""}})[0][0] == "problem"
