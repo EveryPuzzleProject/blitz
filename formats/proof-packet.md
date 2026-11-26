@@ -161,9 +161,11 @@ crop like any doubted line.
 | `written` | `false`: the text step typed it and named no source crop, so it was not written. The clue stays missing; the row says so, with no text |
 
 A typed clue is written only with its source crop (2026-11-26); `check-format` notes a packet made
-before that, whose unsourced typed clues were written. Triage holds a typed clue (`clue-typed`)
-until it is read twice the same; the code for one read twice the same (`clue-read-twice`) is
-proposed and not switched on (xword-ocr `triage.READ_TWICE_RELIEVES`).
+before that, whose unsourced typed clues were written. What holds is the source, not the
+agreement (the owner, 2026-11-26): a typed clue with a recorded crop is triage's
+`clue-model-read`, never a hold; readings that differ, or a doubt from the second reader, are
+`clue-reading-differs`, a doubt on the row and in the grade's `doubts`. `clue-typed` is only a
+typed clue with no recorded source; it holds (games' `hold_codes`).
 
 ## The version: xd_fp
 

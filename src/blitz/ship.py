@@ -270,7 +270,7 @@ QUEUE_OF = {"not-ready": "question", "owner-hold": "question", "edits-differ": "
             "no-ready": "unchecked", "proof-stale": "unchecked"}
 # the stage a broken puzzle's reason points to, where triage recorded none (triage's blocking names its own)
 STAGE_OF = {"mark-invalid": "proof review", "misprint-edit": "proof review", "packet-stale": "proof packet", "no-packet": "proof packet", "edits-unapplied": "import", "xd-exists": "import",
-            "clue-typed": "text step", "awaits-replace": "assembly", "pair-unread": "proof review"}
+            "clue-typed": "text step", "clue-typed-block": "parts", "awaits-replace": "assembly", "pair-unread": "proof review"}
 # A Not ready that waits on the pipeline, not on a person's answer (its own reason, in the broken queue, with what
 # was said kept on the row as `asked`):
 #   awaits-replace: the owner's Not ready on a linked-ends puzzle carries fixes to the grid (its shape, its squares'
