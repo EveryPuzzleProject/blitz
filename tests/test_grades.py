@@ -45,18 +45,25 @@ def _mixed_batch(tmp_path, rule=ALL):
 def test_each_grade_from_the_records(tmp_path):
     _, p, by = _mixed_batch(tmp_path)
     assert {k: r["grade"] for k, r in by.items()} == {
-        "40": "clean", "41": "doubts", "42": "reviewed", "43": "doubts", "44": "incomplete", "45": "held", "46": "held",
+        "40": "clean", "41": "held", "42": "reviewed", "43": "doubts", "44": "incomplete", "45": "held", "46": "held",
         "47": "deferred", "48": "not-a-crossword", "49": "incomplete"}
     # reviewed: the AI reviewer's Ready settled what the checks flagged, and nothing stays open
     assert by["42"]["settled"]["kind"] == "ai" and by["42"]["flags"] == 1 and not by["42"]["doubts"]
-    # doubts with an AI's Not ready: its own questions, each with its row on the proof page
+    # an AI's Not ready holds, whatever it says: its record can't tell a structural problem from a reading doubt. Its
+    # questions stay listed, each with its row on the proof page, and its words are the diagnosis
     assert [(d["row"], d["code"]) for d in by["41"]["doubts"]] == [("clue:D4", "ai-question"), ("grid", "ai-question")]
     assert "check the crop" in by["41"]["doubts"][0]["text"]
+    assert (by["41"]["diagnosis"]["code"], by["41"]["diagnosis"]["stage"]) == ("ai-not-ready", "proof review")
+    assert "said Not ready by Claude (AI proof reviewer, m)" in by["41"]["diagnosis"]["what"]
     # doubts nobody reviewed: what the checks flagged, at the rows triage names
     assert by["43"]["doubts"] == [{"row": "clue:D4", "rows": ["clue:D4", "line:B3"], "text": "D4: looks cut short", "code": "unsure", "from": "triage"}]
     # incomplete: the gaps are named, with the stage each points to
-    assert [(g["code"], g["stage"], g["row"]) for g in by["44"]["gaps"]] == [("grid-unsolved", "key reading", "grid"), ("key-missing", "assembly", "grid")]
+    assert [(g["code"], g["stage"], g["row"], g["sub"]) for g in by["44"]["gaps"]] == [
+        ("grid-unsolved", "key reading", "grid", "unsolved-squares"), ("key-missing", "assembly", "grid", "no-key")]
+    assert by["44"]["lacks"] == ["no-key", "unsolved-squares"]                      # which kind of incomplete: no key first
     assert [g["code"] for g in by["49"]["gaps"]] == ["cryptic-no-key"]              # a gap triage records, though the ship check passes
+    assert by["49"]["lacks"] == ["no-key"] and by["40"]["lacks"] == []
+    assert counts(p["rows"])["incomplete"] == {"no-key": {"first": 2, "any": 2}, "unsolved-squares": {"first": 0, "any": 1}}
     # held: a diagnosis names the stage (the structure), or the person whose word holds it
     assert by["45"]["diagnosis"] == {"stage": "assembly", "what": "text linked from another puzzle", "code": "verdict-wrong-text", "detail": ""}
     assert (by["46"]["diagnosis"]["code"], by["46"]["diagnosis"]["stage"]) == ("not-ready", "proof review")
@@ -71,17 +78,18 @@ def test_off_by_default_the_rule_decides_as_before(tmp_path):
     assert [r["status"] for r in off["rows"]].count("shippable") == 0                 # nobody's Ready counts here: nothing ships
     assert {r["pid"]: r["grade"] for r in off["rows"]} == {r["pid"]: r["grade"] for r in on["rows"]}  # the grade doesn't depend on the option
     assert (by["40"]["reason"], by["41"]["reason"], by["44"]["reason"]) == ("no-ready", "not-ready", "needs-work")
+    assert by["41"]["queue"] == "question"                                            # with the option off it is a question, as before
     assert record(off)["rule"]["ship_grades"] == [] and record(off)["grades"]["ships"] == []
 
 
 def test_shipping_by_grade(tmp_path):
     _, p, by = _mixed_batch(tmp_path)
-    assert {k: r["status"] for k, r in by.items()} == {"40": "shippable", "41": "shippable", "42": "shippable", "43": "shippable", "44": "shippable",
+    assert {k: r["status"] for k, r in by.items()} == {"40": "shippable", "41": "held", "42": "shippable", "43": "shippable", "44": "shippable",
                                                        "45": "held", "46": "held", "47": "out", "48": "out", "49": "shippable"}
-    assert all(by[k]["rule"] == "grade" for k in ("40", "41", "43", "44"))
-    assert "ships by its grade" in by["41"]["why"] and "open questions" in by["41"]["why"]
+    assert all(by[k]["rule"] == "grade" for k in ("40", "43", "44"))
+    assert "ships by its grade" in by["43"]["why"] and by["41"]["reason"] == "not-ready"
     assert "ships incomplete, by its grade: 2 square(s) unsolved" in by["44"]["why"]
-    assert counts(p["rows"])["grade_ships"] == {"clean": 1, "reviewed": 1, "doubts": 2, "incomplete": 2, "held": 0, "deferred": 0, "not-a-crossword": 0}
+    assert counts(p["rows"])["grade_ships"] == {"clean": 1, "reviewed": 1, "doubts": 1, "incomplete": 2, "held": 0, "deferred": 0, "not-a-crossword": 0}
     # only the grades the rule lists
     _, _, some = _mixed_batch(tmp_path / "some", Rule(ai_ready="both", ship_grades=("clean", "reviewed")))
     assert {k for k, r in some.items() if r["status"] == "shippable"} == {"40", "42"}
@@ -96,8 +104,10 @@ def test_every_protection_of_a_persons_word_stays():
     assert standing({}, [no, AI], **g)["reason"] == "owner-hold"                     # the owner's decision overrides
     assert standing({"answer": "hold", "at": "2026-10-24T00:00:00Z", "by": "person"}, [], **g)["reason"] == "owner-hold"
     assert standing({}, [HELPER_NO, proof("Reviewer 2", "ready", "2026-10-23T00:00:00Z")], **g)["rule"] == "owner"
-    assert standing({}, [AI_NO], **g)["rule"] == "grade"                             # an AI's Not ready stays open, and it ships
-    assert standing({}, [AI_NO, HELPER], **g)["rule"] == "people"                    # a person's Ready is still what ships it
+    assert standing({}, [AI_NO], **g)["reason"] == "not-ready"                       # an AI's Not ready holds too, until a second opinion
+    assert standing({}, [AI_NO, HELPER], **g)["reason"] == "not-ready"               # and a helper's Ready doesn't lift it
+    assert standing({}, [AI_NO, proof("Reviewer 2", "ready", "2026-10-23T00:00:00Z")], **g)["rule"] == "owner"   # the owner's does
+    assert standing({}, [AI_NO], current=("bbb",), **g)["rule"] == "grade"           # one on an earlier version no longer stands
     assert standing({}, [], codes={"clue-typed"}, **g)["reason"] == "clue-typed"     # a hold code holds
     assert standing({}, [], codes={"clue-by-sequence"}, **g)["status"] == "hold"     # needs a person's Ready, whatever the grade
     assert standing({}, [OWNER], current=("bbb",), **g)["reason"] == "proof-stale"   # the owner's Ready on an older version: look again
@@ -105,31 +115,51 @@ def test_every_protection_of_a_persons_word_stays():
     assert standing({}, [AI, CHECK], check_ok=True, grade="incomplete", rule=Rule(ship_grades=("clean",)))["status"] == "hold"
 
 
-def test_an_ai_never_overrides_a_person_and_its_not_ready_edits_are_not_applied(tmp_path):
+def test_an_ais_not_ready_holds_and_its_edits_are_not_applied(tmp_path):
     ai = _ai_no(P + "41", ("clue:A1", "The crop reads otherwise.", "fix it"))
     ai["proof"]["review"]["edits"] = {"clue:A1": "An AI's reading"}
     _, p, by = _run(tmp_path, {P + "41": [ai]}, {P + "41": FLAGGED})
-    x = p["passing"][P + "41"]
-    assert by["41"]["status"] == "shippable" and x["edits"] == [] and "An AI's reading" not in x["text"]
-    assert x["text"] == (tmp_path / "h" / "proof" / "run1" / (P + "41") / "puzzle.xd").read_text(encoding="utf-8")
+    assert (by["41"]["status"], by["41"]["grade"]) == ("held", "held") and P + "41" not in p["passing"] and p["digest"]["walk"] == []
+    top = p["digest"]["failures"][0]
+    assert (top["kind"], top["code"], top["stage"]) == ("held", "ai-not-ready", "proof review") and "second opinion" in top["means"]
+
+
+TYPED = {"decision": "not ready", "ship": {"ok": False, "findings": [{"code": "triage-doubt", "detail": "header-typed"}]},
+         "reasons": [{"code": "header-typed", "class": "defect", "severity": "stage", "detail": "title: 'Cryptic Crossword'", "field": "title"}],
+         "blocking": [{"code": "header-typed", "part": "a header's printed line", "restart": "assembly", "kind": "missing-part", "part_id": "title",
+                       "detail": "title: 'Cryptic Crossword'"}]}
+
+
+def test_a_header_typed_with_no_printed_line_is_a_doubt_about_that_value(tmp_path):
+    said = {P + "61": [AI], P + "62": [HELPER]}
+    _, p, by = _run(tmp_path, said, {P + "60": TYPED, P + "61": TYPED, P + "62": TYPED, P + "63": {**TYPED, "blocking": TYPED["blocking"] + GAPPY["blocking"]}})
+    assert by["60"]["grade"] == "doubts" and by["60"]["gaps"] == []                  # not a missing part: the value is in the xd
+    assert by["60"]["doubts"] == [{"row": "ev:title", "code": "header-typed", "from": "triage",
+                                   "text": "typed by the text step, with no printed line that gives it: title: 'Cryptic Crossword'"}]
+    assert by["61"]["grade"] == "doubts" and by["61"]["settled"]["kind"] == "ai"    # an AI's Ready can't settle it: no crop shows it
+    assert by["62"]["grade"] == "reviewed" and by["62"]["settled"]["kind"] == "helper"  # a person's Ready does
+    assert by["63"]["grade"] == "incomplete" and by["63"]["lacks"] == ["no-key"] and by["63"]["doubts"][0]["code"] == "header-typed"
 
 
 def test_the_grade_goes_to_the_record_and_provenance_and_never_into_the_xd(tmp_path):
     repo, p, _ = _mixed_batch(tmp_path)
     res = write(repo, p, "2026-11-25")
-    assert len(res["written"]) == 6
+    assert len(res["written"]) == 5
     prov = {r["pid"][-2:]: r for r in map(json.loads, (repo / "provenance.jsonl").read_text(encoding="utf-8").splitlines())}
-    assert prov["41"]["grade"]["grade"] == "doubts" and [d["row"] for d in prov["41"]["grade"]["doubts"]] == ["clue:D4", "grid"]
+    assert "41" not in prov                                                           # the AI's Not ready held it
+    assert prov["43"]["grade"]["grade"] == "doubts" and [d["row"] for d in prov["43"]["grade"]["doubts"]] == ["clue:D4"]
     assert prov["44"]["grade"]["gaps"][0]["what"] == "2 square(s) unsolved" and prov["40"]["grade"]["grade"] == "clean"
-    assert prov["41"]["shipped"]["rule"] == "grade" and "no person's review" in prov["41"]["review"]
+    assert prov["44"]["grade"]["lacks"] == ["no-key", "unsolved-squares"]
+    assert prov["43"]["shipped"]["rule"] == "grade" and "no person's review" in prov["43"]["review"]
     for f in (repo / "xd").glob("*.xd"):
         text = f.read_text(encoding="utf-8").lower()
         assert "grade" not in text and "doubt" not in text                            # provenance, not the puzzle (design/xd-fields.md)
     rec = json.loads((repo / "pipeline" / "ship" / "b.json").read_text(encoding="utf-8"))
-    assert rec["format"] == "ship-record/1" and rec["grades"] == {"order": list(GRADES), "ships": list(SHIPS)}
+    assert rec["format"] == "ship-record/1" and rec["grades"]["order"] == list(GRADES) and rec["grades"]["ships"] == list(SHIPS)
+    assert [k["key"] for k in rec["grades"]["lacks"]] == ["no-key", "page-not-found", "clues-missing", "unsolved-squares", "part-missing"]
     assert formats.check([repo / "pipeline" / "ship" / "b.json", repo / "provenance.jsonl"])["problems"] == 0
-    doc = json.loads((repo / "pipeline" / "ship" / "b" / "as-shipped" / f"{P}41.json").read_text(encoding="utf-8"))
-    assert doc["grade"]["grade"] == "doubts" and len(doc["grade"]["doubts"]) == 2
+    doc = json.loads((repo / "pipeline" / "ship" / "b" / "as-shipped" / f"{P}43.json").read_text(encoding="utf-8"))
+    assert doc["grade"]["grade"] == "doubts" and len(doc["grade"]["doubts"]) == 1
 
 
 def test_a_persons_ready_settles_what_was_flagged(tmp_path):
@@ -141,10 +171,11 @@ def test_a_persons_ready_settles_what_was_flagged(tmp_path):
 def test_a_helpers_name_stays_out_of_the_sites_copy(tmp_path):
     _, p, _ = _run(tmp_path, {P + "50": [HELPER], P + "46": [HELPER_NO]}, {P + "50": FLAGGED, P + "46": OK})
     pub = {r["pid"][-2:]: r for r in record(p)["puzzles"]}
-    mine = ("grade_why", "settled", "doubts", "gaps", "diagnosis")
-    assert pub["50"]["settled"]["by"] == "a helper" and "pat" not in json.dumps([pub["50"][k] for k in mine])
+    assert pub["50"]["settled"]["by"] == "a helper" and "pat" not in json.dumps(pub["50"])   # its `review` too: "by a helper"
+    assert "a helper" in pub["50"]["review"]
     assert pub["46"]["grade"] == "held" and "sam (" not in json.dumps(pub["46"]) and "a helper" in pub["46"]["diagnosis"]["what"]
     assert "pat" not in json.dumps(as_shipped(p, record(p))[P + "50"]["grade"])
+    assert "pat" in json.dumps([r.get("review", "") for r in record(p, public=False)["puzzles"]])   # the repo's own copy names them
 
 
 def test_the_option_is_per_batch_in_ship_rule_json(tmp_path):
@@ -196,12 +227,14 @@ def test_the_check_of_the_grade_fields(tmp_path):
     assert any("not a proof-page row key" in t for t in problems(lambda rec, by: by["43"]["doubts"][0].update(row="clue:title")))
     assert any("which never ships" in t for t in problems(lambda rec, by: by["45"].update(status="shippable")))
     assert any("counts.grades.clean" in t for t in problems(lambda rec, by: rec["counts"]["grades"].update(clean=9)))
+    assert any("sub 'other'" in t for t in problems(lambda rec, by: by["44"]["gaps"][0].update(sub="other")))
+    assert any("counts.incomplete.no-key" in t for t in problems(lambda rec, by: rec["counts"]["incomplete"].update({"no-key": {"first": 9, "any": 9}})))
     assert any("to_read and sample.picked" in t for t in problems(lambda rec, by: by["40"].update(to_read=False)))
     assert any("walk is not exactly" in t for t in problems(lambda rec, by: rec["walk"].pop()))
     # a record from before the grades is a valid older form: a note
     rec = record(p)
     for r in rec["puzzles"]:
-        for k in ("grade", "grade_why", "flags", "settled", "doubts", "gaps", "diagnosis", "grade_order", "to_read"):
+        for k in ("grade", "grade_why", "flags", "settled", "doubts", "gaps", "lacks", "diagnosis", "grade_order", "to_read"):
             r.pop(k)
     f.write_text(json.dumps(rec), encoding="utf-8")
     res = formats.check([f])

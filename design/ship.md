@@ -123,13 +123,18 @@ The rule's `ship_grades` option makes it count. It lists the grades a puzzle shi
 `blitz ship ... --ship-grades all` (or a list, or `off`) tries it on a dry run without changing the file. With a
 puzzle's grade in the list:
 
-- It ships with no Ready at all, and with an AI reviewer's Not ready standing. The AI's questions stay open: they are
-  the row's `doubts`, each with its proof-page row. Only a Ready's edits are applied, so an edit inside an AI's Not
-  ready is not.
-- `incomplete` ships as it stands, with its gaps named on the row (`gaps`). This is the owner's decision of 2026-11-25
+- It ships with no Ready at all. The flags no review settled are the row's `doubts`, each with its proof-page row.
+- **Any Not ready that stands still holds it, an AI reviewer's included.** The AI's record cannot say whether it names
+  a structural problem (the wrong key linked) or a reading doubt, so until a second opinion exists none ships: the
+  puzzle is graded `held`, diagnosis `ai-not-ready`, with the reviewer's words (`formats/ship-record.md` says what
+  the reviewer would need to record). Its edits are not applied: only a Ready's are.
+- `incomplete` ships as it stands, with its gaps named on the row (`gaps`) and the kind of incomplete it is (`lacks`:
+  no key, a page never found, clues missing, unsolved squares, another part missing). This is the owner's decision of 2026-11-25
   and replaces, for a batch that opts in, the rule of 2026-11-23 that only a person's "Ready to ship as it stands"
   ships an incomplete puzzle. For every other batch that rule stands.
 - A candidate clue list nobody decided stays out of the xd and is an open doubt on the row, not a hold.
+- A header the text step typed with no printed line (`header-typed`) is a doubt about that one value, at its header's
+  row, which only a person's Ready settles. It is not a missing part.
 
 Every protection of a person's word stays (`tests/test_grades.py`): a person's Not ready holds the puzzle, on any
 version; the owner's decision overrides, either way; the owner's Ready on an earlier version still asks them to look

@@ -91,10 +91,12 @@ class Rule:
 
     ship_grades: the grades a puzzle ships by with no person's Ready (design/v3-agent-forward.md, "Every puzzle exits
       with a grade"; the owner's decisions of 2026-11-25). () (the default: off, and nothing ships by its grade), or any of
-      SHIPS: clean, reviewed, doubts, incomplete. A puzzle whose grade is listed ships as it stands: `doubts` with an
-      AI reviewer's Not ready standing (its questions are the open doubts, listed on the row), `incomplete` with its gaps
+      SHIPS: clean, reviewed, doubts, incomplete. A puzzle whose grade is listed ships as it stands: `doubts` with the
+      flags no review has settled listed on the row, `incomplete` with its gaps
       named (which replaces, for a batch that opts in, the 2026-11-23 rule that only a person's "Ready to ship as it
-      stands" ships an incomplete puzzle). Every protection of a person's word stays: a person's Not ready holds, the
+      stands" ships an incomplete puzzle). Any Not ready that stands still holds, an AI reviewer's included: its record
+      can't say whether it names a structural problem (the wrong key linked) or a reading doubt, so until a second
+      opinion exists (v3 slice 5) none ships (AI_NOT_READY). Every protection of a person's word stays: the
       owner's decision overrides, an AI never overrides a person, a hold code holds, PERSON_CODES still need a person's
       Ready, and no edit ships without its record.
 
@@ -182,9 +184,8 @@ def standing(batch: dict, proofs: list[dict], *, check_ok: bool = False, codes: 
     - otherwise one person's Ready ships it (rule "people");
     - otherwise, with rule.ai_ready on, the AI's Ready ships it (rule "ai"), unless it carries one of PERSON_CODES
       (clue-by-sequence), which only a person's Ready ships;
-    - otherwise, with the puzzle's grade in rule.ship_grades, it ships by its grade (rule "grade"): with no Ready at
-      all, or with an AI reviewer's Not ready standing (never a person's), the questions staying open on the row. Not
-      a puzzle carrying one of PERSON_CODES;
+    - otherwise, with the puzzle's grade in rule.ship_grades, it ships by its grade (rule "grade"), with no Ready at
+      all. Never with a Not ready standing, a person's or an AI's, and not a puzzle carrying one of PERSON_CODES;
     - otherwise it waits (no-ready; proof-stale when all that was said, a Ready or an AI's Not ready, was on
       an earlier version);
     - and a puzzle that would ship is held when it carries one of rule.hold_codes (the code is the reason).
@@ -227,19 +228,17 @@ def standing(batch: dict, proofs: list[dict], *, check_ok: bool = False, codes: 
         ai = any(s["kind"] == "ai" for s in ready)
         person = sorted(set(codes) & set(PERSON_CODES))  # needs a person's Ready, whatever ai_ready says
         ai_ok = {"off": False, "both": ai and check_ok, "ai": ai, "either": ai or check_ok}[rule.ai_ready] and not person
-        # by its grade: never over a person's Not ready (only an AI's stays open on a puzzle that ships), never a PERSON_CODE
-        by_grade = bool(grade) and grade in rule.ship_grades and not person and all(s["kind"] in ("ai", "check") for s in no)
-        if no and not by_grade:
+        # by its grade: never over a Not ready that stands (a person's, or an AI's: AI_NOT_READY), never a PERSON_CODE
+        by_grade = bool(grade) and grade in rule.ship_grades and not person and not no
+        if no:
             res = out("hold", "not-ready", "said Not ready by " + "; ".join(s["who"] + (f": {s['note']}" if s["note"] else "") for s in no))
         elif people:
-            res = out("ship", "", f"Ready by {who(people)}, " + (f"with the open questions of {who(no)} (graded {grade}: ship_grades)" if no else "no Not ready"),
-                      who(people), "people")
-        elif ai_ok and not no:
+            res = out("ship", "", f"Ready by {who(people)}, no Not ready", who(people), "people")
+        elif ai_ok:
             by = " and ".join(x for x in ("the AI proof reviewer's Ready" if ai else "", "the ship check passes" if check_ok else "") if x)
             res = out("ship", "", f"{by} (ai_ready: {rule.ai_ready}), no Not ready", by, "ai")
         elif by_grade:
-            res = out("ship", "", f"graded {grade}: ships by its grade (ship_grades), with no person's Ready"
-                      + (f"; the open questions of {who(no)} stay listed" if no else ", no Not ready"), f"its grade ({grade})", "grade")
+            res = out("ship", "", f"graded {grade}: ships by its grade (ship_grades), with no person's Ready, no Not ready", f"its grade ({grade})", "grade")
         elif any(s["stale"] for s in said):
             res = out("hold", "proof-stale", "; ".join(f"{s['who']}'s {'Ready' if s['answer'] == 'ready' else 'Not ready'}" for s in said if s["stale"])
                       + " was on an earlier version of the puzzle")
@@ -573,6 +572,35 @@ GAP_ROW = {"key": "grid", "title": "ev:title"}  # a blocking part's id as the pr
 SAMPLE_OF = ("clean", "reviewed", "doubts")  # the owner reads a sample of what shipped at each of these (2026-11-25)
 SAMPLE_N = 10
 AI_QUESTION = "ai-question"  # the code of a doubt that is an AI proof reviewer's own question
+# An AI proof reviewer's Not ready holds the puzzle whatever its grade: graded held, with the reviewer's words as the
+# diagnosis. Its record (the ledger's proof:<pid>: comments keyed by proof-page row, a status per part, a note) can't
+# tell a structural problem from a reading doubt: on GAMES 1980-82 the key `grid` carries both "this grid is another
+# puzzle's key" and "r5c3 is O in the printed key", and no review carries a send-back or a kind. So none ships until
+# a second opinion exists (design/v3-agent-forward.md, slice 5). To let reading doubts ship, the reviewer would have
+# to record, per flag, what kind it is (structure: a part linked from another puzzle, a part missing; or reading: a
+# letter or a word), or use the review's send-back {kind, part} for what is the pipeline's.
+AI_NOT_READY = "ai-not-ready"
+# ---- what an incomplete puzzle lacks, by kind (the row's `lacks`, each gap's `sub`): the first that applies, in this order
+LACKS = ("no-key", "page-not-found", "clues-missing", "unsolved-squares", "part-missing")
+LACKS_MEANS = {"no-key": "no answer key: none printed (a cryptic's answers as text, a contest), or none found",
+               "page-not-found": "a page the puzzle runs onto was asked for and never found",
+               "clues-missing": "clues or a clue list missing, empty or unread",
+               "unsolved-squares": "squares of the answer grid unread or unsolved",
+               "part-missing": "another part the text step found missing"}
+LACK_OF = {"key-missing": "no-key", "cryptic-no-key": "no-key", "request-page": "page-not-found",
+           "clue-empty": "clues-missing", "clue-missing": "clues-missing", "clue-extra": "clues-missing", "clues-unread": "clues-missing",
+           "request-list": "clues-missing", "list-missing-A": "clues-missing", "list-missing-D": "clues-missing",
+           "second-set-missing": "clues-missing", "second-clue-set": "clues-missing",
+           "grid-unsolved": "unsolved-squares", "key-unread": "unsolved-squares"}
+HEADER_TYPED = "header-typed"  # triage: a header's value typed by the text step, with no printed line that gives it
+
+
+def lack_of(gap: dict) -> str:
+    """The kind of a gap, one of LACKS: by its code; a part confirmed not printed by the part the record names (the
+    key: no-key); anything else is part-missing."""
+    if gap.get("code") == "not-printed":
+        return "no-key" if gap.get("part") == "key" else "part-missing"
+    return LACK_OF.get(gap.get("code", ""), "part-missing")
 # what the codes that aren't triage's mean, for the digest's ranking of failures (triage's own come from its record's groups)
 MEANS = {AI_QUESTION: "the AI proof reviewer's own question, left open", "candidate-undecided": "a candidate clue list nobody has decided",
          "grid-unsolved": "squares of the answer grid unread or unsolved (the ship check)", "clue-empty": "clues with no text (the ship check)",
@@ -580,7 +608,8 @@ MEANS = {AI_QUESTION: "the AI proof reviewer's own question, left open", "candid
          "second-set-missing": "a second clue set that doesn't cover every clue (the ship check)",
          "notes-other-list": "another list's lines in the notes (the ship check)", "clue-hygiene": "a clue's text looks damaged (the ship check)",
          "no-title": "no Title header (the ship check)", "no-author": "no Author or Byline header (the ship check)",
-         "not-ready": "a person said Not ready", "owner-hold": "held by the owner", "sent-back": "a reviewer sent it back to the pipeline",
+         "not-ready": "a person said Not ready", AI_NOT_READY: "an AI reviewer said Not ready: held until a second opinion can tell a structural problem from a reading doubt",
+         HEADER_TYPED: "a header's value typed by the text step: no printed line gives it", "owner-hold": "held by the owner", "sent-back": "a reviewer sent it back to the pipeline",
          "no-ready": "needs a person's Ready, whatever its grade", "proof-stale": "the owner's Ready was on an earlier version: look again"}
 
 
@@ -629,6 +658,11 @@ def flags_of(t: dict, candidates: list | tuple = ()) -> list[dict]:
         else:
             add("meta:note", detail, code, "ship check")
     for r in reasons:
+        if r.get("code") == HEADER_TYPED:  # the value is in the xd, and no printed line gives it: a doubt about that one value
+            field = str(r.get("field") or str(r.get("detail", "")).partition(":")[0]).strip()
+            add(f"ev:{field}" if re.fullmatch(r"\w+", field) else "", f"typed by the text step, with no printed line that gives it: {r.get('detail', '')}",
+                HEADER_TYPED, "triage")
+            continue
         if r.get("class") != "defect" or r.get("severity") != "proof":
             continue
         code, detail = r.get("code", ""), re.sub(r"^\d+: ", "", str(r.get("detail", "")))  # without triage's count of the items
@@ -657,9 +691,10 @@ def gaps_of(t: dict, means: dict | None = None, filled: list | tuple = (), block
     with no key grid, a second clue set not captured, a part confirmed not printed). [{what, code, stage, detail, row}]."""
     out, means = [], means or {}
 
-    def add(what, code, stage="", detail="", row=""):
+    def add(what, code, stage="", detail="", row="", part=""):
         if not any(g["code"] == code and g["detail"] == detail and g["what"] == what for g in out):
-            out.append({"what": str(what), "code": code, "stage": stage, "detail": str(detail)[:300], "row": row})
+            g = {"what": str(what), "code": code, "stage": stage, "detail": str(detail)[:300], "row": row}
+            out.append({**g, "sub": lack_of({**g, "part": part})})
 
     ship = t.get("ship") or {}
     named = set()
@@ -674,13 +709,13 @@ def gaps_of(t: dict, means: dict | None = None, filled: list | tuple = (), block
         if x not in named and x not in filled:
             add(x, "incomplete")
     for b in (t.get("blocking") or []) if blocking else []:
-        if isinstance(b, dict) and b.get("kind") in GAP_KINDS:
+        if isinstance(b, dict) and b.get("kind") in GAP_KINDS and b.get("code") != HEADER_TYPED:  # a typed header: a doubt (flags_of)
             detail = "" if b.get("detail") == "from the verdict" else b.get("detail") or ""
             add(b.get("part") or b.get("code") or "", b.get("code") or "", b.get("restart") or "", detail, GAP_ROW.get(b.get("part_id") or "", ""))
     for r in t.get("reasons") or []:
         if isinstance(r, dict) and r.get("class") == "gap":
             detail = "" if r.get("detail") == "from the verdict" else r.get("detail") or ""
-            add(means.get(r.get("code", "")) or r.get("code", ""), r.get("code", ""), "", detail)
+            add(means.get(r.get("code", "")) or r.get("code", ""), r.get("code", ""), "", detail, part=str(r.get("part") or ""))
     return out
 
 
@@ -693,7 +728,7 @@ def grade_of(t: dict, st: dict, proofs: list[dict], rule: Rule, current: tuple =
     them, or None), doubts (the open ones: [{row, text, code, from}]), gaps, diagnosis ({stage, what, code, detail}, a
     held puzzle's, or None)}."""
     dec = t.get("decision", "")
-    base = {"flags": 0, "settled": None, "doubts": [], "gaps": [], "diagnosis": None}
+    base = {"flags": 0, "settled": None, "doubts": [], "gaps": [], "lacks": [], "diagnosis": None}
     if dec in ("not a crossword", "set aside"):
         return {**base, "grade": "not-a-crossword" if dec == "not a crossword" else "deferred", "grade_why": f"triage: {dec}"}
     person_ships = st.get("status") == "ship" and st.get("rule") in ("owner", "people")
@@ -706,11 +741,13 @@ def grade_of(t: dict, st: dict, proofs: list[dict], rule: Rule, current: tuple =
     by = ([s for s in stands if s["answer"] == "ready" and s["kind"] in ("owner", "helper")] if person_ships else []) \
         or ([] if ai_no else [s for s in stands if s["answer"] == "ready" and s["kind"] == "ai"])
     settled = {"by": by[-1]["who"], "kind": by[-1]["kind"], "at": by[-1]["at"][:10]} if by else None
-    undecided = [d for d in flags if d["code"] == "candidate-undecided"]  # only a person's decision settles one
+    # what an AI's Ready can't settle: a candidate list (a person decides it) and a typed header (no crop shows it)
+    person_only = ("candidate-undecided", HEADER_TYPED)
+    undecided = [d for d in flags if d["code"] in person_only and not (settled and settled["kind"] in ("owner", "helper") and d["code"] == HEADER_TYPED)]
     if settled:
         doubts = undecided
     elif ai_no:  # the AI reviewer looked at what was flagged: its own questions are what stays open
-        doubts = undecided + [{"row": a["row"], "text": a["text"] + (f" Suggest: {a['suggest']}" if a.get("suggest") else ""), "code": AI_QUESTION,
+        doubts = [d for d in flags if d["code"] in person_only] + [{"row": a["row"], "text": a["text"] + (f" Suggest: {a['suggest']}" if a.get("suggest") else ""), "code": AI_QUESTION,
                                "from": a["who"]} for a in asks_of("not-ready", "", {}, proofs, rule, current) if a["kind"] == "ai"]
     else:
         doubts = flags
@@ -720,7 +757,8 @@ def grade_of(t: dict, st: dict, proofs: list[dict], rule: Rule, current: tuple =
         doubts = [{"row": "", "text": str(fd.get("detail", "")) if isinstance(fd, dict) else str(fd), "code": fd.get("code", "") if isinstance(fd, dict) else "",
                    "from": "ship check"} for fd in (t.get("ship") or {}).get("findings") or []] or [
                   {"row": "", "text": "the ship check did not pass, and records no finding", "code": "ship-check", "from": "ship check"}]
-    out = {**base, "flags": len(flags), "settled": settled, "doubts": doubts, "gaps": gaps}
+    lacks = [k for k in LACKS if any(g["sub"] == k for g in gaps)]  # what it lacks, by kind; the first is the one it is counted under
+    out = {**base, "flags": len(flags), "settled": settled, "doubts": doubts, "gaps": gaps, "lacks": lacks}
     if structure:
         b = structure[0]
         dg = {"stage": b.get("restart") or "", "what": b.get("part") or b.get("code") or "", "code": b.get("code") or "",
@@ -731,8 +769,8 @@ def grade_of(t: dict, st: dict, proofs: list[dict], rule: Rule, current: tuple =
         return {**out, "grade": "incomplete", "grade_why": "not whole: " + "; ".join(g["what"] for g in gaps[:4]) + (f" (+{len(gaps) - 4})" if len(gaps) > 4 else "")}
     if doubts:
         return {**out, "grade": "doubts", "grade_why": f"{len(doubts)} open doubt(s): " + (
-            "a candidate clue list nobody has decided" if settled else "the AI reviewer's questions" if ai_no
-            else "flagged by the checks, and no review has settled them")}
+            "what only a person settles (a candidate clue list, a header typed with no printed line)" if settled
+            else "the AI reviewer's questions" if ai_no else "flagged by the checks, and no review has settled them")}
     if flags:
         return {**out, "grade": "reviewed", "grade_why": f"{len(flags)} flag(s) raised by the checks, settled by {settled['by']} ({settled['at']})"}
     return {**out, "grade": "clean", "grade_why": "the ship check passed and nothing was flagged" if ok else f"nothing was flagged; Ready by {settled['by']}"}
@@ -743,8 +781,11 @@ def held_grade(row: dict, would: dict) -> None:
     on the row: the diagnosis names the hold and the stage it points to (a person's word: the proof page)."""
     if row.get("grade") in SHIPS and would.get("status") == "held":
         reason = would.get("reason", "")
+        no = [s for s in would.get("said") or [] if s.get("answer") == "notready" and not s.get("stale")]
+        if reason == "not-ready" and no and all(s.get("kind") == "ai" for s in no):  # an AI's alone: AI_NOT_READY
+            reason = AI_NOT_READY
         stage = ((would.get("broken") or [{}])[0].get("stage") or STAGE_OF.get(reason, "")
-                 or ("proof review" if reason in QUEUE_OF or reason in ("sent-back", "not-ready", "owner-hold") else ""))
+                 or ("proof review" if reason in QUEUE_OF or reason in ("sent-back", "not-ready", "owner-hold", AI_NOT_READY) else ""))
         row.update(diagnosis={"stage": stage, "what": would.get("why", ""), "code": reason, "detail": ""},
                    grade_why=f"held whatever its grade (otherwise {row['grade']}): {would.get('why', '')}", grade="held")
 
@@ -1774,7 +1815,7 @@ def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict |
             rec = drop if drop.get("answer") else aside
             row.update(status="out", reason=kind, why=f"{kind.replace('-', ' ')}: {rec.get('note', '')} ({rec.get('by', '')})", said=[], rule="", asks=[], broken=[])
             row.update(grade="not-a-crossword" if kind == "not-a-crossword" else "deferred", grade_why=row["why"], flags=0, settled=None,
-                       doubts=[], gaps=[], diagnosis=None)
+                       doubts=[], gaps=[], lacks=[], diagnosis=None)
             if kind == "set-aside":  # known, not transcribed: a stub, as a puzzle the scope rule defers has
                 row["stub"] = stub_of(pid, row["date"], places[pid], *recorded_kind(t), f"set aside by {rec.get('by', '')}: {rec.get('note', '')}")
             continue
@@ -1784,7 +1825,7 @@ def plan(repo: Path, proof_root: Path, rule: Rule, batch: str = "", site: dict |
         if pkind and scope.get(pkind) == "defer" and pid not in prov:
             why = f"deferred: a {pkind} ({pfrom}), out of scope for now (the publication's fixes/scope.json)"
             row.update(status="out", reason="deferred", why=why, said=[], rule="", asks=[], broken=[], grade="deferred", grade_why=why, flags=0,
-                       settled=None, doubts=[], gaps=[], diagnosis=None, stub=stub_of(pid, row["date"], places[pid], pkind, pfrom, why))
+                       settled=None, doubts=[], gaps=[], lacks=[], diagnosis=None, stub=stub_of(pid, row["date"], places[pid], pkind, pfrom, why))
             continue
         review = pk["review"]
         current = tuple(x for x in (review.get("xd_fp"), *(review.get("xd_fp_same") or [])) if x)
@@ -2051,10 +2092,15 @@ def counts(rows: list[dict]) -> dict:
     out = {"puzzles": len(rows), "shipped": 0, "shippable": 0, "held": 0, "out": 0, "held_by": {}, "ships_with": {},
            "queues": {q: 0 for q in QUEUES}, "reviewed": 0, "spot_check": 0,
            # every puzzle's grade, and how many of each ship (shipped, or ready to ship)
-           "grades": {g: 0 for g in GRADES}, "grade_ships": {g: 0 for g in GRADES}}
+           "grades": {g: 0 for g in GRADES}, "grade_ships": {g: 0 for g in GRADES}, "incomplete": {}}
     for r in rows:
         out[r["status"]] += 1
         out["queues"].setdefault(r["queue"], 0)  # `deferred` (the scope rule's): a queue only where a puzzle is in it
+        if r.get("grade") == "incomplete":  # which kind of incomplete: counted once, under the first that applies, and under each it has
+            for i, k in enumerate(r.get("lacks") or []):
+                c = out["incomplete"].setdefault(k, {"first": 0, "any": 0})
+                c["first"] += not i
+                c["any"] += 1
         if r.get("grade") in out["grades"]:
             out["grades"][r["grade"]] += 1
             out["grade_ships"][r["grade"]] += r["status"] in ("shipped", "shippable")
@@ -2875,7 +2921,8 @@ def grade_record(row: dict) -> dict:
     """A row's grade as its provenance row and its as-shipped file carry it: {grade, why, flags, settled, doubts, gaps}
     (a puzzle that ships is never held, so no diagnosis)."""
     return {"grade": row.get("grade", ""), "why": row.get("grade_why", ""), "flags": row.get("flags", 0),
-            "settled": row.get("settled"), "doubts": list(row.get("doubts") or []), "gaps": list(row.get("gaps") or [])}
+            "settled": row.get("settled"), "doubts": list(row.get("doubts") or []), "gaps": list(row.get("gaps") or []),
+            "lacks": list(row.get("lacks") or [])}
 
 
 def write(repo: Path, p: dict, today: str = "") -> dict:
@@ -2990,13 +3037,13 @@ def record(p: dict, public: bool = True) -> dict:
              **({"candidates": r["candidates"]} if r.get("candidates") else {}),
              # shipped as it stands: what is missing, and the reviewer's word on why we stop here
              **({"partial": r["partial"]} if r.get("partial") else {}),
-             **({"review": r["review"]} if r.get("review") else {}),
+             **({"review": why({**r, "why": r["review"]})} if r.get("review") else {}),
              # its grade (grade_of; formats/ship-record.md): how far to trust it, the doubts left open (each with its row
              # on the proof page), the gaps named, a held puzzle's diagnosis, its place in the digest, and whether it is
              # in the owner's reading sample (to_read)
              "grade": r.get("grade", ""), "grade_why": why({**r, "why": r.get("grade_why", "")}), "flags": r.get("flags", 0),
              "settled": ((_public_who(r["settled"]) if public else r["settled"]) if r.get("settled") else None),
-             "doubts": list(r.get("doubts") or []), "gaps": list(r.get("gaps") or []),
+             "doubts": list(r.get("doubts") or []), "gaps": list(r.get("gaps") or []), "lacks": list(r.get("lacks") or []),
              "diagnosis": ({**r["diagnosis"], "what": why({**r, "why": r["diagnosis"]["what"]})} if r.get("diagnosis") else None),
              "grade_order": r.get("grade_order", 0), "to_read": bool(r.get("to_read")),
              # a deferred puzzle's stub: known, not transcribed (the scope rule's, or a person's set-aside)
@@ -3009,7 +3056,9 @@ def record(p: dict, public: bool = True) -> dict:
             # the grades (formats/ship-record.md): their order, which of them this batch ships by, the owner's reading
             # sample, the shipped xd files in the order the digest steps through them, the kinds of failure ranked
             "format": "ship-record/1",
-            "grades": {"order": list(GRADES), "ships": list(p["rule"].get("ship_grades") or [])},
+            "grades": {"order": list(GRADES), "ships": list(p["rule"].get("ship_grades") or []),
+                       # what an incomplete puzzle lacks, by kind, in the order a puzzle is counted under (counts.incomplete)
+                       "lacks": [{"key": k, "means": LACKS_MEANS[k]} for k in LACKS]},
             **{k: (p.get("digest") or {}).get(k) for k in ("sample", "walk", "failures")},
             # the publication's scope rule as this record was made with it (fixes/scope.json), where it has one, and which
             # kinds a milestone records today: a kind nothing records is deferred for no puzzle

@@ -36,9 +36,9 @@ graded is from before the grades: valid, and the check says so as a note.
 |---|---|---|
 | `clean` | the ship check passed and nothing was flagged | triage's `ship.ok`, and no flag (below) |
 | `reviewed` | flags were raised, and a review settled them | an AI proof reviewer's Ready on this version of the puzzle, or the Ready of the person whose word ships it |
-| `doubts` | flags stay open | an AI reviewer's Not ready (its comments are the doubts), or flags no review has looked at, or a candidate clue list nobody decided |
-| `incomplete` | a part was never found or never read; the gaps are named | the ship check's `incomplete`; triage's blocking parts of kind `missing-part` or `ocr-broken`; triage's reasons of class `gap` |
-| `held` | the structure does not hold, or a protection of the ship rule holds it | a blocking part of any other kind (`mixed`, `other`, or none recorded); or the rule would hold the puzzle with every grade on: a person's Not ready, the owner's hold, an edit with no record, a packet that doesn't show its xd |
+| `doubts` | flags stay open | flags no review has looked at; a candidate clue list nobody decided; a header the text step typed with no printed line (`header-typed`) |
+| `incomplete` | a part was never found or never read; the gaps are named, and `lacks` says which kind | the ship check's `incomplete`; triage's blocking parts of kind `missing-part` or `ocr-broken` (not `header-typed`); triage's reasons of class `gap` |
+| `held` | the structure does not hold, or a protection of the ship rule holds it | a blocking part of any other kind (`mixed`, `other`, or none recorded); or the rule would hold the puzzle with every grade on: any Not ready that stands (a person's, or an AI reviewer's), the owner's hold, an edit with no record, a packet that doesn't show its xd |
 | `deferred` | known, not transcribed | a person's set-aside (`setaside:<pid>`), or the publication's scope rule |
 | `not-a-crossword` | dropped | `drop:<pid>` |
 
@@ -49,6 +49,29 @@ graded is from before the grades: valid, and the check says so as a note.
   stays a gap unless their edits fill it.
 - The order of precedence is `held`, `incomplete`, `doubts`, `reviewed`, `clean`. An incomplete
   puzzle can also list open doubts.
+- **An AI reviewer's Not ready holds the puzzle**, graded `held` with the diagnosis code
+  `ai-not-ready` and the reviewer's words as `what`; its questions stay in `doubts`. The
+  review's record (comments keyed by proof-page row, a status per part, a note) cannot tell a
+  structural problem from a reading doubt: on GAMES 1980-82 the key `grid` carries both "this
+  grid is another puzzle's key" and "r5c3 is O in the printed key", and no review carries a
+  send-back. Until a second opinion exists, none ships. For reading doubts to ship, the
+  reviewer would have to record a kind on each flag (`structure`: a part linked from another
+  puzzle, a part missing; `reading`: a letter or a word), or use the review's send-back
+  `{kind, part}` for what is the pipeline's.
+- **A typed header is a doubt, not a gap.** Triage's `header-typed` names the field and the
+  value (`field`, `detail`): the value is in the xd, and no printed line gives it. It is a
+  doubt at that header's row (`ev:title`, `ev:byline`). An AI's Ready does not settle it (no
+  crop shows it); a person's Ready does.
+- **Which kind of incomplete.** Each gap has a `sub`, and the row's `lacks` lists the kinds
+  it has, in this order; the puzzle is counted under the first.
+
+  | `sub` | Means | From the codes |
+  |---|---|---|
+  | `no-key` | no answer key: none printed, or none found | `key-missing`, `cryptic-no-key`, `not-printed` for the key |
+  | `page-not-found` | a page the puzzle runs onto was asked for and never found | `request-page` |
+  | `clues-missing` | clues or a clue list missing, empty or unread | `clue-empty`, `clue-missing`, `clue-extra`, `clues-unread`, `request-list`, `list-missing-A`, `list-missing-D`, `second-set-missing`, `second-clue-set` |
+  | `unsolved-squares` | squares of the answer grid unread or unsolved | `grid-unsolved`, `key-unread` |
+  | `part-missing` | another part the text step found missing | any other gap (`verdict-missing`) |
 - `held` is exactly the puzzles the ship rule would hold with every grade on. So a grade in
   `clean`, `reviewed`, `doubts` or `incomplete` is one the rule ships when the batch opts in.
 - Nothing is read from the scan. A grade is worked out from `triage.json`, the ledger and the
@@ -67,9 +90,10 @@ with.
 | Field | Holds |
 |---|---|
 | `format` | `"ship-record/1"` |
-| `grades` | `{order: [the seven grades, as above], ships: [the grades this batch ships by]}` |
+| `grades` | `{order: [the seven grades, as above], ships: [the grades this batch ships by], lacks: [{key, means}], the kinds of incomplete in order}` |
 | `counts.grades` | `{grade: how many puzzles}`; they add up to `counts.puzzles` |
 | `counts.grade_ships` | `{grade: how many of them ship}` (`status` shipped or shippable) |
+| `counts.incomplete` | `{sub: {first, any}}` over the puzzles graded `incomplete`: `first` counts each puzzle once, under the first kind it has (they add up to the grade's count); `any` counts every puzzle that has the kind |
 | `sample` | the owner's reading sample: `{per_grade, of: [grades], from, by, pool: {grade: how many ship}, picked: {grade: [pid]}}` |
 | `walk` | the pids of the puzzles that ship, in the order the batch page steps through them |
 | `failures` | the kinds of failure, ranked by puzzles: `[{code, kind, stage, means, puzzles, pids}]` |
@@ -82,7 +106,7 @@ move. The page marks these rows and draws no sample of its own.
 
 **The failures.** `kind` is `held` (a held puzzle's diagnosis), `gap` (a gap of any puzzle) or
 `doubt` (an open doubt of any puzzle). `code` is the record's own: a triage reason code, a ship
-check finding, a hold reason, `ai-question` or `candidate-undecided`. `means` is triage's own
+check finding, a hold reason, `ai-not-ready`, `ai-question` or `candidate-undecided`. `means` is triage's own
 words for its code (its record's `groups`), or blitz's for the others; `stage` is the stage a
 gap or a hold points to, `""` when none is recorded. A puzzle counts once for each kind it has.
 
@@ -95,7 +119,8 @@ gap or a hold points to, `""` when none is recorded. A puzzle counts once for ea
 | `flags` | how many flags the checks raised |
 | `settled` | `{by, kind, at}` of the review that settled them, or `null` |
 | `doubts` | the open ones: `[{row, rows?, text, code, from}]` |
-| `gaps` | `[{what, code, stage, detail, row}]` |
+| `gaps` | `[{what, code, stage, detail, row, sub}]` |
+| `lacks` | the kinds of its gaps, in order; `[]` when it has none |
 | `diagnosis` | a held puzzle's: `{stage, what, code, detail}`; `null` otherwise |
 | `grade_order` | the row's place in the digest: by grade, then id. 0 to n-1 |
 | `to_read` | `true` when the row is in `sample.picked` |
@@ -115,13 +140,14 @@ gap or a hold points to, `""` when none is recorded. A puzzle counts once for ea
 
 ## In the provenance row and the as-shipped file
 
-`grade: {grade, why, flags, settled, doubts, gaps}`, the same values as the row's, with
+`grade: {grade, why, flags, settled, doubts, gaps, lacks}`, the same values as the row's, with
 `grade_why` as `why`. A puzzle that shipped is never `held`, `deferred` or `not-a-crossword`.
 
 ## What the check reads
 
 `blitz check-format` on a ship record: each grade is one of the seven; doubts, gaps, the
-diagnosis and the stub have their fields, and each `row` is a proof-page key; a `doubts` puzzle
+diagnosis and the stub have their fields, each `row` is a proof-page key, each gap's `sub` is
+one of the five kinds and `lacks` agrees with the gaps; `counts.incomplete` agrees with the rows; a `doubts` puzzle
 lists a doubt, an `incomplete` one names a gap, a `held` one has a diagnosis, a `reviewed` one
 says who settled it; nothing that ships is graded `held`, `deferred` or `not-a-crossword`; the
 counts agree with the rows; `grade_order` is each row's own place; `walk` is exactly what

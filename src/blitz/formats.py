@@ -624,6 +624,7 @@ GRADES_SHIP = GRADES[:4]
 ROW_KEY = re.compile(r"clue:[AD]\d+(\^[\w-]+)?|line:B\d+|cell:r\d+c\d+|(ev|meta):\w+|candidate:\S+|grid|notes|")
 DOUBT = {"row": STR, "text": STR, "code": STR, "from": STR}
 GAP = {"what": STR, "code": STR, "stage": STR, "detail": STR, "row": STR}
+LACKS = ("no-key", "page-not-found", "clues-missing", "unsolved-squares", "part-missing")  # blitz ship.LACKS
 DIAGNOSIS = {"stage": STR, "what": STR, "code": STR}
 GRADE_ROW = {"grade": STR, "grade_why": STR, "flags": (int,), "doubts": LIST, "gaps": LIST, "grade_order": (int,), "to_read": BOOL}
 PROVENANCE_GRADE = {"grade": STR, "why": STR, "flags": (int,), "doubts": LIST, "gaps": LIST}
@@ -653,6 +654,11 @@ def _grade_lists(g: dict, name: str, out: list) -> None:
         _fields(x, GAP, f"{name}: gaps[{i}]", out)
         if isinstance(x.get("row"), str) and not ROW_KEY.fullmatch(x["row"]):
             out.append(("problem", f"{name}: gaps[{i}] row {x['row']!r} is not a proof-page row key"))
+        if x.get("sub") not in LACKS:
+            out.append(("problem", f"{name}: gaps[{i}] sub {x.get('sub')!r} is not one of {', '.join(LACKS)}"))
+    lacks = g.get("lacks")
+    if not isinstance(lacks, list) or [k for k in LACKS if any(isinstance(x, dict) and x.get("sub") == k for x in g.get("gaps") or [])] != lacks:
+        out.append(("problem", f"{name}: lacks is not its gaps' kinds, in the order of {', '.join(LACKS)}"))
     s = g.get("settled")
     if s is not None and not (isinstance(s, dict) and all(isinstance(s.get(k), str) for k in ("by", "kind", "at"))):
         out.append(("problem", f"{name}: settled is not null or {{by, kind, at}}"))
@@ -735,6 +741,15 @@ def check_ship_record(f: Path) -> list[tuple[str, str]]:
             n = sum(1 for r in by.values() if r.get("grade") == g and of(r))
             if c[key].get(g) != n:
                 out.append(("problem", f"counts.{key}.{g} is {c[key].get(g)!r}; the rows say {n}"))
+    inc = c.get("incomplete")
+    if not isinstance(inc, dict):
+        out.append(("problem", "counts.incomplete is missing"))
+    else:
+        rows_inc = [r for r in by.values() if r.get("grade") == "incomplete"]
+        for k in LACKS:
+            want = {"first": sum(1 for r in rows_inc if (r.get("lacks") or [None])[0] == k), "any": sum(1 for r in rows_inc if k in (r.get("lacks") or []))}
+            if (inc.get(k) or {"first": 0, "any": 0}) != want:
+                out.append(("problem", f"counts.incomplete.{k} is {inc.get(k)!r}; the rows say {want}"))
     if sorted(r.get("grade_order", -1) for r in by.values()) != list(range(len(by))):
         out.append(("problem", "grade_order is not each row's own place, 0 to n-1"))
     gs = d.get("grades")

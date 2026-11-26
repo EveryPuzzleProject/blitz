@@ -451,6 +451,8 @@ def cmd_ship(a) -> None:
     from . import ship
 
     repo = Path(a.repo or f"../{a.pub}").resolve()
+    if not repo.is_dir():  # run from a worktree, ../<pub> is beside the worktree: no ledger, no rule, and every number wrong
+        raise work.Stop(f"No publication repo at {repo}: give --repo <the {a.pub} repo> (the default is ../{a.pub} from where the command runs).")
     site = None
     if a.decisions:
         site = json.loads(Path(a.decisions).read_text(encoding="utf-8"))

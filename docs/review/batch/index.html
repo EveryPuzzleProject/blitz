@@ -169,6 +169,7 @@ pre.edline { margin: 0; white-space: pre-wrap; font: inherit; }
 .dcard img, .noth { width: 64px; height: 64px; object-fit: contain; background: #fff; border: 1px solid var(--line); }
 .noth { display: flex; align-items: center; justify-content: center; font-size: 10px; line-height: 1.2; color: var(--muted); text-align: center; background: transparent; border-style: dashed; }
 .dcard .t { font: 600 13.5px/1.2 var(--serif); } .dcard .first { margin-top: 3px; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; } .dcard.toread { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.lacks { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0 8px; } .lacks .chip { cursor: default; }
 .readme { color: var(--accent); } .you { color: var(--glance); font-weight: 600; }
 table.fail { border-collapse: collapse; font-size: 13px; width: 100%; } table.fail td, table.fail th { padding: 3px 8px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
 table.fail th { font-weight: 600; color: var(--muted); font-size: 12px; } table.fail td.n { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; } table.fail tr.on { background: var(--glance-bg); }
@@ -429,6 +430,7 @@ const digestUrl = (extra = {}) => {
 const queuesUrl = () => { const u = new URLSearchParams(location.search); for (const k of ['digest', 'step', 'only', 'kind', 'code']) u.delete(k); return '?' + u.toString(); };
 const gradePill = x => x && x.grade ? `<span class="pill g-${esc(x.grade)}" title="${esc(x.grade_why || (GRADE[x.grade] || [])[1] || '')}">${esc((GRADE[x.grade] || [x.grade])[0])}</span>`
   : '<span class="pill p-none" title="the ship record gives this puzzle no grade">Grade not recorded</span>';
+const lackName = k => (((SHIP.grades || {}).lacks || []).find(q => q.key === k) || {means: k}).means.split(':')[0];
 const snapOf = pid => ((D || {}).puzzles || []).find(p => p.pid === pid);
 const thumbHtml = pid => { const p = snapOf(pid); return p && p.thumb ? `<img loading="lazy" src="${esc(U(p.thumb))}" alt="the grid">` : '<div class="noth">thumbnail not recorded</div>'; };
 // the first thing left open on a puzzle, as the record lists it: a doubt, else a gap; its row is where the proof page opens
@@ -487,7 +489,7 @@ function digestView() {
   const card = (x, list, label) => {
     const fo = firstOpen(x), more = (x.doubts || []).length + (x.gaps || []).length - 1;
     const first = x.grade === 'deferred' ? stubHtml(x) : x.grade === 'held' && x.diagnosis ? `<div class="first"><b>${esc(x.diagnosis.stage || 'stage not recorded')}</b>: ${esc(x.diagnosis.what || '')}</div>`
-      : fo ? `<div class="first" title="${esc(fo.text || fo.what || '')}"><a href="${digestProof(x.pid, fo.row, list, label)}"${TAB} title="opens the proof page at this row">${esc(rowName(fo.row))}</a>: ${esc((fo.text || fo.what || '') + (fo.detail ? ' (' + fo.detail + ')' : ''))}${more > 0 ? ` <span class="meta">+${more} more</span>` : ''}</div>`
+      : fo ? `<div class="first" title="${esc(fo.text || fo.what || '')}">${x.grade === 'incomplete' ? `<b>${esc((x.lacks || [])[0] ? lackName((x.lacks || [])[0]) : 'kind not recorded')}</b> · ` : ''}<a href="${digestProof(x.pid, fo.row, list, label)}"${TAB} title="opens the proof page at this row">${esc(rowName(fo.row))}</a>: ${esc((fo.text || fo.what || '') + (fo.detail ? ' (' + fo.detail + ')' : ''))}${more > 0 ? ` <span class="meta">+${more} more</span>` : ''}</div>`
       : x.settled && x.flags ? `<div class="first meta">${esc(x.flags)} flag${x.flags === 1 ? '' : 's'} settled by ${esc(x.settled.by)}</div>` : '';
     const v = LIVE && LIVE[x.pid] && LIVE[x.pid].you ? `<span class="you">you: ${LIVE[x.pid].you === 'ready' ? 'Ready' : 'Not ready'}</span>` : '';
     // a stub has no proof page (a deferred puzzle gets a stub and nothing else); nor has a puzzle dropped as not a crossword
@@ -501,7 +503,12 @@ function digestView() {
     const all = rows.filter(x => x.grade === g), mine = all.filter(x => !pick || pick.pids.includes(x.pid));
     if (!mine.length) return '';
     const list = mine.map(x => x.pid), label = (GRADE[g] || [g])[0];
-    return `<h2 id="g-${esc(g)}"><span class="pill g-${esc(g)}">${esc(label)}</span> ${mine.length}${pick ? ` of ${all.length}` : ''} <span class="meta">${esc((GRADE[g] || ['', ''])[1])}${s(g) ? ` · ${s(g)} ship` : ''}</span></h2>
+    // which kind of incomplete, as the record counts it (counts.incomplete, in grades.lacks' order): each puzzle once,
+    // under the first kind it has; "in all" counts every puzzle that has the kind
+    const kinds = g !== 'incomplete' ? '' : !(SHIP.grades.lacks && c.incomplete) ? '<p class="meta">Which kind of incomplete: not recorded.</p>'
+      : `<p class="lacks">${SHIP.grades.lacks.filter(k => c.incomplete[k.key]).map(k => `<span class="chip" title="${esc(k.means)}">${esc(k.means.split(':')[0])} <b>${esc(c.incomplete[k.key].first)}</b> <span class="meta">${esc(c.incomplete[k.key].any)} in all</span></span>`).join('')}
+          <span class="meta">each puzzle counted once, under the first kind it has</span></p>`;
+    return `<h2 id="g-${esc(g)}"><span class="pill g-${esc(g)}">${esc(label)}</span> ${mine.length}${pick ? ` of ${all.length}` : ''} <span class="meta">${esc((GRADE[g] || ['', ''])[1])}${s(g) ? ` · ${s(g)} ship` : ''}</span></h2>${kinds}
       <div class="dgrid">${mine.map(x => card(x, list, label)).join('')}</div>`;
   }).join('');
   const ungraded = rows.filter(x => !order.includes(x.grade));
