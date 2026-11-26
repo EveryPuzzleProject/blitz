@@ -259,3 +259,12 @@ def test_a_second_reading_with_a_doubt_cannot_agree():
     row = {"kind": "supplied", "sourced": True, "says": "typed", "readings": rd}
     assert formats.check_supplied({"clue:D61": {**row, "agree": False}}) == []
     assert formats.check_supplied({"clue:D61": {**row, "agree": True}})[0][0] == "problem"
+
+
+def test_a_withdrawn_reading_is_a_row_not_written_that_keeps_the_reading():
+    ok = {"clue:D100": {"kind": "withdrawn", "sourced": False, "written": False, "by": "the text step", "wrong": "another-clue",
+                        "of": "D97", "reading": "Imbricated", "why": "D97's", "says": "not written, the clue is missing"}}
+    assert formats.check_supplied(ok) == []
+    bad = {"clue:D100": {**ok["clue:D100"], "written": True}}
+    assert formats.check_supplied(bad)[0][0] == "problem"
+    assert formats.check_supplied({"clue:D100": {k: v for k, v in ok["clue:D100"].items() if k != "reading"}})[0][0] == "problem"

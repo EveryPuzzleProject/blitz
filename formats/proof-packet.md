@@ -151,7 +151,7 @@ crop like any doubted line.
 
 | Field | Holds |
 |---|---|
-| `kind` | `supplied` (printed clue text, typed by the text step), `replaced` (the reading was another clue's), `picture` (a drawing described: not printed text), `no-clue-printed` (an entry printed with no clue: no text) |
+| `kind` | `supplied` (printed clue text, typed by the text step), `replaced` (the reading was another clue's), `picture` (a drawing described: not printed text), `no-clue-printed` (an entry printed with no clue: no text), `withdrawn` (the reading here is another clue's, or only part of this one's with the rest on no crop, says the text step: written missing) |
 | `says` | the row's badge, in words: typed by which stage, from which crop, read twice or not |
 | `sourced` | whether a source crop is recorded |
 | `by` | the stage that gave it (`the text step`) |
@@ -159,6 +159,7 @@ crop like any doubted line.
 | `box`, `image` | the source crop on one of the packet's page images, in that image's pixels; `page` instead when the page isn't in the packet |
 | `readings`, `agree` | a typed clue read a second time from the same crop by another agent that had not seen the first reading: `[{text, by}, {text, by, unsure?}]`, the text step's first; `agree` whether the two are the same (letters and digits, a fill-in blank however long) and the second raised no doubt (`unsure`) |
 | `written` | `false`: the text step typed it and named no source crop, so it was not written. The clue stays missing; the row says so, with no text |
+| `reading`, `why`, `wrong`, `of` | a `withdrawn` row's: the OCR's reading that was not written, the text step's reason, `another-clue` or `cut-off`, and the clue the reading is (when named). Always `written: false` |
 
 A typed clue is written only with its source crop (2026-11-26); `check-format` notes a packet made
 before that, whose unsourced typed clues were written. What holds is the source, not the

@@ -105,7 +105,7 @@ def _fields(d: dict, want: dict, name: str, out: list, level: str = "problem") -
 
 
 # ---- review.json's supplied: what the text step gave where the OCR read nothing (formats/proof-packet.md, "supplied") ----
-SUPPLIED_KINDS = ("supplied", "replaced", "picture", "no-clue-printed")
+SUPPLIED_KINDS = ("supplied", "replaced", "picture", "no-clue-printed", "withdrawn")
 READ_FROM = ("line", "moved", "split")  # ocr.json clue read_from: where assembly found a clue the list had filed elsewhere
 
 
@@ -131,6 +131,9 @@ def check_supplied(sup, images: dict | None = None) -> list[tuple[str, str]]:
             continue
         if e.get("kind") not in SUPPLIED_KINDS or not isinstance(e.get("says"), str) or not isinstance(e.get("sourced"), bool):
             out.append(("problem", f"{name}: needs kind ({', '.join(SUPPLIED_KINDS)}), says and sourced"))
+            continue
+        if e["kind"] == "withdrawn" and (e.get("written") is not False or not isinstance(e.get("reading"), str)):
+            out.append(("problem", f"{name}: a withdrawn reading is not written and keeps the reading it withdrew"))
             continue
         if e.get("written") is False:
             if e["sourced"] or "readings" in e or "box" in e:
