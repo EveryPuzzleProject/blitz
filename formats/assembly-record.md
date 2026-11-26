@@ -135,3 +135,62 @@ the store under the hash the record names and its bytes have that hash, its fiel
 `pages_read` names the same pages as the record's inputs, and the shape of each puzzle, loose
 part and page. It reads no scan and assembles nothing, so it cannot say whether a record is
 current: `xword-ocr assembly status` does.
+
+## The search for missing parts (stage `search`)
+
+Beside a unit's `assembly`, the same unit may hold a second record, `search`: what each puzzle of that
+assembly expected and lacked, and the search for what it lacked, in order of cost (blitz
+`design/v3-agent-forward.md`, "Missing parts, looked for early"). The writer is xword-ocr `missing.py`
+with `watch.Watch._search` (branch `claude/missing-parts-early`, 2026-11-25). It is an optional addition:
+a unit without it is `assembly-record/1` as before, and the assembly itself is unchanged.
+
+```json
+{"issue:1981-01-01/hands-off": {
+  "assembly": {...},
+  "search": {"format": "assembly-record/1", "stage": "search", "version": "search/1",
+             "settings": {"whole": 0.95, "join": 0.9, "min_size": 9},
+             "inputs": {"assembly": "sha256:…", "next": "sha256:…", "page:<scan>/0070": "sha256:…"},
+             "output": "sha256:…", "made": "…", "took": 1.6, "code": "xword-ocr 0.1.0"}}}
+```
+
+| Field | Holds |
+|---|---|
+| `stage`, `version` | `search`; `search/<n>`, bumped in xword-ocr `stages.SEARCH_VERSION` when what the search records changes. A new version redoes the searches, never the assemblies |
+| `inputs` | `assembly`: the output of the unit's assembly it searched (another hash than the assembly record's `output` now: the search is stale); `next`: the next issue's assembly output, for its loose lists and answer pages; `page:<scan>/<leaf>`: a page the issue points to for its answers ("Answers on page 62", read with xword-ocr `pointers.py`), its analysis and image |
+| `settings` | the thresholds it used: `whole` (a list filling this share of its slots is whole), `join`, `min_size` |
+| `took` | seconds the search took (the key searches it reuses are cached per page and pattern) |
+
+Its artifact, in the store under `search/`:
+
+| Field | Holds |
+|---|---|
+| `format`, `pubid`, `date`, `variant` | as the assembly's |
+| `assembly` | the assembly output it searched (its record's `inputs.assembly`) |
+| `next` | the next issue's date, or null |
+| `puzzles` | one per puzzle of the assembly, in its order (below) |
+| `state` | the answer grids it linked, in xword-ocr's `statefile` encoding, by puzzle index. For xword-ocr's own callers |
+
+A puzzle:
+
+| Field | Holds |
+|---|---|
+| `grid` | the grid's place (`scan`, `leaf`, `box`) and `size`: the puzzle it is |
+| `expects` | each part it expects, `part` one of `grid`, `across`, `down`, `key`, `second clue set` (expected when a heading names its set: "Hard Clues"), with `has` (a place, or a list's `share` and `parts`) or `missing` (why), or both and `short` (the slots a short list leaves unfilled) |
+| `missing` | the parts it lacked at assembly |
+| `tries` | every try, found or not, in the order made: `step` (`issue`: the issue's own pieces and answer pages; `pointed`: the pages the issue names; `next`: the next issue), `part`, `how`, `looked_at` (pages, or how many pieces), `result` (`found`, `found part`, `near: <why>`, `nothing fits`, `none`, `not searched: <why>`), and what came closest (`best`, or the answer lists and the `letters` they give, `squares` [given, white], `disagree`) |
+| `linked` | what was found and linked: `part`, `as` (`answer grid`: a key found on a page by its black squares, with its place, `differ`, `recovered`; `answers as text`: the answers printed as lists, with `lists`, `letters`, `squares`, `disagree` and `whole`; `clue list`), `step` |
+| `still_missing` | the parts still lacking after the search. A key linked in part (`whole` false) is still missing |
+| `requests` | for each part still missing, a page asked for: `part`, `scan`, `leaves` (empty when no page is known), `kind` (`fetch`: not in the harvest; `look`: in the harvest and searched, or not read for this issue), `why`. Recorded only: nothing fetches it yet |
+
+What a caller sees: `watch.Watch._assemble` links what was found into the result it returns
+(xword-ocr `missing.apply`): a key found as an answer grid becomes the puzzle's `key`, with `found_by`;
+answers printed as text go beside it as `answers_text`; every puzzle gets `search` (its `missing`,
+`still_missing`, `tries` and `requests`). The packet build keeps `search` and `answers_text` in the
+packet's `_assembly/<pid>/assembly.json`; triage gives a missing key's reason the search's line
+(xword-ocr `missing.said`). Answers printed as text are not yet the packet's key: the proof page would
+need to show the lists they were read from beside the letters.
+
+The check reads the record's fields and, with `--artifacts`, the artifact: each expected part is
+`has`, `missing` or short; `missing` names only parts it expects; every missing part was tried; each
+try has a step, a part that was missing and a result; each link is of a missing part; every part still
+missing has a page asked for.
